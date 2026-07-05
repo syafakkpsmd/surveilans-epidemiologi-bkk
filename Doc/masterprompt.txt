@@ -1,0 +1,423 @@
+# MASTER PROMPT — Surveilans Epidemiologi BKK Kelas I Samarinda
+
+Dokumen ini berisi prompt siap-pakai, dipecah per segmen. **Setiap segmen berdiri
+sendiri** — kalau Anda buka sesi AI baru (di VS Code, Claude Code, Cursor, atau
+AI apa pun), cukup salin **satu blok segmen** yang relevan beserta bagian
+"KONTEKS PROYEK" di bawah ini. AI tidak perlu membaca riwayat percakapan lain.
+
+Kerjakan segmen SECARA URUT (1 → 8). Jangan lompat, karena tiap segmen
+mengasumsikan segmen sebelumnya sudah selesai dan berjalan tanpa error.
+
+---
+
+## KONTEKS PROYEK (WAJIB disalin di depan SETIAP prompt segmen)
+
+```
+KONTEKS PROYEK — Surveilans Epidemiologi BKK Kelas I Samarinda
+
+Nama aplikasi : Surveilans Epidemiologi BKK Kelas I Samarinda
+Institusi     : Balai Kekarantinaan Kesehatan (BKK) Kelas I Samarinda,
+                Ditjen P2P, Kementerian Kesehatan RI
+Tujuan        : Dashboard internal untuk memantau kegiatan pengawasan
+                kapal (COP - Certificate of Pratique & PHQC - Port
+                Health Quarantine Clearance) di 6 wilayah kerja
+                (Samarinda, TanjungSantan, TanjungLaut, Lhoktuan,
+                Sangatta, Sangkulirang), dianalisis per minggu
+                epidemiologi (standar WHO/CDC MMWR) dan per bulan.
+
+STACK (JANGAN DIUBAH TANPA ALASAN KUAT):
+- Next.js 15, App Router (folder `app/`, BUKAN `pages/`)
+- TypeScript, strict mode
+- Tailwind CSS
+- Supabase (PostgreSQL + Auth + RLS), akses via paket `@supabase/ssr`
+  (BUKAN `@supabase/auth-helpers-nextjs` yang sudah deprecated)
+- Autentikasi: Supabase Auth, email/password
+- Hosting: Vercel
+- Repo: GitHub
+
+ATURAN WAJIB Next.js 15 (penyebab bug paling umum kalau diabaikan):
+1. `params` dan `searchParams` di Server Component / Route Handler
+   sekarang berupa Promise dan HARUS di-`await`:
+   `const { id } = await params;`  -- bukan `params.id` langsung.
+2. Import navigasi dari `next/navigation`, BUKAN `next/router`
+   (`next/router` adalah API Pages Router lama).
+3. Server Component adalah default. Tambahkan `'use client'` HANYA
+   kalau komponen butuh hook (useState/useEffect), event handler,
+   atau browser API.
+4. Untuk Supabase di Server Component/Route Handler, buat client
+   terpisah untuk server (`createServerClient` dari `@supabase/ssr`,
+   pakai `cookies()` dari `next/headers`) dan untuk client
+   (`createBrowserClient`). Jangan campur keduanya dalam satu file.
+5. Middleware autentikasi WAJIB me-refresh session token Supabase di
+   setiap request (pola resmi `@supabase/ssr` untuk Next.js), kalau
+   tidak, sesi akan expired secara tidak konsisten.
+
+SKEMA DATABASE YANG SUDAH ADA (jangan mengarang nama kolom lain):
+
+Tabel `kegiatan_cop`:
+  wilayah_kerja, nama_kapal, bendera_kapal, negara_kedatangan,
+  tgl_kedatangan (date), jml_abk_wna (int), jml_abk_wni (int),
+  rba (text: Hijau/Kuning/Merah), faktor_risiko, daerah_terjangkit,
+  kelengkapan_dokumen, orang_sakit, keberadaan_vektor, sanitasi,
+  status_kirim (text, dipakai oleh Google Apps Script sync, JANGAN
+  dihapus/diubah skemanya)
+
+Tabel `kegiatan_phqc`:
+  wilayah_kerja, nama_kapal, bendera, jml_abk_wna (int),
+  jml_abk_wni (int), jml_penumpang_wna (int), jml_penumpang_wni (int),
+  tgl_keberangkatan (date), tujuan_berlayar, pelabuhan_kedatangan,
+  pelabuhan_tujuan, rba (text: Hijau/Kuning/Merah),
+  status_kirim (text, JANGAN diubah skemanya)
+
+Fungsi SQL `mmwr_week(date) RETURNS TABLE(tahun_epid int, minggu_epid int)`
+  -- menghitung minggu epidemiologi standar WHO/CDC (mulai hari Minggu),
+  sudah ada di database, JANGAN dibuat ulang dengan logika berbeda.
+
+Views yang sudah ada (siap dipakai, JANGAN dibuat ulang):
+  view_kegiatan_cop_enriched, view_mingguan_ringkasan,
+  view_bulanan_ringkasan, view_mingguan_kategori, view_bulanan_kategori
+  view_kegiatan_phqc_enriched, view_mingguan_ringkasan_phqc,
+  view_bulanan_ringkasan_phqc, view_mingguan_kategori_phqc,
+  view_bulanan_kategori_phqc
+
+DESIGN TOKENS (dipakai konsisten di semua halaman):
+  Warna dasar   : background #EEF1F4, surface card #FFFFFF
+  Warna utama   : navy gelap #0F2A38 (header/navbar), teal #0F4C5C (aksen)
+  Warna risiko  : hijau #2F9E44 (aman), kuning #F0A202 (waspada),
+                  merah #D62839 (bahaya) -- SELALU dipetakan dari nilai
+                  kolom `rba`, jangan pakai warna risiko untuk hal lain
+  Tipografi     : system font stack (system-ui, -apple-system,
+                  "Segoe UI", sans-serif), tanpa font eksternal
+  Radius        : 10px untuk card, 8px untuk input/button, 999px untuk pill
+  Bahasa UI     : Bahasa Indonesia, istilah kesehatan masyarakat baku
+                  (KLB, SKDR, RBA, minggu epidemiologi)
+```
+
+---
+
+## SEGMEN 1 — Inisialisasi Proyek & Infrastruktur
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 1: Inisialisasi proyek.
+
+Lakukan:
+1. Buat struktur folder App Router standar:
+   app/
+     layout.tsx          (root layout)
+     page.tsx            (redirect ke /dashboard kalau sudah login,
+                           ke /login kalau belum)
+     globals.css
+   lib/
+     supabase/
+       client.ts          (createBrowserClient)
+       server.ts           (createServerClient, pakai cookies() dari
+                            next/headers)
+       middleware.ts        (helper untuk refresh session)
+   middleware.ts          (di root, pakai helper dari lib/supabase/middleware.ts)
+   types/
+     database.types.ts    (placeholder, akan diisi di Segmen 2)
+
+2. Konfigurasi Tailwind: tambahkan warna kustom di tailwind.config
+   sesuai DESIGN TOKENS di atas (navy, teal, risiko hijau/kuning/merah)
+   supaya bisa dipakai sebagai className (mis. bg-navy, text-teal).
+
+3. Buat file .env.local.example (BUKAN .env.local asli) berisi nama
+   variable saja tanpa value:
+   NEXT_PUBLIC_SUPABASE_URL=
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=
+   SUPABASE_SERVICE_ROLE_KEY=
+
+4. Pastikan `npm run build` sukses tanpa error TypeScript sebelum
+   menganggap segmen ini selesai.
+
+KRITERIA SELESAI:
+- `npm run dev` jalan tanpa error di http://localhost:3000
+- `npm run build` sukses
+- middleware.ts ada dan tidak error (boleh sementara belum ada logic auth)
+
+JANGAN mengerjakan halaman login, navbar, atau dashboard di segmen ini.
+Itu ada di segmen selanjutnya.
+```
+
+---
+
+## SEGMEN 2 — Skema Database, Tipe TypeScript & Supabase Client
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 2: Hubungkan proyek ke Supabase dan buat tipe TypeScript
+yang akurat untuk seluruh tabel & view yang disebut di KONTEKS PROYEK.
+
+Lakukan:
+1. Isi lib/supabase/client.ts dan lib/supabase/server.ts menggunakan
+   @supabase/ssr sesuai pola resmi (createBrowserClient di client.ts,
+   createServerClient + cookies() di server.ts).
+
+2. Buat types/database.types.ts berisi interface TypeScript untuk:
+   - KegiatanCop (semua kolom di tabel kegiatan_cop)
+   - KegiatanPhqc (semua kolom di tabel kegiatan_phqc)
+   - RingkasanMingguan / RingkasanBulanan (kolom dari
+     view_mingguan_ringkasan / view_bulanan_ringkasan, ada versi
+     _cop dan _phqc dengan bentuk field yang sedikit berbeda -- lihat
+     KONTEKS PROYEK untuk kolom pastinya)
+   - KategoriBreakdown (kolom dari view_mingguan_kategori /
+     view_bulanan_kategori: tahun_epid|tahun, minggu_epid|bulan,
+     wilayah_kerja, kategori, nilai, jumlah)
+
+   PENTING: kalau memungkinkan, tawarkan opsi generate tipe otomatis
+   dari Supabase CLI (`supabase gen types typescript`) sebagai
+   alternatif menulis manual -- tapi tetap sediakan versi manual di
+   atas sebagai fallback kalau Supabase CLI belum di-setup user.
+
+3. Buat lib/supabase/queries.ts berisi fungsi-fungsi query dasar
+   (bukan komponen UI), misalnya:
+   - getRingkasanMingguan(tabel: 'cop'|'phqc', tahun: number)
+   - getKategoriBreakdown(tabel: 'cop'|'phqc', filter: {...})
+   Semua fungsi ini dipanggil dari Server Component nanti.
+
+KRITERIA SELESAI:
+- Tidak ada error TypeScript.
+- Fungsi di queries.ts bisa dipanggil dan mengembalikan data asli dari
+  Supabase kalau .env.local sudah diisi kredensial asli (user akan
+  mengisi sendiri, jangan minta kredensial ke AI).
+```
+
+---
+
+## SEGMEN 3 — Autentikasi (Supabase Auth email/password)
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 3: Implementasi login/logout dengan Supabase Auth.
+
+Lakukan:
+1. Halaman app/login/page.tsx: form email + password, styling sesuai
+   DESIGN TOKENS (background #EEF1F4, card putih rounded 10px, tombol
+   teal #0F4C5C).
+2. Route handler app/auth/callback/route.ts (kalau pakai magic link)
+   ATAU langsung sign-in via supabase.auth.signInWithPassword kalau
+   email/password biasa (sesuai KONTEKS: email/password, bukan magic
+   link -- jadi callback route TIDAK diperlukan, sign-in langsung di
+   Client Component form).
+3. middleware.ts: redirect ke /login kalau belum ada session dan
+   mengakses halaman selain /login itu sendiri. Redirect ke /dashboard
+   kalau sudah login dan mengakses /login.
+4. Tombol logout di navbar (akan dibuat di Segmen 4) yang memanggil
+   supabase.auth.signOut() lalu redirect ke /login.
+5. Halaman/route untuk admin membuat akun user BARU tidak perlu dibuat
+   di segmen ini -- asumsikan akun dibuat manual lewat Supabase
+   dashboard oleh admin.
+
+KRITERIA SELESAI:
+- User bisa login dengan email/password yang sudah dibuat manual di
+  Supabase Auth dashboard.
+- Mengakses /dashboard tanpa login otomatis redirect ke /login.
+- Setelah login, redirect ke /dashboard.
+- Logout mengembalikan ke /login dan session benar-benar hilang
+  (verifikasi: refresh halaman /dashboard setelah logout harus
+  redirect ke /login, bukan cache halaman lama).
+```
+
+---
+
+## SEGMEN 4 — Layout Global: Navbar, Banner, Live Clock, Footer
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 4: Bangun layout global yang dipakai di semua halaman
+setelah login (app/(dashboard)/layout.tsx atau serupa).
+
+REFERENSI VISUAL (gaya yang diinginkan, bukan untuk ditiru persis --
+ambil semangat "dashboard kesehatan masyarakat yang informatif dan
+punya urgensi", bukan mendesain ulang logo instansi):
+- Ada badge waktu real-time bergaya "Min 05 Jul 2026 | 16:16:50 WIB"
+  di pojok kanan atas, di sebelahnya indikator "● LIVE" berkedip halus
+  (pulsing dot merah/hijau, animasi ringan, JANGAN berlebihan)
+- Header/banner rapi dengan nama instansi, judul aplikasi, dan periode
+  data yang sedang ditampilkan (minggu ke-berapa / bulan apa)
+
+Lakukan:
+1. Komponen client LiveClock.tsx ('use client'): menampilkan tanggal +
+   jam WIB yang update setiap detik pakai setInterval di dalam
+   useEffect (ingat: bersihkan interval di cleanup function supaya
+   tidak memory leak). Format: "Min 05 Jul 2026 | 16:16:50 WIB" (locale
+   Indonesia, hari disingkat 3 huruf).
+2. Komponen LiveBadge.tsx: dot kecil warna hijau/merah dengan animasi
+   pulse CSS (@keyframes, bukan JS interval) + teks "LIVE".
+3. Navbar.tsx: logo/nama instansi di kiri, menu navigasi (Dashboard,
+   Kegiatan COP, Kegiatan PHQC) di tengah/kiri-tengah, LiveClock +
+   LiveBadge + tombol logout di kanan. Background navy #0F2A38, teks
+   putih. Responsif: menu jadi hamburger di layar sempit.
+4. Footer.tsx sederhana: nama instansi + tahun berjalan.
+5. Gabungkan di app/(dashboard)/layout.tsx: Navbar di atas, children
+   (isi halaman) di tengah, Footer di bawah.
+
+KRITERIA SELESAI:
+- Jam di navbar benar-benar berjalan (update tiap detik) tanpa
+  menyebabkan seluruh halaman re-render (isolasi state jam HANYA di
+  komponen LiveClock, bukan di layout/page level).
+- Navbar tetap terlihat rapi di lebar layar HP (375px) dan desktop.
+- Tidak ada console warning tentang hydration mismatch (hindari
+  memformat waktu berbeda antara server-render pertama dan client --
+  render placeholder statis dulu di server, baru mulai jam berjalan
+  setelah mount di client, untuk mencegah hydration error klasik
+  Next.js untuk konten yang bergantung waktu).
+```
+
+---
+
+## SEGMEN 5 — Halaman Utama Dashboard (Ringkasan KPI)
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 5: Halaman app/(dashboard)/dashboard/page.tsx sebagai
+ringkasan utama, terinspirasi gaya poster surveilans (kartu indikator
+donut/angka besar, breakdown per wilayah kerja, tabel top kategori,
+panel rekomendasi) TAPI disesuaikan dengan data yang benar-benar ada
+(kegiatan_cop & kegiatan_phqc), JANGAN mengarang indikator yang datanya
+tidak tersedia (misal jangan bikin "ketepatan laporan %" kalau tidak
+ada mekanisme pelaporan per unit yang bisa dihitung dari skema ini).
+
+Lakukan (Server Component, ambil data lewat fungsi dari
+lib/supabase/queries.ts yang dibuat di Segmen 2):
+1. Baris atas: kartu ringkasan minggu epidemiologi berjalan saat ini
+   (hitung otomatis dari tanggal hari ini menggunakan logika yang SAMA
+   dengan mmwr_week -- port fungsi itu ke TypeScript di
+   lib/epi-week.ts supaya konsisten dengan database, jangan pakai
+   library minggu ISO lain): jumlah kapal COP, jumlah kapal PHQC,
+   total ABK, breakdown RBA (jumlah Hijau/Kuning/Merah dengan warna
+   sesuai DESIGN TOKENS).
+2. Grid kartu per wilayah kerja (6 wilayah): jumlah kunjungan kapal
+   minggu ini per wilayah, dengan bar horizontal sederhana (CSS,
+   bukan library chart) untuk perbandingan cepat.
+3. Bagian "Top Kategori Minggu Ini": ambil dari view_mingguan_kategori
+   / view_mingguan_kategori_phqc untuk kategori rba dan
+   daerah_terjangkit (COP) -- tampilkan sebagai list dengan bar,
+   bukan tabel mentah.
+4. Tautan/tombol ke halaman detail: "Lihat Dashboard COP Lengkap" dan
+   "Lihat Dashboard PHQC Lengkap" (link ke halaman Segmen 6 & 7).
+5. State kosong: kalau belum ada data untuk minggu berjalan, tampilkan
+   pesan yang jelas ("Belum ada kegiatan tercatat untuk Minggu
+   Epidemiologi ke-X tahun Y") -- bukan kartu kosong tanpa penjelasan.
+
+KRITERIA SELESAI:
+- Halaman menampilkan data ASLI dari Supabase (bukan data dummy)
+  untuk minggu epidemiologi berjalan.
+- Loading state ditangani dengan benar (Server Component -> pakai
+  loading.tsx App Router, bukan spinner manual di client).
+- Semua warna RBA konsisten dengan DESIGN TOKENS.
+```
+
+---
+
+## SEGMEN 6 — Modul Kegiatan COP
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 6: Halaman app/(dashboard)/cop/page.tsx.
+
+Lakukan:
+1. Toggle Mingguan/Bulanan + filter wilayah kerja (Server Component
+   dengan searchParams -- INGAT: di Next.js 15 searchParams adalah
+   Promise, harus di-await sebelum dipakai).
+2. Grafik tren (jumlah kapal, total ABK, ABK WNA, ABK WNI) dari
+   view_mingguan_ringkasan / view_bulanan_ringkasan, filter wilayah_kerja.
+   Pakai library recharts (install kalau belum ada).
+3. Breakdown kategori (negara_kedatangan, rba, faktor_risiko,
+   kelengkapan_dokumen, daerah_terjangkit, keberadaan_vektor,
+   bendera_kapal) dari view_mingguan_kategori / view_bulanan_kategori,
+   ditampilkan sebagai grid card bar-list (pola sama seperti dashboard
+   artifact yang sudah pernah dibuat sebelumnya untuk referensi visual,
+   sesuaikan ke React Server/Client Component split yang benar: bagian
+   interaktif seperti klik-filter di Client Component, fetching data
+   awal di Server Component).
+4. Tabel data mentah (opsional, collapsible) untuk kebutuhan
+   verifikasi/audit data oleh petugas.
+
+KRITERIA SELESAI:
+- Filter wilayah & toggle mingguan/bulanan berfungsi tanpa full page
+  reload yang mengganggu (gunakan client-side state + fetch, atau
+  Server Component dengan router.push ke searchParams baru -- pilih
+  salah satu pola secara konsisten, jangan campur).
+- Data grafik sesuai dengan data di Supabase (uji dengan minimal 2
+  minggu epidemiologi berbeda).
+```
+
+---
+
+## SEGMEN 7 — Modul Kegiatan PHQC
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 7: Halaman app/(dashboard)/phqc/page.tsx.
+
+Sama persis polanya dengan SEGMEN 6, tapi:
+- Sumber data: view_mingguan_ringkasan_phqc / view_bulanan_ringkasan_phqc
+  dan view_mingguan_kategori_phqc / view_bulanan_kategori_phqc
+- Field tanggal acuan: tgl_keberangkatan (BUKAN tgl_kedatangan)
+- Kategori breakdown: bendera, rba, tujuan_berlayar,
+  pelabuhan_kedatangan, pelabuhan_tujuan (TIDAK ADA faktor_risiko,
+  daerah_terjangkit, keberadaan_vektor, kelengkapan_dokumen -- kolom
+  itu tidak ada di kegiatan_phqc, JANGAN ditambahkan)
+- Grafik tren tambahkan metrik Total Penumpang (WNA+WNI) selain ABK
+
+KRITERIA SELESAI: sama seperti Segmen 6, disesuaikan skema PHQC.
+```
+
+---
+
+## SEGMEN 8 — Deployment ke Vercel
+
+```
+[Salin KONTEKS PROYEK di atas, lalu tempel ini di bawahnya]
+
+TUGAS SEGMEN 8: Siapkan aplikasi untuk deploy produksi.
+
+Lakukan:
+1. Cek next.config.js/ts: pastikan tidak ada konfigurasi yang cuma
+   valid untuk Pages Router (mis. `experimental.appDir` yang sudah
+   tidak diperlukan lagi di Next.js 15 -- App Router sudah stabil).
+2. Buat vercel.json HANYA kalau ada kebutuhan khusus (region, redirects)
+   -- kalau tidak ada, biarkan Vercel pakai auto-detect Next.js
+   (JANGAN menimpa framework preset secara manual kalau tidak perlu,
+   ini sumber bug klasik: root directory/preset salah).
+3. Daftar environment variables yang HARUS di-set di dashboard Vercel
+   (Project Settings > Environment Variables), untuk Production DAN
+   Preview:
+   - NEXT_PUBLIC_SUPABASE_URL
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - SUPABASE_SERVICE_ROLE_KEY (kalau dipakai di server actions)
+4. Pastikan .env.local ada di .gitignore (JANGAN sampai ter-commit).
+5. Checklist pra-deploy:
+   - `npm run build` sukses di lokal
+   - Root Directory di Vercel project settings kosong/benar (bukan
+     menunjuk ke subfolder yang salah)
+   - Framework Preset terdeteksi otomatis sebagai "Next.js"
+
+KRITERIA SELESAI:
+- Deploy production berhasil di Vercel, halaman /login dan /dashboard
+  bisa diakses via domain *.vercel.app, dan login benar-benar
+  terhubung ke Supabase production (uji end-to-end: login -> lihat
+  data asli -> logout).
+```
+
+---
+
+## Catatan Penggunaan
+
+- Kalau di tengah mengerjakan satu segmen AI-nya "nyasar" (menambahkan
+  fitur di luar cakupan segmen, atau mengubah skema yang sudah
+  ditentukan), tegur dan tempel ulang bagian KONTEKS PROYEK + segmen
+  yang sama -- jangan lanjut ke segmen berikutnya sebelum yang
+  sekarang benar-benar sesuai kriteria selesai.
+- Simpan file ini di root repo (misal `MASTER_PROMPT.md`) supaya siapa
+  pun yang melanjutkan proyek (termasuk Anda sendiri di sesi lain)
+  punya rujukan yang sama persis.

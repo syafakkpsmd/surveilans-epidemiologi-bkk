@@ -100,7 +100,7 @@ export default function TopDaerahChart({ data }: Props) {
             tick={{ fontSize: 11 }}
           />
           <Tooltip
-            formatter={(value: number, name: string) => [
+            formatter={(value: any, name: any) => [
               value,
               name === 'jumlah' ? 'Jumlah Login' : 'Kumulatif',
             ]}

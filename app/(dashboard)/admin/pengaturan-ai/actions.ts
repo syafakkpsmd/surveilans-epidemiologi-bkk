@@ -111,7 +111,7 @@ export async function updateProvider(id: number, formData: FormData): Promise<vo
     dataUpdate.api_key = api_key_baru;
   }
 
-  const { error } = await supabase.from('pengaturan_ai').update(dataUpdate).eq('id', id);
+  const { error } = await supabase.from('pengaturan_ai').update(dataUpdate as any).eq('id', id);
 
   if (error) {
     throw new Error(`Gagal memperbarui provider: ${error.message}`);

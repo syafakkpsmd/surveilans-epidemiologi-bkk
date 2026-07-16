@@ -2,18 +2,36 @@
 
 import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { KotaPesawatBulanan } from "@/lib/data/queries";
 import DropdownMultiSelect from "@/components/ui/DropdownMultiSelect";
 
-const NAMA_BULAN = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
-const WARNA = ["#0f766e","#b45309","#7c3aed","#dc2626","#0369a1","#65a30d","#db2777"];
+// Deklarasi tipe data lokal agar mandiri dan tidak memicu error modul eksternal yang hilang
+export interface KotaPesawatBulanan {
+  tahun: number;
+  bulan: number;
+  kota: string;
+  jumlah_penerbangan?: number;
+  total_penumpang: number;
+  [key: string]: any;
+}
+
+const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const WARNA = ["#0f766e", "#b45309", "#7c3aed", "#dc2626", "#0369a1", "#65a30d", "#db2777"];
 
 export default function GrafikTrenKotaPesawat({ data, judul }: { data: KotaPesawatBulanan[]; judul: string }) {
   const semuaKota = useMemo(
     () => Array.from(new Set(data.map((d) => d.kota).filter((k): k is string => !!k && k.trim() !== ''))).sort(),
     [data]
   );
-  const [kotaTerpilih, setKotaTerpilih] = useState<string[]>(semuaKota.slice(0, 3));
+
+  // Gunakan state dengan fallback pengaman agar inisialisasi awal tidak memicu error rendering
+  const [kotaTerpilih, setKotaTerpilih] = useState<string[]>(() => semuaKota.slice(0, 3));
+
+  // Singkronkan ulang state jika semuaKota terisi setelah data-fetch selesai
+  useMemo(() => {
+    if (kotaTerpilih.length === 0 && semuaKota.length > 0) {
+      setKotaTerpilih(semuaKota.slice(0, 3));
+    }
+  }, [semuaKota]);
 
   const chartData = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
@@ -50,7 +68,9 @@ export default function GrafikTrenKotaPesawat({ data, judul }: { data: KotaPesaw
         <LineChart data={chartData}>
           <XAxis dataKey="bulan" />
           <YAxis />
-          <Tooltip />
+          <Tooltip 
+            formatter={(value: any, name: any) => [value, String(name)]}
+          />
           <Legend />
           {kotaTerpilih.map((kota, i) => (
             <Line key={kota} type="monotone" dataKey={kota} stroke={WARNA[i % WARNA.length]} />

@@ -1,0 +1,43 @@
+name: Scrape Data Penyakit Global Emerging
+
+on:
+  schedule:
+    # Setiap Senin jam 01:00 UTC (~08:00 WIB)
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+    inputs:
+      full_backfill:
+        description: 'Ambil seluruh histori data (bukan cuma 90 hari terakhir)'
+        required: false
+        default: 'false'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r scripts/global_emerging/requirements.txt
+
+      - name: Jalankan scraper mingguan
+        working-directory: scripts/global_emerging
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FULL_BACKFILL: ${{ github.event.inputs.full_backfill || 'false' }}
+        run: python run.py mingguan
+
+      - name: Jalankan scraper bulanan
+        working-directory: scripts/global_emerging
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FULL_BACKFILL: ${{ github.event.inputs.full_backfill || 'false' }}
+        run: python run.py bulanan

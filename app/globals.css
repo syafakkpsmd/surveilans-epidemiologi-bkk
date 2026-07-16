@@ -28,6 +28,7 @@
   --color-background: var(--color-bg);
   --color-foreground: var(--color-ink);
 
+  --color-bg: var(--color-bg);
   --color-navy: var(--color-navy);
   --color-teal: var(--color-teal);
   --color-surface: var(--color-surface);

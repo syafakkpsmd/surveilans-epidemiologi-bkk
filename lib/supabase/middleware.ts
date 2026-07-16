@@ -1,16 +1,21 @@
-import { createServerClient } from "@supabase/ssr";
-import { type NextRequest, NextResponse } from "next/server";
-
 /**
- * Merefresh session Supabase (kalau perlu) di setiap request yang lolos
- * matcher di middleware.ts. Ini WAJIB ada supaya session tidak expired
- * secara tidak konsisten antar Server Component.
+ * Helper dipanggil dari middleware.ts di root project.
  *
- * Logika PROTEKSI ROUTE (redirect ke /login kalau belum login) SENGAJA
- * belum ditambahkan di sini -- itu bagian dari Segmen 3 (Autentikasi),
- * karena butuh halaman /login sudah ada dulu supaya tidak salah redirect
- * ke halaman yang belum dibuat.
+ * TUGAS SATU-SATUNYA fungsi ini: me-refresh token sesi Supabase di
+ * setiap request (pola resmi @supabase/ssr untuk Next.js), supaya
+ * status login (getUserRole, supabase.auth.getUser() di Server
+ * Component) selalu akurat.
+ *
+ * SENGAJA TIDAK ADA logika redirect ke /login di sini. Sesuai
+ * KONTEKS PROYEK: dashboard bisa diakses tanpa login (sebagai Tamu).
+ * Redirect ke /login hanya boleh terjadi kalau user mengklik tombol
+ * "Login" secara eksplisit (link biasa ke /login), BUKAN dipaksa oleh
+ * middleware.
  */
+
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -23,9 +28,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -35,11 +38,13 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Memanggil getUser() (bukan getSession()) supaya token diverifikasi ulang
-  // ke server Supabase, bukan hanya dibaca dari cookie yang bisa saja sudah
-  // kedaluwarsa. Hasilnya sengaja tidak dipakai di sini -- baru dipakai
-  // untuk logika redirect di Segmen 3.
+  // WAJIB dipanggil (bukan cuma dibaca hasilnya) supaya token direfresh
+  // kalau sudah kedaluwarsa. Jangan hapus baris ini meski nilainya
+  // tidak dipakai langsung di sini.
   await supabase.auth.getUser();
+
+  // TIDAK ADA pengecekan "kalau belum login, redirect ke /login" di
+  // sini -- lihat komentar di atas. Middleware ini murni refresh sesi.
 
   return supabaseResponse;
 }

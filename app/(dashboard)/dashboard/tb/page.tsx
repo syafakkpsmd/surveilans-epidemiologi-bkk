@@ -1,7 +1,3 @@
-// ================================================================
-// SEGMEN 12 — app/(dashboard)/dashboard/tb/page.tsx
-// ================================================================
-
 import { getRingkasanTb, getWilkerRef } from '@/lib/supabase/queries';
 import {
   getBreakdownKategori,
@@ -56,6 +52,15 @@ export default async function TbPage({
     positif_tcm: r.total_positif_tcm,
   }));
 
+  // 1. Ambil status login (pasti true di rute dashboard terproteksi)
+  const sudahLogin = true;
+
+  // 2. Format periodeKey secara dinamis menggunakan minggu epidemiologi (misal: "2026-W28")
+  const periodeKey = `${tahunBerjalan}-W${String(mingguBerjalan).padStart(2, '0')}`;
+
+  // 3. Ambil wilayah kerja secara aman berdasarkan parameter filter URL
+  const wilayahKerja = wilker === "Semua" ? undefined : wilker;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -67,7 +72,15 @@ export default async function TbPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FilterWilker daftarWilker={daftarWilker} />
-          <TombolAnalisisAI role={role} konteks="tb-mingguan" />
+          
+          {/* Tombol Analisis AI dengan parameter lengkap & terstandarisasi */}
+          <TombolAnalisisAI
+            sudahLogin={sudahLogin}
+            role={role as any}
+            konteks="tb-mingguan"
+            periodeKey={periodeKey}
+            wilayahKerja={wilayahKerja}
+          />
         </div>
       </div>
 

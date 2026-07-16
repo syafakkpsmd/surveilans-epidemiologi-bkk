@@ -1,7 +1,3 @@
-// ================================================================
-// SEGMEN 12 — app/(dashboard)/dashboard/malaria/page.tsx
-// ================================================================
-
 import { getRingkasanMalaria, getWilkerRef } from '@/lib/supabase/queries';
 import {
   getBreakdownKategori,
@@ -56,6 +52,15 @@ export default async function MalariaPage({
     diperiksa: r.total_diperiksa,
   }));
 
+  // 1. Definisikan status login secara eksplisit untuk rute dashboard terproteksi
+  const sudahLogin = true;
+
+  // 2. Susun format periodeKey secara dinamis (contoh hasil: "2026-W28")
+  const periodeKey = `${tahunBerjalan}-W${String(mingguBerjalan).padStart(2, '0')}`;
+
+  // 3. Tentukan wilayah kerja secara aman berdasarkan parameter URL
+  const wilayahKerja = wilker === "Semua" ? undefined : wilker;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -67,7 +72,15 @@ export default async function MalariaPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FilterWilker daftarWilker={daftarWilker} />
-          <TombolAnalisisAI role={role} konteks="malaria-mingguan" />
+          
+          {/* Tombol Analisis AI dengan parameter lengkap & terstandarisasi */}
+          <TombolAnalisisAI
+            sudahLogin={sudahLogin}
+            role={role as any}
+            konteks="malaria-mingguan"
+            periodeKey={periodeKey}
+            wilayahKerja={wilayahKerja}
+          />
         </div>
       </div>
 

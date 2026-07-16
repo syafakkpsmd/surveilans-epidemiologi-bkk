@@ -264,7 +264,7 @@ export default async function AlatAngkutPesawatPage({
         </div>
 
         <div className="lg:col-span-2">
-          <GrafikSertifikatGenderBulanan data={dataGenderBulananBerlabel} />
+          <GrafikSertifikatGenderBulanan data={dataGenderBulananBerlabel as Record<string, any>[]} />
         </div>
 
         {/* ================= BREAKDOWN ================= */}

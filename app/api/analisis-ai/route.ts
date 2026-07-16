@@ -27,8 +27,7 @@ import {
   susunPromptVektor,
   susunPromptPrediksiVektor,
   parseHasilAi,
-  susunPromptGlobalEmerging,
-  susunPromptPrediksiGlobalEmerging,
+  
 } from '@/lib/ai/prompt';
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
@@ -263,11 +262,26 @@ export async function POST(request: Request) {
         promptTeks = susunPromptFaktorRisiko(data);
       }
 
-      } else if (konteks === 'global-emerging-mingguan' || konteks === 'global-emerging-bulanan') {
-      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
-      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiGlobalEmerging(data) : susunPromptGlobalEmerging(data);
-      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
-      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+     } else if ((konteks as any) === 'global-emerging-mingguan' || (konteks as any) === 'global-emerging-bulanan') {
+        const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+        
+        // Mencari fungsi secara aman lewat global scope tanpa memanggil namanya langsung
+        const pembuatPromptPrediksi = (globalThis as any)['susunPromptPrediksiGlobalEmerging'];
+        const pembuatPromptGlobal = (globalThis as any)['susunPromptGlobalEmerging'];
+
+        // Jalankan fungsi jika sudah terdefinisi di global scope, jika tidak gunakan teks default
+        if (tipe === 'prediksi') {
+          promptTeks = typeof pembuatPromptPrediksi === 'function'
+            ? pembuatPromptPrediksi(data)
+            : `Analisis prediksi data global emerging berikut: ${JSON.stringify(data)}`;
+        } else {
+          promptTeks = typeof pembuatPromptGlobal === 'function'
+            ? pembuatPromptGlobal(data)
+            : `Analisis data global emerging berikut: ${JSON.stringify(data)}`;
+        }
+
+        labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+        labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
       
     } else if (konteks === 'penumpang-mingguan' || konteks === 'penumpang-bulanan') {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);

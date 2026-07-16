@@ -52,7 +52,7 @@ export default async function VektorTikusPage({
       daftarWilker={daftarWilker}
       dataMingguan={dataMingguan}
       dataBulanan={dataBulanan}
-      role={getValidRole(role)}
+      role={role ?? ""}
       tahunBerjalan={tahunEpid}
       mingguBerjalan={mingguEpid}
       wilkerParam={wilker}

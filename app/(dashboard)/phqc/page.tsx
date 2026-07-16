@@ -471,13 +471,13 @@ export default async function PhqcPage({
                 <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
                   RBA — Total Tahun {tahun}
                 </h3>
-                <DonutBreakdown data={kategoriData.rba} warnaMap={WARNA_RBA} />
+                <DonutBreakdown data={kategoriData.rba} />
               </div>
               <div className="rounded-card bg-surface p-6">
                 <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
                   RBA — {mode === "mingguan" ? `Minggu Epidemiologi ke-${mingguEpidTampilan}` : `Bulan ${NAMA_BULAN[bulanTampilan - 1]} ${tahun}`}
                 </h3>
-                <DonutBreakdown data={kategoriRbaPeriodeIni} warnaMap={WARNA_RBA} />
+                <DonutBreakdown data={kategoriRbaPeriodeIni} />
               </div>
             </div>
 

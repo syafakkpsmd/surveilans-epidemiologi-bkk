@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server';
 import {
   getRingkasanMingguan,
   getRingkasanBulanan,
@@ -30,8 +29,6 @@ export const KONTEKS_TREN = [
   'pesawat-bulanan',
   'vektor-dbd-mingguan',
   'vektor-dbd-bulanan',
-  'global-emerging-mingguan',
-  'global-emerging-bulanan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -61,11 +58,9 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'penumpang-bulanan',
   'pesawat-mingguan',
   'pesawat-bulanan',
-  'global-emerging-mingguan',
-  'global-emerging-bulanan',
 ] as const;
 
-export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN, ...KONTEKS_PREDIKSI_NON_VEKTOR] as const;
+export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN] as const;
 
 export type KonteksTren = (typeof KONTEKS_TREN)[number];
 export type KonteksBreakdown = (typeof KONTEKS_BREAKDOWN)[number];
@@ -279,42 +274,6 @@ export async function ambilDataAnalisis(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
-    };
-  }
-
-  if (konteks === 'global-emerging-mingguan' || konteks === 'global-emerging-bulanan') {
-    if (konteks === 'global-emerging-mingguan') {
-      const periodeSaatIni = parsePeriodeMingguan(periodeKey);
-      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya] = await Promise.all([
-        ambilRingkasanGlobalEmergingMingguan(periodeSaatIni),
-        ambilRingkasanGlobalEmergingMingguan(periodeSebelumnya),
-      ]);
-      return {
-        labelKonteks: 'Penyakit Infeksi Emerging (13 negara asal kapal)',
-        labelWilayah: 'Seluruh negara fokus (Global Emerging)',
-        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
-        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
-        ringkasanSaatIni: ringkasEmerging(saatIni),
-        ringkasanSebelumnya: ringkasEmerging(sebelumnya),
-        topKategori: topKategoriEmerging(saatIni),
-      };
-    }
-
-    const periodeSaatIni = parsePeriodeBulanan(periodeKey);
-    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
-      ambilRingkasanGlobalEmergingBulanan(periodeSaatIni),
-      ambilRingkasanGlobalEmergingBulanan(periodeSebelumnya),
-    ]);
-    return {
-      labelKonteks: 'Penyakit Infeksi Emerging (13 negara asal kapal)',
-      labelWilayah: 'Seluruh negara fokus (Global Emerging)',
-      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
-      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
-      ringkasanSaatIni: ringkasEmerging(saatIni),
-      ringkasanSebelumnya: ringkasEmerging(sebelumnya),
-      topKategori: topKategoriEmerging(saatIni),
     };
   }
 

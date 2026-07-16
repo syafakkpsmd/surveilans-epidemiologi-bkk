@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import FilterZonaSubLokasi from "@/components/vektor/FilterZonaSubLokasi";
 import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
+import { PeranUser } from "@/types/database.types";
 
 type WilkerRef = { kode: string; nama: string };
 type VektorTikusClientProps = {
@@ -140,7 +141,7 @@ export default function VektorTikusClient({
 
           <TombolAnalisisAI
             sudahLogin={true}
-            role={role}
+            role={role as PeranUser}
             konteks={`vektor-tikus-${periodeType}`}
             periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
             wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}

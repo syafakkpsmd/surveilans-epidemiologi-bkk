@@ -9,27 +9,27 @@ import { getUserRole } from "@/lib/auth/get-user-role";
 
 const slides = [
   { title: "Pemeriksaan Kapal Dalam Karantina", 
-    image: "/kegiatan-1.jpg",
+    image: "/kegiatan-1.jpeg",
     deskripsi: "Pemeriksaan tanda-tanda kehidupan vektor di kapal MV. Courage."
   },
   { title: "Pengawasan Kapal di Pelabuhan", 
-    image: "/kegiatan-2.jpg", 
+    image: "/kegiatan-2.jpeg", 
     deskripsi: "Pengawasan kapal Penumpang kapal KM. Queen Soya di Pelabuhan Samarinda." 
   },
   { title: "Survei Jentik Anopheles di IKN", 
-    image: "/kegiatan-3.jpg", 
+    image: "/kegiatan-3.jpeg", 
     deskripsi: "Petugas melakukan survei jentik Anopheles pada Rawa yang ada di wilayah Ibu Kota Negara dengan  melakukan pengambilan Sampel." 
   },
   { title: "Pengawasan Vektor di IKN", 
-    image: "/kegiatan-4.jpg", 
+    image: "/kegiatan-4.jpeg", 
     deskripsi: "Pengawasan vektor penyakit di wilayah IKN." 
   },
   { title: "Pemeriksaan Kesehatan di Bandara APT Pranoto", 
-    image: "/kegiatan-5.jpg", 
+    image: "/kegiatan-5.jpeg", 
     deskripsi: "Pemeriksaan Kesehatan pada penumpang di Bandara APT Pranoto." 
   },
   { title: "Pengawasan Penumpang kapal di Pelabuhan", 
-    image: "/kegiatan-6.jpg", 
+    image: "/kegiatan-6.jpeg", 
     deskripsi: "Pemeriksaan lalu lintas Penumpang kapal di Pelabuhan Samarinda." 
   },
 ];

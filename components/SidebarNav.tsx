@@ -295,7 +295,13 @@ export default function SidebarNav({ role }: SidebarNavProps) {
               }
 
               return (
-                <Link key={item.label} href={item.href!} onClick={close} className={rowClasses}>
+                <Link
+                  key={item.label}
+                  href={item.href!}
+                  onClick={close}
+                  prefetch={item.href === "/dashboard/tpp" ? false : undefined}
+                  className={rowClasses}
+                >
                   {rowContent}
                 </Link>
               );

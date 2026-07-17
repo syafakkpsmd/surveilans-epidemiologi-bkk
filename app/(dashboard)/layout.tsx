@@ -11,7 +11,9 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const role = await getUserRole();
-  await catatPageLoad(role);
+  catatPageLoad(role).catch((err) => {
+    console.error("Gagal mencatat page load:", err);
+  });
 
   return (
     <SidebarProvider>

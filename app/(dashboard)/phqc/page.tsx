@@ -234,20 +234,26 @@ export default async function PhqcPage({
     totalAbkKpi = trenData.reduce((a, r) => a + r.total_abk, 0);
     totalPenumpangKpi = trenData.reduce((a, r) => a + r.total_penumpang, 0);
 
-    // 2. Ambil Data Breakdown untuk Kategori Utama
-    for (const k of KATEGORI_LIST) {
-      const rows = mode === "mingguan"
-        ? await getKategoriBreakdown("phqc", "mingguan", {
-            tahun_epid: tahun,
-            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-            kategori: k.key,
-          })
-        : await getKategoriBreakdown("phqc", "bulanan", {
-            tahun,
-            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-            kategori: k.key,
-          });
+    // 2. Ambil Data Breakdown untuk Kategori Utama -- dijalankan PARALEL
+    // (Promise.all), bukan satu-satu berurutan seperti sebelumnya.
+    const hasilSemuaKategori = await Promise.all(
+      KATEGORI_LIST.map((k) =>
+        mode === "mingguan"
+          ? getKategoriBreakdown("phqc", "mingguan", {
+              tahun_epid: tahun,
+              wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+              kategori: k.key,
+            })
+          : getKategoriBreakdown("phqc", "bulanan", {
+              tahun,
+              wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+              kategori: k.key,
+            })
+      )
+    );
 
+    KATEGORI_LIST.forEach((k, idx) => {
+      const rows = hasilSemuaKategori[idx];
       const peta = new Map<string, number>();
       rows.forEach((r) => {
         const nilaiNormal = normalisasiNilaiKategori(r.nilai);
@@ -256,7 +262,7 @@ export default async function PhqcPage({
       kategoriData[k.key] = Array.from(peta.entries())
         .map(([nilai, jumlah]) => ({ nilai, jumlah }))
         .sort((a, b) => b.jumlah - a.jumlah);
-    }
+    });
 
     // 3. Pemrosesan Data Grafik Bagian Bawah Kompatibel (Mingguan & Bulanan)
     const benderaIndonesia = kategoriData.bendera.filter((b) => b.nilai.toLowerCase() === "indonesia");
@@ -266,39 +272,40 @@ export default async function PhqcPage({
       { nilai: "Luar Negeri", jumlah: benderaLuarNegeri.reduce((a, b) => a + b.jumlah, 0) },
     ];
 
-    // Ambil Data RBA Spesifik Periode Tampilan (Mundur 2 Minggu / 2 Bulan)
-    const rowsPeriodeIni = mode === "mingguan"
-      ? await getKategoriBreakdown("phqc", "mingguan", {
-          tahun_epid: tahun,
-          minggu_epid: mingguEpidTampilan,
-          wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-          kategori: "rba",
-        })
-      : await getKategoriBreakdown("phqc", "bulanan", {
-          tahun,
-          bulan: bulanTampilan,
-          wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-          kategori: "rba",
-        });
+    // Ambil Data RBA Spesifik Periode Tampilan + Tren RBA Sepanjang Tahun
+    // secara PARALEL (dua query ini independen satu sama lain).
+    const [rowsPeriodeIni, rowsRbaTahunan] = await Promise.all([
+      mode === "mingguan"
+        ? getKategoriBreakdown("phqc", "mingguan", {
+            tahun_epid: tahun,
+            minggu_epid: mingguEpidTampilan,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "rba",
+          })
+        : getKategoriBreakdown("phqc", "bulanan", {
+            tahun,
+            bulan: bulanTampilan,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "rba",
+          }),
+      mode === "mingguan"
+        ? getKategoriBreakdown("phqc", "mingguan", {
+            tahun_epid: tahun,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "rba",
+          })
+        : getKategoriBreakdown("phqc", "bulanan", {
+            tahun,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "rba",
+          }),
+    ]);
 
     const petaPeriodeIni = new Map<string, number>();
     rowsPeriodeIni.forEach((r) => petaPeriodeIni.set(r.nilai, (petaPeriodeIni.get(r.nilai) ?? 0) + r.jumlah));
     kategoriRbaPeriodeIni = Array.from(petaPeriodeIni.entries())
       .map(([nilai, jumlah]) => ({ nilai, jumlah }))
       .sort((a, b) => b.jumlah - a.jumlah);
-
-    // Pembuatan Garis Tren RBA Sepanjang Tahun (Sumbu disesuaikan mode)
-    const rowsRbaTahunan = mode === "mingguan"
-      ? await getKategoriBreakdown("phqc", "mingguan", {
-          tahun_epid: tahun,
-          wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-          kategori: "rba",
-        })
-      : await getKategoriBreakdown("phqc", "bulanan", {
-          tahun,
-          wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-          kategori: "rba",
-        });
 
     const pivotRba = pivotKategoriDinamis(rowsRbaTahunan, mode, (n) => n);
     trenRbaPeriodik = pivotRba.data;

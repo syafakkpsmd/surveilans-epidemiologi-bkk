@@ -233,8 +233,12 @@ export default async function CopPage({
 
   try {
     // Ambil sumber data section 3 & 4 di awal, sebelum cabang mode di bawah.
-    ringkasanMingguanSemuaWilker = await getRingkasanMingguan("cop", tahunEpidSaatIni);
-    ringkasanBulananSemuaWilker = await getRingkasanBulanan("cop", sekarang.getFullYear());
+    // Dijalankan PARALEL (Promise.all) karena dua query ini independen satu
+    // sama lain -- sebelumnya berurutan, menambah waktu tunggu tanpa perlu.
+    [ringkasanMingguanSemuaWilker, ringkasanBulananSemuaWilker] = await Promise.all([
+      getRingkasanMingguan("cop", tahunEpidSaatIni),
+      getRingkasanBulanan("cop", sekarang.getFullYear()),
+    ]);
 
     if (mode === "mingguan") {
       const ringkasan = await getRingkasanMingguan("cop", tahun);
@@ -336,23 +340,28 @@ seriesNegara = Array.from(totalPerNegara.entries())
   }));
     // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    // Loop 1x untuk SEMUA kategori di KATEGORI_LIST (negara, RBA total
-    // tahun, faktor risiko, dst). Kalau mau tambah kategori baru,
-    // cukup tambah di KATEGORI_LIST -- loop ini otomatis ikut proses.
-    for (const k of KATEGORI_LIST) {
-      const rows =
+// Ambil SEMUA kategori di KATEGORI_LIST secara PARALEL (Promise.all),
+    // bukan satu-satu berurutan seperti sebelumnya -- ini yang paling
+    // besar dampaknya ke waktu loading (7 kategori x 1-2 detik/query
+    // berurutan bisa jadi 10-15 detik sendiri kalau tidak diparalelkan).
+    const hasilSemuaKategori = await Promise.all(
+      KATEGORI_LIST.map((k) =>
         mode === "mingguan"
-          ? await getKategoriBreakdown("cop", "mingguan", {
+          ? getKategoriBreakdown("cop", "mingguan", {
               tahun_epid: tahun,
               wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
               kategori: k.key,
             })
-          : await getKategoriBreakdown("cop", "bulanan", {
+          : getKategoriBreakdown("cop", "bulanan", {
               tahun,
               wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
               kategori: k.key,
-            });
+            })
+      )
+    );
 
+    KATEGORI_LIST.forEach((k, idx) => {
+      const rows = hasilSemuaKategori[idx];
       const peta = new Map<string, number>();
       rows.forEach((r) => {
         const nilaiNormal = normalisasiNilaiKategori(r.nilai);
@@ -361,7 +370,7 @@ seriesNegara = Array.from(totalPerNegara.entries())
       kategoriData[k.key] = Array.from(peta.entries())
         .map(([nilai, jumlah]) => ({ nilai, jumlah }))
         .sort((a, b) => b.jumlah - a.jumlah);
-    }
+    });
 
     // Query TAMBAHAN khusus RBA minggu berjalan (mode mingguan saja).
     // Beda dari kategoriData.rba di atas yang totalnya 1 TAHUN penuh.

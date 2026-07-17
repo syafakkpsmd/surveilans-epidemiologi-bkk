@@ -59,7 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Beranda", href: "/dashboard", icon: Compass },
       { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship },
-      { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff },
+      { label: "Alat Angkut Pesawat", href: "/dashboard/pesawat", icon: PlaneTakeoff },
     ],
   },
   {
@@ -223,7 +223,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
 
       <nav
         className={[
-          "z-50 flex w-64 shrink-0 flex-col gap-6 self-stretch overflow-y-auto bg-gradient-to-b from-slate-900 to-indigo-950 px-3 py-6 text-slate-300",
+          "z-[70] flex w-64 shrink-0 flex-col gap-6 self-stretch overflow-y-auto bg-gradient-to-b from-slate-900 to-indigo-950 px-3 py-6 text-slate-300",
           "fixed inset-y-0 left-0 h-screen transition-transform duration-200",
           "md:relative md:inset-auto md:h-auto md:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",

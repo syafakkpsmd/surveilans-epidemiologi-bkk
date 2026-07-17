@@ -23,7 +23,7 @@ export default async function VektorTikusPage({
 
   const dataMingguan = ringkasanMingguan.map((r: any) => ({
     minggu_epid: r.minggu_epid || 0,
-    kode_wilker: wilker || "semua",
+    kode_wilker: r.kode_wilker ?? "semua",
     jml_trap_dipasang: r.jml_trap_dipasang || 0,
     jml_trap_tertangkap: r.jml_trap_tertangkap || 0,
     tsi: r.tsi_rerata ?? 0,
@@ -36,7 +36,7 @@ export default async function VektorTikusPage({
 
   const dataBulanan = ringkasanBulanan.map((r: any) => ({
     bulan: r.bulan || 1,
-    kode_wilker: wilker || "semua",
+    kode_wilker: r.kode_wilker ?? "semua",
     jml_trap_dipasang: r.jml_trap_dipasang || 0,
     jml_trap_tertangkap: r.jml_trap_tertangkap || 0,
     tsi: r.tsi_rerata ?? 0,
@@ -46,6 +46,10 @@ export default async function VektorTikusPage({
     mm: r.mm || 0,
     jenis_lainnya: r.jenis_lainnya || 0,
   }));
+
+console.log("DEBUG daftarWilker:", daftarWilker);
+console.log("DEBUG contoh baris ringkasanMingguan:", ringkasanMingguan[0]);
+
 
   return (
     <VektorTikusClient

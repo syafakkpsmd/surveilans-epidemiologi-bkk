@@ -91,7 +91,7 @@ export default async function DashboardHubPage() {
         <KartuKategoriHub
           judul="Alat Angkut Pesawat"
           deskripsi="Surveilans kedatangan pesawat di Bandara APT Pranoto."
-          href="/dashboard/pesawat"
+          href="/dashboard/alat-angkut/pesawat"
         />
         <KartuKategoriHub
           judul="Surveilans Vektor"

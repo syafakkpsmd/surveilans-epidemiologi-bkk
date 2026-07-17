@@ -59,7 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Beranda", href: "/dashboard", icon: Compass },
       { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship },
-      { label: "Alat Angkut Pesawat", href: "/dashboard/pesawat", icon: PlaneTakeoff },
+      { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff },
     ],
   },
   {

@@ -22,7 +22,7 @@ export function NavbarClient({ sudahLogin, role }: NavbarClientProps) {
         {/* KIRI: logo Kemenkes */}
         <Link href="/dashboard" className="col-start-1 flex shrink-0 items-center gap-3">
           <img
-            src="/logo-kemenkes.png"
+            src="/logo-kemenkesri.png"
             alt="Logo Kementerian Kesehatan RI"
             className="h-20 w-20 object-contain"
           />

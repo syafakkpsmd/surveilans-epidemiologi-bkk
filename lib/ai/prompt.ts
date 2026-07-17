@@ -1,4 +1,4 @@
-import type { DataAnalisis } from './data';
+﻿import type { DataAnalisis } from './data';
 
 export type HasilAnalisisAi = {
   ringkasan: string;
@@ -579,7 +579,7 @@ export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
     typeof (parsed as Record<string, unknown>).anomali !== 'string' ||
     typeof (parsed as Record<string, unknown>).rekomendasi !== 'string'
   ) {
-    throw new Error('Respons AI tidak memuat field ringkasan/anomali/rekomendasi yang lengkap.');
+    console.error('DEBUG RAW AI RESPONSE:', bersih); throw new Error('Respons AI tidak memuat field ringkasan/anomali/rekomendasi yang lengkap.');
   }
 
   const hasil = parsed as HasilAnalisisAi;

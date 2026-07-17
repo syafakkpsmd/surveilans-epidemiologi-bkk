@@ -5,10 +5,15 @@ import KelolaFasilitasClient from "@/components/peta/KelolaFasilitasClient";
 export default async function KelolaPelabuhanPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/dashboard/peta");
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
-    .eq("id", user?.id)
+    .eq("id", user.id)
     .single();
 
   if (profile?.role !== "admin") {

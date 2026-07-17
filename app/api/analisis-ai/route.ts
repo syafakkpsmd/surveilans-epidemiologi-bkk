@@ -181,9 +181,10 @@ export async function POST(request: Request) {
       ? queryCache.eq('wilayah_kerja', wilayahKerja)
       : queryCache.is('wilayah_kerja', null);
 
-    queryCache = pakaiMetrik ? queryCache.eq('metrik', metrikUntukCache) : queryCache.is('metrik', null);
-
-    const { data: cacheRows, error: cacheError } = await queryCache;
+    queryCache = pakaiMetrik && metrikUntukCache
+      ? queryCache.eq('metrik', metrikUntukCache)
+      : queryCache.is('metrik', null);
+        const { data: cacheRows, error: cacheError } = await queryCache;
 
     if (cacheError) {
       console.error('Gagal cek cache riwayat_analisis_ai:', cacheError.message);

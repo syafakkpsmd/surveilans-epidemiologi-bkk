@@ -38,6 +38,10 @@ export async function login(formData: FormData): Promise<void> {
     redirect('/login?error=' + encodeURIComponent('Akun Anda belum disetujui.'));
   }
 
+  if (profile.role !== 'petugas' && profile.role !== 'admin') {
+    redirect('/login?error=' + encodeURIComponent('Role akun tidak dikenali.'));
+  }
+
   // 3. Tambahkan di sini setelah cek profile.status === 'approved'
   await catatLogin(profile.role, authData.user.id);
 

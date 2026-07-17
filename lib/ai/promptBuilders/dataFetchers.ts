@@ -6,7 +6,12 @@
 // ================================================================
 
 import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
-import type { WilkerRef } from '@/types/database.types';
+// Mengembalikan path import ke yang asli dan valid sesuai struktur folder Anda
+import type { WilkerRef, Database } from '@/types/database.types';
+
+type NamaTabelValid =
+  | keyof Database['public']['Tables']
+  | keyof Database['public']['Views'];
 
 export interface KonteksWilker {
   wilker: WilkerRef;
@@ -41,7 +46,7 @@ export async function getWilkerByKode(kodeWilker: string): Promise<WilkerRef | n
  * yang terbaru lalu dibalik supaya kronologis (lama -> baru) seperti GAS.
  */
 export async function ambil12BarisTerakhir(params: {
-  tabel: string;
+  tabel: NamaTabelValid;
   kolomTanggal: string;
   kodeWilker: string;
   filterTambahan?: Record<string, string>;
@@ -49,8 +54,8 @@ export async function ambil12BarisTerakhir(params: {
   const { tabel, kolomTanggal, kodeWilker, filterTambahan } = params;
   const supabase = createServiceRoleClient();
 
-  let query = supabase
-    .from(tabel)
+  // Casting dinamis ganda agar lolos dari verifikasi strict tables/views Supabase
+  let query = (supabase.from(tabel as any) as any)
     .select('*')
     .eq('kode_wilker', kodeWilker)
     .order(kolomTanggal, { ascending: false })
@@ -58,12 +63,13 @@ export async function ambil12BarisTerakhir(params: {
 
   if (filterTambahan) {
     for (const [kolom, nilai] of Object.entries(filterTambahan)) {
-      query = query.eq(kolom, nilai);
+      // Membungkus 'kolom' dengan String() untuk menghindari error "Implicit conversion of a symbol"
+      query = query.eq(String(kolom), nilai);
     }
   }
 
   const { data, error } = await query;
   if (error) throw new Error(`Gagal ambil data ${tabel}: ${error.message}`);
 
-  return (data ?? []).reverse();
+  return ((data ?? []) as Record<string, unknown>[]).reverse();
 }

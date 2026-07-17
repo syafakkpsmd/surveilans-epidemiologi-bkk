@@ -45,10 +45,6 @@ export async function getBuletin() {
   return data || [];
 }
 
-// ============================================================
-// RINGKASAN MINGGUAN
-// ============================================================
-
 export async function getRingkasanMingguan(
   tabel: 'cop',
   tahun: number
@@ -74,11 +70,26 @@ export async function getRingkasanMingguan(
     throw new Error(`Gagal mengambil ringkasan mingguan (${tabel}): ${error.message}`);
   }
 
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    tahun_epid: row.tahun_epid ?? tahun,
+    minggu_epid: row.minggu_epid ?? 0,
+    wilayah_kerja: row.wilayah_kerja ?? '',
+    jumlah_kapal: row.jumlah_kapal ?? 0,
+    total_abk: row.total_abk ?? 0,
+    total_abk_wna: row.total_abk_wna ?? 0,
+    total_abk_wni: row.total_abk_wni ?? 0,
+    ...(tabel === 'phqc'
+      ? {
+          total_penumpang: (row as { total_penumpang?: number | null }).total_penumpang ?? 0,
+          total_penumpang_wna: (row as { total_penumpang_wna?: number | null }).total_penumpang_wna ?? 0,
+          total_penumpang_wni: (row as { total_penumpang_wni?: number | null }).total_penumpang_wni ?? 0,
+        }
+      : {}),
+  })) as RingkasanMingguanCop[] | RingkasanMingguanPhqc[];
 }
 
 // ============================================================
-// RINGKASAN BULANAN
+// RINGKASAN BULANAN (BARU)
 // ============================================================
 
 export async function getRingkasanBulanan(
@@ -106,7 +117,22 @@ export async function getRingkasanBulanan(
     throw new Error(`Gagal mengambil ringkasan bulanan (${tabel}): ${error.message}`);
   }
 
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    tahun: row.tahun ?? tahun,
+    bulan: row.bulan ?? 0,
+    wilayah_kerja: row.wilayah_kerja ?? '',
+    jumlah_kapal: row.jumlah_kapal ?? 0,
+    total_abk: row.total_abk ?? 0,
+    total_abk_wna: row.total_abk_wna ?? 0,
+    total_abk_wni: row.total_abk_wni ?? 0,
+    ...(tabel === 'phqc'
+      ? {
+          total_penumpang: (row as { total_penumpang?: number | null }).total_penumpang ?? 0,
+          total_penumpang_wna: (row as { total_penumpang_wna?: number | null }).total_penumpang_wna ?? 0,
+          total_penumpang_wni: (row as { total_penumpang_wni?: number | null }).total_penumpang_wni ?? 0,
+        }
+      : {}),
+  })) as RingkasanBulananCop[] | RingkasanBulananPhqc[];
 }
 
 // ============================================================
@@ -151,7 +177,15 @@ export async function getKotaPesawatBulanan(
     .order('bulan');
 
   if (error) throw new Error(`Gagal ambil data kota pesawat: ${error.message}`);
-  return data ?? [];
+
+  return (data ?? []).map((row) => ({
+    tahun: row.tahun ?? tahun,
+    bulan: row.bulan ?? 0,
+    arah: (row.arah ?? arah) as ArahPesawat,
+    kota: row.kota ?? '',
+    jumlah_penerbangan: row.jumlah_penerbangan ?? 0,
+    total_penumpang: row.total_penumpang ?? 0,
+  }));
 }
 // Kategori yang valid berbeda untuk COP (negara_kedatangan, rba,
 // faktor_risiko, kelengkapan_dokumen, daerah_terjangkit,
@@ -271,7 +305,10 @@ export async function getKegiatanCopEnriched(
     throw new Error(`Gagal mengambil data kegiatan COP: ${error.message}`);
   }
 
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    ...row,
+    wilayah_kerja: row.wilayah_kerja as Wilayah,
+  })) as KegiatanCopEnriched[];
 }
 
 export async function getKegiatanPhqcEnriched(
@@ -294,7 +331,10 @@ export async function getKegiatanPhqcEnriched(
     throw new Error(`Gagal mengambil data kegiatan PHQC: ${error.message}`);
   }
 
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    ...row,
+    wilayah_kerja: row.wilayah_kerja as Wilayah,
+  })) as KegiatanPhqcEnriched[];
 }
 
 // ================================================================
@@ -486,7 +526,15 @@ export async function getMaskapaiPesawatBulanan(
     .order('bulan');
 
   if (error) throw new Error(`Gagal ambil data maskapai pesawat: ${error.message}`);
-  return data ?? [];
+
+  return (data ?? []).map((row) => ({
+    tahun: row.tahun ?? tahun,
+    bulan: row.bulan ?? 0,
+    arah: (row.arah ?? arah) as ArahPesawat,
+    maskapai: row.maskapai ?? '',
+    jumlah_penerbangan: row.jumlah_penerbangan ?? 0,
+    total_penumpang: row.total_penumpang ?? 0,
+  }));
 }
 
 export async function getRingkasanVektorTikusBulanan(

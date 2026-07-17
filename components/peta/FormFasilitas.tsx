@@ -5,14 +5,16 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadFotoFasilitas } from "@/lib/upload-fasilitas-foto";
 
 interface Props {
-  kodeWilkerAktif: string | null; // prefill kalau lagi lihat wilker tertentu
-  fasilitasEdit?: { id: string; nama: string; tipe: string; lat: number; lng: number; deskripsi: string | null } | null;
+  kodeWilkerAktif: string | null;
+  fasilitasEdit?: { id: string; kode_wilker: string; nama: string; tipe: string; lat: number; lng: number; deskripsi: string | null } | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
 export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose, onSaved }: Props) {
-  const [kodeWilker, setKodeWilker] = useState(fasilitasEdit ? undefined : kodeWilkerAktif ?? "WK01");
+  const [kodeWilker, setKodeWilker] = useState(
+    fasilitasEdit ? fasilitasEdit.kode_wilker : kodeWilkerAktif ?? "WK01"
+  );
   const [nama, setNama] = useState(fasilitasEdit?.nama ?? "");
   const [tipe, setTipe] = useState(fasilitasEdit?.tipe ?? "pelabuhan");
   const [lat, setLat] = useState(fasilitasEdit?.lat?.toString() ?? "");

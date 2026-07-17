@@ -54,5 +54,12 @@ export async function getUserRole(): Promise<PeranAkses> {
     return 'tamu';
   }
 
+  if (profile.role !== 'petugas' && profile.role !== 'admin') {
+    console.warn(
+      `User ${user.id} punya nilai role tidak dikenal ("${profile.role}") di tabel profiles -- diperlakukan sebagai 'tamu' untuk fitur kelola user.`
+    );
+    return 'tamu';
+  }
+
   return profile.role;
 }

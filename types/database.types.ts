@@ -53,7 +53,7 @@ export type KegiatanPhqc = {
   status_kirim: string;
 };
 
-export type KegiatanCopEnriched = KegiatanCop & {
+export type KegiatanCopEnriched = Omit<KegiatanCop, 'status_kirim'> & {
   tahun_epid: number;
   minggu_epid: number;
   tahun_kalender: number;
@@ -61,7 +61,7 @@ export type KegiatanCopEnriched = KegiatanCop & {
   total_abk: number;
 };
 
-export type KegiatanPhqcEnriched = KegiatanPhqc & {
+export type KegiatanPhqcEnriched = Omit<KegiatanPhqc, 'status_kirim'> & {
   tahun_epid: number;
   minggu_epid: number;
   tahun_kalender: number;

@@ -49,5 +49,8 @@ export async function getStatusAkses(): Promise<StatusAkses> {
   console.log("[DEBUG getStatusAkses] profile =", profile);
   console.log("[DEBUG getStatusAkses] profileError =", profileError);
 
-  return { sudahLogin: true, role: profile?.role ?? null };
+  const role: PeranUser | null =
+    profile?.role === "petugas" || profile?.role === "admin" ? profile.role : null;
+
+  return { sudahLogin: true, role };
 }

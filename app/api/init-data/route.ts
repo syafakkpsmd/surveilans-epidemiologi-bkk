@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-// Menggunakan alias @/ yang umum di Next.js untuk akses ke folder root
 import dataMingguan from '@/lib/data/data_mingguan.json';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!, 
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error(
+      'SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib diisi di .env.local (server-side, tanpa prefix NEXT_PUBLIC_).'
+    );
+  }
+  return createClient(url, key);
+}
 
 export async function GET() {
+  const supabase = getSupabaseAdmin();
   try {
     // Memasukkan data ke Supabase
     // .upsert akan memperbarui data jika minggu/penyakit sudah ada

@@ -29,10 +29,13 @@ export function DonutBreakdown({ data, warnaFn, palet = PALET_DEFAULT }: DonutBr
           ))}
         </Pie>
         <Tooltip
-          formatter={(value: number, name: string) => [
-            `${value} (${((value / total) * 100).toFixed(1)}%)`,
-            name,
-          ]}
+          formatter={(value, name) => {
+            const num = typeof value === "number" ? value : Number(value ?? 0);
+            return [
+              `${num} (${((num / total) * 100).toFixed(1)}%)`,
+              String(name),
+            ];
+          }}
         />
         <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 12 }} />
       </PieChart>

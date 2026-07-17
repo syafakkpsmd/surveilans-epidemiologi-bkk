@@ -5,11 +5,14 @@ import PetaWilkerClient from "@/components/peta/PetaWilkerClient";
 export default async function PetaPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user?.id)
-    .single();
+
+  const { data: profile } = user
+    ? await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single()
+    : { data: null };
 
   const isAdmin = profile?.role === "admin";
 

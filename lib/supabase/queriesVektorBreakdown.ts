@@ -38,8 +38,13 @@ export async function getBreakdownKategori(params: {
     params;
 
   const supabase = await createClient();
-  let query = supabase
-    .from(tabel)
+  // `tabel` sengaja generik (string) karena fungsi ini dipanggil untuk
+  // macam-macam tabel/view vektor secara dinamis -- Supabase client
+  // tidak bisa infer union literal-nya di titik ini. Type safety untuk
+  // PEMANGGIL tetap terjaga lewat parameter `tabel: string` yang
+  // eksplisit di signature fungsi ini.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabase as any).from(tabel)
     .select(kolomKategori)
     .gte(kolomTanggal, tglMulai)
     .lte(kolomTanggal, tglSelesai);

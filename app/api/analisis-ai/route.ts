@@ -26,8 +26,11 @@ import {
   susunPromptPrediksiPesawatTren,
   susunPromptVektor,
   susunPromptPrediksiVektor,
+  susunPromptLabTikus,
+  susunPromptPrediksiLabTikus,
   parseHasilAi,
-  
+  susunPromptAnopheles,
+  susunPromptPrediksiAnopheles,
 } from '@/lib/ai/prompt';
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
@@ -59,12 +62,78 @@ function isMetrikValid(nilai: unknown): nilai is MetrikVektor {
 
 type TipeAnalisis = 'analisis' | 'prediksi';
 
+/**
+ * GET /api/analisis-ai?konteks=...&periode_key=...&wilayah_kerja=...&tipe=...&metrik=...
+ *
+ * Endpoint BACA -- bisa diakses SIAPA SAJA tanpa login. Mengembalikan
+ * hasil Analisis/Prediksi AI TERBARU yang tersimpan di riwayat_analisis_ai
+ * untuk kombinasi konteks+periode+wilayah+tipe+metrik ini (kapan pun
+ * hasil itu dibuat, TIDAK dibatasi cache hari ini seperti di POST).
+ * Kalau belum pernah ada yang generate untuk kombinasi ini, kembalikan
+ * ada:false supaya UI bisa tampilkan pesan "belum ada analisis".
+ */
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const konteks = searchParams.get('konteks');
+  const periodeKey = searchParams.get('periode_key');
+  const wilayahKerja = searchParams.get('wilayah_kerja');
+  const tipeParam = searchParams.get('tipe');
+  const metrik = searchParams.get('metrik');
+
+  if (!konteks || !isKonteksValid(konteks)) {
+    return NextResponse.json({ error: 'konteks tidak dikenal.' }, { status: 400 });
+  }
+  if (!periodeKey) {
+    return NextResponse.json({ error: 'periode_key wajib diisi.' }, { status: 400 });
+  }
+
+  const tipe: TipeAnalisis = tipeParam === 'prediksi' ? 'prediksi' : 'analisis';
+
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('riwayat_analisis_ai')
+    .select('*')
+    .eq('konteks', konteks)
+    .eq('periode_key', periodeKey)
+    .eq('tipe', tipe)
+    .order('dibuat_pada', { ascending: false })
+    .limit(1);
+
+  query = wilayahKerja ? query.eq('wilayah_kerja', wilayahKerja) : query.is('wilayah_kerja', null);
+  query = metrik ? query.eq('metrik', metrik) : query.is('metrik', null);
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Gagal membaca riwayat_analisis_ai:', error.message);
+    return NextResponse.json({ error: 'Gagal memuat hasil Analisis AI.' }, { status: 500 });
+  }
+
+  if (!data || data.length === 0) {
+    return NextResponse.json({ ada: false });
+  }
+
+  const cache = data[0];
+  return NextResponse.json({
+    ada: true,
+    ringkasan: cache.ringkasan,
+    anomali: cache.anomali,
+    rekomendasi: cache.rekomendasi,
+    providerDipakai: cache.provider_dipakai,
+    dibuatPada: cache.dibuat_pada,
+  });
+}
+
 export async function POST(request: Request) {
   // ---------- 1. VERIFIKASI ROLE DI SERVER ----------
-  const { sudahLogin } = await getStatusAkses();
-  if (!sudahLogin) {
+  // Generate/jalankan Analisis-Prediksi AI HANYA untuk admin & petugas.
+  // (Membaca hasil yang sudah tersimpan sekarang lewat GET di bawah,
+  // yang bisa diakses siapa saja tanpa login.)
+  const { role } = await getStatusAkses();
+  if (role !== 'admin' && role !== 'petugas') {
     return NextResponse.json(
-      { error: 'Analisis AI hanya untuk Petugas/Admin yang sudah login.' },
+      { error: 'Menjalankan Analisis/Prediksi AI hanya untuk Petugas/Admin yang sudah login.' },
       { status: 403 }
     );
   }
@@ -108,8 +177,11 @@ export async function POST(request: Request) {
   }
 
   const tipe: TipeAnalisis = tipeMentah === 'prediksi' ? 'prediksi' : 'analisis';
-  const konteksVektor = isKonteksVektor(konteks);
+  const konteksVektor = 
+  isKonteksVektor(konteks) || 
+  konteks.startsWith('anopheles-');
   const konteksPesawat = konteks === 'pesawat-mingguan' || konteks === 'pesawat-bulanan';
+  const konteksTikusLab = konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan';
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   // Metrik pesawat divalidasi lebih lanjut di ambilDataAnalisisPesawat()
   // (menolak kota-asal/kota-tujuan/maskapai-* yang belum siap) -- di sini
@@ -149,6 +221,16 @@ export async function POST(request: Request) {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
         { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks pesawat (format kode: WK01-WK07).` },
+        { status: 400 }
+      );
+    }
+    wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  } else if (konteksTikusLab) {
+    // Sama seperti pesawat: "Semua Wilayah Kerja" tetap valid, wilayah_kerja
+    // OPSIONAL, tapi kalau diisi formatnya kode_wilker (WK0X).
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
+      return NextResponse.json(
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor tikus (format kode: WK01-WK07).` },
         { status: 400 }
       );
     }
@@ -289,6 +371,32 @@ export async function POST(request: Request) {
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPenumpang(data) : susunPromptPenumpang(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan') {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiLabTikus(data) : susunPromptLabTikus(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (
+      konteks === 'anopheles-dewasa-mingguan' ||
+      konteks === 'anopheles-dewasa-bulanan' ||
+      konteks === 'anopheles-larva-mingguan' ||
+      konteks === 'anopheles-larva-bulanan'
+    ) {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      
+      // BUNGKUS DENGAN TRY-CATCH AMAN
+      try {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiAnopheles(data) : susunPromptAnopheles(data);
+      } catch (e) {
+        console.error("Gagal menyusun prompt karena data kosong:", e);
+        return NextResponse.json({ 
+          ada: false, 
+          pesan: 'Data surveilans Anopheles belum tersedia untuk periode dan wilayah ini.' 
+        });
+      }
+
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
       promptTeks = susunPrompt(data);
@@ -304,6 +412,7 @@ export async function POST(request: Request) {
   let hasil;
   try {
     const teksMentah = await panggilAI(pengaturanAktif, promptTeks);
+    console.log('TEKS MENTAH DARI AI:', teksMentah); // <-- baris baru, sementara untuk debug
     hasil = parseHasilAi(teksMentah);
   } catch (err) {
     const pesan = err instanceof Error ? err.message : 'Analisis AI gagal dijalankan.';

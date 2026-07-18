@@ -2,6 +2,12 @@ import {
   getRingkasanMingguan,
   getRingkasanBulanan,
   getKategoriBreakdown,
+  getRingkasanVektorTikus,
+  getRingkasanVektorTikusBulanan,
+  getUjiLabVektorTikusMingguan,
+  getUjiLabVektorTikusBulanan,
+  getTrenAnophelesDewasa,
+  getTrenLarva,
 } from '@/lib/supabase/queries';
 import type { Wilayah, KategoriCop } from '@/types/database.types';
 import {
@@ -29,6 +35,12 @@ export const KONTEKS_TREN = [
   'pesawat-bulanan',
   'vektor-dbd-mingguan',
   'vektor-dbd-bulanan',
+  'tikus-lab-mingguan',
+  'tikus-lab-bulanan',
+  'anopheles-dewasa-mingguan',
+  'anopheles-dewasa-bulanan',
+  'anopheles-larva-mingguan',
+  'anopheles-larva-bulanan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -43,10 +55,10 @@ export const KONTEKS_BREAKDOWN = [
 ] as const;
 
 /**
- * Konteks yang boleh dipakai untuk tipe="prediksi". Vektor tetap
+ * Konteks yang boleh dipakai untuk tipe="prediksi". Vektor DBD tetap
  * ditangani terpisah lewat isKonteksVektor() (route.ts). Daftar ini
- * KHUSUS untuk breakdown/tren non-vektor yang sudah punya prompt
- * prediksi tersendiri di lib/ai/prompt.ts.
+ * untuk breakdown/tren non-vektor-dbd yang sudah punya prompt prediksi
+ * tersendiri di lib/ai/prompt.ts.
  */
 export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'cop-rba',
@@ -58,6 +70,12 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'penumpang-bulanan',
   'pesawat-mingguan',
   'pesawat-bulanan',
+  'tikus-lab-mingguan',
+  'tikus-lab-bulanan',
+  'anopheles-dewasa-mingguan',
+  'anopheles-dewasa-bulanan',
+  'anopheles-larva-mingguan',
+  'anopheles-larva-bulanan',
 ] as const;
 
 export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN] as const;
@@ -78,8 +96,24 @@ export function isKonteksBreakdown(konteks: KonteksAnalisis): konteks is Konteks
   return (KONTEKS_BREAKDOWN as readonly string[]).includes(konteks);
 }
 
+/** Vektor DBD SAJA -- Tikus & Anopheles TIDAK termasuk (walau sama-sama
+ * "vektor" secara domain), karena keduanya pakai kode_wilker opsional
+ * (boleh "Semua Wilayah Kerja"), beda dari DBD yang mewajibkan 1 wilker. */
 export function isKonteksVektor(konteks: KonteksAnalisis): boolean {
-  return konteks.startsWith('vektor-');
+  return konteks === 'vektor-dbd-mingguan' || konteks === 'vektor-dbd-bulanan';
+}
+
+/** Konteks yang wilayah_kerja-nya pakai format kode_wilker ("WK01", dst,
+ * OPSIONAL -- boleh kosong untuk "Semua Wilayah Kerja"), BUKAN enum
+ * Wilayah ("Samarinda", dst) seperti COP/PHQC. */
+export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
+  return (
+    konteks === 'pesawat-mingguan' ||
+    konteks === 'pesawat-bulanan' ||
+    konteks === 'tikus-lab-mingguan' ||
+    konteks === 'tikus-lab-bulanan' ||
+    konteks.startsWith('anopheles-')
+  );
 }
 
 export function isKonteksPrediksiNonVektorValid(konteks: string): boolean {
@@ -192,6 +226,81 @@ async function ambilPenumpangBulanan(
   return cariAtauJumlahkan(barisBulan, wilayahKerja, [...KOLOM_ANGKA_PENUMPANG]);
 }
 
+async function ambilTikusLabMingguan(
+  p: PeriodeMingguan,
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const [ringkasan, ujiLab] = await Promise.all([
+    getRingkasanVektorTikus(p.tahun, wilayahKerja),
+    getUjiLabVektorTikusMingguan(p.tahun, wilayahKerja),
+  ]);
+
+  const barisMinggu = (ringkasan as any[]).filter((r) => r.minggu_epid === p.minggu);
+  const ujiLabMinggu = ujiLab.filter((u) => u.periode === p.minggu);
+  const jumlahkan = (rows: any[], kolom: string) =>
+    rows.reduce((total, r) => total + (Number(r[kolom]) || 0), 0);
+
+  return {
+    leptospira_positif: jumlahkan(barisMinggu, 'total_positif_leptospira'),
+    pes_positif: jumlahkan(barisMinggu, 'total_positif_pes'),
+    hantavirus_positif: jumlahkan(barisMinggu, 'total_positif_hantavirus'),
+    diuji_lab: jumlahkan(ujiLabMinggu, 'diuji_lab'),
+    leptospira_negatif: jumlahkan(ujiLabMinggu, 'leptospira_negatif'),
+    pes_negatif: jumlahkan(ujiLabMinggu, 'pes_negatif'),
+    hantavirus_negatif: jumlahkan(ujiLabMinggu, 'hantavirus_negatif'),
+  };
+}
+
+async function ambilTikusLabBulanan(
+  p: PeriodeBulanan,
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const [ringkasan, ujiLab] = await Promise.all([
+    getRingkasanVektorTikusBulanan(p.tahun, wilayahKerja),
+    getUjiLabVektorTikusBulanan(p.tahun, wilayahKerja),
+  ]);
+
+  const barisBulan = (ringkasan as any[]).filter((r) => r.bulan === p.bulan);
+  const ujiLabBulan = ujiLab.filter((u) => u.periode === p.bulan);
+  const jumlahkan = (rows: any[], kolom: string) =>
+    rows.reduce((total, r) => total + (Number(r[kolom]) || 0), 0);
+
+  return {
+    leptospira_positif: jumlahkan(barisBulan, 'total_positif_leptospira'),
+    pes_positif: jumlahkan(barisBulan, 'total_positif_pes'),
+    hantavirus_positif: jumlahkan(barisBulan, 'total_positif_hantavirus'),
+    diuji_lab: jumlahkan(ujiLabBulan, 'diuji_lab'),
+    leptospira_negatif: jumlahkan(ujiLabBulan, 'leptospira_negatif'),
+    pes_negatif: jumlahkan(ujiLabBulan, 'pes_negatif'),
+    hantavirus_negatif: jumlahkan(ujiLabBulan, 'hantavirus_negatif'),
+  };
+}
+
+async function ambilAnophelesRingkasan(
+  tahun: number,
+  wilayahKerja: string | undefined,
+  granularitas: 'mingguan' | 'bulanan',
+  tipe: 'dewasa' | 'larva',
+  periodeUrutan: number
+): Promise<Record<string, number>> {
+  const rows =
+    tipe === 'dewasa'
+      ? await getTrenAnophelesDewasa(tahun, wilayahKerja, granularitas)
+      : await getTrenLarva(tahun, wilayahKerja, granularitas);
+
+  const cocok =
+    granularitas === 'mingguan'
+      ? (rows as any[]).find((r) => Number(r.minggu_epid) === periodeUrutan)
+      : rows[periodeUrutan - 1]; // bulanan sudah terurut Jan..Des
+
+  if (!cocok) return {};
+  const hasil: Record<string, number> = {};
+  for (const [k, v] of Object.entries(cocok)) {
+    if (typeof v === 'number') hasil[k] = v;
+  }
+  return hasil;
+}
+
 function gabungkanRingkasan(
   a: Record<string, number>,
   b: Record<string, number>,
@@ -225,9 +334,11 @@ async function topKategoriUmum(
 /**
  * Titik masuk utama -- dipanggil dari Route Handler
  * (app/api/analisis-ai/route.ts). wilayahKerja generik string:
- *   - COP/PHQC : nilai enum Wilayah ("Samarinda", dst.)
- *   - Vektor   : kode_wilker ("WK01", dst.)
- * metrik HANYA relevan untuk konteks vektor.
+ *   - COP/PHQC          : nilai enum Wilayah ("Samarinda", dst.)
+ *   - Vektor DBD        : kode_wilker ("WK01", dst.), WAJIB diisi
+ *   - Pesawat/Tikus/
+ *     Anopheles         : kode_wilker ("WK01", dst.), OPSIONAL
+ * metrik HANYA relevan untuk konteks vektor DBD.
  */
 export async function ambilDataAnalisis(
   konteks: KonteksAnalisis,
@@ -268,6 +379,86 @@ export async function ambilDataAnalisis(
     ]);
     return {
       labelKonteks: 'Volume Penumpang PHQC (tiba/berangkat) — Bulanan',
+      labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni,
+      ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  if (konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan') {
+    if (konteks === 'tikus-lab-mingguan') {
+      const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilTikusLabMingguan(periodeSaatIni, wilayahKerja),
+        ambilTikusLabMingguan(periodeSebelumnya, wilayahKerja),
+      ]);
+      return {
+        labelKonteks: 'Surveilans Vektor Tikus — Uji Lab & Hasil Pemeriksaan (Leptospirosis, Pes, Hantavirus)',
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilTikusLabBulanan(periodeSaatIni, wilayahKerja),
+      ambilTikusLabBulanan(periodeSebelumnya, wilayahKerja),
+    ]);
+    return {
+      labelKonteks: 'Surveilans Vektor Tikus — Uji Lab & Hasil Pemeriksaan (Leptospirosis, Pes, Hantavirus)',
+      labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni,
+      ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  if (
+    konteks === 'anopheles-dewasa-mingguan' ||
+    konteks === 'anopheles-dewasa-bulanan' ||
+    konteks === 'anopheles-larva-mingguan' ||
+    konteks === 'anopheles-larva-bulanan'
+  ) {
+    const tipe: 'dewasa' | 'larva' = konteks.startsWith('anopheles-dewasa') ? 'dewasa' : 'larva';
+    const labelTipe = tipe === 'dewasa' ? 'Anopheles Dewasa (MHD/MBR)' : 'Larva Anopheles';
+
+    if (konteks.endsWith('-mingguan')) {
+      const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilAnophelesRingkasan(periodeSaatIni.tahun, wilayahKerja, 'mingguan', tipe, periodeSaatIni.minggu),
+        ambilAnophelesRingkasan(periodeSebelumnya.tahun, wilayahKerja, 'mingguan', tipe, periodeSebelumnya.minggu),
+      ]);
+      return {
+        labelKonteks: `Surveilans Vektor — ${labelTipe}`,
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilAnophelesRingkasan(periodeSaatIni.tahun, wilayahKerja, 'bulanan', tipe, periodeSaatIni.bulan),
+      ambilAnophelesRingkasan(periodeSebelumnya.tahun, wilayahKerja, 'bulanan', tipe, periodeSebelumnya.bulan),
+    ]);
+    return {
+      labelKonteks: `Surveilans Vektor — ${labelTipe}`,
       labelWilayah,
       labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
       labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
@@ -445,6 +636,16 @@ const LABEL_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, string> = {
   'phqc-pelabuhan-bulanan': 'Pelabuhan Kedatangan & Tujuan (Kegiatan PHQC) — Bulanan',
 };
 
+const NAMA_WILKER: Record<string, string> = {
+  WK01: 'Pelabuhan Samarinda',
+  WK02: 'Pelabuhan Tanjung Santan',
+  WK03: 'Pelabuhan Tanjung Laut',
+  WK04: 'Pelabuhan Lhoktuan',
+  WK05: 'Pelabuhan Sangatta',
+  WK06: 'Pelabuhan Sangkulirang',
+  WK07: 'Bandara APT Pranoto',
+};
+
 /**
  * Breakdown gabungan pelabuhan_kedatangan + pelabuhan_tujuan untuk SATU
  * periode (paralel dengan grafik tren tahunan di UI, tapi ini snapshot
@@ -456,7 +657,9 @@ async function ambilDataBreakdownPelabuhanPhqc(
   periodeKey: string,
   wilayahKerja: string | undefined
 ): Promise<DataBreakdownAnalisis> {
-  const labelWilayah = wilayahKerja ?? 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+  const labelWilayah = wilayahKerja
+  ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+  : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
 
   let labelPeriode: string;

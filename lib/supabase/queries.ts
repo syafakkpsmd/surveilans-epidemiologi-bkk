@@ -426,6 +426,7 @@ export async function getRingkasanVektorAnopheles(
   return data ?? [];
 }
 
+
 // ── Vektor Diare — WAJIB filter jenis_kegiatan (lalat/kecoa) ──
 export async function getRingkasanVektorDiare(
   tahun: number,
@@ -553,4 +554,495 @@ export async function getRingkasanVektorTikusBulanan(
   const { data, error } = await query;
   if (error) throw new Error(`Gagal ambil ringkasan bulanan Tikus: ${error.message}`);
   return data ?? [];
+}
+
+export interface LabTikusMingguan {
+  minggu_epid: string;
+  kode_wilker: string;
+  diuji_lab: number;
+  leptospira_positif: number;
+  leptospira_negatif: number;
+  pes_positif: number;
+  pes_negatif: number;
+  hantavirus_positif: number;
+  hantavirus_negatif: number;
+}
+
+export async function getLabVektorTikusMingguan(
+  tahun: number,
+  kodeWilker?: string
+): Promise<LabTikusMingguan[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from('vektor_tikus')
+    .select('tgl_survei, minggu_epid, kode_wilker, uji_lab, hasil_leptospira, jumlah_positif_leptospira, hasil_pes, jumlah_positif_pes, hasil_hantavirus, jumlah_positif_hantavirus')
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`)
+    .order('tgl_survei');
+
+  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil data lab tikus mingguan: ${error.message}`);
+
+  const kelompok = new Map<string, LabTikusMingguan>();
+
+  (data ?? []).forEach((r) => {
+    const key = `${r.minggu_epid ?? '—'}|${r.kode_wilker ?? '—'}`;
+    if (!kelompok.has(key)) {
+      kelompok.set(key, {
+        minggu_epid: r.minggu_epid ?? '—',
+        kode_wilker: r.kode_wilker ?? '—',
+        diuji_lab: 0,
+        leptospira_positif: 0,
+        leptospira_negatif: 0,
+        pes_positif: 0,
+        pes_negatif: 0,
+        hantavirus_positif: 0,
+        hantavirus_negatif: 0,
+      });
+    }
+    const g = kelompok.get(key)!;
+
+    if (r.uji_lab === 'Ya') g.diuji_lab += 1;
+
+    if (r.hasil_leptospira === 'Positif') g.leptospira_positif += Number(r.jumlah_positif_leptospira) || 0;
+    else if (r.hasil_leptospira === 'Negatif') g.leptospira_negatif += 1;
+
+    if (r.hasil_pes === 'Positif') g.pes_positif += Number(r.jumlah_positif_pes) || 0;
+    else if (r.hasil_pes === 'Negatif') g.pes_negatif += 1;
+
+    if (r.hasil_hantavirus === 'Positif') g.hantavirus_positif += Number(r.jumlah_positif_hantavirus) || 0;
+    else if (r.hasil_hantavirus === 'Negatif') g.hantavirus_negatif += 1;
+  });
+
+  return Array.from(kelompok.values());
+}
+
+export interface LabTikusBulanan extends Omit<LabTikusMingguan, 'minggu_epid'> {
+  bulan: number;
+}
+
+export async function getLabVektorTikusBulanan(
+  tahun: number,
+  kodeWilker?: string
+): Promise<LabTikusBulanan[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from('vektor_tikus')
+    .select('tgl_survei, kode_wilker, uji_lab, hasil_leptospira, jumlah_positif_leptospira, hasil_pes, jumlah_positif_pes, hasil_hantavirus, jumlah_positif_hantavirus')
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`)
+    .order('tgl_survei');
+
+  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil data lab tikus bulanan: ${error.message}`);
+
+  const kelompok = new Map<string, LabTikusBulanan>();
+
+  (data ?? []).forEach((r) => {
+    const bulan = new Date(r.tgl_survei).getUTCMonth() + 1;
+    const key = `${bulan}|${r.kode_wilker ?? '—'}`;
+    if (!kelompok.has(key)) {
+      kelompok.set(key, {
+        bulan,
+        kode_wilker: r.kode_wilker ?? '—',
+        diuji_lab: 0,
+        leptospira_positif: 0,
+        leptospira_negatif: 0,
+        pes_positif: 0,
+        pes_negatif: 0,
+        hantavirus_positif: 0,
+        hantavirus_negatif: 0,
+      });
+    }
+    const g = kelompok.get(key)!;
+
+    if (r.uji_lab === 'Ya') g.diuji_lab += 1;
+
+    if (r.hasil_leptospira === 'Positif') g.leptospira_positif += Number(r.jumlah_positif_leptospira) || 0;
+    else if (r.hasil_leptospira === 'Negatif') g.leptospira_negatif += 1;
+
+    if (r.hasil_pes === 'Positif') g.pes_positif += Number(r.jumlah_positif_pes) || 0;
+    else if (r.hasil_pes === 'Negatif') g.pes_negatif += 1;
+
+    if (r.hasil_hantavirus === 'Positif') g.hantavirus_positif += Number(r.jumlah_positif_hantavirus) || 0;
+    else if (r.hasil_hantavirus === 'Negatif') g.hantavirus_negatif += 1;
+  });
+
+  return Array.from(kelompok.values());
+}
+
+export interface UjiLabTikus {
+  periode: number; // minggu_epid atau bulan, tergantung fungsi
+  kode_wilker: string;
+  diuji_lab: number;
+  leptospira_negatif: number;
+  pes_negatif: number;
+  hantavirus_negatif: number;
+}
+
+export async function getUjiLabVektorTikusMingguan(
+  tahun: number,
+  kodeWilker?: string
+): Promise<UjiLabTikus[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from('vektor_tikus')
+    .select('tgl_survei, minggu_epid, kode_wilker, uji_lab, hasil_leptospira, hasil_pes, hasil_hantavirus')
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`);
+
+  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil data uji lab tikus mingguan: ${error.message}`);
+
+  const kelompok = new Map<string, UjiLabTikus>();
+  (data ?? []).forEach((r) => {
+    const periode = Number(r.minggu_epid) || 0;
+    const key = `${periode}|${r.kode_wilker ?? '—'}`;
+    if (!kelompok.has(key)) {
+      kelompok.set(key, {
+        periode,
+        kode_wilker: r.kode_wilker ?? '—',
+        diuji_lab: 0,
+        leptospira_negatif: 0,
+        pes_negatif: 0,
+        hantavirus_negatif: 0,
+      });
+    }
+    const g = kelompok.get(key)!;
+    if (r.uji_lab === 'Ya') g.diuji_lab += 1;
+    if (r.hasil_leptospira === 'Negatif') g.leptospira_negatif += 1;
+    if (r.hasil_pes === 'Negatif') g.pes_negatif += 1;
+    if (r.hasil_hantavirus === 'Negatif') g.hantavirus_negatif += 1;
+  });
+
+  return Array.from(kelompok.values());
+}
+
+export async function getUjiLabVektorTikusBulanan(
+  tahun: number,
+  kodeWilker?: string
+): Promise<UjiLabTikus[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from('vektor_tikus')
+    .select('tgl_survei, kode_wilker, uji_lab, hasil_leptospira, hasil_pes, hasil_hantavirus')
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`);
+
+  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil data uji lab tikus bulanan: ${error.message}`);
+
+  const kelompok = new Map<string, UjiLabTikus>();
+  (data ?? []).forEach((r) => {
+    const periode = new Date(r.tgl_survei).getUTCMonth() + 1;
+    const key = `${periode}|${r.kode_wilker ?? '—'}`;
+    if (!kelompok.has(key)) {
+      kelompok.set(key, {
+        periode,
+        kode_wilker: r.kode_wilker ?? '—',
+        diuji_lab: 0,
+        leptospira_negatif: 0,
+        pes_negatif: 0,
+        hantavirus_negatif: 0,
+      });
+    }
+    const g = kelompok.get(key)!;
+    if (r.uji_lab === 'Ya') g.diuji_lab += 1;
+    if (r.hasil_leptospira === 'Negatif') g.leptospira_negatif += 1;
+    if (r.hasil_pes === 'Negatif') g.pes_negatif += 1;
+    if (r.hasil_hantavirus === 'Negatif') g.hantavirus_negatif += 1;
+  });
+
+  return Array.from(kelompok.values());
+}
+
+
+// ================================================================
+// BLOK TAMBAHAN FINAL — hapus SEMUA versi blok tambahan sebelumnya
+// (dari komentar "Bentuk data yang diharapkan DonutChart..." dst)
+// dan ganti dengan SELURUH isi di bawah ini, apa adanya.
+// ================================================================
+
+// Bentuk data yang diharapkan DonutChart.tsx existing kamu:
+// { kategori: string; jumlah: number }
+type DonutDatum = { kategori: string; jumlah: number };
+
+const NAMA_BULAN_SINGKAT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+];
+
+function labelBulanDariTanggal(tgl: string): { angka: number; label: string } {
+  const d = new Date(tgl);
+  const angka = d.getUTCMonth() + 1;
+  const label = `${NAMA_BULAN_SINGKAT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  return { angka, label };
+}
+
+// ----------------------------------------------------------------
+// Tren Anopheles Dewasa
+// ----------------------------------------------------------------
+export async function getTrenAnophelesDewasa(
+  tahun: number,
+  wilker: string | undefined,
+  granularitas: 'mingguan' | 'bulanan',
+): Promise<Record<string, unknown>[]> {
+  const supabase = await createClient();
+
+  if (granularitas === 'mingguan') {
+    let query = supabase
+      .from('view_vektor_anopheles_mingguan')
+      .select('*')
+      .eq('tahun_epid', tahun)
+      .eq('tipe_pengamatan', 'dewasa');
+
+    if (wilker) query = query.eq('kode_wilker', wilker);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return (data ?? []).map((r: any) => ({
+      minggu_epid: r.minggu_epid,
+      mhd: r.mhd_rerata,
+      mbr: r.mbr_rerata,
+      suhu: r.suhu_rerata,
+      kelembaban: r.kelembapan_rerata,
+    }));
+  }
+
+  let query = supabase
+    .from('vektor_anopheles')
+    .select('tgl_survei, mhd, mbr, suhu_c, kelembapan_pct')
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`)
+    .eq('tipe_pengamatan', 'dewasa');
+
+  if (wilker) query = query.eq('kode_wilker', wilker);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const perBulan = new Map<string, { total: Record<string, number>; n: number; urutan: number }>();
+  for (const r of data ?? []) {
+    if (!r.tgl_survei) continue;
+    const { angka, label } = labelBulanDariTanggal(r.tgl_survei);
+    const bucket =
+      perBulan.get(label) ?? { total: { mhd: 0, mbr: 0, suhu: 0, kelembaban: 0 }, n: 0, urutan: angka };
+    bucket.total.mhd += r.mhd ?? 0;
+    bucket.total.mbr += r.mbr ?? 0;
+    bucket.total.suhu += r.suhu_c ?? 0;
+    bucket.total.kelembaban += r.kelembapan_pct ?? 0;
+    bucket.n += 1;
+    perBulan.set(label, bucket);
+  }
+
+  return Array.from(perBulan.entries())
+    .sort((a, b) => a[1].urutan - b[1].urutan)
+    .map(([label, b]) => ({
+      bulanLabel: label,
+      mhd: b.n ? b.total.mhd / b.n : 0,
+      mbr: b.n ? b.total.mbr / b.n : 0,
+      suhu: b.n ? b.total.suhu / b.n : 0,
+      kelembaban: b.n ? b.total.kelembaban / b.n : 0,
+    }));
+}
+
+// ----------------------------------------------------------------
+// Metode Tangkap
+// ----------------------------------------------------------------
+export async function getMetodeTangkap(
+  tahun: number,
+  wilker: string | undefined,
+): Promise<DonutDatum[]> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('vektor_anopheles')
+    .select('metode_tangkap, jml_nyamuk, tgl_survei')
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`)
+    .eq('tipe_pengamatan', 'dewasa');
+
+  if (wilker) query = query.eq('kode_wilker', wilker);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const totalPerMetode = new Map<string, number>();
+  for (const row of data ?? []) {
+    const kategori = row.metode_tangkap ?? 'Tidak diketahui';
+    totalPerMetode.set(kategori, (totalPerMetode.get(kategori) ?? 0) + (row.jml_nyamuk ?? 0));
+  }
+
+  return Array.from(totalPerMetode.entries()).map(([kategori, jumlah]) => ({ kategori, jumlah }));
+}
+
+// ----------------------------------------------------------------
+// Tren Larva
+// ----------------------------------------------------------------
+export async function getTrenLarva(
+  tahun: number,
+  wilker: string | undefined,
+  granularitas: 'mingguan' | 'bulanan',
+): Promise<Record<string, unknown>[]> {
+  const supabase = await createClient();
+
+  if (granularitas === 'mingguan') {
+    let query = supabase
+      .from('view_vektor_anopheles_mingguan')
+      .select('*')
+      .eq('tahun_epid', tahun)
+      .eq('tipe_pengamatan', 'larva');
+
+    if (wilker) query = query.eq('kode_wilker', wilker);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const perMinggu = new Map<number, { cidukan: number; larva: number; suhuTotal: number; n: number }>();
+
+    for (const r of data ?? []) {
+  const minggu = r.minggu_epid;
+  
+  // 1. Validasi: Jika minggu bernilai null atau undefined, skip/lewati data ini
+  if (minggu === null || minggu === undefined) continue;
+
+  // Sekarang TypeScript tahu pasti bahwa 'minggu' di bawah ini adalah 100% 'number'
+  const bucket = perMinggu.get(minggu) ?? { cidukan: 0, larva: 0, suhuTotal: 0, n: 0 };
+  
+  bucket.cidukan += r.total_cidukan ?? 0;
+  bucket.larva += r.total_larva ?? 0;
+  bucket.suhuTotal += r.suhu_rerata ?? 0;
+  bucket.n += 1;
+  
+  perMinggu.set(minggu, bucket);
+}
+
+    return Array.from(perMinggu.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([minggu_epid, b]) => ({
+        minggu_epid,
+        cidukan: b.cidukan,
+        larva: b.larva,
+        suhu: b.n ? b.suhuTotal / b.n : 0,
+      }));
+  }
+
+  let query = supabase
+    .from('vektor_anopheles')
+    .select('tgl_survei, jumlah_cidukan, jumlah_larva, suhu_c')
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`)
+    .eq('tipe_pengamatan', 'larva');
+
+  if (wilker) query = query.eq('kode_wilker', wilker);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const perBulan = new Map<string, { total: Record<string, number>; n: number; urutan: number }>();
+  for (const r of data ?? []) {
+    if (!r.tgl_survei) continue;
+    const { angka, label } = labelBulanDariTanggal(r.tgl_survei);
+    const bucket = perBulan.get(label) ?? { total: { cidukan: 0, larva: 0, suhu: 0 }, n: 0, urutan: angka };
+    bucket.total.cidukan += r.jumlah_cidukan ?? 0;
+    bucket.total.larva += r.jumlah_larva ?? 0;
+    bucket.total.suhu += r.suhu_c ?? 0;
+    bucket.n += 1;
+    perBulan.set(label, bucket);
+  }
+
+  return Array.from(perBulan.entries())
+    .sort((a, b) => a[1].urutan - b[1].urutan)
+    .map(([label, b]) => ({
+      bulanLabel: label,
+      cidukan: b.total.cidukan,
+      larva: b.total.larva,
+      suhu: b.n ? b.total.suhu / b.n : 0,
+    }));
+}
+
+// ----------------------------------------------------------------
+// "Macam" Tempat Perindukan (pakai spesies_larva) & Keadaan Tempat
+// Perindukan
+// ----------------------------------------------------------------
+export async function getMacamTempatPerindukan(
+  tahun: number,
+  wilker: string | undefined,
+): Promise<DonutDatum[]> {
+  return getAggregateVektorAnopheles(tahun, wilker, 'spesies_larva');
+}
+
+export async function getKeadaanTempatPerindukan(
+  tahun: number,
+  wilker: string | undefined,
+): Promise<DonutDatum[]> {
+  return getAggregateVektorAnopheles(tahun, wilker, 'keadaan_tempat_perindukan');
+}
+
+async function getAggregateVektorAnopheles(
+  tahun: number,
+  wilker: string | undefined,
+  kolom: 'spesies_larva' | 'keadaan_tempat_perindukan',
+): Promise<DonutDatum[]> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('vektor_anopheles')
+    .select(`${kolom}, tgl_survei`)
+    .gte('tgl_survei', `${tahun}-01-01`)
+    .lte('tgl_survei', `${tahun}-12-31`)
+    .eq('tipe_pengamatan', 'larva');
+
+  if (wilker) query = query.eq('kode_wilker', wilker);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const hitung = new Map<string, number>();
+  for (const row of (data ?? []) as Record<string, string | null>[]) {
+    const kategori = row[kolom] ?? 'Tidak diketahui';
+    hitung.set(kategori, (hitung.get(kategori) ?? 0) + 1);
+  }
+
+  return Array.from(hitung.entries()).map(([kategori, jumlah]) => ({ kategori, jumlah }));
+}
+
+// ----------------------------------------------------------------
+// Hasil AI (prediksi/analisis)
+// ----------------------------------------------------------------
+export async function getHasilAI(
+  konteks: string,
+  periodeKey: string,
+  jenis: 'prediksi' | 'analisis',
+  wilayahKerja?: string,
+): Promise<{ teks: string; diperbarui: string } | null> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from('riwayat_analisis_ai')
+    .select('ringkasan, rekomendasi, dibuat_pada')
+    .eq('konteks', konteks)
+    .eq('periode_key', periodeKey)
+    .eq('tipe', jenis)
+    .order('dibuat_pada', { ascending: false })
+    .limit(1);
+
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const teks = data.rekomendasi ? `${data.ringkasan}\n\nRekomendasi: ${data.rekomendasi}` : data.ringkasan;
+
+  return { teks, diperbarui: data.dibuat_pada };
 }

@@ -1,11 +1,12 @@
 // ================================================================
-// app/(dashboard)/dashboard/vektor/anopheles/page.tsx (VERSI BARU)
+// app/(dashboard)/dashboard/vektor/anopheles/larva/page.tsx (VERSI BARU)
 // ================================================================
 
 import { getWilkerRef } from '@/lib/supabase/queries';
 import {
-  getTrenAnophelesDewasa,
-  getMetodeTangkap,
+  getTrenLarva,
+  getMacamTempatPerindukan,
+  getKeadaanTempatPerindukan,
 } from '@/lib/supabase/queries'; // sudah digabung ke queries.ts
 import { getUserRole } from '@/lib/auth/get-user-role';
 import FilterWilker from '@/components/vektor/FilterWilker';
@@ -16,7 +17,7 @@ import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 
-export default async function AnophelesDewasaPage({
+export default async function LarvaPage({
   searchParams,
 }: {
   searchParams: Promise<{ wilker?: string; tahun?: string }>;
@@ -25,29 +26,27 @@ export default async function AnophelesDewasaPage({
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
   const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
 
-  // WAJIB persis salah satu literal yang dikenal API:
-  // 'anopheles-dewasa-mingguan' | 'anopheles-dewasa-bulanan' |
-  // 'anopheles-larva-mingguan' | 'anopheles-larva-bulanan'
-  // (lihat app/api/analisis-ai/route.ts). TIDAK boleh digabung kode wilker
-  // di sini -- wilayah dikirim terpisah lewat prop wilayahKerja.
-  const konteksAI = 'anopheles-dewasa-mingguan';
+  // WAJIB persis literal 'anopheles-larva-mingguan' (lihat
+  // app/api/analisis-ai/route.ts) -- tidak boleh digabung kode wilker.
+  const konteksAI = 'anopheles-larva-mingguan';
   const periodeKey = `${tahunBerjalan}-W${mingguBerjalan}`;
 
-  const [role, daftarWilker, dataMingguan, dataBulanan, metodeTangkap] = await Promise.all([
+  const [role, daftarWilker, dataMingguan, dataBulanan, macamTempat, keadaanTempat] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
-    getTrenAnophelesDewasa(tahun, wilker, 'mingguan'),
-    getTrenAnophelesDewasa(tahun, wilker, 'bulanan'),
-    getMetodeTangkap(tahun, wilker),
+    getTrenLarva(tahun, wilker, 'mingguan'),
+    getTrenLarva(tahun, wilker, 'bulanan'),
+    getMacamTempatPerindukan(tahun, wilker),
+    getKeadaanTempatPerindukan(tahun, wilker),
   ]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Vektor Anopheles — Dewasa</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Vektor Anopheles — Larva</h1>
           <p className="text-sm text-gray-500">
-            MHD, MBR, korelasi cuaca/suhu/kelembaban, dan metode tangkap.
+            Kepadatan larva, cidukan positif, dan kondisi tempat perindukan.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -57,20 +56,18 @@ export default async function AnophelesDewasaPage({
       </div>
 
       <PanelTrenPeriode
-        judulBulanan="Tren MHD, MBR, Suhu & Kelembaban — Bulanan"
+        judulBulanan="Tren Cidukan, Larva & Suhu — Bulanan"
         dataMingguan={dataMingguan}
         dataBulanan={dataBulanan}
         seriesListMingguan={[
-          { key: 'mhd', label: 'MHD', warna: '#0F2A38' },
-          { key: 'mbr', label: 'MBR (per jam)', warna: '#1B5E20' },
+          { key: 'cidukan', label: 'Cidukan Positif', warna: '#558B2F' },
+          { key: 'larva', label: 'Jumlah Larva', warna: '#2E7D32' },
           { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100' },
-          { key: 'kelembaban', label: 'Kelembaban (%)', warna: '#1565C0' },
         ]}
         seriesListBulanan={[
-          { key: 'mhd', label: 'MHD', warna: '#0F2A38' },
-          { key: 'mbr', label: 'MBR (per jam)', warna: '#1B5E20' },
+          { key: 'cidukan', label: 'Cidukan Positif', warna: '#558B2F' },
+          { key: 'larva', label: 'Jumlah Larva', warna: '#2E7D32' },
           { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100', axis: 'kanan' },
-          { key: 'kelembaban', label: 'Kelembaban (%)', warna: '#1565C0', axis: 'kanan' },
         ]}
       />
 
@@ -91,8 +88,9 @@ export default async function AnophelesDewasaPage({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <DonutChart judul="Metode Tangkap" data={metodeTangkap} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <DonutChart judul="Macam Tempat Perindukan (via spesies larva)" data={macamTempat} />
+        <DonutChart judul="Keadaan Tempat Perindukan" data={keadaanTempat} />
       </div>
     </div>
   );

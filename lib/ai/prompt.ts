@@ -379,6 +379,70 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
 }`;
 }
 
+/* =========================================================================
+ * MODUL SURVEILANS VEKTOR TIKUS -- UJI LAB & HASIL PEMERIKSAAN
+ * (Leptospirosis, Pes, Hantavirus)
+ * CATATAN: "positif" dihitung dari jumlah INDIVIDU tikus positif per
+ * penyakit (bisa >1 per survei), sedangkan "negatif" dihitung dari
+ * jumlah SURVEI berstatus negatif (bukan jumlah individu) -- karena
+ * data mentah tidak mencatat jumlah individu untuk hasil negatif.
+ * Prompt harus eksplisit soal perbedaan satuan ini supaya AI tidak
+ * salah membandingkan "positif" vs "negatif" seolah unit yang sama.
+ * ======================================================================= */
+
+export function susunPromptLabTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil uji laboratorium surveilans vektor tikus (Leptospirosis, Pes, Hantavirus) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- PENTING soal satuan: angka "*_positif" adalah JUMLAH INDIVIDU TIKUS yang positif per penyakit (bisa lebih dari 1 ekor per survei), sedangkan angka "*_negatif" adalah JUMLAH SURVEI berstatus negatif (bukan jumlah individu tikus). JANGAN membandingkan keduanya seolah unit yang sama -- selalu sebutkan satuan yang benar saat mengutip angka ini.
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit atau persen) untuk "diuji_lab" dan tiap penyakit.
+- Kaitkan temuan kasus positif (Leptospirosis, Pes, dan/atau Hantavirus) dengan implikasi kesehatan masyarakat: risiko penularan ke manusia (Leptospirosis lewat urin tikus mengontaminasi air/lingkungan, Pes lewat pinjal, Hantavirus lewat kontak langsung/inhalasi ekskreta tikus), dan kebutuhan tindak lanjut kekarantinaan kesehatan (pengendalian vektor, edukasi warga sekitar area survei, koordinasi dengan fasilitas kesehatan setempat).
+- Kalau tidak ada kasus positif periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil uji lab & temuan positif/negatif periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan kasus positif atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut kesehatan masyarakat & pengendalian vektor berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiLabTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren hasil uji laboratorium vektor tikus (Leptospirosis, Pes, Hantavirus) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- PENTING soal satuan: angka "*_positif" adalah JUMLAH INDIVIDU TIKUS positif per penyakit, sedangkan "*_negatif" adalah JUMLAH SURVEI berstatus negatif -- JANGAN membandingkan keduanya seolah unit yang sama.
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap penyakit, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan kasus positif (bila ada) dengan potensi eskalasi risiko penularan ke manusia dan kebutuhan intensifikasi pengendalian vektor (pemasangan trap tambahan, larvasida/rodentisida bila relevan, edukasi warga area terdampak).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik, dan hasil lab bisa dipengaruhi banyak faktor musiman/lingkungan yang tidak tertangkap tren linear).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren kasus positif/negatif periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengendalian vektor & kesehatan masyarakat berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
 // TAMBAHKAN ke lib/ai/prompt.ts (dekat susunPromptPenumpang, gaya sama persis)
 
 export function susunPromptGlobalEmerging(data: DataAnalisis): string {
@@ -588,4 +652,56 @@ export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
     anomali: hasil.anomali.trim(),
     rekomendasi: hasil.rekomendasi.trim(),
   };
+}
+
+export function susunPromptAnopheles(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis data surveilans vektor Anopheles untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit atau persen).
+- Kalau data berisi MHD (Man Hour Density) dan/atau MBR (Man Biting Rate): kaitkan kepadatan/perilaku menggigit nyamuk Anopheles dengan risiko penularan malaria di area survei, dan pengaruh suhu/kelembaban terhadap dinamika populasi vektor bila datanya tersedia.
+- Kalau data berisi jumlah cidukan dan/atau larva: kaitkan kepadatan larva dengan potensi tempat perindukan aktif dan urgensi pengendalian sebelum menjadi nyamuk dewasa.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren surveilans Anopheles periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pengendalian vektor & kesehatan masyarakat, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiAnopheles(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren surveilans vektor Anopheles untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan kepadatan vektor (MHD/MBR/larva, bila ada) dengan potensi eskalasi risiko malaria dan kebutuhan intensifikasi pengendalian (fogging, larvasida, kelambu, edukasi warga).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik, dipengaruhi faktor musiman/cuaca yang tidak sepenuhnya tertangkap tren linear).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengendalian vektor berbasis proyeksi tren ini, 1-3 poin"
+}`;
 }

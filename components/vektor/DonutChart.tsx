@@ -36,8 +36,8 @@ export default function DonutChart({
             data={data}
             dataKey="jumlah"
             nameKey="kategori"
-            innerRadius={60}
-            outerRadius={95}
+            innerRadius={35}
+            outerRadius={85}
             paddingAngle={2}
             label={(props: any) => {
               const kategori = props?.payload?.kategori ?? props?.name ?? '';

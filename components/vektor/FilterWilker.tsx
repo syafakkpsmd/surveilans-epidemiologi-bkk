@@ -33,12 +33,15 @@ export default function FilterWilker({ daftarWilker }: { daftarWilker: WilkerRef
       onChange={(e) => ubahWilker(e.target.value)}
       className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
     >
+      // Sesudah
       <option value="">Semua Wilayah Kerja</option>
-      {daftarWilker.map((w) => (
-        <option key={w.kode} value={w.kode}>
-          {w.jenis === 'Bandara' ? '✈️' : '⚓'} {w.nama}
-        </option>
-      ))}
+      {daftarWilker
+        .filter((w) => !/bontang|tanjung bara/i.test(w.nama))
+        .map((w) => (
+          <option key={w.kode} value={w.kode}>
+            {w.jenis === 'Bandara' ? '✈️' : '⚓'} {w.nama}
+          </option>
+        ))}
     </select>
   );
 }

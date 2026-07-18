@@ -1,21 +1,5 @@
 "use client";
 
-// components/TombolPrediksiAI.tsx
-//
-// CATATAN: ini komponen BARU, generik -- beda dari dua TombolPrediksiAI.tsx
-// yang sudah ada sebelumnya (satu stub global-emerging, satu khusus vektor
-// yang MEWAJIBKAN wilayahKerja). Dibutuhkan karena konteks non-vektor baru
-// (cop-rba, cop-negara-asal, phqc-daerah-asal, phqc-rba-*, penumpang-*,
-// pesawat-*) mengizinkan wilayahKerja kosong ("Semua Wilayah Kerja"), sama
-// seperti TombolAnalisisAI.
-//
-// `role` sengaja OPSIONAL (bukan wajib seperti draf pertama saya) --
-// ternyata halaman Alat Angkut Pesawat yang sudah ada memanggil
-// TombolPrediksiAI TANPA prop role sama sekali. Propnya tidak dipakai
-// untuk logika apa pun di komponen ini (beda dari TombolAnalisisAI yang
-// pakai role untuk menampilkan link "Atur AI" khusus admin), jadi aman
-// dibuat opsional.
-
 import { useState } from "react";
 import Link from "next/link";
 import type { PeranUser } from "@/types/database.types";
@@ -35,22 +19,48 @@ type HasilPrediksi = {
   rekomendasi: string;
   providerDipakai?: string;
   dibuatPada?: string;
-  dariCache: boolean;
 };
+
+const bolehGenerate = (role?: PeranUser | null) => role === "admin" || role === "petugas";
 
 export function TombolPrediksiAI({
   sudahLogin,
+  role,
   konteks,
   periodeKey,
   wilayahKerja,
   metrik,
 }: TombolPrediksiAIProps) {
-  const [modalTerbuka, setModalTerbuka] = useState<"login" | "hasil" | null>(null);
+  const [modalTerbuka, setModalTerbuka] = useState(false);
   const [memuat, setMemuat] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasil, setHasil] = useState<HasilPrediksi | null>(null);
+  const [sudahDicek, setSudahDicek] = useState(false);
 
-  async function jalankanPrediksi(paksaPerbarui: boolean) {
+  function bangunQuery() {
+    const params = new URLSearchParams({ konteks, periode_key: periodeKey, tipe: "prediksi" });
+    if (wilayahKerja) params.set("wilayah_kerja", wilayahKerja);
+    if (metrik) params.set("metrik", metrik);
+    return params.toString();
+  }
+
+  async function muatHasil() {
+    setMemuat(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/analisis-ai?${bangunQuery()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Gagal memuat hasil Prediksi AI.");
+      setHasil(data.ada ? data : null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat hasil Prediksi AI.");
+    } finally {
+      setMemuat(false);
+      setSudahDicek(true);
+    }
+  }
+
+  async function jalankanPrediksi() {
     setMemuat(true);
     setError(null);
     try {
@@ -63,14 +73,12 @@ export function TombolPrediksiAI({
           wilayah_kerja: wilayahKerja ?? null,
           metrik: metrik ?? null,
           tipe: "prediksi",
-          paksaPerbarui,
+          paksaPerbarui: true,
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error ?? "Prediksi AI gagal dijalankan.");
-      }
-      setHasil(data as HasilPrediksi);
+      if (!res.ok) throw new Error(data?.error ?? "Prediksi AI gagal dijalankan.");
+      setHasil(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Prediksi AI gagal dijalankan.");
     } finally {
@@ -79,16 +87,8 @@ export function TombolPrediksiAI({
   }
 
   function tanganiKlik() {
-    if (!sudahLogin) {
-      setModalTerbuka("login");
-      return;
-    }
-    setModalTerbuka("hasil");
-    void jalankanPrediksi(false);
-  }
-
-  function tutupModal() {
-    setModalTerbuka(null);
+    setModalTerbuka(true);
+    if (!sudahDicek) void muatHasil();
   }
 
   return (
@@ -96,94 +96,89 @@ export function TombolPrediksiAI({
       <button
         type="button"
         onClick={tanganiKlik}
-        aria-disabled={!sudahLogin}
-        className={
-          sudahLogin
-            ? "rounded-control bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
-            : "rounded-control bg-border px-4 py-2 text-sm font-semibold text-muted cursor-not-allowed"
-        }
-        title={sudahLogin ? "Jalankan Prediksi AI" : "Login untuk mengakses Prediksi AI"}
+        className="rounded-control bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
+        title="Lihat Prediksi AI"
       >
-        {sudahLogin ? "🔮 Jalankan Prediksi AI" : "🔒 Prediksi AI"}
+        🔮 Lihat Prediksi AI
       </button>
 
       {modalTerbuka && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          onClick={tutupModal}
+          onClick={() => setModalTerbuka(false)}
         >
           <div
             className="w-full max-w-md rounded-card bg-surface p-6 shadow-lg max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {modalTerbuka === "login" ? (
-              <>
-                <h3 className="mb-2 text-base font-bold text-ink">Silakan Login</h3>
-                <p className="mb-4 text-sm text-muted">
-                  Prediksi AI hanya tersedia untuk Petugas dan Admin yang sudah login.
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <h3 className="text-base font-bold text-ink">🔮 Prediksi AI</h3>
+              <button
+                type="button"
+                onClick={() => setModalTerbuka(false)}
+                className="text-sm text-muted hover:text-ink"
+                aria-label="Tutup"
+              >
+                ✕
+              </button>
+            </div>
+
+            {memuat && <p className="py-6 text-center text-sm text-muted">Memuat…</p>}
+
+            {!memuat && error && (
+              <div className="mb-3 rounded-control border border-risiko-merah/30 bg-risiko-merah/10 px-3 py-2 text-sm text-risiko-merah">
+                {error}
+              </div>
+            )}
+
+            {!memuat && !error && hasil && (
+              <div className="space-y-4">
+                <p className="text-xs text-muted">
+                  {hasil.dibuatPada
+                    ? `Diperbarui ${new Date(hasil.dibuatPada).toLocaleString("id-ID")}`
+                    : "Hasil terakhir"}{" "}
+                  · dapat dilihat siapa saja.
                 </p>
-                <Link
-                  href="/login"
-                  className="block w-full rounded-control bg-navy px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-teal"
-                >
-                  Ke Halaman Login
-                </Link>
-              </>
-            ) : (
-              <>
-                <div className="mb-3 flex items-start justify-between gap-2">
-                  <h3 className="text-base font-bold text-ink">🔮 Prediksi AI</h3>
-                  <button
-                    type="button"
-                    onClick={tutupModal}
-                    className="text-sm text-muted hover:text-ink"
-                    aria-label="Tutup"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {memuat && (
-                  <p className="py-6 text-center text-sm text-muted">Menyusun proyeksi…</p>
+                <Bagian judul="Kondisi Saat Ini" isi={hasil.ringkasan} />
+                <Bagian judul="Proyeksi Jika Tidak Direspons" isi={hasil.anomali} />
+                <Bagian judul="Tindakan yang Perlu Dilakukan Sekarang" isi={hasil.rekomendasi} />
+                {hasil.providerDipakai && (
+                  <p className="text-xs text-muted">Provider: {hasil.providerDipakai}</p>
                 )}
+              </div>
+            )}
 
-                {!memuat && error && (
-                  <div className="mb-3 rounded-control border border-risiko-merah/30 bg-risiko-merah/10 px-3 py-2 text-sm text-risiko-merah">
-                    {error}
-                  </div>
+            {!memuat && !error && !hasil && (
+              <p className="py-4 text-sm text-muted">Belum ada Prediksi AI untuk periode ini.</p>
+            )}
+
+            {!memuat && bolehGenerate(role) && (
+              <button
+                type="button"
+                onClick={() => void jalankanPrediksi()}
+                className="mt-4 w-full rounded-control bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
+              >
+                {hasil ? "🔄 Jalankan Ulang Prediksi" : "🔮 Jalankan Prediksi AI"}
+              </button>
+            )}
+
+            {!memuat && !bolehGenerate(role) && (
+              <p className="mt-4 text-center text-xs text-muted">
+                {sudahLogin ? (
+                  "Hanya Petugas/Admin yang dapat menjalankan prediksi baru."
+                ) : (
+                  <>
+                    <Link href="/login" className="font-semibold text-teal hover:underline">
+                      Login sebagai Petugas/Admin
+                    </Link>{" "}
+                    untuk menjalankan prediksi baru.
+                  </>
                 )}
-
-                {!memuat && hasil && (
-                  <div className="space-y-4">
-                    {hasil.dariCache && (
-                      <span className="inline-block rounded-pill bg-border/60 px-3 py-1 text-xs font-medium text-muted">
-                        Hasil dari cache hari ini
-                      </span>
-                    )}
-
-                    <Bagian judul="Kondisi Saat Ini" isi={hasil.ringkasan} />
-                    <Bagian judul="Proyeksi Jika Tidak Direspons" isi={hasil.anomali} />
-                    <Bagian judul="Tindakan yang Perlu Dilakukan Sekarang" isi={hasil.rekomendasi} />
-
-                    {hasil.providerDipakai && (
-                      <p className="text-xs text-muted">Provider: {hasil.providerDipakai}</p>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => void jalankanPrediksi(true)}
-                      className="w-full rounded-control border border-border px-4 py-2 text-sm font-semibold text-ink transition-colors hover:bg-bg"
-                    >
-                      🔄 Perbarui Prediksi
-                    </button>
-                  </div>
-                )}
-              </>
+              </p>
             )}
           </div>
         </div>
       )}
-
     </div>
   );
 }

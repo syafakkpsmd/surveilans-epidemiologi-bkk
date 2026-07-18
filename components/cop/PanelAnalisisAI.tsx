@@ -17,11 +17,14 @@ type HasilAnalisis = {
   anomali: string;
   rekomendasi: string;
   providerDipakai?: string;
-  dariCache: boolean;
+  dibuatPada?: string;
 };
+
+const bolehGenerate = (role: PeranUser | null) => role === "admin" || role === "petugas";
 
 export function PanelAnalisisAI({
   sudahLogin,
+  role,
   konteks,
   periodeKey,
   wilayahKerja,
@@ -30,8 +33,31 @@ export function PanelAnalisisAI({
   const [memuat, setMemuat] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasil, setHasil] = useState<HasilAnalisis | null>(null);
+  const [sudahDicek, setSudahDicek] = useState(false);
 
-  async function jalankan(paksaPerbarui: boolean) {
+  function bangunQuery() {
+    const params = new URLSearchParams({ konteks, periode_key: periodeKey, tipe: "analisis" });
+    if (wilayahKerja) params.set("wilayah_kerja", wilayahKerja);
+    return params.toString();
+  }
+
+  async function muatHasil() {
+    setMemuat(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/analisis-ai?${bangunQuery()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Gagal memuat hasil Analisis AI.");
+      setHasil(data.ada ? data : null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memuat hasil Analisis AI.");
+    } finally {
+      setMemuat(false);
+      setSudahDicek(true);
+    }
+  }
+
+  async function jalankan() {
     setMemuat(true);
     setError(null);
     try {
@@ -42,12 +68,12 @@ export function PanelAnalisisAI({
           konteks,
           periode_key: periodeKey,
           wilayah_kerja: wilayahKerja ?? null,
-          paksaPerbarui,
+          paksaPerbarui: true,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Analisis AI gagal dijalankan.");
-      setHasil(data as HasilAnalisis);
+      setHasil(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analisis AI gagal dijalankan.");
     } finally {
@@ -57,7 +83,7 @@ export function PanelAnalisisAI({
 
   function tanganiKlik() {
     setTerbuka(true);
-    if (sudahLogin && !hasil) void jalankan(false);
+    if (!sudahDicek) void muatHasil();
   }
 
   return (
@@ -67,51 +93,61 @@ export function PanelAnalisisAI({
         <button
           type="button"
           onClick={tanganiKlik}
-          className={
-            sudahLogin
-              ? "rounded-control bg-teal px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
-              : "rounded-control bg-border px-3 py-1.5 text-xs font-semibold text-muted cursor-not-allowed"
-          }
+          className="rounded-control bg-teal px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
         >
-          {sudahLogin ? "✨ Jalankan Analisis AI" : "🔒 Analisis AI"}
+          📊 Lihat Analisis AI
         </button>
       </div>
 
-      {terbuka && !sudahLogin && (
-        <div className="mt-3 rounded-control border border-border bg-bg px-4 py-3 text-sm text-muted">
-          Silakan{" "}
-          <Link href="/login" className="font-semibold text-teal hover:underline">
-            login
-          </Link>{" "}
-          untuk mengakses Analisis AI.
-        </div>
-      )}
-
-      {terbuka && sudahLogin && (
+      {terbuka && (
         <div className="mt-3 space-y-3 rounded-control border border-border bg-bg px-4 py-3">
-          {memuat && <p className="text-sm text-muted">Menganalisis data…</p>}
+          {memuat && <p className="text-sm text-muted">Memuat…</p>}
           {!memuat && error && <p className="text-sm text-risiko-merah">{error}</p>}
-          {!memuat && hasil && (
+
+          {!memuat && !error && hasil && (
             <div className="space-y-3">
-              {hasil.dariCache && (
-                <span className="inline-block rounded-pill bg-border/60 px-3 py-1 text-xs font-medium text-muted">
-                  Hasil dari cache hari ini
-                </span>
-              )}
+              <p className="text-xs text-muted">
+                {hasil.dibuatPada
+                  ? `Diperbarui ${new Date(hasil.dibuatPada).toLocaleString("id-ID")}`
+                  : "Hasil terakhir"}{" "}
+                · dapat dilihat siapa saja.
+              </p>
               <Bagian judul="Ringkasan" isi={hasil.ringkasan} />
               <Bagian judul="Perlu Diwaspadai" isi={hasil.anomali} />
               <Bagian judul="Rekomendasi" isi={hasil.rekomendasi} />
               {hasil.providerDipakai && (
                 <p className="text-xs text-muted">Provider: {hasil.providerDipakai}</p>
               )}
-              <button
-                type="button"
-                onClick={() => void jalankan(true)}
-                className="rounded-control border border-border px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-surface"
-              >
-                🔄 Perbarui Analisis
-              </button>
             </div>
+          )}
+
+          {!memuat && !error && !hasil && (
+            <p className="text-sm text-muted">Belum ada Analisis AI untuk periode ini.</p>
+          )}
+
+          {!memuat && bolehGenerate(role) && (
+            <button
+              type="button"
+              onClick={() => void jalankan()}
+              className="rounded-control border border-border px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-surface"
+            >
+              {hasil ? "🔄 Jalankan Ulang Analisis" : "✨ Jalankan Analisis AI"}
+            </button>
+          )}
+
+          {!memuat && !bolehGenerate(role) && (
+            <p className="text-xs text-muted">
+              {sudahLogin ? (
+                "Hanya Petugas/Admin yang dapat menjalankan analisis baru."
+              ) : (
+                <>
+                  <Link href="/login" className="font-semibold text-teal hover:underline">
+                    Login sebagai Petugas/Admin
+                  </Link>{" "}
+                  untuk menjalankan analisis baru.
+                </>
+              )}
+            </p>
           )}
         </div>
       )}

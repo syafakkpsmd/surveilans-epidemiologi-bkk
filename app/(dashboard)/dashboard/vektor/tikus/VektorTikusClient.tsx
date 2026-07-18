@@ -1,9 +1,11 @@
 "use client";
 
+import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
 import { useEffect, useState } from "react";
-import FilterZonaSubLokasi from "@/components/vektor/FilterZonaSubLokasi";
 import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
+import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
+import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
 
 type WilkerRef = { kode: string; nama: string };
@@ -11,6 +13,8 @@ type VektorTikusClientProps = {
   daftarWilker: WilkerRef[];
   dataMingguan: any[];
   dataBulanan: any[];
+  labMingguan: any[];
+  labBulanan: any[];
   role: string;
   tahunBerjalan: number;
   mingguBerjalan: number;
@@ -21,6 +25,8 @@ export default function VektorTikusClient({
   daftarWilker,
   dataMingguan,
   dataBulanan,
+  labMingguan,
+  labBulanan,
   role,
   tahunBerjalan,
   mingguBerjalan,
@@ -95,6 +101,75 @@ export default function VektorTikusClient({
     setChartData(hasil);
   }, [selectedWilker, periodeType, dataMingguan, dataBulanan]);
 
+  const [chartLabMingguan, setChartLabMingguan] = useState<any[]>([]);
+  const [chartLabBulanan, setChartLabBulanan] = useState<any[]>([]);
+
+  const seriesLab: SeriesChecklist[] = [
+    { key: "diuji_lab", label: "Diuji Lab", warna: "#0F4C5C" },
+    { key: "leptospira_positif", label: "Leptospira Positif", warna: "#B71C1C" },
+    { key: "leptospira_negatif", label: "Leptospira Negatif", warna: "#F0A8A8" },
+    { key: "pes_positif", label: "Pes Positif", warna: "#7C3AED" },
+    { key: "pes_negatif", label: "Pes Negatif", warna: "#D2B8F7" },
+    { key: "hantavirus_positif", label: "Hantavirus Positif", warna: "#EA580C" },
+    { key: "hantavirus_negatif", label: "Hantavirus Negatif", warna: "#F5C89E" },
+  ];
+
+  useEffect(() => {
+    const filteredMingguan = labMingguan.filter(
+      (d) => selectedWilker === "semua" || d.kode_wilker === selectedWilker
+    );
+    const petaMingguan = new Map<number, any>();
+    filteredMingguan.forEach((item) => {
+      const existing = petaMingguan.get(item.minggu_epid) ?? {
+        label: `Mg-${item.minggu_epid}`,
+        urutan: item.minggu_epid,
+        diuji_lab: 0,
+        leptospira_positif: 0,
+        leptospira_negatif: 0,
+        pes_positif: 0,
+        pes_negatif: 0,
+        hantavirus_positif: 0,
+        hantavirus_negatif: 0,
+      };
+      existing.diuji_lab += item.diuji_lab;
+      existing.leptospira_positif += item.leptospira_positif;
+      existing.leptospira_negatif += item.leptospira_negatif;
+      existing.pes_positif += item.pes_positif;
+      existing.pes_negatif += item.pes_negatif;
+      existing.hantavirus_positif += item.hantavirus_positif;
+      existing.hantavirus_negatif += item.hantavirus_negatif;
+      petaMingguan.set(item.minggu_epid, existing);
+    });
+    setChartLabMingguan(Array.from(petaMingguan.values()).sort((a, b) => a.urutan - b.urutan));
+
+    const filteredBulanan = labBulanan.filter(
+      (d) => selectedWilker === "semua" || d.kode_wilker === selectedWilker
+    );
+    const petaBulanan = new Map<number, any>();
+    filteredBulanan.forEach((item) => {
+      const existing = petaBulanan.get(item.bulan) ?? {
+        label: namaBulan[item.bulan - 1] || `Bln-${item.bulan}`,
+        urutan: item.bulan,
+        diuji_lab: 0,
+        leptospira_positif: 0,
+        leptospira_negatif: 0,
+        pes_positif: 0,
+        pes_negatif: 0,
+        hantavirus_positif: 0,
+        hantavirus_negatif: 0,
+      };
+      existing.diuji_lab += item.diuji_lab;
+      existing.leptospira_positif += item.leptospira_positif;
+      existing.leptospira_negatif += item.leptospira_negatif;
+      existing.pes_positif += item.pes_positif;
+      existing.pes_negatif += item.pes_negatif;
+      existing.hantavirus_positif += item.hantavirus_positif;
+      existing.hantavirus_negatif += item.hantavirus_negatif;
+      petaBulanan.set(item.bulan, existing);
+    });
+    setChartLabBulanan(Array.from(petaBulanan.values()).sort((a, b) => a.urutan - b.urutan));
+  }, [selectedWilker, labMingguan, labBulanan]);
+
   return (
     <div className="space-y-6">
       {/* Bagian Header dan Kontrol Filter */}
@@ -125,19 +200,21 @@ export default function VektorTikusClient({
             </button>
           </div>
 
-          {/* Dropdown Wilayah Kerja */}
+          {/* Dropdown Wilayah Kerja -- 6 pelabuhan laut + 1 bandara APT
+             Pranoto saja; 2 bandara tambang (LNG Bontang, KPC Sangatta)
+             sengaja dikecualikan karena bukan wilker aktif untuk modul ini. */}
           <select
             value={selectedWilker}
             onChange={(e) => setSelectedWilker(e.target.value)}
             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-hidden"
           >
             <option value="semua">Semua Wilayah Kerja</option>
-            {daftarWilker.map((w) => (
-              <option key={w.kode} value={w.kode}>{w.nama}</option>
-            ))}
+            {daftarWilker
+              .filter((w) => !/bontang|tanjung bara/i.test(w.nama))
+              .map((w) => (
+                <option key={w.kode} value={w.kode}>{w.nama}</option>
+              ))}
           </select>
-
-          <FilterZonaSubLokasi />
 
           <TombolAnalisisAI
             sudahLogin={true}
@@ -193,6 +270,64 @@ export default function VektorTikusClient({
                 { key: "index_pinjal", label: "Index Pinjal", warna: "#1B5E20" },
               ]}
             />
+          </div>
+
+          {/* Grafik Uji Lab & Hasil Pemeriksaan -- Bulanan (Bar) */}
+          <div className="rounded-xl bg-white p-4 shadow-xs">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Uji Lab & Hasil Pemeriksaan — Bulanan
+            </h3>
+            <TrenChecklistMingguan
+              data={chartLabBulanan}
+              seriesList={seriesLab}
+              maxAktifDefault={2}
+              variant="bar"
+            />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={true}
+                role={role as PeranUser}
+                konteks="tikus-lab-bulanan"
+                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
+                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+              />
+              <BoxPrediksiAI
+                sudahLogin={true}
+                role={role as PeranUser}
+                konteks="tikus-lab-bulanan"
+                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
+                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+              />
+            </div>
+          </div>
+
+          {/* Grafik Uji Lab & Hasil Pemeriksaan -- Mingguan (Line) */}
+          <div className="rounded-xl bg-white p-4 shadow-xs">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Uji Lab & Hasil Pemeriksaan — Mingguan
+            </h3>
+            <TrenChecklistMingguan
+              data={chartLabMingguan}
+              seriesList={seriesLab}
+              maxAktifDefault={2}
+              variant="line"
+            />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={true}
+                role={role as PeranUser}
+                konteks="tikus-lab-bulanan"
+                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
+                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+              />
+              <BoxPrediksiAI
+                sudahLogin={true}
+                role={role as PeranUser}
+                konteks="tikus-lab-bulanan"
+                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
+                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+              />
+            </div>
           </div>
         </div>
       )}

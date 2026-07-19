@@ -331,6 +331,16 @@ async function topKategoriUmum(
     .slice(0, 8);
 }
 
+const NAMA_WILKER: Record<string, string> = {
+  WK01: 'Pelabuhan Samarinda',
+  WK02: 'Pelabuhan Tanjung Santan',
+  WK03: 'Pelabuhan Tanjung Laut',
+  WK04: 'Pelabuhan Lhoktuan',
+  WK05: 'Pelabuhan Sangatta',
+  WK06: 'Pelabuhan Sangkulirang',
+  WK07: 'Bandara APT Pranoto',
+};
+
 /**
  * Titik masuk utama -- dipanggil dari Route Handler
  * (app/api/analisis-ai/route.ts). wilayahKerja generik string:
@@ -350,7 +360,9 @@ export async function ambilDataAnalisis(
     return ambilDataAnalisisVektorDbd(periodeKey, wilayahKerja, metrik);
   }
 
-  const labelWilayah = wilayahKerja ?? 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+  const labelWilayah = wilayahKerja
+  ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+  : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
 
   if (konteks === 'penumpang-mingguan' || konteks === 'penumpang-bulanan') {
     if (konteks === 'penumpang-mingguan') {
@@ -636,16 +648,6 @@ const LABEL_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, string> = {
   'phqc-pelabuhan-bulanan': 'Pelabuhan Kedatangan & Tujuan (Kegiatan PHQC) — Bulanan',
 };
 
-const NAMA_WILKER: Record<string, string> = {
-  WK01: 'Pelabuhan Samarinda',
-  WK02: 'Pelabuhan Tanjung Santan',
-  WK03: 'Pelabuhan Tanjung Laut',
-  WK04: 'Pelabuhan Lhoktuan',
-  WK05: 'Pelabuhan Sangatta',
-  WK06: 'Pelabuhan Sangkulirang',
-  WK07: 'Bandara APT Pranoto',
-};
-
 /**
  * Breakdown gabungan pelabuhan_kedatangan + pelabuhan_tujuan untuk SATU
  * periode (paralel dengan grafik tren tahunan di UI, tapi ini snapshot
@@ -736,7 +738,9 @@ export async function ambilDataBreakdownAnalisis(
     return ambilDataBreakdownPelabuhanPhqc(periodeKey, wilayahKerja);
   }
 
-  const labelWilayah = wilayahKerja ?? 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+  const labelWilayah = wilayahKerja
+  ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+  : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
   const kategori = KATEGORI_PER_KONTEKS_BREAKDOWN[konteks];
   const tabel = TABEL_PER_KONTEKS_BREAKDOWN[konteks];
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);

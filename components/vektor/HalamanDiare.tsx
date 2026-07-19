@@ -1,45 +1,44 @@
-// ================================================================
-// SEGMEN 11 — components/vektor/HalamanDiare.tsx
-// Server Component bersama untuk /diare-lalat dan /diare-kecoa.
-// Route TETAP terpisah (bukan toggle) karena threshold & larangan
-// rekomendasi AI berbeda total antara Lalat dan Kecoa — komponen ini
-// hanya menghindari duplikasi kode, BUKAN menyatukan datanya.
-// ================================================================
-
+import { getWilkerRef } from '@/lib/supabase/queries';
 import { getValidRole } from '@/lib/auth/utils';
-import { getRingkasanVektorDiare, getWilkerRef } from '@/lib/supabase/queries';
 import {
-  getBreakdownKategori,
-  getRentangMingguEpid,
-} from '@/lib/supabase/queriesVektorBreakdown';
+  getTrenDiareMultiVariabel,
+  getHasilPengamatanPerWilker,
+  getTrenDiareBulanan,
+} from '@/lib/supabase/queriesVektorDiareEnhanced';
+import { getBreakdownKategori, getRentangMingguEpid } from '@/lib/supabase/queriesVektorBreakdown';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterWilker from '@/components/vektor/FilterWilker';
-import TrenChartMingguan from '@/components/vektor/TrenChartMingguan';
-import BreakdownList from '@/components/vektor/BreakdownList';
-import { TombolAnalisisAI } from '@/components/TombolAnalisisAI';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
+import BreakdownList from '@/components/vektor/BreakdownList';
+import GrafikHasilPengamatanWilker from '@/components/vektor/GrafikHasilPengamatanWilker';
+import GrafikInsektisidaVsLuas from '@/components/vektor/GrafikInsektisidaVsLuas';
+import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
+import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
+import PanelTrenDiareLingkungan from '@/components/vektor/PanelTrenDiareLingkungan';
+import { getLokasiTidakMemenuhiSyarat } from '@/lib/supabase/queriesVektorDiareEnhanced';
+import DaftarLokasiTidakMemenuhi from '@/components/vektor/DaftarLokasiTidakMemenuhi';
+
 
 const KONFIG = {
   lalat: {
-    ikon: '🪰',
-    judul: 'Vektor Diare — Lalat',
-    metrik: 'fly_index_rerata' as const,
-    labelMetrik: 'Fly Index',
-    warna: '#E65100',
-    threshold: 8,
-    konteks: 'vektor-diare-lalat-mingguan',
+    ikon: '🪰', judul: 'Vektor Diare — Lalat',
+    metrikUtama: { key: 'fly_index_rerata', label: 'Fly Index', warna: '#E65100' },
+    threshold: 8, konteks: 'vektor-diare-lalat-mingguan',
   },
   kecoa: {
-    ikon: '🪳',
-    judul: 'Vektor Diare — Kecoa',
-    metrik: 'kepadatan_kecoa_rerata' as const,
-    labelMetrik: 'Kepadatan/m²',
-    warna: '#5B21B6',
-    threshold: 2,
-    konteks: 'vektor-diare-kecoa-mingguan',
+    ikon: '🪳', judul: 'Vektor Diare — Kecoa',
+    metrikUtama: { key: 'kepadatan_kecoa_rerata', label: 'Kepadatan/m²', warna: '#5B21B6' },
+    threshold: 2, konteks: 'vektor-diare-kecoa-mingguan',
   },
 };
+
+const SERI_LINGKUNGAN = [
+  { key: 'suhu_rerata', label: 'Suhu (°C)', warna: '#F59E0B' },
+  { key: 'kelembapan_rerata', label: 'Kelembaban (%)', warna: '#0EA5E9' },
+  { key: 'curah_hujan_rerata', label: 'Curah Hujan (mm)', warna: '#2563EB' },
+  { key: 'cuaca_dominan', label: 'Cuaca', warna: '#64748B' }, // kategorikal — cek: mungkin perlu chart terpisah, bukan overlay line
+];
 
 export default async function HalamanDiare({
   jenis,
@@ -52,14 +51,17 @@ export default async function HalamanDiare({
   const { wilker, tahun: tahunParam } = await searchParams;
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
 
-  const [role, daftarWilker, ringkasan] = await Promise.all([
-    getUserRole(),
-    getWilkerRef(),
-    getRingkasanVektorDiare(tahun, jenis, wilker),
-  ]);
+  const [role, daftarWilker, dataMingguan, dataBulanan, hasilPerWilker, lokasiTidakMemenuhi] = await Promise.all([
+  getUserRole(),
+  getWilkerRef(),
+  getTrenDiareMultiVariabel(tahun, jenis, wilker),
+  getTrenDiareBulanan(tahun, jenis, wilker),
+  getHasilPengamatanPerWilker(tahun, jenis),
+  getLokasiTidakMemenuhiSyarat(tahun, jenis, wilker),   // <-- tambahan
+]);
 
-  const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
-  const { mulai, selesai } = getRentangMingguEpid(tahunBerjalan, mingguBerjalan);
+  const { tahunEpid, mingguEpid } = getMingguEpidSaatIni();
+  const { mulai, selesai } = getRentangMingguEpid(tahunEpid, mingguEpid);
 
   const breakdownLokasi = await getBreakdownKategori({
     tabel: 'vektor_diare',
@@ -71,54 +73,75 @@ export default async function HalamanDiare({
     filterTambahan: { jenis_kegiatan: jenis },
   });
 
-  const dataChart = ringkasan.map((r) => ({
-    minggu_epid: r.minggu_epid,
-    nilai: r[cfg.metrik] ?? 0,
-    memenuhi_syarat: r.jml_memenuhi_syarat,
-  }));
+  const periodeKey = `${tahunEpid}-${mingguEpid}`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* ... (Header h1 & p tetap sama) */}
-        
+        <div>
+          <h1 className="text-lg font-bold">{cfg.ikon} {cfg.judul}</h1>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <FilterWilker daftarWilker={daftarWilker} />
           <FilterZonaSubLokasi />
-          {/* 3. PERBAIKI PROPS DI SINI */}
-          <TombolAnalisisAI 
-            sudahLogin={role !== null}
-            role={getValidRole(role)} 
-            konteks={cfg.konteks} // Gunakan cfg.konteks dari objek KONFIG
-            periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
-            wilayahKerja={wilker ?? undefined}
-          />
         </div>
       </div>
 
-      {ringkasan.length === 0 ? (
-        <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
-          Belum ada kegiatan pengamatan {jenis} tercatat untuk tahun {tahun}.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-gray-700">
-              Tren {cfg.labelMetrik} — Tahun {tahun}
-            </h2>
-            <TrenChartMingguan
-              data={dataChart}
-              seriesList={[{ key: 'nilai', label: cfg.labelMetrik, warna: cfg.warna }]}
-            />
-          </div>
-
-          <BreakdownList
-            judul={`Lokasi Pengamatan — Minggu Epid ke-${mingguBerjalan}`}
-            data={breakdownLokasi}
-            warna={cfg.warna}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">
+            Tren {cfg.metrikUtama.label} vs Faktor Lingkungan — Tahun {tahun}
+          </h2>
+          <PanelTrenDiareLingkungan
+            judulBulanan={`${cfg.metrikUtama.label} per Bulan`}
+            dataMingguan={dataMingguan}
+            dataBulanan={dataBulanan}
+            metrikUtama={cfg.metrikUtama}
+            seriTambahan={SERI_LINGKUNGAN}
           />
         </div>
-      )}
+
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">
+            Hasil Pengamatan per Wilayah Kerja
+          </h2>
+          <GrafikHasilPengamatanWilker data={hasilPerWilker} />
+        </div>
+
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">
+            Jumlah Insektisida vs Luas Area
+          </h2>
+          <GrafikInsektisidaVsLuas data={dataMingguan} warna={cfg.metrikUtama.warna} />
+        </div>
+
+        <BreakdownList
+          judul={`Lokasi Pengamatan — Minggu Epid ke-${mingguEpid}`}
+          data={breakdownLokasi}
+          warna={cfg.metrikUtama.warna}
+        />
+      </div>
+
+      {/* Box selalu tampil, publik bisa baca; tombol jalankan hanya untuk petugas/admin — ikuti pola BoxAnalisisAI Anopheles */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <BoxAnalisisAI
+          sudahLogin={role !== null}
+          role={getValidRole(role)}
+          konteks={cfg.konteks}
+          periodeKey={periodeKey}
+          wilayahKerja={wilker}
+          metrik={cfg.metrikUtama.key}
+        />
+        <BoxPrediksiAI
+          sudahLogin={role !== null}
+          role={getValidRole(role)}
+          konteks={cfg.konteks}
+          periodeKey={periodeKey}
+          wilayahKerja={wilker}
+          metrik={cfg.metrikUtama.key}
+        />
+      </div>
+      <DaftarLokasiTidakMemenuhi data={lokasiTidakMemenuhi} />
     </div>
   );
 }

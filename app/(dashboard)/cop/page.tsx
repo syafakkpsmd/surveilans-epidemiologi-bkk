@@ -350,9 +350,9 @@ export default async function CopPage({
       rowsNegaraTren.forEach((r) => {
         const negara = normalisasiNilaiKategori(r.nilai);
         if (!negara) return;
-        const urutan = mode === "mingguan" ? r.minggu_epid : r.bulan;
+        const urutan = mode === "mingguan" ? (r as { minggu_epid: number }).minggu_epid : (r as { bulan: number }).bulan;
         const label = mode === "mingguan" ? `Mg ${urutan}` : NAMA_BULAN[urutan - 1];
-        const existing = petaTrenNegara.get(urutan) ?? { label, urutan };
+        const existing: Record<string, string | number> = petaTrenNegara.get(urutan) ?? { label, urutan };
         existing[negara] = ((existing[negara] as number) ?? 0) + r.jumlah;
         petaTrenNegara.set(urutan, existing);
         totalPerNegara.set(negara, (totalPerNegara.get(negara) ?? 0) + r.jumlah);

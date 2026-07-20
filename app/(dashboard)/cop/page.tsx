@@ -7,9 +7,12 @@ import { TrenNegaraChart, type SeriesNegara } from "@/components/cop/TrenNegaraC
 import { generateWarnaNegara } from "@/lib/warnaNegara";
 import { PieBreakdown } from "@/components/cop/PieBreakdown";
 import { DaftarNegaraKedatangan } from "@/components/cop/DaftarNegaraKedatangan";
-import { PanelAnalisisAI } from "@/components/cop/PanelAnalisisAI";
 import { BreakdownCard } from "@/components/BreakdownCard";
-import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
+// GANTI: TombolAnalisisAI/PanelAnalisisAI (popup) -> BoxAnalisisAI/BoxPrediksiAI
+// (box statis di bawah grafik, auto-fetch GET tanpa auth, hasil bisa dibaca siapa saja;
+// tombol "Generate" tetap hanya aktif untuk admin/petugas lewat prop role)
+import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
+import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import {
   getRingkasanMingguan,
@@ -161,14 +164,17 @@ interface TitikTrenCop {
  * bawah (SEMUA section independen -- boleh dihapus/dipindah tanpa
  * merusak section lain, kecuali disebutkan sebaliknya):
  *
- *   1. Header + tombol Analisis AI
+ *   1. Header + BoxAnalisisAI/BoxPrediksiAI (ringkasan umum COP)
  *   2. Filter mode (Mingguan/Bulanan) + wilayah
  *   3. Kartu Ringkasan Total (kapal & ABK, keseluruhan + per wilayah)
  *      -- SELALU pakai data mingguan tahun berjalan, TIDAK terpengaruh
  *      filter wilayah/mode di atas (supaya angkanya stabil jadi acuan).
  *   4. Chart perbandingan antar wilayah (mingguan, checkbox toggle)
- *      -- SELALU mingguan juga, sama seperti section 3.
- *   5. Tren Mingguan/Bulanan gabungan (INI YANG mengikuti filter mode+wilayah)
+ *      + BoxAnalisisAI/BoxPrediksiAI -- SELALU mingguan juga, sama
+ *      seperti section 3.
+ *   5. Tren Mingguan/Bulanan gabungan (ABK & Kapal) + BoxAnalisisAI/
+ *      BoxPrediksiAI (INI YANG mengikuti filter mode+wilayah)
+ *   5B. Tren Negara Kedatangan + BoxAnalisisAI/BoxPrediksiAI
  *   6. RBA (2 donut kalau mingguan, 1 bar chart kalau bulanan)
  *   7. Negara Kedatangan
  *   8. Daerah Terjangkit + Keberadaan Vektor
@@ -186,6 +192,8 @@ export default async function CopPage({
   const wilayah = validasiWilayah(sp.wilayah);
 
   const { sudahLogin, role } = await getStatusAkses();
+  // roleAI: hanya admin/petugas yang boleh menekan "Generate" di semua BoxAnalisisAI/BoxPrediksiAI
+  const roleAI = role === "admin" || role === "petugas" ? role : null;
 
   const sekarang = new Date();
   const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIni } =
@@ -197,6 +205,9 @@ export default async function CopPage({
     mode === "mingguan"
       ? `${tahunEpidSaatIni}-W${mingguEpidSaatIni}`
       : `${sekarang.getFullYear()}-${sekarang.getMonth() + 1}`;
+
+  // periodeKey khusus section 3 & 4, yang SELALU mingguan tahun epid berjalan
+  const periodeKeyMingguanSelalu = `${tahunEpidSaatIni}-W${mingguEpidSaatIni}`;
 
   const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
@@ -240,16 +251,83 @@ export default async function CopPage({
       getRingkasanBulanan("cop", sekarang.getFullYear()),
     ]);
 
-    if (mode === "mingguan") {
-      const ringkasan = await getRingkasanMingguan("cop", tahun);
-      const terfilter =
-        wilayah === "Semua" ? ringkasan : ringkasan.filter((r) => r.wilayah_kerja === wilayah);
+    // ============================================================
+    // SEMUA query di bawah ini INDEPENDEN satu sama lain (tidak ada
+    // yang butuh hasil query lain di grup ini) -- jadi dijalankan
+    // BARENGAN lewat 1 Promise.all, bukan await satu-satu seperti
+    // sebelumnya. Ini yang paling besar dampaknya ke waktu loading
+    // saat pindah tab Mingguan/Bulanan (5-6 round trip berurutan
+    // bisa jadi 1 round trip paralel).
+    // ============================================================
+    const [
+      ringkasanTren,
+      rowsNegaraTren,
+      hasilSemuaKategori,
+      rowsRbaMingguIni,
+      rowsRbaSemuaBulan,
+      dataMentahHasil,
+    ] = await Promise.all([
+      mode === "mingguan"
+        ? getRingkasanMingguan("cop", tahun)
+        : getRingkasanBulanan("cop", tahun),
+      mode === "mingguan"
+        ? getKategoriBreakdown("cop", "mingguan", {
+            tahun_epid: tahun,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "negara_kedatangan",
+          })
+        : getKategoriBreakdown("cop", "bulanan", {
+            tahun,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "negara_kedatangan",
+          }),
+      Promise.all(
+        KATEGORI_LIST.map((k) =>
+          mode === "mingguan"
+            ? getKategoriBreakdown("cop", "mingguan", {
+                tahun_epid: tahun,
+                wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+                kategori: k.key,
+              })
+            : getKategoriBreakdown("cop", "bulanan", {
+                tahun,
+                wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+                kategori: k.key,
+              })
+        )
+      ),
+      mode === "mingguan"
+        ? getKategoriBreakdown("cop", "mingguan", {
+            tahun_epid: tahun,
+            minggu_epid: mingguEpidSaatIni,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "rba",
+          })
+        : Promise.resolve([]),
+      mode === "bulanan"
+        ? getKategoriBreakdown("cop", "bulanan", {
+            tahun,
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            kategori: "rba",
+          })
+        : Promise.resolve([]),
+      getKegiatanCopEnriched({
+        wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+        limit: 50,
+      }),
+    ]);
 
+    // ----- olah ringkasanTren -> trenData -----
+    {
+      const terfilter =
+        wilayah === "Semua" ? ringkasanTren : ringkasanTren.filter((r) => r.wilayah_kerja === wilayah);
       const peta = new Map<number, TitikTrenCop>();
       terfilter.forEach((r) => {
-        const existing = peta.get(r.minggu_epid) ?? {
-          label: `Mg ${r.minggu_epid}`,
-          urutan: r.minggu_epid,
+        const urutan = mode === "mingguan" ? (r as RingkasanMingguanCop).minggu_epid : (r as RingkasanBulananCop).bulan;
+        const label = mode === "mingguan" ? `Mg ${urutan}` : NAMA_BULAN[urutan - 1];
+        const existing = peta.get(urutan) ?? {
+          label,
+          urutan,
           jumlah_kapal: 0,
           total_abk: 0,
           total_abk_wna: 0,
@@ -259,107 +337,42 @@ export default async function CopPage({
         existing.total_abk += r.total_abk;
         existing.total_abk_wna += r.total_abk_wna;
         existing.total_abk_wni += r.total_abk_wni;
-        peta.set(r.minggu_epid, existing);
-      });
-      trenData = Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
-    } else {
-      const ringkasan = await getRingkasanBulanan("cop", tahun);
-      const terfilter =
-        wilayah === "Semua" ? ringkasan : ringkasan.filter((r) => r.wilayah_kerja === wilayah);
-
-      const peta = new Map<number, TitikTrenCop>();
-      terfilter.forEach((r) => {
-        const existing = peta.get(r.bulan) ?? {
-          label: NAMA_BULAN[r.bulan - 1],
-          urutan: r.bulan,
-          jumlah_kapal: 0,
-          total_abk: 0,
-          total_abk_wna: 0,
-          total_abk_wni: 0,
-        };
-        existing.jumlah_kapal += r.jumlah_kapal;
-        existing.total_abk += r.total_abk;
-        existing.total_abk_wna += r.total_abk_wna;
-        existing.total_abk_wni += r.total_abk_wni;
-        peta.set(r.bulan, existing);
+        peta.set(urutan, existing);
       });
       trenData = Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
     }
 
-    // <<<<<<<<<<<<<<< TEMPEL KODE TREN NEGARA DI SINI >>>>>>>>>>>>>>>
-    const petaTrenNegara = new Map<number, Record<string, string | number>>();
-const totalPerNegara = new Map<string, number>();
+    // ----- olah rowsNegaraTren -> trenNegaraData & seriesNegara -----
+    {
+      const petaTrenNegara = new Map<number, Record<string, string | number>>();
+      const totalPerNegara = new Map<string, number>();
 
-if (mode === "mingguan") {
-  const rowsNegaraTren = await getKategoriBreakdown("cop", "mingguan", {
-    tahun_epid: tahun,
-    wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-    kategori: "negara_kedatangan",
-  });
+      rowsNegaraTren.forEach((r) => {
+        const negara = normalisasiNilaiKategori(r.nilai);
+        if (!negara) return;
+        const urutan = mode === "mingguan" ? r.minggu_epid : r.bulan;
+        const label = mode === "mingguan" ? `Mg ${urutan}` : NAMA_BULAN[urutan - 1];
+        const existing = petaTrenNegara.get(urutan) ?? { label, urutan };
+        existing[negara] = ((existing[negara] as number) ?? 0) + r.jumlah;
+        petaTrenNegara.set(urutan, existing);
+        totalPerNegara.set(negara, (totalPerNegara.get(negara) ?? 0) + r.jumlah);
+      });
 
-  rowsNegaraTren.forEach((r) => {
-    const negara = normalisasiNilaiKategori(r.nilai);
-    if (!negara) return;
-    const urutan = r.minggu_epid;
-    const label = `Mg ${urutan}`;
-    const existing = petaTrenNegara.get(urutan) ?? { label, urutan };
-    existing[negara] = ((existing[negara] as number) ?? 0) + r.jumlah;
-    petaTrenNegara.set(urutan, existing);
-    totalPerNegara.set(negara, (totalPerNegara.get(negara) ?? 0) + r.jumlah);
-  });
-} else {
-  const rowsNegaraTren = await getKategoriBreakdown("cop", "bulanan", {
-    tahun,
-    wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-    kategori: "negara_kedatangan",
-  });
+      trenNegaraData = Array.from(petaTrenNegara.values()).sort(
+        (a, b) => (a.urutan as number) - (b.urutan as number)
+      );
 
-  rowsNegaraTren.forEach((r) => {
-    const negara = normalisasiNilaiKategori(r.nilai);
-    if (!negara) return;
-    const urutan = r.bulan;
-    const label = NAMA_BULAN[urutan - 1];
-    const existing = petaTrenNegara.get(urutan) ?? { label, urutan };
-    existing[negara] = ((existing[negara] as number) ?? 0) + r.jumlah;
-    petaTrenNegara.set(urutan, existing);
-    totalPerNegara.set(negara, (totalPerNegara.get(negara) ?? 0) + r.jumlah);
-  });
-}
+      seriesNegara = Array.from(totalPerNegara.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([negara, total], i) => ({
+          key: negara,
+          label: negara,
+          warna: generateWarnaNegara(i),
+          total,
+        }));
+    }
 
-trenNegaraData = Array.from(petaTrenNegara.values()).sort(
-  (a, b) => (a.urutan as number) - (b.urutan as number)
-);
-
-seriesNegara = Array.from(totalPerNegara.entries())
-  .sort((a, b) => b[1] - a[1])
-  .map(([negara, total], i) => ({
-    key: negara,
-    label: negara,
-    warna: generateWarnaNegara(i),
-    total,
-  }));
-    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-// Ambil SEMUA kategori di KATEGORI_LIST secara PARALEL (Promise.all),
-    // bukan satu-satu berurutan seperti sebelumnya -- ini yang paling
-    // besar dampaknya ke waktu loading (7 kategori x 1-2 detik/query
-    // berurutan bisa jadi 10-15 detik sendiri kalau tidak diparalelkan).
-    const hasilSemuaKategori = await Promise.all(
-      KATEGORI_LIST.map((k) =>
-        mode === "mingguan"
-          ? getKategoriBreakdown("cop", "mingguan", {
-              tahun_epid: tahun,
-              wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-              kategori: k.key,
-            })
-          : getKategoriBreakdown("cop", "bulanan", {
-              tahun,
-              wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-              kategori: k.key,
-            })
-      )
-    );
-
+    // ----- olah hasilSemuaKategori -> kategoriData -----
     KATEGORI_LIST.forEach((k, idx) => {
       const rows = hasilSemuaKategori[idx];
       const peta = new Map<string, number>();
@@ -372,17 +385,10 @@ seriesNegara = Array.from(totalPerNegara.entries())
         .sort((a, b) => b.jumlah - a.jumlah);
     });
 
-    // Query TAMBAHAN khusus RBA minggu berjalan (mode mingguan saja).
-    // Beda dari kategoriData.rba di atas yang totalnya 1 TAHUN penuh.
+    // ----- olah rowsRbaMingguIni -> kategoriRbaMingguIni (mingguan saja) -----
     if (mode === "mingguan") {
-      const rowsMingguIni = await getKategoriBreakdown("cop", "mingguan", {
-        tahun_epid: tahun,
-        minggu_epid: mingguEpidSaatIni,
-        wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-        kategori: "rba",
-      });
       const peta = new Map<string, number>();
-      rowsMingguIni.forEach((r) => {
+      rowsRbaMingguIni.forEach((r) => {
         const nilaiNormal = normalisasiNilaiKategori(r.nilai);
         peta.set(nilaiNormal, (peta.get(nilaiNormal) ?? 0) + r.jumlah);
       });
@@ -391,19 +397,11 @@ seriesNegara = Array.from(totalPerNegara.entries())
         .sort((a, b) => b.jumlah - a.jumlah);
     }
 
-    // Query TAMBAHAN khusus RBA per-bulan (mode bulanan saja), untuk
-    // bar chart Jan-Des -- tanpa filter `bulan` supaya dapat semua
-    // bulan sekaligus, lalu dikelompokkan manual per bulan di bawah.
+    // ----- olah rowsRbaSemuaBulan -> dataRbaBulanan (bulanan saja) -----
     if (mode === "bulanan") {
-      const rowsSemuaBulan = await getKategoriBreakdown("cop", "bulanan", {
-        tahun,
-        wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-        kategori: "rba",
-      });
-
       dataRbaBulanan = NAMA_BULAN.map((label, idx) => {
         const bulanKe = idx + 1;
-        const rowsBulanIni = rowsSemuaBulan.filter((r) => r.bulan === bulanKe);
+        const rowsBulanIni = rowsRbaSemuaBulan.filter((r) => r.bulan === bulanKe);
 
         const agregat: DataRbaBulanan = {
           bulanLabel: label,
@@ -425,10 +423,7 @@ seriesNegara = Array.from(totalPerNegara.entries())
       });
     }
 
-    dataMentah = await getKegiatanCopEnriched({
-      wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-      limit: 50,
-    });
+    dataMentah = dataMentahHasil;
   } catch (err) {
     errorMuat = err instanceof Error ? err.message : "Gagal mengambil data COP.";
   }
@@ -480,7 +475,7 @@ seriesNegara = Array.from(totalPerNegara.entries())
     warna: PALET_WILAYAH[i],
   }));
 
-// ============================================================
+  // ============================================================
   // DATA CHART PERBANDINGAN ANTAR WILAYAH -- VERSI BULANAN.
   // Sumbernya ringkasanBulananSemuaWilker (tahun kalender berjalan),
   // dikelompokkan per bulan, kolomnya = jumlah_kapal per wilayah --
@@ -508,12 +503,25 @@ seriesNegara = Array.from(totalPerNegara.entries())
           </p>
           <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan COP</h1>
         </div>
-        <TombolAnalisisAI
+      </div>
+
+      {/* Box ringkasan AI umum halaman COP -- dulunya TombolAnalisisAI (popup) di header */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <BoxAnalisisAI
           sudahLogin={sudahLogin}
-          role={role}
+          role={roleAI}
           konteks={`cop-${mode}`}
           periodeKey={periodeKey}
           wilayahKerja={wilayahKerjaAi}
+          metrik="ringkasan-umum"
+        />
+        <BoxPrediksiAI
+          sudahLogin={sudahLogin}
+          role={roleAI}
+          konteks={`cop-${mode}`}
+          periodeKey={periodeKey}
+          wilayahKerja={wilayahKerjaAi}
+          metrik="ringkasan-umum"
         />
       </div>
 
@@ -559,13 +567,12 @@ seriesNegara = Array.from(totalPerNegara.entries())
                       <span className="text-ink">{w.wilayah}</span>
                       <span className="font-semibold text-ink">{w.jumlah}</span>
                     </div>
-                    {/* Ganti bagian ini di dalam map kapalPerWilayah */}
                     <div className="h-4 rounded-full bg-slate-200">
                       <div
                         className="h-4 rounded-full transition-all duration-500"
-                        style={{ 
+                        style={{
                           width: `${(w.jumlah / maxKapalPerWilayah) * 100}%`,
-                          backgroundColor: getWarnaWilayah(w.wilayah) // Memanggil fungsi warna
+                          backgroundColor: getWarnaWilayah(w.wilayah),
                         }}
                       />
                     </div>
@@ -585,14 +592,12 @@ seriesNegara = Array.from(totalPerNegara.entries())
                       <span className="text-ink">{w.wilayah}</span>
                       <span className="font-semibold text-ink">{w.jumlah}</span>
                     </div>
-                    
-                    {/* Kontainer latar belakang lebih tebal */}
-                    <div className="h-4 rounded-full bg-slate-200"> 
+                    <div className="h-4 rounded-full bg-slate-200">
                       <div
                         className="h-4 rounded-full transition-all duration-500"
-                        style={{ 
+                        style={{
                           width: `${(w.jumlah / maxAbkPerWilayah) * 100}%`,
-                          backgroundColor: getWarnaWilayah(w.wilayah) // Warna otomatis sesuai wilayah
+                          backgroundColor: getWarnaWilayah(w.wilayah),
                         }}
                       />
                     </div>
@@ -606,6 +611,7 @@ seriesNegara = Array.from(totalPerNegara.entries())
               SECTION 4 -- CHART PERBANDINGAN MINGGUAN ANTAR WILAYAH
               Full width, checkbox toggle per wilayah. SELALU mingguan,
               tidak ikut filter mode Mingguan/Bulanan di atas.
+              + BoxAnalisisAI/BoxPrediksiAI (BARU)
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-muted">
@@ -619,10 +625,29 @@ seriesNegara = Array.from(totalPerNegara.entries())
               seriesList={seriesWilker}
               tipe={mode === "mingguan" ? "garis" : "batang"}
             />
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks="cop-per-wilker"
+                periodeKey={periodeKeyMingguanSelalu}
+                wilayahKerja={wilayahKerjaAi}
+                metrik="perbandingan-kapal-per-wilayah"
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks="cop-per-wilker"
+                periodeKey={periodeKeyMingguanSelalu}
+                wilayahKerja={wilayahKerjaAi}
+                metrik="perbandingan-kapal-per-wilayah"
+              />
+            </div>
           </div>
 
           {/* ============================================================
               SECTION 5 -- TREN GABUNGAN (mengikuti filter mode+wilayah)
+              + BoxAnalisisAI/BoxPrediksiAI (BARU)
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
@@ -644,11 +669,30 @@ seriesNegara = Array.from(totalPerNegara.entries())
                 ]}
               />
             )}
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={`cop-${mode}`}
+                periodeKey={periodeKey}
+                wilayahKerja={wilayahKerjaAi}
+                metrik="tren-abk-kapal"
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={`cop-${mode}`}
+                periodeKey={periodeKey}
+                wilayahKerja={wilayahKerjaAi}
+                metrik="tren-abk-kapal"
+              />
+            </div>
           </div>
 
-            {/* ============================================================
+          {/* ============================================================
               SECTION 5B -- TREN NEGARA KEDATANGAN (ikut mode+wilayah,
               sama seperti Section 5 di atas)
+              + BoxAnalisisAI/BoxPrediksiAI (BARU)
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-muted">
@@ -661,11 +705,29 @@ seriesNegara = Array.from(totalPerNegara.entries())
               <p className="text-sm text-muted">Belum ada data untuk ditampilkan.</p>
             ) : (
               <TrenNegaraChart
-  data={trenNegaraData}
-  seriesList={seriesNegara}
-  tipe={mode === "mingguan" ? "garis" : "batang"}
-/>
+                data={trenNegaraData}
+                seriesList={seriesNegara}
+                tipe={mode === "mingguan" ? "garis" : "batang"}
+              />
             )}
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks="cop-negara-tren"
+                periodeKey={periodeKey}
+                wilayahKerja={wilayahKerjaAi}
+                metrik="tren-negara-kedatangan"
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks="cop-negara-tren"
+                periodeKey={periodeKey}
+                wilayahKerja={wilayahKerjaAi}
+                metrik="tren-negara-kedatangan"
+              />
+            </div>
           </div>
 
           {/* ============================================================
@@ -685,13 +747,22 @@ seriesNegara = Array.from(totalPerNegara.entries())
                   RBA — Total Tahun {tahun}
                 </h3>
                 <DonutRba data={kategoriData.rba} />
-                <PanelAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={role}
-                  konteks="cop-rba"
-                  periodeKey={periodeKey}
-                  wilayahKerja={wilayahKerjaAi}
-                />
+                <div className="mt-4 space-y-3">
+                  <BoxAnalisisAI
+                    sudahLogin={sudahLogin}
+                    role={roleAI}
+                    konteks="cop-rba"
+                    periodeKey={periodeKey}
+                    wilayahKerja={wilayahKerjaAi}
+                  />
+                  <BoxPrediksiAI
+                    sudahLogin={sudahLogin}
+                    role={roleAI}
+                    konteks="cop-rba"
+                    periodeKey={periodeKey}
+                    wilayahKerja={wilayahKerjaAi}
+                  />
+                </div>
               </div>
             </div>
           ) : (
@@ -700,35 +771,53 @@ seriesNegara = Array.from(totalPerNegara.entries())
                 RBA — Tren Bulanan Tahun {tahun} (Jan–Des)
               </h3>
               <RbaBarBulanan data={dataRbaBulanan} />
-              <PanelAnalisisAI
-                sudahLogin={sudahLogin}
-                role={role}
-                konteks="cop-rba"
-                periodeKey={periodeKey}
-                wilayahKerja={wilayahKerjaAi}
-              />
+              <div className="mt-4 space-y-3">
+                <BoxAnalisisAI
+                  sudahLogin={sudahLogin}
+                  role={roleAI}
+                  konteks="cop-rba"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayahKerjaAi}
+                />
+                <BoxPrediksiAI
+                  sudahLogin={sudahLogin}
+                  role={roleAI}
+                  konteks="cop-rba"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayahKerjaAi}
+                />
+              </div>
             </div>
           )}
 
           {/* SECTION 7 & 10: Disandingkan */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-card bg-surface p-6">
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-              Negara Kedatangan
-            </h3>
-            <DaftarNegaraKedatangan data={kategoriData.negara_kedatangan} />
-            <PanelAnalisisAI
-              sudahLogin={sudahLogin}
-              role={role}
-              konteks="cop-negara-asal"
-              periodeKey={periodeKey}
-              wilayahKerja={wilayahKerjaAi}
-            />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-card bg-surface p-6">
+              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+                Negara Kedatangan
+              </h3>
+              <DaftarNegaraKedatangan data={kategoriData.negara_kedatangan} />
+              <div className="mt-4 space-y-3">
+                <BoxAnalisisAI
+                  sudahLogin={sudahLogin}
+                  role={roleAI}
+                  konteks="cop-negara-asal"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayahKerjaAi}
+                />
+                <BoxPrediksiAI
+                  sudahLogin={sudahLogin}
+                  role={roleAI}
+                  konteks="cop-negara-asal"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayahKerjaAi}
+                />
+              </div>
+            </div>
+            <div className="rounded-card bg-surface p-6">
+              <BreakdownCard judul="Bendera Kapal" data={kategoriData.bendera_kapal} />
+            </div>
           </div>
-          <div className="rounded-card bg-surface p-6">
-            <BreakdownCard judul="Bendera Kapal" data={kategoriData.bendera_kapal} />
-          </div>
-        </div>
 
           {/* SECTION 8 */}
           <div className="grid gap-4 md:grid-cols-2">
@@ -753,13 +842,22 @@ seriesNegara = Array.from(totalPerNegara.entries())
                 Faktor Risiko
               </h3>
               <PieBreakdown data={kategoriData.faktor_risiko} skema="faktor-risiko" />
-              <PanelAnalisisAI
-                sudahLogin={sudahLogin}
-                role={role}
-                konteks="cop-faktor-risiko"
-                periodeKey={periodeKey}
-                wilayahKerja={wilayahKerjaAi}
-              />
+              <div className="mt-4 space-y-3">
+                <BoxAnalisisAI
+                  sudahLogin={sudahLogin}
+                  role={roleAI}
+                  konteks="cop-faktor-risiko"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayahKerjaAi}
+                />
+                <BoxPrediksiAI
+                  sudahLogin={sudahLogin}
+                  role={roleAI}
+                  konteks="cop-faktor-risiko"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayahKerjaAi}
+                />
+              </div>
             </div>
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
@@ -769,7 +867,7 @@ seriesNegara = Array.from(totalPerNegara.entries())
             </div>
           </div>
 
-         {/* ============================================================
+          {/* ============================================================
               SECTION 10B -- PETA SEBARAN NEGARA KEDATANGAN
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
@@ -778,9 +876,6 @@ seriesNegara = Array.from(totalPerNegara.entries())
             </h3>
             <PetaNegaraKedatangan data={kategoriData.negara_kedatangan} />
           </div>
-
-          {/* SECTION 11 */}
-          <details className="rounded-card bg-surface p-6"></details>
 
           {/* SECTION 11 */}
           <details className="rounded-card bg-surface p-6">

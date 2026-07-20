@@ -9,6 +9,7 @@ import {
   isKonteksBreakdown,
   isKonteksVektor,
   isKonteksPrediksiNonVektorValid,
+  isKonteksSanitasi,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -31,6 +32,12 @@ import {
   parseHasilAi,
   susunPromptAnopheles,
   susunPromptPrediksiAnopheles,
+  susunPromptTpp,
+  susunPromptPrediksiTpp,
+  susunPromptTtu,
+  susunPromptPrediksiTtu,
+  susunPromptPab,
+  susunPromptPrediksiPab,
 } from '@/lib/ai/prompt';
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
@@ -182,6 +189,7 @@ export async function POST(request: Request) {
   konteks.startsWith('anopheles-');
   const konteksPesawat = konteks === 'pesawat-mingguan' || konteks === 'pesawat-bulanan';
   const konteksTikusLab = konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan';
+  const konteksSanitasi = isKonteksSanitasi(konteks);
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   // Metrik pesawat divalidasi lebih lanjut di ambilDataAnalisisPesawat()
   // (menolak kota-asal/kota-tujuan/maskapai-* yang belum siap) -- di sini
@@ -235,6 +243,12 @@ export async function POST(request: Request) {
       );
     }
     wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  } else if (konteksSanitasi) {
+    // TPP/TTU/PAB: wilayah_kerja teks bebas, OPSIONAL (kosong = Semua Wilayah Kerja).
+    wilayahKerja =
+      typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
+        ? wilayah_kerja
+        : undefined;
   } else {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
       return NextResponse.json({ error: `wilayah_kerja "${wilayah_kerja}" tidak dikenal.` }, { status: 400 });
@@ -374,6 +388,21 @@ export async function POST(request: Request) {
     } else if (konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan') {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiLabTikus(data) : susunPromptLabTikus(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'tpp-bulanan') {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTpp(data) : susunPromptTpp(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'ttu-bulanan') {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTtu(data) : susunPromptTtu(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'pab-bulanan') {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPab(data) : susunPromptPab(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else if (

@@ -1,8 +1,8 @@
 import { FilterPeriodeWilayah } from "@/components/FilterPeriodeWilayah";
 import { TrenChart } from "@/components/TrenChart";
 import { BreakdownCard } from "@/components/BreakdownCard";
-import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
-import { TombolPrediksiAI } from "@/components/TombolPrediksiAI";
+import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
+import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import {
   getRingkasanMingguan,
@@ -14,7 +14,6 @@ import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import type { Wilayah, KategoriPhqc, KegiatanPhqcEnriched } from "@/types/database.types";
 import { DonutBreakdown } from "@/components/phqc/DonutBreakdown";
 import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
-import { PanelAnalisisAI } from "@/components/cop/PanelAnalisisAI";
 
 // ============================================================
 // 1. KONSTANTA & HELPER MODULE-LEVEL
@@ -123,21 +122,22 @@ export default async function PhqcPage({
 
   const { sudahLogin, role } = await getStatusAkses();
 
-  // Logika Waktu Sistem & Proteksi Mundur 2 Periode (Minggu / Bulan)
+ // Logika Waktu Sistem & Proteksi Mundur 1 Periode (Minggu) & Bulan Normal
+  // Logika Waktu Sistem
   const sekarang = new Date();
   const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIni } = hitungMingguEpidemiologi(sekarang);
 
-  // Perhitungan mundur 2 minggu (Mode Mingguan)
-  const mingguEpidTampilan = mingguEpidSaatIni - 2 > 0 ? mingguEpidSaatIni - 2 : 1;
+  // 1. Perhitungan mundur 1 minggu (Mode Mingguan)
+  const mingguEpidTampilan = mingguEpidSaatIni - 1 > 0 ? mingguEpidSaatIni - 1 : 1;
 
-  // Perhitungan mundur 2 bulan (Mode Bulanan)
-  const bulanSaatIni = sekarang.getMonth() + 1; 
-  let bulanTampilan = bulanSaatIni - 2;
+  // 2. Bulan dibuat normal (Gunakan LET, bukan CONST, agar bisa diubah di blok IF)
+  let bulanTampilan = sekarang.getMonth() + 1; 
   let tahunTampilanBulanan = sekarang.getFullYear();
 
+  // Logika penyesuaian jika ada kompensasi batas bulan/tahun
   if (bulanTampilan <= 0) {
     bulanTampilan = 12 + bulanTampilan; 
-    tahunTampilanBulanan = tahunTampilanBulanan - 1;
+    tahunTampilanBulanan = tahunTampilanBulanan - 1; 
   }
 
   // Tentukan parameter tahun dan periodeKey sesuai mode aktif
@@ -370,13 +370,6 @@ export default async function PhqcPage({
           <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan PHQC</h1>
           <p className="text-sm text-muted">Berdasarkan tanggal keberangkatan</p>
         </div>
-        <TombolAnalisisAI
-          sudahLogin={sudahLogin}
-          role={role}
-          konteks={`phqc-${mode}`}
-          periodeKey={periodeKey}
-          wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-        />
       </div>
 
       <FilterPeriodeWilayah mode={mode} wilayah={wilayah} />
@@ -425,6 +418,13 @@ export default async function PhqcPage({
                 ]}
               />
             )}
+            <BoxAnalisisAI
+              sudahLogin={sudahLogin}
+              role={role}
+              konteks={`phqc-${mode}`}
+              periodeKey={periodeKey}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+            />
           </div>
 
           {/* BAGIAN D: STRUKTUR GRID UTAMA (Pelabuhan Kedatangan & Tujuan Berdampingan) */}
@@ -435,22 +435,20 @@ export default async function PhqcPage({
                   judul="Pelabuhan Kedatangan (Daerah Asal Kapal)"
                   data={kategoriData["pelabuhan_kedatangan"]}
                 />
-                <div className="flex flex-wrap items-center gap-2">
-                  <TombolAnalisisAI
-                    sudahLogin={sudahLogin}
-                    role={role}
-                    konteks="phqc-daerah-asal"
-                    periodeKey={periodeKey}
-                    wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-                  />
-                  <TombolPrediksiAI
-                    sudahLogin={sudahLogin}
-                    role={role}
-                    konteks="phqc-daerah-asal"
-                    periodeKey={periodeKey}
-                    wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-                  />
-                </div>
+                <BoxAnalisisAI
+                  sudahLogin={sudahLogin}
+                  role={role}
+                  konteks="phqc-daerah-asal"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+                />
+                <BoxPrediksiAI
+                  sudahLogin={sudahLogin}
+                  role={role}
+                  konteks="phqc-daerah-asal"
+                  periodeKey={periodeKey}
+                  wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+                />
               </div>
               <BreakdownCard
                 judul="Pelabuhan Tujuan"
@@ -497,9 +495,16 @@ export default async function PhqcPage({
                 data={trenRbaPeriodik} 
                 seriesList={seriesRba} 
                 maxAktifDefault={seriesRba.length} 
-                variant={mode === "bulanan" ? "bar" : "line"} // <-- TAMBAHKAN BARIS INI
+                variant={mode === "bulanan" ? "bar" : "line"}
               />
-              <PanelAnalisisAI
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={role}
+                konteks={`phqc-rba-${mode}`}
+                periodeKey={periodeKey}
+                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              />
+              <BoxPrediksiAI
                 sudahLogin={sudahLogin}
                 role={role}
                 konteks={`phqc-rba-${mode}`}
@@ -531,9 +536,16 @@ export default async function PhqcPage({
                 data={trenPelabuhanPeriodik}
                 seriesList={seriesPelabuhan}
                 tampilan="dropdown"
-                variant={mode === "bulanan" ? "bar" : "line"} // <-- TAMBAHKAN BARIS INI
+                variant={mode === "bulanan" ? "bar" : "line"}
               />
-              <PanelAnalisisAI
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={role}
+                konteks={`phqc-pelabuhan-${mode}`}
+                periodeKey={periodeKey}
+                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              />
+              <BoxPrediksiAI
                 sudahLogin={sudahLogin}
                 role={role}
                 konteks={`phqc-pelabuhan-${mode}`}
@@ -549,7 +561,7 @@ export default async function PhqcPage({
               </h3>
               <TrenChart
                 data={trenData}
-                variant={mode === "bulanan" ? "bar" : "line"} // <-- TAMBAHKAN BARIS INI
+                variant={mode === "bulanan" ? "bar" : "line"}
                 seri={[
                   { dataKey: "total_abk_wna", nama: "ABK WNA", warna: "#2F9E44" },
                   { dataKey: "total_abk_wni", nama: "ABK WNI", warna: "#0F4C5C" },
@@ -557,15 +569,15 @@ export default async function PhqcPage({
                   { dataKey: "total_penumpang_wni", nama: "Penumpang WNI", warna: "#7C3AED" },
                 ]}
               />
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <TombolAnalisisAI
+              <div className="mt-4 space-y-3">
+                <BoxAnalisisAI
                   sudahLogin={sudahLogin}
                   role={role}
                   konteks={`penumpang-${mode}`}
                   periodeKey={periodeKey}
                   wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
                 />
-                <TombolPrediksiAI
+                <BoxPrediksiAI
                   sudahLogin={sudahLogin}
                   role={role}
                   konteks={`penumpang-${mode}`}

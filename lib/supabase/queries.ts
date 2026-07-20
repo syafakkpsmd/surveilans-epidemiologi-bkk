@@ -1046,3 +1046,40 @@ export async function getHasilAI(
 
   return { teks, diperbarui: data.dibuat_pada };
 }
+
+export async function getDaftarWilayahKerjaSanitasi(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await (supabase as any)
+    .from('view_wilayah_kerja_sanitasi')
+    .select('wilayah_kerja');
+
+  if (error) throw new Error(`Gagal ambil daftar wilayah kerja sanitasi: ${error.message}`);
+  return (data ?? []).map((r: any) => r.wilayah_kerja).filter(Boolean);
+}
+
+export async function getRingkasanTppBulanan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any).from('view_tpp_bulanan').select('*').eq('tahun', tahun).order('bulan');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan TPP: ${error.message}`);
+  return (data ?? []) as any[];
+}
+
+export async function getRingkasanTtuBulanan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any).from('view_ttu_bulanan').select('*').eq('tahun', tahun).order('bulan');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan TTU: ${error.message}`);
+  return (data ?? []) as any[];
+}
+
+export async function getRingkasanPabBulanan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any).from('view_pab_bulanan').select('*').eq('tahun', tahun).order('bulan');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan PAB: ${error.message}`);
+  return (data ?? []) as any[];
+}

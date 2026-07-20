@@ -27,6 +27,8 @@ import {
   BarChart3,
   MapPin,
   ClipboardCheck,
+  BuildingIcon,
+  Pipette,
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -91,7 +93,9 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane },
       { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind },
       { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot },
-      { label: "TPP/TTU/PAB", href: "/dashboard/tpp", icon: Building2 },
+      { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2 },
+      { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon },
+      { label: "Surveilans PAB", href: "/dashboard/pab", icon: Pipette },
       { label: "PIE Nasional", href: "/dashboard/emerging", icon: ShieldAlert },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert },
       { label: "KLB", href: "https://script.google.com/macros/s/AKfycbx0LK83R7rZ0UGblcVKqKlwUJ8Jk3EdF9sV_l2JTMXzbAzjyj-ZZJ-WNIfiaHqJ5OMesQ/exec", icon: Siren },

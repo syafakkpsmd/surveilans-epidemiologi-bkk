@@ -705,3 +705,181 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
   "rekomendasi": "rekomendasi kesiapan pengendalian vektor berbasis proyeksi tren ini, 1-3 poin"
 }`;
 }
+
+// ============================================================
+// TPP / TTU / PAB — Surveilans Sanitasi Lingkungan
+// Data biner Memenuhi Syarat (MS) / Tidak Memenuhi Syarat (TMS) per
+// komponen. Pola sama seperti susunPromptLabTikus, hanya bulanan.
+// ============================================================
+
+export function susunPromptTpp(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan sanitasi Tempat Pengelolaan Pangan (TPP) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN ISTILAH:
+- "jumlah_tpp_diperiksa" = jumlah TPP yang diinspeksi periode ini. "total_sampel" = jumlah seluruh sampel uji laboratorium yang diambil (formaldehyde, borax, metyl_yellow, rodamin_b, bakteriologis, hy_rise), TIDAK termasuk Inspeksi Kesehatan Lingkungan (IKL).
+- "ikl_ms"/"ikl_tms" = hasil IKL (komponen fisik/lingkungan TPP) yang Memenuhi/Tidak Memenuhi Syarat.
+- "tms_*" (formaldehyde, borax, metyl_yellow, rodamin_b, bakteriologis, hy_rise) = JUMLAH TPP dengan hasil uji Tidak Memenuhi Syarat untuk parameter tersebut.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Identifikasi parameter (IKL atau parameter uji lab) dengan jumlah TMS tertinggi periode ini -- itu adalah prioritas pembinaan.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah TPP diperiksa dan proporsi TMS.
+- Kaitkan temuan TMS dengan risiko kesehatan masyarakat yang relevan: formaldehyde/borax/rodamin B/metyl yellow terkait bahan tambahan pangan berbahaya (risiko keracunan kronis/karsinogenik), bakteriologis terkait risiko foodborne illness, IKL terkait higiene sanitasi dasar tempat pengolahan.
+- Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan TPP periode berjalan, 2-4 kalimat",
+  "anomali": "parameter dengan TMS tertinggi atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pembinaan/penindakan TPP berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiTpp(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren pengawasan sanitasi TPP untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap parameter TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan TMS dengan kebutuhan intensifikasi pembinaan/pengawasan TPP di wilayah terkait.
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren TMS periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pembinaan/pengawasan TPP berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptTtu(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan sanitasi Tempat-Tempat Umum (TTU) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN ISTILAH:
+- "jumlah_diperiksa" = jumlah TTU yang diinspeksi periode ini. "jumlah_ms"/"jumlah_tms" = hasil keseluruhan (kesimpulan akhir) Memenuhi/Tidak Memenuhi Syarat.
+- "tms_*" = JUMLAH TTU dengan komponen tersebut berstatus Tidak Memenuhi Syarat (lingkungan_luar_halaman, ruang_bangunan, penyehatan_air, penyehatan_udara_ruang, pengelolaan_limbah, pencahayaan, kebisingan, getaran_diruang_kerja, pengendalian_vektor_penyakit, instalasi, pemeliharaan_jamban_kamar_mandi).
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Identifikasi komponen dengan jumlah TMS tertinggi periode ini -- itu adalah akar masalah/prioritas pembinaan (root-cause), bukan cuma melaporkan hasil akhir MS/TMS.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah diperiksa dan proporsi TMS keseluruhan.
+- Kaitkan temuan komponen bermasalah dengan risiko kesehatan masyarakat yang relevan (mis. penyehatan air/limbah terkait risiko penularan penyakit berbasis air & lingkungan, pengendalian vektor terkait risiko DBD/leptospirosis, jamban/kamar mandi terkait risiko penyakit diare).
+- Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan TTU periode berjalan, 2-4 kalimat",
+  "anomali": "komponen dengan TMS tertinggi atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pembinaan TTU berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiTtu(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren pengawasan sanitasi TTU untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap komponen TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan TMS pada komponen tertentu dengan kebutuhan intensifikasi pembinaan/pengawasan TTU di wilayah terkait.
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren TMS periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pembinaan/pengawasan TTU berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPab(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan kualitas Penyediaan Air Bersih (PAB) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN ISTILAH:
+- "jumlah_pemeriksaan" = jumlah kegiatan pemeriksaan PAB periode ini. "total_pab_diperiksa" = jumlah titik/sarana PAB yang diperiksa.
+- "tms_fisik"/"tms_kimia"/"tms_bakteriologis" = JUMLAH pemeriksaan dengan hasil Tidak Memenuhi Syarat untuk parameter tersebut.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Identifikasi parameter (fisik/kimia/bakteriologis) dengan jumlah TMS tertinggi periode ini.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah diperiksa dan proporsi TMS per parameter.
+- Kaitkan temuan TMS bakteriologis dengan risiko penyakit berbasis air (diare, kolera, hepatitis A) dan TMS fisik/kimia dengan risiko kualitas air minum jangka panjang -- termasuk kebutuhan koordinasi dengan penyedia air setempat.
+- Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan PAB periode berjalan, 2-4 kalimat",
+  "anomali": "parameter dengan TMS tertinggi atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pengawasan/koordinasi PAB berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiPab(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren pengawasan kualitas PAB untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap parameter TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan TMS dengan kebutuhan intensifikasi pengawasan kualitas air & koordinasi dengan penyedia PAB di wilayah terkait.
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren TMS periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengawasan PAB berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}

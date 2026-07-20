@@ -20,8 +20,9 @@ import TrenChartMingguan from '@/components/vektor/TrenChartMingguan';
 import GrafikBarBulanan from '@/components/vektor/GrafikBarBulanan';
 import DonutChart from '@/components/vektor/DonutChart';
 import BreakdownList from '@/components/vektor/BreakdownList';
-import { TombolAnalisisAI } from '@/components/TombolAnalisisAI';
-import { TombolPrediksiAI } from '@/components/TombolPrediksiAI';
+// GANTI: TombolAnalisisAI/TombolPrediksiAI (popup) -> BoxAnalisisAI/BoxPrediksiAI (box di bawah grafik, auto-fetch GET, hasil bisa dibaca siapa saja)
+import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
+import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import GrafikTotalKotaPesawat from '@/components/pesawat/GrafikTotalKotaPesawat';
 import GrafikTrenKotaPesawat from '@/components/pesawat/GrafikTrenKotaPesawat';
 import GrafikTotalMaskapaiPesawat from '@/components/pesawat/GrafikTotalMaskapaiPesawat';
@@ -72,7 +73,7 @@ export default async function AlatAngkutPesawatPage({
   const formatBulanSampai = bulanSampai ? (bulanSampai.includes('-') ? bulanSampai : `${tahun}-${bulanSampai.padStart(2, '0')}`) : undefined;
 
   const [
-  role,
+    role,
     daftarWilkerSemua,
     ringkasanMingguan,
     ringkasanBulanan,
@@ -90,8 +91,8 @@ export default async function AlatAngkutPesawatPage({
       mgDari: mgDari ? parseInt(mgDari, 10) : undefined,
       mgSampai: mgSampai ? parseInt(mgSampai, 10) : undefined,
     }),
-    getRingkasanPesawatBulanan({ 
-      tahun, 
+    getRingkasanPesawatBulanan({
+      tahun,
       kodeWilker: wilker,
       bulanDari: formatBulanDari,
       bulanSampai: formatBulanSampai,
@@ -100,8 +101,8 @@ export default async function AlatAngkutPesawatPage({
     getKotaPesawatBulanan(tahun, 'keberangkatan'),
     getMaskapaiPesawatBulanan(tahun, 'kedatangan'),
     getMaskapaiPesawatBulanan(tahun, 'keberangkatan'),
-    getRingkasanGenderBulanan({ 
-      tahun, 
+    getRingkasanGenderBulanan({
+      tahun,
       kodeWilker: wilker,
       bulanDari: formatBulanDari,
       bulanSampai: formatBulanSampai,
@@ -115,10 +116,12 @@ export default async function AlatAngkutPesawatPage({
     getBreakdownSertifikat({ tahun, kodeWilker: wilker }),
   ]);
 
-  const { mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
+  const { mingguEpid: mingguEpidSekarang } = getMingguEpidSaatIni();
+  const mingguBerjalan = mingguEpidSekarang - 1; // Mengurangi 1 minggu yang di tampilkan
   const bulanBerjalan = new Date().getMonth() + 1;
 
   const sudahLogin = !!role;
+  // roleAI menentukan siapa yang boleh menekan "Generate" di dalam Box — GET (baca hasil) tidak butuh auth sama sekali
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
   const konteksMingguan = 'pesawat-mingguan';
   const konteksBulanan = 'pesawat-bulanan';
@@ -161,18 +164,12 @@ export default async function AlatAngkutPesawatPage({
         </div>
       </div>
 
-      {/* 4. TAMPILKAN GRID UTAMA SECARA LANGSUNG (Tanpa Penyumbat Kondisi .length) */}
+      {/* 4. GRID UTAMA */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        
+
         {/* ================= MINGGUAN ================= */}
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-700">Crew &amp; Penumpang — Mingguan (Tahun {tahun})</h2>
-            <div className="flex items-center gap-2">
-              <TombolAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
-              <TombolPrediksiAI sudahLogin={sudahLogin} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} />
-            </div>
-          </div>
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">Crew &amp; Penumpang — Mingguan (Tahun {tahun})</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
               data={ringkasanMingguan}
@@ -186,13 +183,14 @@ export default async function AlatAngkutPesawatPage({
           ) : (
             <p className="text-sm text-gray-400 py-4 text-center">Data tren mingguan kosong.</p>
           )}
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
+          </div>
         </div>
 
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-700">Sertifikat Kesehatan — Mingguan (Tahun {tahun})</h2>
-            <TombolAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" />
-          </div>
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">Sertifikat Kesehatan — Mingguan (Tahun {tahun})</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
               data={ringkasanMingguan}
@@ -207,17 +205,14 @@ export default async function AlatAngkutPesawatPage({
           ) : (
             <p className="text-sm text-gray-400 py-4 text-center">Data sertifikat mingguan kosong.</p>
           )}
+          <div className="mt-3">
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" />
+          </div>
         </div>
 
         {/* ================= BULANAN ================= */}
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-700">Penumpang — Bulanan (Tahun {tahun})</h2>
-            <div className="flex items-center gap-2">
-              <TombolAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
-              <TombolPrediksiAI sudahLogin={sudahLogin} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} />
-            </div>
-          </div>
+          <h2 className="mb-2 text-sm font-semibold text-gray-700">Penumpang — Bulanan (Tahun {tahun})</h2>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <FilterRentangBulan />
           </div>
@@ -229,13 +224,14 @@ export default async function AlatAngkutPesawatPage({
               { key: 'penumpang_datang', label: 'Penumpang Datang', warna: '#2563EB' },
             ]}
           />
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
+          </div>
         </div>
 
         <div className="lg:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <div className="flex justify-end">
-              <TombolAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" />
-            </div>
             <GrafikBarBulanan
               judul="Total Sertifikat — Bulanan"
               data={ringkasanBulananBerlabel}
@@ -246,12 +242,10 @@ export default async function AlatAngkutPesawatPage({
                 { key: 'kier_total', label: 'KIER', warna: '#0D9488' },
               ]}
             />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" />
           </div>
 
           <div className="space-y-2">
-            <div className="flex justify-end">
-              <TombolAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew" />
-            </div>
             <GrafikBarBulanan
               judul="Crew Berangkat + Datang — Bulanan"
               data={ringkasanBulananBerlabel}
@@ -260,6 +254,7 @@ export default async function AlatAngkutPesawatPage({
                 { key: 'crew_datang', label: 'Crew Datang', warna: '#EA580C' },
               ]}
             />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew" />
           </div>
         </div>
 
@@ -274,24 +269,12 @@ export default async function AlatAngkutPesawatPage({
         {/* ================= ASAL & TUJUAN KOTA ================= */}
         <GrafikTotalKotaPesawat data={tambahLabelBulan(dataKedatangan)} judul={`Total Penumpang per Kota Asal (Kedatangan) — Tahun ${tahun}`} />
         <div className="space-y-2">
-        <GrafikTrenKotaPesawat data={tambahLabelBulan(dataKedatangan)} judul={`Tren Bulanan per Kota Asal — Tahun ${tahun}`} />
-        <div className="flex items-center justify-end gap-2">
-          <TombolAnalisisAI
-            sudahLogin={sudahLogin}
-            role={roleAI}
-            konteks={konteksBulanan}
-            periodeKey={periodeKeyBulanan}
-            wilayahKerja={wilker ?? undefined}
-            metrik="kota-asal"
-          />
-          <TombolPrediksiAI
-            sudahLogin={sudahLogin}
-            konteks={konteksBulanan}
-            periodeKey={periodeKeyBulanan}
-            wilayahKerja={wilker ?? undefined}
-          />
+          <GrafikTrenKotaPesawat data={tambahLabelBulan(dataKedatangan)} judul={`Tren Bulanan per Kota Asal — Tahun ${tahun}`} />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="kota-asal" />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="kota-asal" />
+          </div>
         </div>
-      </div>
         <GrafikTotalKotaPesawat data={tambahLabelBulan(dataKeberangkatan)} judul={`Total Penumpang per Kota Tujuan (Keberangkatan) — Tahun ${tahun}`} />
         <GrafikTrenKotaPesawat data={tambahLabelBulan(dataKeberangkatan)} judul={`Tren Bulanan per Kota Tujuan — Tahun ${tahun}`} />
 
@@ -299,21 +282,9 @@ export default async function AlatAngkutPesawatPage({
         <GrafikTotalMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKedatangan)} judul={`Total Penumpang per Maskapai (Kedatangan) — Tahun ${tahun}`} />
         <div className="space-y-2">
           <GrafikTrenMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKedatangan)} judul={`Tren Bulanan per Maskapai (Kedatangan) — Tahun ${tahun}`} />
-          <div className="flex items-center justify-end gap-2">
-            <TombolAnalisisAI
-              sudahLogin={sudahLogin}
-              role={roleAI}
-              konteks={konteksBulanan}
-              periodeKey={periodeKeyBulanan}
-              wilayahKerja={wilker ?? undefined}
-              metrik="maskapai-kedatangan"
-            />
-            <TombolPrediksiAI
-              sudahLogin={sudahLogin}
-              konteks={konteksBulanan}
-              periodeKey={periodeKeyBulanan}
-              wilayahKerja={wilker ?? undefined}
-            />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" />
           </div>
         </div>
         <GrafikTotalMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKeberangkatan)} judul={`Total Penumpang per Maskapai (Keberangkatan) — Tahun ${tahun}`} />

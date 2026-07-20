@@ -6,29 +6,36 @@ import { HeroCarousel } from "@/components/HeroCarousel";
 import { getGaleriFoto } from '@/lib/supabase/queriesFoto';
 import GaleriFotoKegiatan from '@/components/GaleriFotoKegiatan';
 import { getUserRole } from "@/lib/auth/get-user-role";
+import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
 
 const slides = [
-  { title: "Pemeriksaan Kapal Dalam Karantina", 
+  { 
+    title: "Pemeriksaan Kapal Dalam Karantina", 
     image: "/kegiatan-1.jpeg",
     deskripsi: "Pemeriksaan tanda-tanda kehidupan vektor di kapal MV. Courage."
   },
-  { title: "Pengawasan Kapal di Pelabuhan", 
+  { 
+    title: "Pengawasan Kapal di Pelabuhan", 
     image: "/kegiatan-2.jpeg", 
     deskripsi: "Pengawasan kapal Penumpang kapal KM. Queen Soya di Pelabuhan Samarinda." 
   },
-  { title: "Survei Jentik Anopheles di IKN", 
+  { 
+    title: "Survei Jentik Anopheles di IKN", 
     image: "/kegiatan-3.jpeg", 
-    deskripsi: "Petugas melakukan survei jentik Anopheles pada Rawa yang ada di wilayah Ibu Kota Negara dengan  melakukan pengambilan Sampel." 
+    deskripsi: "Petugas melakukan survei jentik Anopheles pada Rawa yang ada di wilayah Ibu Kota Negara dengan melakukan pengambilan Sampel." 
   },
-  { title: "Pengawasan Vektor di IKN", 
+  { 
+    title: "Pengawasan Vektor di IKN", 
     image: "/kegiatan-4.jpeg", 
     deskripsi: "Pengawasan vektor penyakit di wilayah IKN." 
   },
-  { title: "Pemeriksaan Kesehatan di Bandara APT Pranoto", 
+  { 
+    title: "Pemeriksaan Kesehatan di Bandara APT Pranoto", 
     image: "/kegiatan-5.jpeg", 
     deskripsi: "Pemeriksaan Kesehatan pada penumpang di Bandara APT Pranoto." 
   },
-  { title: "Pengawasan Penumpang kapal di Pelabuhan", 
+  { 
+    title: "Pengawasan Penumpang kapal di Pelabuhan", 
     image: "/kegiatan-6.jpeg", 
     deskripsi: "Pemeriksaan lalu lintas Penumpang kapal di Pelabuhan Samarinda." 
   },
@@ -60,10 +67,25 @@ export default async function DashboardHubPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600">BKK Kelas I Samarinda</p>
-        <h1 className="text-3xl font-extrabold text-slate-900">Dashboard Surveilans</h1>
-        <p className="text-sm text-slate-500">Minggu Epidemiologi ke-{mingguEpid} Tahun {tahunEpid}</p>
+      {/* Header Dashboard & Tombol Atur AI (Sejajar Kanan-Kiri) */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Kiri: Judul Dashboard */}
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600">
+            BKK Kelas I Samarinda
+          </p>
+          <h1 className="text-3xl font-extrabold text-slate-900">Dashboard Surveilans</h1>
+          <p className="text-sm text-slate-500">
+            Minggu Epidemiologi ke-{mingguEpid} Tahun {tahunEpid}
+          </p>
+        </div>
+
+        <TombolAnalisisAI 
+  sudahLogin={!!role} 
+  role={role === 'admin' || role === 'petugas' ? role : null} 
+  konteks="surveilans-hub" 
+  periodeKey={`${tahunEpid}-W${mingguEpid}`} 
+/>
       </div>
 
       <HeroCarousel items={slides} />

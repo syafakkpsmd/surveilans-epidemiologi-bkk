@@ -37,7 +37,7 @@ export default async function DashboardPage() {
   // belakangan, sama seperti pola di modul Vektor Aedes).
   //
   // MAU TAMBAH/KURANGI JARAK MUNDUR? Ubah angka di baris ini saja:
-  const JUMLAH_MINGGU_MUNDUR = 2; // <-- UBAH ANGKA INI (0 = minggu berjalan, tanpa mundur)
+  const JUMLAH_MINGGU_MUNDUR = 1; // <-- UBAH ANGKA INI (0 = minggu berjalan, tanpa mundur)
 
   const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = hitungMingguEpidemiologi(
     new Date()
@@ -168,13 +168,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
         
-        {/* Tombol Analisis AI dipindahkan ke sini agar sejajar di kanan */}
-        <TombolAnalisisAI
-          sudahLogin={sudahLogin}
-          role={role}
-          konteks="alat-angkut-ringkasan"
-          periodeKey={periodeKey}
-        />
+        
       </div>
 
       {errorMuat && (

@@ -212,3 +212,15 @@ export type TipeProviderAi = 'gemini' | 'openai_compatible';
 export type PengaturanAi = SafeDatabase extends { public: { Tables: { pengaturan_ai: { Row: any } } } }
   ? SafeDatabase['public']['Tables']['pengaturan_ai']['Row']
   : { id: string; provider: string; api_key: string; model: string; [key: string]: any };
+
+export type RingkasanTppBulanan = SafeDatabase extends { public: { Views: { view_tpp_bulanan: { Row: any } } } }
+  ? SafeDatabase['public']['Views']['view_tpp_bulanan']['Row']
+  : any;
+
+export type RingkasanTtuBulanan = SafeDatabase extends { public: { Views: { view_ttu_bulanan: { Row: any } } } }
+  ? SafeDatabase['public']['Views']['view_ttu_bulanan']['Row']
+  : any;
+
+export type RingkasanPabBulanan = SafeDatabase extends { public: { Views: { view_pab_bulanan: { Row: any } } } }
+  ? SafeDatabase['public']['Views']['view_pab_bulanan']['Row']
+  : any;

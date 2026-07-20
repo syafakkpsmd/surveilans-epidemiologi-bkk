@@ -8,6 +8,9 @@ import {
   getUjiLabVektorTikusBulanan,
   getTrenAnophelesDewasa,
   getTrenLarva,
+  getRingkasanTppBulanan,
+  getRingkasanTtuBulanan,
+  getRingkasanPabBulanan,
 } from '@/lib/supabase/queries';
 import type { Wilayah, KategoriCop } from '@/types/database.types';
 import {
@@ -41,6 +44,9 @@ export const KONTEKS_TREN = [
   'anopheles-dewasa-bulanan',
   'anopheles-larva-mingguan',
   'anopheles-larva-bulanan',
+  'tpp-bulanan',
+  'ttu-bulanan',
+  'pab-bulanan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -114,6 +120,12 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
     konteks === 'tikus-lab-bulanan' ||
     konteks.startsWith('anopheles-')
   );
+}
+
+/** TPP/TTU/PAB — wilayah_kerja teks bebas (nama lokasi dari data sheet),
+ * BUKAN kode_wilker maupun enum Wilayah. Hanya periode Bulanan. */
+export function isKonteksSanitasi(konteks: KonteksAnalisis): boolean {
+  return konteks === 'tpp-bulanan' || konteks === 'ttu-bulanan' || konteks === 'pab-bulanan';
 }
 
 export function isKonteksPrediksiNonVektorValid(konteks: string): boolean {
@@ -463,14 +475,40 @@ export async function ambilDataAnalisis(
       };
     }
 
+      const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+      const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilAnophelesRingkasan(periodeSaatIni.tahun, wilayahKerja, 'bulanan', tipe, periodeSaatIni.bulan),
+        ambilAnophelesRingkasan(periodeSebelumnya.tahun, wilayahKerja, 'bulanan', tipe, periodeSebelumnya.bulan),
+      ]);
+      return {
+        labelKonteks: `Surveilans Vektor — ${labelTipe}`,
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    if (konteks === 'tpp-bulanan' || konteks === 'ttu-bulanan' || konteks === 'pab-bulanan') {
     const periodeSaatIni = parsePeriodeBulanan(periodeKey);
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const ambil =
+      konteks === 'tpp-bulanan' ? ambilTppBulanan : konteks === 'ttu-bulanan' ? ambilTtuBulanan : ambilPabBulanan;
     const [saatIni, sebelumnya] = await Promise.all([
-      ambilAnophelesRingkasan(periodeSaatIni.tahun, wilayahKerja, 'bulanan', tipe, periodeSaatIni.bulan),
-      ambilAnophelesRingkasan(periodeSebelumnya.tahun, wilayahKerja, 'bulanan', tipe, periodeSebelumnya.bulan),
+      ambil(periodeSaatIni, wilayahKerja),
+      ambil(periodeSebelumnya, wilayahKerja),
     ]);
+    const labelModul =
+      konteks === 'tpp-bulanan'
+        ? 'Surveilans TPP (Tempat Pengelolaan Pangan)'
+        : konteks === 'ttu-bulanan'
+        ? 'Surveilans TTU (Tempat-Tempat Umum)'
+        : 'Surveilans PAB (Penyediaan Air Bersih)';
     return {
-      labelKonteks: `Surveilans Vektor — ${labelTipe}`,
+      labelKonteks: labelModul,
       labelWilayah,
       labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
       labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
@@ -593,6 +631,42 @@ export async function ambilDataAnalisis(
     ringkasanSebelumnya: sebelumnya,
     topKategori,
   };
+}
+
+const KOLOM_ANGKA_TPP = [
+  'jumlah_tpp_diperiksa', 'total_sampel', 'ikl_ms', 'ikl_tms',
+  'tms_formaldehyde', 'tms_borax', 'tms_metyl_yellow', 'tms_rodamin_b',
+  'tms_bakteriologis', 'tms_hy_rise',
+] as const;
+
+const KOLOM_ANGKA_TTU = [
+  'jumlah_diperiksa', 'jumlah_ms', 'jumlah_tms',
+  'tms_lingkungan_luar_halaman', 'tms_ruang_bangunan', 'tms_penyehatan_air',
+  'tms_penyehatan_udara_ruang', 'tms_pengelolaan_limbah', 'tms_pencahayaan',
+  'tms_kebisingan', 'tms_getaran_diruang_kerja', 'tms_pengendalian_vektor_penyakit',
+  'tms_instalasi', 'tms_pemeliharaan_jamban_kamar_mandi',
+] as const;
+
+const KOLOM_ANGKA_PAB = [
+  'jumlah_pemeriksaan', 'total_pab_diperiksa', 'tms_fisik', 'tms_kimia', 'tms_bakteriologis',
+] as const;
+
+async function ambilTppBulanan(p: PeriodeBulanan, wilayahKerja: string | undefined) {
+  const ringkasan = await getRingkasanTppBulanan(p.tahun, wilayahKerja);
+  const baris = (ringkasan as any[]).filter((r) => r.bulan === p.bulan);
+  return cariAtauJumlahkan(baris, wilayahKerja, KOLOM_ANGKA_TPP as any);
+}
+
+async function ambilTtuBulanan(p: PeriodeBulanan, wilayahKerja: string | undefined) {
+  const ringkasan = await getRingkasanTtuBulanan(p.tahun, wilayahKerja);
+  const baris = (ringkasan as any[]).filter((r) => r.bulan === p.bulan);
+  return cariAtauJumlahkan(baris, wilayahKerja, KOLOM_ANGKA_TTU as any);
+}
+
+async function ambilPabBulanan(p: PeriodeBulanan, wilayahKerja: string | undefined) {
+  const ringkasan = await getRingkasanPabBulanan(p.tahun, wilayahKerja);
+  const baris = (ringkasan as any[]).filter((r) => r.bulan === p.bulan);
+  return cariAtauJumlahkan(baris, wilayahKerja, KOLOM_ANGKA_PAB as any);
 }
 
 export type DataBreakdownAnalisis = {
@@ -789,3 +863,5 @@ export async function ambilDataBreakdownAnalisis(
     breakdown,
   };
 }
+
+

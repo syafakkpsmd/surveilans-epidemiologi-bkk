@@ -18,8 +18,33 @@ import { DonutBreakdown } from "@/components/phqc/DonutBreakdown";
 import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
 
 // ============================================================
-// 1. KONSTANTA & HELPER MODULE-LEVEL
+// 1. MAPPING WILAYAH SUPABASE & HELPER MODULE-LEVEL
 // ============================================================
+
+const MAP_WILAYAH_DB: Record<string, string> = {
+  Samarinda: "Samarinda",
+  TanjungLaut: "Pelabuhan Tanjung Laut",
+  Sangkulirang: "Pelabuhan Laut Sangkulirang",
+  Sangatta: "Pelabuhan Laut Sangatta",
+  Lhoktuan: "Pelabuhan Lhok Tuan",
+  TanjungSantan: "Pelabuhan Laut Tanjung Santan",
+};
+
+/**
+ * Mengonversi parameter URL menjadi tipe Wilayah yang valid
+ */
+function dapatkanDbWilayah(nilai: string | undefined): Wilayah | undefined {
+  if (!nilai || nilai === "Semua") return undefined;
+
+  if (MAP_WILAYAH_DB[nilai]) return MAP_WILAYAH_DB[nilai] as Wilayah;
+
+  const bersih = nilai.toLowerCase().replace(/\s+/g, "");
+  const foundKey = Object.keys(MAP_WILAYAH_DB).find(
+    (k) => k.toLowerCase() === bersih
+  );
+
+  return (foundKey ? MAP_WILAYAH_DB[foundKey] : nilai) as Wilayah;
+}
 
 function normalisasiNilaiKategori(nilai: string): string {
   const d = nilai.trim();
@@ -65,9 +90,6 @@ function validasiWilayah(nilai: string | undefined): Wilayah | "Semua" {
   return "Semua";
 }
 
-/**
- * Helper untuk melakukan pivot data tren berdasarkan Minggu atau Bulan secara dinamis
- */
 function pivotKategoriDinamis(
   rows: { minggu_epid?: number; bulan?: number; nilai: string; jumlah: number }[],
   mode: "mingguan" | "bulanan",
@@ -110,7 +132,7 @@ interface TitikTrenPhqc {
 }
 
 // ============================================================
-// 2. KOMPONEN HALAMAN UTAMA
+// 2. KOMPONEN HALAMAN UTAMA (SERVER COMPONENT)
 // ============================================================
 
 export default async function PhqcPage({
@@ -119,35 +141,32 @@ export default async function PhqcPage({
   searchParams: Promise<{ mode?: string; wilayah?: string }>;
 }) {
   const sp = await searchParams;
-  const mode: "mingguan" | "bulanan" = sp.mode === "bulanan" ? "bulanan" : "mingguan";
+  const isMingguan = sp.mode !== "bulanan";
+  const mode: "mingguan" | "bulanan" = isMingguan ? "mingguan" : "bulanan";
   const wilayah = validasiWilayah(sp.wilayah);
+
+  // Penegasan Tipe Wilayah Kerja untuk Query Supabase
+  const targetWilayahDb: Wilayah | undefined = dapatkanDbWilayah(wilayah);
 
   const { sudahLogin, role } = await getStatusAkses();
 
- // Logika Waktu Sistem & Proteksi Mundur 1 Periode (Minggu) & Bulan Normal
-  // Logika Waktu Sistem
+  // Waktu & Periode
   const sekarang = new Date();
   const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIni } = hitungMingguEpidemiologi(sekarang);
 
-  // 1. Perhitungan mundur 1 minggu (Mode Mingguan)
   const mingguEpidTampilan = mingguEpidSaatIni - 1 > 0 ? mingguEpidSaatIni - 1 : 1;
-
-  // 2. Bulan dibuat normal (Gunakan LET, bukan CONST, agar bisa diubah di blok IF)
   let bulanTampilan = sekarang.getMonth() + 1; 
   let tahunTampilanBulanan = sekarang.getFullYear();
 
-  // Logika penyesuaian jika ada kompensasi batas bulan/tahun
   if (bulanTampilan <= 0) {
     bulanTampilan = 12 + bulanTampilan; 
     tahunTampilanBulanan = tahunTampilanBulanan - 1; 
   }
 
-  // Tentukan parameter tahun dan periodeKey sesuai mode aktif
-  const tahun = mode === "mingguan" ? tahunEpidSaatIni : tahunTampilanBulanan;
-  const periodeKey =
-    mode === "mingguan"
-      ? `${tahunEpidSaatIni}-W${mingguEpidTampilan}`
-      : `${tahunTampilanBulanan}-${bulanTampilan}`;
+  const tahun = isMingguan ? tahunEpidSaatIni : tahunTampilanBulanan;
+  const periodeKey = isMingguan
+    ? `${tahunEpidSaatIni}-W${mingguEpidTampilan}`
+    : `${tahunTampilanBulanan}-${bulanTampilan}`;
 
   let errorMuat: string | null = null;
   let trenData: TitikTrenPhqc[] = [];
@@ -174,86 +193,145 @@ export default async function PhqcPage({
   let donutAbkPenumpang: { nilai: string; jumlah: number }[] = [];
 
   try {
-    // 1. Jalankan pengambilan data tren (Ringkasan Mingguan / Bulanan)
-    if (mode === "mingguan") {
-      const ringkasan = await getRingkasanMingguan("phqc", tahun);
-      const terfilter = wilayah === "Semua" ? ringkasan : ringkasan.filter((r) => r.wilayah_kerja === wilayah);
+    let ringkasan;
+    let hasilSemuaKategori: Array<Array<{ nilai: string; jumlah: number }>>;
+    let rowsRbaPeriodeIni: Array<{ nilai: string; jumlah: number }>;
+    let rowsRbaTahunan: Array<{ minggu_epid?: number; bulan?: number; nilai: string; jumlah: number }>;
+    let rowsKedatangan: Array<{ minggu_epid?: number; bulan?: number; nilai: string; jumlah: number }>;
+    let rowsTujuan: Array<{ minggu_epid?: number; bulan?: number; nilai: string; jumlah: number }>;
 
-      const peta = new Map<number, TitikTrenPhqc>();
-      terfilter.forEach((r) => {
-        const existing = peta.get(r.minggu_epid) ?? {
-          label: `Mg ${r.minggu_epid}`,
-          urutan: r.minggu_epid,
-          jumlah_kapal: 0,
-          total_abk: 0,
-          total_abk_wna: 0,
-          total_abk_wni: 0,
-          total_penumpang: 0,
-          total_penumpang_wna: 0,
-          total_penumpang_wni: 0, 
-        };
-        existing.jumlah_kapal += r.jumlah_kapal;
-        existing.total_abk += r.total_abk;
-        existing.total_abk_wna += r.total_abk_wna;
-        existing.total_abk_wni += r.total_abk_wni;
-        existing.total_penumpang += r.total_penumpang;
-        existing.total_penumpang_wna += r.total_penumpang_wna;
-        existing.total_penumpang_wni += r.total_penumpang_wni;
-        peta.set(r.minggu_epid, existing);
-      });
-      trenData = Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
+    // PISAHKAN LOGIKA QUERY MINGGUAN DAN BULANAN AGAR MENIKMATI STRICT TYPE TS
+    if (isMingguan) {
+      const [resRingkasan, resKategori, resRbaPeriode, resRbaTahun, resKedatangan, resTujuan, resMentah] = await Promise.all([
+        getRingkasanMingguan("phqc", tahun),
+        Promise.all(
+          KATEGORI_LIST.map((k) =>
+            getKategoriBreakdown("phqc", "mingguan", {
+              tahun_epid: tahun,
+              wilayah_kerja: targetWilayahDb,
+              kategori: k.key,
+            })
+          )
+        ),
+        getKategoriBreakdown("phqc", "mingguan", {
+          tahun_epid: tahun,
+          minggu_epid: mingguEpidTampilan,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "rba",
+        }),
+        getKategoriBreakdown("phqc", "mingguan", {
+          tahun_epid: tahun,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "rba",
+        }),
+        getKategoriBreakdown("phqc", "mingguan", {
+          tahun_epid: tahun,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "pelabuhan_kedatangan",
+        }),
+        getKategoriBreakdown("phqc", "mingguan", {
+          tahun_epid: tahun,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "pelabuhan_tujuan",
+        }),
+        getKegiatanPhqcEnriched({ wilayah_kerja: targetWilayahDb, limit: 50 }),
+      ]);
+
+      ringkasan = resRingkasan;
+      hasilSemuaKategori = resKategori;
+      rowsRbaPeriodeIni = resRbaPeriode;
+      rowsRbaTahunan = resRbaTahun as any;
+      rowsKedatangan = resKedatangan as any;
+      rowsTujuan = resTujuan as any;
+      dataMentah = resMentah;
     } else {
-      const ringkasan = await getRingkasanBulanan("phqc", tahun);
-      const terfilter = wilayah === "Semua" ? ringkasan : ringkasan.filter((r) => r.wilayah_kerja === wilayah);
+      const [resRingkasan, resKategori, resRbaPeriode, resRbaTahun, resKedatangan, resTujuan, resMentah] = await Promise.all([
+        getRingkasanBulanan("phqc", tahun),
+        Promise.all(
+          KATEGORI_LIST.map((k) =>
+            getKategoriBreakdown("phqc", "bulanan", {
+              tahun,
+              wilayah_kerja: targetWilayahDb,
+              kategori: k.key,
+            })
+          )
+        ),
+        getKategoriBreakdown("phqc", "bulanan", {
+          tahun,
+          bulan: bulanTampilan,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "rba",
+        }),
+        getKategoriBreakdown("phqc", "bulanan", {
+          tahun,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "rba",
+        }),
+        getKategoriBreakdown("phqc", "bulanan", {
+          tahun,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "pelabuhan_kedatangan",
+        }),
+        getKategoriBreakdown("phqc", "bulanan", {
+          tahun,
+          wilayah_kerja: targetWilayahDb,
+          kategori: "pelabuhan_tujuan",
+        }),
+        getKegiatanPhqcEnriched({ wilayah_kerja: targetWilayahDb, limit: 50 }),
+      ]);
 
-      const peta = new Map<number, TitikTrenPhqc>();
-      terfilter.forEach((r) => {
-        const existing = peta.get(r.bulan) ?? {
-          label: NAMA_BULAN[r.bulan - 1],
-          urutan: r.bulan,
-          jumlah_kapal: 0,
-          total_abk: 0,
-          total_abk_wna: 0,
-          total_abk_wni: 0,
-          total_penumpang: 0,
-          total_penumpang_wna: 0,
-          total_penumpang_wni: 0,
-        };
-        existing.jumlah_kapal += r.jumlah_kapal;
-        existing.total_abk += r.total_abk;
-        existing.total_abk_wna += r.total_abk_wna;
-        existing.total_abk_wni += r.total_abk_wni;
-        existing.total_penumpang += r.total_penumpang;
-        existing.total_penumpang_wna += r.total_penumpang_wna;
-        existing.total_penumpang_wni += r.total_penumpang_wni;
-        peta.set(r.bulan, existing);
-      });
-      trenData = Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
+      ringkasan = resRingkasan;
+      hasilSemuaKategori = resKategori;
+      rowsRbaPeriodeIni = resRbaPeriode;
+      rowsRbaTahunan = resRbaTahun as any;
+      rowsKedatangan = resKedatangan as any;
+      rowsTujuan = resTujuan as any;
+      dataMentah = resMentah;
     }
 
-    // Perhitungan Total KPI Utama (Aktif baik di Mingguan maupun Bulanan)
+    // Olah Data Tren Utama
+    const terfilterRingkasan = !targetWilayahDb 
+      ? ringkasan 
+      : ringkasan.filter(
+          (r) =>
+            r.wilayah_kerja?.trim().toLowerCase() ===
+            targetWilayahDb.trim().toLowerCase()
+        );
+
+    const petaTren = new Map<number, TitikTrenPhqc>();
+    terfilterRingkasan.forEach((r) => {
+      const urutan = isMingguan ? (r as any).minggu_epid : (r as any).bulan;
+      const label = isMingguan ? `Mg ${urutan}` : (NAMA_BULAN[urutan - 1] ?? `Bln ${urutan}`);
+
+      const existing = petaTren.get(urutan) ?? {
+        label,
+        urutan,
+        jumlah_kapal: 0,
+        total_abk: 0,
+        total_abk_wna: 0,
+        total_abk_wni: 0,
+        total_penumpang: 0,
+        total_penumpang_wna: 0,
+        total_penumpang_wni: 0, 
+      };
+
+      existing.jumlah_kapal += r.jumlah_kapal;
+      existing.total_abk += r.total_abk;
+      existing.total_abk_wna += r.total_abk_wna;
+      existing.total_abk_wni += r.total_abk_wni;
+      existing.total_penumpang += r.total_penumpang;
+      existing.total_penumpang_wna += r.total_penumpang_wna;
+      existing.total_penumpang_wni += r.total_penumpang_wni;
+      petaTren.set(urutan, existing);
+    });
+
+    trenData = Array.from(petaTren.values()).sort((a, b) => a.urutan - b.urutan);
+
     totalKapal = trenData.reduce((a, r) => a + r.jumlah_kapal, 0);
     totalAbkKpi = trenData.reduce((a, r) => a + r.total_abk, 0);
     totalPenumpangKpi = trenData.reduce((a, r) => a + r.total_penumpang, 0);
 
-    // 2. Ambil Data Breakdown untuk Kategori Utama -- dijalankan PARALEL
-    // (Promise.all), bukan satu-satu berurutan seperti sebelumnya.
-    const hasilSemuaKategori = await Promise.all(
-      KATEGORI_LIST.map((k) =>
-        mode === "mingguan"
-          ? getKategoriBreakdown("phqc", "mingguan", {
-              tahun_epid: tahun,
-              wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-              kategori: k.key,
-            })
-          : getKategoriBreakdown("phqc", "bulanan", {
-              tahun,
-              wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-              kategori: k.key,
-            })
-      )
-    );
-
+    // Olah Breakdown Kategori Utama
     KATEGORI_LIST.forEach((k, idx) => {
       const rows = hasilSemuaKategori[idx];
       const peta = new Map<string, number>();
@@ -266,7 +344,7 @@ export default async function PhqcPage({
         .sort((a, b) => b.jumlah - a.jumlah);
     });
 
-    // 3. Pemrosesan Data Grafik Bagian Bawah Kompatibel (Mingguan & Bulanan)
+    // Bendera Kapal
     const benderaIndonesia = kategoriData.bendera.filter((b) => b.nilai.toLowerCase() === "indonesia");
     benderaLuarNegeri = kategoriData.bendera.filter((b) => b.nilai.toLowerCase() !== "indonesia");
     donutBenderaAsalNegara = [
@@ -274,37 +352,9 @@ export default async function PhqcPage({
       { nilai: "Luar Negeri", jumlah: benderaLuarNegeri.reduce((a, b) => a + b.jumlah, 0) },
     ];
 
-    // Ambil Data RBA Spesifik Periode Tampilan + Tren RBA Sepanjang Tahun
-    // secara PARALEL (dua query ini independen satu sama lain).
-    const [rowsPeriodeIni, rowsRbaTahunan] = await Promise.all([
-      mode === "mingguan"
-        ? getKategoriBreakdown("phqc", "mingguan", {
-            tahun_epid: tahun,
-            minggu_epid: mingguEpidTampilan,
-            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-            kategori: "rba",
-          })
-        : getKategoriBreakdown("phqc", "bulanan", {
-            tahun,
-            bulan: bulanTampilan,
-            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-            kategori: "rba",
-          }),
-      mode === "mingguan"
-        ? getKategoriBreakdown("phqc", "mingguan", {
-            tahun_epid: tahun,
-            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-            kategori: "rba",
-          })
-        : getKategoriBreakdown("phqc", "bulanan", {
-            tahun,
-            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-            kategori: "rba",
-          }),
-    ]);
-
+    // RBA Periode Ini
     const petaPeriodeIni = new Map<string, number>();
-    rowsPeriodeIni.forEach((r) => petaPeriodeIni.set(r.nilai, (petaPeriodeIni.get(r.nilai) ?? 0) + r.jumlah));
+    rowsRbaPeriodeIni.forEach((r) => petaPeriodeIni.set(r.nilai, (petaPeriodeIni.get(r.nilai) ?? 0) + r.jumlah));
     kategoriRbaPeriodeIni = Array.from(petaPeriodeIni.entries())
       .map(([nilai, jumlah]) => ({ nilai, jumlah }))
       .sort((a, b) => b.jumlah - a.jumlah);
@@ -317,17 +367,7 @@ export default async function PhqcPage({
       warna: WARNA_RBA[nilai] ?? "var(--color-teal)",
     }));
 
-    // Pembuatan Garis Tren Gabungan Pelabuhan Sepanjang Tahun
-    const [rowsKedatangan, rowsTujuan] = mode === "mingguan"
-      ? await Promise.all([
-          getKategoriBreakdown("phqc", "mingguan", { tahun_epid: tahun, wilayah_kerja: wilayah === "Semua" ? undefined : wilayah, kategori: "pelabuhan_kedatangan" }),
-          getKategoriBreakdown("phqc", "mingguan", { tahun_epid: tahun, wilayah_kerja: wilayah === "Semua" ? undefined : wilayah, kategori: "pelabuhan_tujuan" }),
-        ])
-      : await Promise.all([
-          getKategoriBreakdown("phqc", "bulanan", { tahun, wilayah_kerja: wilayah === "Semua" ? undefined : wilayah, kategori: "pelabuhan_kedatangan" }),
-          getKategoriBreakdown("phqc", "bulanan", { tahun, wilayah_kerja: wilayah === "Semua" ? undefined : wilayah, kategori: "pelabuhan_tujuan" }),
-        ]);
-
+    // Pelabuhan Kedatangan & Tujuan
     const gabunganPelabuhan = [
       ...rowsKedatangan.map((r) => ({ ...r, nilai: `Kedatangan: ${normalisasiNilaiKategori(r.nilai)}` })),
       ...rowsTujuan.map((r) => ({ ...r, nilai: `Tujuan: ${normalisasiNilaiKategori(r.nilai)}` })),
@@ -341,7 +381,7 @@ export default async function PhqcPage({
       warna: PALET_PELABUHAN[i % PALET_PELABUHAN.length],
     }));
 
-    // Demografi Demografis Crew & Penumpang
+    // ABK & Penumpang
     donutAbkPenumpang = [
       { nilai: "ABK WNA", jumlah: trenData.reduce((a, r) => a + r.total_abk_wna, 0) },
       { nilai: "ABK WNI", jumlah: trenData.reduce((a, r) => a + r.total_abk_wni, 0) },
@@ -349,23 +389,17 @@ export default async function PhqcPage({
       { nilai: "Penumpang WNI", jumlah: trenData.reduce((a, r) => a + r.total_penumpang_wni, 0) },
     ];
 
-    dataMentah = await getKegiatanPhqcEnriched({
-      wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-      limit: 50,
-    });
   } catch (err) {
     errorMuat = err instanceof Error ? err.message : "Gagal mengambil data PHQC.";
   }
 
   // ============================================================
-  // 3. RENDER / BLOK STRUKTUR VIEW TAMPILAN
+  // 3. RENDER TAMPILAN
   // ============================================================
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-  
-      {/* BAGIAN A: HEADER & UTILITY FILTER */}
+      {/* HEADER & FILTER */}
       <div className="flex flex-wrap items-end justify-between gap-4">
-        {/* Sisi Kiri: Teks Header */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">
             BKK Kelas I Samarinda
@@ -374,7 +408,6 @@ export default async function PhqcPage({
           <p className="text-sm text-muted">Berdasarkan tanggal keberangkatan</p>
         </div>
 
-        {/* Sisi Kanan: Tombol Kembali */}
         <Link
           href="/dashboard/alat-angkut/"
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
@@ -386,33 +419,31 @@ export default async function PhqcPage({
 
       <FilterPeriodeWilayah mode={mode} wilayah={wilayah} />
 
-      {errorMuat && (
+      {errorMuat ? (
         <div className="rounded-card border border-risiko-merah/30 bg-surface p-6 text-sm text-risiko-merah">
           Gagal memuat data: {errorMuat}
         </div>
-      )}
-
-      {!errorMuat && (
-        <>
-          {/* BAGIAN B: KARTU INDIKATOR KPI UTAMA (Sekarang Tampil di Kedua Mode) */}
+      ) : (
+        <div className="space-y-6">
+          {/* KARTU KPI */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-card bg-surface p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Jumlah Kapal ({mode === "mingguan" ? "Tahunan" : "Bulanan"})
               </p>
-              <p className="mt-1 text-2xl font-bold text-ink">{totalKapal}</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalKapal.toLocaleString("id-ID")}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total ABK</p>
-              <p className="mt-1 text-2xl font-bold text-ink">{totalAbkKpi}</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalAbkKpi.toLocaleString("id-ID")}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total Penumpang</p>
-              <p className="mt-1 text-2xl font-bold text-ink">{totalPenumpangKpi}</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalPenumpangKpi.toLocaleString("id-ID")}</p>
             </div>
           </div>
 
-          {/* BAGIAN C: GRAFIK GARIS TREN UTAMA TAHUNAN */}
+          {/* TREN UTAMA */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
               Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} Tahun {tahun}
@@ -422,7 +453,6 @@ export default async function PhqcPage({
             ) : (
               <TrenChart
                 data={trenData}
-                variant={mode === "bulanan" ? "bar" : "line"}
                 seri={[
                   { dataKey: "jumlah_kapal", nama: "Jumlah Kapal", warna: "#0F4C5C" },
                   { dataKey: "total_abk", nama: "Total ABK", warna: "#D97706" },
@@ -435,171 +465,161 @@ export default async function PhqcPage({
               role={role}
               konteks={`phqc-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              wilayahKerja={targetWilayahDb}
             />
           </div>
 
-          {/* BAGIAN D: STRUKTUR GRID UTAMA (Pelabuhan Kedatangan & Tujuan Berdampingan) */}
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-3">
-                <BreakdownCard
-                  judul="Pelabuhan Kedatangan (Daerah Asal Kapal)"
-                  data={kategoriData["pelabuhan_kedatangan"]}
-                />
-                <BoxAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={role}
-                  konteks="phqc-daerah-asal"
-                  periodeKey={periodeKey}
-                  wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-                />
-                <BoxPrediksiAI
-                  sudahLogin={sudahLogin}
-                  role={role}
-                  konteks="phqc-daerah-asal"
-                  periodeKey={periodeKey}
-                  wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-                />
-              </div>
+          {/* BREAKDOWN PELABUHAN */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-3">
               <BreakdownCard
-                judul="Pelabuhan Tujuan"
-                data={kategoriData["pelabuhan_tujuan"]}
+                judul="Pelabuhan Kedatangan (Daerah Asal Kapal)"
+                data={kategoriData["pelabuhan_kedatangan"]}
               />
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={role}
+                konteks="phqc-daerah-asal"
+                periodeKey={periodeKey}
+                wilayahKerja={targetWilayahDb}
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={role}
+                konteks="phqc-daerah-asal"
+                periodeKey={periodeKey}
+                wilayahKerja={targetWilayahDb}
+              />
+            </div>
+            <BreakdownCard
+              judul="Pelabuhan Tujuan"
+              data={kategoriData["pelabuhan_tujuan"]}
+            />
+          </div>
+
+          {/* BENDERA KAPAL */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-card bg-surface p-6">
+              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+                Bendera Kapal — Indonesia vs Luar Negeri
+              </h3>
+              <DonutBreakdown data={donutBenderaAsalNegara} />
+            </div>
+            <BreakdownCard judul="Bendera Kapal — Rincian Luar Negeri" data={benderaLuarNegeri} />
+          </div>
+
+          {/* RBA */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-card bg-surface p-6">
+              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+                RBA — Total Tahun {tahun}
+              </h3>
+              <DonutBreakdown data={kategoriData.rba} />
+            </div>
+            <div className="rounded-card bg-surface p-6">
+              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+                RBA — {mode === "mingguan" ? `Minggu Epidemiologi ke-${mingguEpidTampilan}` : `Bulan ${NAMA_BULAN[bulanTampilan - 1] ?? ""} ${tahun}`}
+              </h3>
+              <DonutBreakdown data={kategoriRbaPeriodeIni} />
             </div>
           </div>
 
-          {/* BAGIAN E: BLOK GRAFIK PENDUKUNG LENGKAP (Tampil di Kedua Mode) */}
-          <>
-            {/* Grafik Donut Asal Bendera Kapal */}
-            <div className="grid gap-4 md:grid-cols-2 mt-6">
-              <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                  Bendera Kapal — Indonesia vs Luar Negeri
-                </h3>
-                <DonutBreakdown data={donutBenderaAsalNegara} />
-              </div>
-              <BreakdownCard judul="Bendera Kapal — Rincian Luar Negeri" data={benderaLuarNegeri} />
-            </div>
+          {/* TREN RBA */}
+          <div className="rounded-card bg-surface p-6 space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
+              Tren RBA {mode === "mingguan" ? "Mingguan" : "Bulanan"} — Tahun {tahun}
+            </h3>
+            <TrenChecklistMingguan 
+              data={trenRbaPeriodik} 
+              seriesList={seriesRba} 
+              maxAktifDefault={seriesRba.length} 
+            />
+            <BoxAnalisisAI
+              sudahLogin={sudahLogin}
+              role={role}
+              konteks={`phqc-rba-${mode}`}
+              periodeKey={periodeKey}
+              wilayahKerja={targetWilayahDb}
+            />
+            <BoxPrediksiAI
+              sudahLogin={sudahLogin}
+              role={role}
+              konteks={`phqc-rba-${mode}`}
+              periodeKey={periodeKey}
+              wilayahKerja={targetWilayahDb}
+            />
+          </div>
 
-            {/* Grafik RBA (Total vs Bulan/Minggu Target) */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                  RBA — Total Tahun {tahun}
-                </h3>
-                <DonutBreakdown data={kategoriData.rba} />
-              </div>
-              <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                  RBA — {mode === "mingguan" ? `Minggu Epidemiologi ke-${mingguEpidTampilan}` : `Bulan ${NAMA_BULAN[bulanTampilan - 1]} ${tahun}`}
-                </h3>
-                <DonutBreakdown data={kategoriRbaPeriodeIni} />
-              </div>
+          {/* TUJUAN BERLAYAR & CREW */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-card bg-surface p-6">
+              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">Tujuan Berlayar</h3>
+              <DonutBreakdown data={kategoriData.tujuan_berlayar} />
             </div>
-
-            {/* Garis Tren Periodik RBA & Analisis AI */}
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Tren RBA {mode === "mingguan" ? "Mingguan" : "Bulanan"} — Tahun {tahun}
+                Total ABK & Penumpang — Tahun {tahun}
               </h3>
-              <TrenChecklistMingguan 
-                data={trenRbaPeriodik} 
-                seriesList={seriesRba} 
-                maxAktifDefault={seriesRba.length} 
-                variant={mode === "bulanan" ? "bar" : "line"}
-              />
-              <BoxAnalisisAI
-                sudahLogin={sudahLogin}
-                role={role}
-                konteks={`phqc-rba-${mode}`}
-                periodeKey={periodeKey}
-                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-              />
-              <BoxPrediksiAI
-                sudahLogin={sudahLogin}
-                role={role}
-                konteks={`phqc-rba-${mode}`}
-                periodeKey={periodeKey}
-                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-              />
+              <DonutBreakdown data={donutAbkPenumpang} />
             </div>
+          </div>
 
-            {/* Grafik Donut Tujuan Berlayar & Total Crew */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">Tujuan Berlayar</h3>
-                <DonutBreakdown data={kategoriData.tujuan_berlayar} />
-              </div>
-              <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                  Total ABK & Penumpang — Tahun {tahun}
-                </h3>
-                <DonutBreakdown data={donutAbkPenumpang} />
-              </div>
-            </div>
+          {/* TREN PELABUHAN */}
+          <div className="rounded-card bg-surface p-6 space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
+              Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} Pelabuhan Kedatangan & Tujuan — Tahun {tahun}
+            </h3>
+            <TrenChecklistMingguan
+              data={trenPelabuhanPeriodik}
+              seriesList={seriesPelabuhan}
+              tampilan="dropdown"
+            />
+            <BoxAnalisisAI
+              sudahLogin={sudahLogin}
+              role={role}
+              konteks={`phqc-pelabuhan-${mode}`}
+              periodeKey={periodeKey}
+              wilayahKerja={targetWilayahDb}
+            />
+            <BoxPrediksiAI
+              sudahLogin={sudahLogin}
+              role={role}
+              konteks={`phqc-pelabuhan-${mode}`}
+              periodeKey={periodeKey}
+              wilayahKerja={targetWilayahDb}
+            />
+          </div>
 
-            {/* Grafik Tren Periodik Gabungan Pelabuhan */}
-            <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} Pelabuhan Kedatangan & Tujuan — Tahun {tahun}
-              </h3>
-              <TrenChecklistMingguan
-                data={trenPelabuhanPeriodik}
-                seriesList={seriesPelabuhan}
-                tampilan="dropdown"
-                variant={mode === "bulanan" ? "bar" : "line"}
-              />
-              <BoxAnalisisAI
-                sudahLogin={sudahLogin}
-                role={role}
-                konteks={`phqc-pelabuhan-${mode}`}
-                periodeKey={periodeKey}
-                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-              />
-              <BoxPrediksiAI
-                sudahLogin={sudahLogin}
-                role={role}
-                konteks={`phqc-pelabuhan-${mode}`}
-                periodeKey={periodeKey}
-                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-              />
-            </div>
-
-            {/* Grafik Tren Demografi ABK & Penumpang Keberangkatan */}
-            <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} ABK & Penumpang Keberangkatan — Tahun {tahun}
-              </h3>
-              <TrenChart
-                data={trenData}
-                variant={mode === "bulanan" ? "bar" : "line"}
-                seri={[
-                  { dataKey: "total_abk_wna", nama: "ABK WNA", warna: "#2F9E44" },
-                  { dataKey: "total_abk_wni", nama: "ABK WNI", warna: "#0F4C5C" },
-                  { dataKey: "total_penumpang_wna", nama: "Penumpang WNA", warna: "#D97706" },
-                  { dataKey: "total_penumpang_wni", nama: "Penumpang WNI", warna: "#7C3AED" },
-                ]}
-              />
-              <div className="mt-4 space-y-3">
-                <BoxAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={role}
-                  konteks={`penumpang-${mode}`}
-                  periodeKey={periodeKey}
-                  wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-                />
-                <BoxPrediksiAI
-                  sudahLogin={sudahLogin}
-                  role={role}
-                  konteks={`penumpang-${mode}`}
-                  periodeKey={periodeKey}
-                  wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
-                />
-              </div>
-            </div>
-          </>
-        </>
+          {/* CREW & PENUMPANG TREN */}
+          <div className="rounded-card bg-surface p-6 space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
+              Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} ABK & Penumpang Keberangkatan — Tahun {tahun}
+            </h3>
+            <TrenChart
+              data={trenData}
+              seri={[
+                { dataKey: "total_abk_wna", nama: "ABK WNA", warna: "#2F9E44" },
+                { dataKey: "total_abk_wni", nama: "ABK WNI", warna: "#0F4C5C" },
+                { dataKey: "total_penumpang_wna", nama: "Penumpang WNA", warna: "#D97706" },
+                { dataKey: "total_penumpang_wni", nama: "Penumpang WNI", warna: "#7C3AED" },
+              ]}
+            />
+            <BoxAnalisisAI
+              sudahLogin={sudahLogin}
+              role={role}
+              konteks={`penumpang-${mode}`}
+              periodeKey={periodeKey}
+              wilayahKerja={targetWilayahDb}
+            />
+            <BoxPrediksiAI
+              sudahLogin={sudahLogin}
+              role={role}
+              konteks={`penumpang-${mode}`}
+              periodeKey={periodeKey}
+              wilayahKerja={targetWilayahDb}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,14 +1,10 @@
 import Link from "next/link";
 import { catatKunjungan } from "@/app/actions/kunjungan";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
-import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
 import { DonutRba } from "@/components/cop/DonutRba";
 import { PieBreakdown } from "@/components/cop/PieBreakdown";
 import { getRingkasanMingguan, getKategoriBreakdown } from "@/lib/supabase/queries";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
-// ============================================================
-// TANDA #1 -- import baru, dipakai untuk mundur beberapa minggu
-// ============================================================
 import { periodeMingguanSebelumnya } from "@/lib/ai/periode";
 import type {
   RingkasanMingguanCop,
@@ -25,19 +21,36 @@ const WILAYAH_URUTAN = [
   "Sangkulirang",
 ];
 
+/**
+ * Mapping pencocokan fleksibel agar string wilayah di database
+ * (misal: "Pelabuhan Laut Tanjung Santan") cocok dengan key WILAYAH_URUTAN ("TanjungSantan")
+ */
+function cocokWilayah(wilayahDb: string | undefined | null, targetWilayah: string): boolean {
+  if (!wilayahDb) return false;
+  
+  // Bersihkan spasi dan ubah ke huruf kecil
+  const bersihDb = wilayahDb.toLowerCase().replace(/\s+/g, "");
+  const bersihTarget = targetWilayah.toLowerCase().replace(/\s+/g, "");
+
+  // Jika cocok langsung
+  if (bersihDb === bersihTarget) return true;
+
+  // Cek kata kunci spesifik
+  if (targetWilayah === "TanjungSantan" && bersihDb.includes("tanjungsantan")) return true;
+  if (targetWilayah === "TanjungLaut" && bersihDb.includes("tanjunglaut")) return true;
+  if (targetWilayah === "Lhoktuan" && (bersihDb.includes("lhoktuan") || bersihDb.includes("lhoktuan"))) return true;
+  if (targetWilayah === "Sangatta" && bersihDb.includes("sangatta")) return true;
+  if (targetWilayah === "Sangkulirang" && bersihDb.includes("sangkulirang")) return true;
+  if (targetWilayah === "Samarinda" && bersihDb.includes("samarinda")) return true;
+
+  return false;
+}
+
 export default async function DashboardPage() {
   await catatKunjungan("/dashboard/alat-angkut");
   const { sudahLogin, role } = await getStatusAkses();
 
-  // ============================================================
-  // TANDA #2 -- BAGIAN YANG DIUBAH
-  // Sebelumnya: const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(new Date());
-  // Sekarang: hitung minggu BERJALAN dulu, lalu mundurkan sejumlah
-  // JUMLAH_MINGGU_MUNDUR minggu (data lapangan biasanya baru masuk
-  // belakangan, sama seperti pola di modul Vektor Aedes).
-  //
-  // MAU TAMBAH/KURANGI JARAK MUNDUR? Ubah angka di baris ini saja:
-  const JUMLAH_MINGGU_MUNDUR = 1; // <-- UBAH ANGKA INI (0 = minggu berjalan, tanpa mundur)
+  const JUMLAH_MINGGU_MUNDUR = 1;
 
   const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = hitungMingguEpidemiologi(
     new Date()
@@ -54,11 +67,6 @@ export default async function DashboardPage() {
 
   const tahunEpid = periodeTertunda.tahun;
   const mingguEpid = periodeTertunda.minggu;
-  // ============================================================
-  // AKHIR TANDA #2 -- semua kode di bawah ini TIDAK PERLU DIUBAH,
-  // karena semuanya sudah otomatis memakai tahunEpid/mingguEpid
-  // yang sudah dimundurkan di atas.
-  // ============================================================
 
   const periodeKey = `${tahunEpid}-W${mingguEpid}`;
 
@@ -79,9 +87,6 @@ export default async function DashboardPage() {
           minggu_epid: mingguEpid,
           kategori: "rba",
         }),
-        // TANDA #3 -- query baru untuk donut RBA TOTAL (tanpa filter
-        // minggu_epid = otomatis dapat gabungan semua minggu di tahun
-        // berjalan, bukan cuma 1 minggu).
         getKategoriBreakdown("cop", "mingguan", {
           tahun_epid: tahunEpid,
           kategori: "rba",
@@ -122,28 +127,29 @@ export default async function DashboardPage() {
   const adaData = totalKapalCop > 0 || totalKapalPhqc > 0;
 
   // ============================================================
-  // MEMISAHKAN & MENGURUTKAN VARIABEL WILAYAH (TERTINGGI KE TERENDAH)
+  // PENGGUNAAN HELPER `cocokWilayah` AGAR TIDAK KOSONG WALAUPUN
+  // NAMA WILAYAH DI DATABASE BERBEDA FORMAT
   // ============================================================
-  const wilayahBarCop = WILAYAH_URUTAN.map((w) => ({
-    wilayah: w,
-    jumlah: ringkasanCopMinggu.find((r) => r.wilayah_kerja === w)?.jumlah_kapal ?? 0,
-  })).sort((a, b) => b.jumlah - a.jumlah); // <-- Tambahan pengurutan di sini
-  
+  const wilayahBarCop = WILAYAH_URUTAN.map((w) => {
+    const ditemuka = ringkasanCopMinggu.filter((r) => cocokWilayah(r.wilayah_kerja, w));
+    const totalJml = ditemuka.reduce((acc, curr) => acc + curr.jumlah_kapal, 0);
+    return { wilayah: w, jumlah: totalJml };
+  }).sort((a, b) => b.jumlah - a.jumlah);
+
   const maxWilayahCop = Math.max(1, ...wilayahBarCop.map((w) => w.jumlah));
 
-  const wilayahBarPhqc = WILAYAH_URUTAN.map((w) => ({
-    wilayah: w,
-    jumlah: ringkasanPhqcMinggu.find((r) => r.wilayah_kerja === w)?.jumlah_kapal ?? 0,
-  })).sort((a, b) => b.jumlah - a.jumlah); // <-- Tambahan pengurutan di sini
-  
+  const wilayahBarPhqc = WILAYAH_URUTAN.map((w) => {
+    const ditemuka = ringkasanPhqcMinggu.filter((r) => cocokWilayah(r.wilayah_kerja, w));
+    const totalJml = ditemuka.reduce((acc, curr) => acc + curr.jumlah_kapal, 0);
+    return { wilayah: w, jumlah: totalJml };
+  }).sort((a, b) => b.jumlah - a.jumlah);
+
   const maxWilayahPhqc = Math.max(1, ...wilayahBarPhqc.map((w) => w.jumlah));
-  // ============================================================
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          {/* Judul utama dengan warna hijau */}
           <h1 className="text-2xl font-bold text-green-600">Alat Angkut Kapal (COP &amp; PHQC)</h1>
           <p className="text-sm text-muted">
             Minggu Epidemiologi ke-{mingguEpid} Tahun {tahunEpid}
@@ -151,7 +157,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Menjajajarkan tombol Navigasi di sebelah kiri dan Tombol Analisis AI di sebelah kanan */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-3">
           <Link
@@ -166,9 +171,13 @@ export default async function DashboardPage() {
           >
             Lihat Dashboard PHQC Lengkap
           </Link>
+          <Link
+            href="/dashboard/alat-angkut/sscec"
+            className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
+          >
+            Lihat Dashboard SSCEC Lengkap
+          </Link>
         </div>
-        
-        
       </div>
 
       {errorMuat && (
@@ -192,7 +201,6 @@ export default async function DashboardPage() {
             <KartuKpi label="Total ABK" nilai={totalAbk} />
           </div>
 
-          {/* TANDA #4 -- sekarang 2 kolom: kiri minggu berjalan, kanan total tahun */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
@@ -209,8 +217,6 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-           {/* TANDA #6 -- Per Wilayah Kerja dipecah jadi 2 kolom terpisah:
-               COP kiri, PHQC kanan (sebelumnya digabung jadi 1 angka). */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">

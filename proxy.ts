@@ -16,10 +16,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Jalankan middleware di semua path KECUALI file statis Next.js
-     * dan aset gambar, supaya tidak boros refresh sesi untuk aset.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/analisis-ai|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

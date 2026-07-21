@@ -12,6 +12,7 @@ import {
   getRingkasanTtuBulanan,
   getRingkasanPabBulanan,
 } from '@/lib/supabase/queries';
+import { getTrenDiareMultiVariabel } from '@/lib/supabase/queriesVektorDiareEnhanced';
 import type { Wilayah, KategoriCop } from '@/types/database.types';
 import {
   parsePeriodeMingguan,
@@ -41,8 +42,10 @@ export const KONTEKS_TREN = [
   'vektor-dbd-bulanan',
   'tikus-lab-mingguan',
   'tikus-lab-bulanan',
-  'vektor-tikus-mingguan',   // <-- TAMBAH
-  'vektor-tikus-bulanan',    // <-- TAMBAH
+  'vektor-tikus-mingguan',
+  'vektor-tikus-bulanan',
+  'vektor-diare-lalat-mingguan',
+  'vektor-diare-kecoa-mingguan',
   'anopheles-dewasa-mingguan',
   'anopheles-dewasa-bulanan',
   'anopheles-larva-mingguan',
@@ -84,8 +87,10 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'pesawat-bulanan',
   'tikus-lab-mingguan',
   'tikus-lab-bulanan',
-  'vektor-tikus-mingguan',   // <-- TAMBAH
-  'vektor-tikus-bulanan',    // <-- TAMBAH
+  'vektor-tikus-mingguan',
+  'vektor-tikus-bulanan',
+  'vektor-diare-lalat-mingguan',
+  'vektor-diare-kecoa-mingguan',
   'anopheles-dewasa-mingguan',
   'anopheles-dewasa-bulanan',
   'anopheles-larva-mingguan',
@@ -129,8 +134,10 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
     konteks === 'pesawat-bulanan' ||
     konteks === 'tikus-lab-mingguan' ||
     konteks === 'tikus-lab-bulanan' ||
-    konteks === 'vektor-tikus-mingguan' ||   // <-- TAMBAH
-    konteks === 'vektor-tikus-bulanan' ||    // <-- TAMBAH
+    konteks === 'vektor-tikus-mingguan' ||   
+    konteks === 'vektor-tikus-bulanan' ||
+    konteks === 'vektor-diare-lalat-mingguan' ||     // <-- TAMBAH
+    konteks === 'vektor-diare-kecoa-mingguan' ||     // <-- TAMBAH    
     konteks.startsWith('anopheles-')
   );
 }
@@ -215,40 +222,28 @@ async function ambilCopBulanan(
   return cariAtauJumlahkan(barisBulan, wilayahKerja, [...KOLOM_ANGKA_COP]);
 }
 
-async function ambilPhqcMingguan(
-  p: PeriodeMingguan,
-  wilayahKerja: string | undefined
-): Promise<Record<string, number>> {
+async function ambilPhqcMingguan(p: PeriodeMingguan, wilayahKerja: string | undefined) {
   const baris = await getRingkasanMingguan('phqc', p.tahun);
   const barisMinggu = baris.filter((b) => b.minggu_epid === p.minggu);
-  return cariAtauJumlahkan(barisMinggu, wilayahKerja, [...KOLOM_ANGKA_PHQC]);
+  return cariAtauJumlahkan(barisMinggu, resolveWilayahPhqcDb(wilayahKerja), [...KOLOM_ANGKA_PHQC]);
 }
 
-async function ambilPhqcBulanan(
-  p: PeriodeBulanan,
-  wilayahKerja: string | undefined
-): Promise<Record<string, number>> {
+async function ambilPhqcBulanan(p: PeriodeBulanan, wilayahKerja: string | undefined) {
   const baris = await getRingkasanBulanan('phqc', p.tahun);
   const barisBulan = baris.filter((b) => b.bulan === p.bulan);
-  return cariAtauJumlahkan(barisBulan, wilayahKerja, [...KOLOM_ANGKA_PHQC]);
+  return cariAtauJumlahkan(barisBulan, resolveWilayahPhqcDb(wilayahKerja), [...KOLOM_ANGKA_PHQC]);
 }
 
-async function ambilPenumpangMingguan(
-  p: PeriodeMingguan,
-  wilayahKerja: string | undefined
-): Promise<Record<string, number>> {
+async function ambilPenumpangMingguan(p: PeriodeMingguan, wilayahKerja: string | undefined) {
   const baris = await getRingkasanMingguan('phqc', p.tahun);
   const barisMinggu = baris.filter((b) => b.minggu_epid === p.minggu);
-  return cariAtauJumlahkan(barisMinggu, wilayahKerja, [...KOLOM_ANGKA_PENUMPANG]);
+  return cariAtauJumlahkan(barisMinggu, resolveWilayahPhqcDb(wilayahKerja), [...KOLOM_ANGKA_PENUMPANG]);
 }
 
-async function ambilPenumpangBulanan(
-  p: PeriodeBulanan,
-  wilayahKerja: string | undefined
-): Promise<Record<string, number>> {
+async function ambilPenumpangBulanan(p: PeriodeBulanan, wilayahKerja: string | undefined) {
   const baris = await getRingkasanBulanan('phqc', p.tahun);
   const barisBulan = baris.filter((b) => b.bulan === p.bulan);
-  return cariAtauJumlahkan(barisBulan, wilayahKerja, [...KOLOM_ANGKA_PENUMPANG]);
+  return cariAtauJumlahkan(barisBulan, resolveWilayahPhqcDb(wilayahKerja), [...KOLOM_ANGKA_PENUMPANG]);
 }
 
 async function ambilTikusLabMingguan(
@@ -351,6 +346,21 @@ async function ambilVektorTikusBulanan(
   };
 }
 
+async function ambilVektorDiareMingguan(
+  p: PeriodeMingguan,
+  jenis: 'lalat' | 'kecoa',
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const dataMingguan = await getTrenDiareMultiVariabel(p.tahun, jenis, wilayahKerja);
+  const baris = (dataMingguan as any[]).find((r) => r.minggu_epid === p.minggu);
+  if (!baris) return {};
+  const hasil: Record<string, number> = {};
+  for (const [k, v] of Object.entries(baris)) {
+    if (typeof v === 'number') hasil[k] = v;
+  }
+  return hasil;
+}
+
 async function ambilAnophelesRingkasan(
   tahun: number,
   wilayahKerja: string | undefined,
@@ -394,10 +404,10 @@ async function topKategoriUmum(
   filterPeriode: { tahun_epid: number; minggu_epid: number } | { tahun: number; bulan: number },
   wilayahKerja: string | undefined
 ): Promise<{ kategori: string; nilai: string; jumlah: number }[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wilayahUntukQuery = tabel === 'phqc' ? resolveWilayahPhqcDb(wilayahKerja) : wilayahKerja;
   const baris = await (getKategoriBreakdown as any)(tabel, periode, {
     ...filterPeriode,
-    ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
+    ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
   });
 
   return (baris as { kategori: string; nilai: string; jumlah: number }[])
@@ -420,6 +430,28 @@ const DAFTAR_WILAYAH_COP = [
   'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',
 ] as const;
 
+/**
+ * Sinkron dengan MAP_WILAYAH_DB di app/phqc/page.tsx -- tabel
+ * kegiatan_phqc menyimpan wilayah_kerja dalam format nama
+ * panjang/deskriptif untuk sebagian wilayah (hasil import data awal),
+ * BUKAN format enum pendek yang dipakai di seluruh sistem AI
+ * (route.ts, BoxAnalisisAI, dll). COP TIDAK terpengaruh -- kegiatan_cop
+ * tetap format pendek. Kalau MAP_WILAYAH_DB di page.tsx berubah,
+ * update juga di sini.
+ */
+const MAP_WILAYAH_DB_PHQC: Record<string, string> = {
+  Samarinda: 'Samarinda',
+  TanjungLaut: 'Pelabuhan Tanjung Laut',
+  Sangkulirang: 'Pelabuhan Laut Sangkulirang',
+  Sangatta: 'Pelabuhan Laut Sangatta',
+  Lhoktuan: 'Pelabuhan Lhok Tuan',
+  TanjungSantan: 'Pelabuhan Laut Tanjung Santan',
+};
+
+function resolveWilayahPhqcDb(wilayahKerja: string | undefined): string | undefined {
+  if (!wilayahKerja) return undefined;
+  return MAP_WILAYAH_DB_PHQC[wilayahKerja] ?? wilayahKerja;
+}
 
 async function ambilNegaraKedatanganPeriode(
   tahun: number,
@@ -605,6 +637,26 @@ export async function ambilDataAnalisis(
       labelWilayah,
       labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
       labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni,
+      ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  if (konteks === 'vektor-diare-lalat-mingguan' || konteks === 'vektor-diare-kecoa-mingguan') {
+    const jenis: 'lalat' | 'kecoa' = konteks === 'vektor-diare-lalat-mingguan' ? 'lalat' : 'kecoa';
+    const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+    const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilVektorDiareMingguan(periodeSaatIni, jenis, wilayahKerja),
+      ambilVektorDiareMingguan(periodeSebelumnya, jenis, wilayahKerja),
+    ]);
+    const labelJenis = jenis === 'lalat' ? 'Lalat (Fly Index)' : 'Kecoa (Kepadatan/m²)';
+    return {
+      labelKonteks: `Surveilans Vektor Diare — ${labelJenis}`,
+      labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
@@ -976,8 +1028,9 @@ async function ambilDataBreakdownPelabuhanPhqc(
   wilayahKerja: string | undefined
 ): Promise<DataBreakdownAnalisis> {
   const labelWilayah = wilayahKerja
-  ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-  : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+  const wilayahUntukQuery = resolveWilayahPhqcDb(wilayahKerja);
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
 
   let labelPeriode: string;
@@ -993,13 +1046,13 @@ async function ambilDataBreakdownPelabuhanPhqc(
         tahun_epid: p.tahun,
         minggu_epid: p.minggu,
         kategori: 'pelabuhan_kedatangan',
-        ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
       }),
       (getKategoriBreakdown as any)('phqc', 'mingguan', {
         tahun_epid: p.tahun,
         minggu_epid: p.minggu,
         kategori: 'pelabuhan_tujuan',
-        ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
       }),
     ]);
     const ringkasan = await ambilPhqcMingguan(p, wilayahKerja);
@@ -1012,13 +1065,13 @@ async function ambilDataBreakdownPelabuhanPhqc(
         tahun: p.tahun,
         bulan: p.bulan,
         kategori: 'pelabuhan_kedatangan',
-        ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
       }),
       (getKategoriBreakdown as any)('phqc', 'bulanan', {
         tahun: p.tahun,
         bulan: p.bulan,
         kategori: 'pelabuhan_tujuan',
-        ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
       }),
     ]);
     const ringkasan = await ambilPhqcBulanan(p, wilayahKerja);
@@ -1059,6 +1112,7 @@ export async function ambilDataBreakdownAnalisis(
   : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
   const kategori = KATEGORI_PER_KONTEKS_BREAKDOWN[konteks];
   const tabel = TABEL_PER_KONTEKS_BREAKDOWN[konteks];
+  const wilayahUntukQuery = tabel === 'phqc' ? resolveWilayahPhqcDb(wilayahKerja) : wilayahKerja;
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
 
   let labelPeriode: string;
@@ -1072,7 +1126,7 @@ export async function ambilDataBreakdownAnalisis(
       tahun_epid: p.tahun,
       minggu_epid: p.minggu,
       kategori,
-      ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
+      ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
     });
     const ringkasan =
       tabel === 'cop' ? await ambilCopMingguan(p, wilayahKerja) : await ambilPhqcMingguan(p, wilayahKerja);

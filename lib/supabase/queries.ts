@@ -1114,3 +1114,50 @@ export async function getRingkasanPabMingguan(tahun: number, wilayahKerja?: stri
   if (error) throw new Error(`Gagal ambil ringkasan mingguan PAB: ${error.message}`);
   return (data ?? []) as any[];
 }
+export async function getDetailPemeriksaanTpp(tahun: number, wilayah?: string) {
+  const supabase = await createClient();
+
+  // Query ke tabel 'tpp' di Supabase
+  let query = (supabase.from("tpp" as any) as any)
+    .select("*")
+    .gte("tanggal_kegiatan", `${tahun}-01-01`)
+    .lte("tanggal_kegiatan", `${tahun}-12-31`)
+    .order("tanggal_kegiatan", { ascending: false });
+
+  if (wilayah && wilayah !== "semua") {
+    query = query.eq("wilayah_kerja", wilayah);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error fetching detail TPP:", error.message || error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function getDetailPemeriksaanTtu(tahun: number, wilayah?: string) {
+  const supabase = await createClient();
+
+  // Query ke tabel 'ttu' di database Supabase
+  let query = (supabase.from("ttu" as any) as any)
+    .select("*")
+    .gte("tanggal_kegiatan", `${tahun}-01-01`)
+    .lte("tanggal_kegiatan", `${tahun}-12-31`)
+    .order("tanggal_kegiatan", { ascending: false });
+
+  if (wilayah && wilayah !== "semua") {
+    query = query.eq("wilayah_kerja", wilayah);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Error fetching detail TTU:", error.message || error);
+    return [];
+  }
+
+  return data || [];
+}

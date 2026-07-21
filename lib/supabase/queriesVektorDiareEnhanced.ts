@@ -1,33 +1,40 @@
 import { createClient } from '@/lib/supabase/server';
 import { getRentangMingguEpid } from '@/lib/supabase/queriesVektorBreakdown';
+import { getWilkerRef } from '@/lib/supabase/queries';
 
 export async function getTrenDiareMultiVariabel(
   tahun: number,
   jenis: 'lalat' | 'kecoa',
   kodeWilker?: string,
+  mingguAwal?: number,
+  mingguAkhir?: number
 ) {
   const supabase = await createClient();
   let q = supabase
-    .from('view_vektor_diare_mingguan') // ⚠️ ASUMSI nama view
+    .from('view_vektor_diare_mingguan')
     .select('*')
     .eq('tahun_epid', tahun)
     .eq('jenis_kegiatan', jenis)
     .order('minggu_epid');
 
   if (kodeWilker) q = q.eq('kode_wilker', kodeWilker);
+
+  if (mingguAwal) q = q.gte('minggu_epid', mingguAwal);
+  if (mingguAkhir) q = q.lte('minggu_epid', mingguAkhir);
+
   const { data, error } = await q;
   if (error) throw error;
   if (!data) return [];
 
   if (kodeWilker) return data;
 
-  // agregasi rata-rata lintas wilker per minggu saat "Semua Wilker"
-const grouped = new Map<number, any[]>();
-for (const row of data) {
-  if (row.minggu_epid == null) continue; // lewati baris tanpa minggu_epid
-  if (!grouped.has(row.minggu_epid)) grouped.set(row.minggu_epid, []);
-  grouped.get(row.minggu_epid)!.push(row);
-}
+  const grouped = new Map<number, any[]>();
+  for (const row of data) {
+    if (row.minggu_epid == null) continue;
+    if (!grouped.has(row.minggu_epid)) grouped.set(row.minggu_epid, []);
+    grouped.get(row.minggu_epid)!.push(row);
+  }
+
   const rata = (rows: any[], key: string) =>
     rows.reduce((s, r) => s + (r[key] ?? 0), 0) / rows.length;
 
@@ -40,37 +47,92 @@ for (const row of data) {
       suhu_rerata: rata(rows, 'suhu_rerata'),
       kelembapan_rerata: rata(rows, 'kelembapan_rerata'),
       curah_hujan_rerata: rata(rows, 'curah_hujan_rerata'),
-      insektisida_rerata: rata(rows, 'insektisida_rerata'),   // sebelumnya salah nama: jumlah_insektisida_rerata
+      insektisida_rerata: rata(rows, 'insektisida_rerata'),
       luas_area_rerata: rata(rows, 'luas_area_rerata'),
       jml_memenuhi_syarat: rows.reduce((s, r) => s + (r.jml_memenuhi_syarat ?? 0), 0),
       jml_tidak_memenuhi_syarat: rows.reduce((s, r) => s + (r.jml_tidak_memenuhi_syarat ?? 0), 0),
     }));
 }
 
-// Hasil pengamatan per wilker (semua wilker sekaligus, untuk grafik batang berkelompok)
-export async function getHasilPengamatanPerWilker(tahun: number, jenis: 'lalat' | 'kecoa') {
+// Hasil pengamatan: BISA per wilker (bar chart) ATAU per minggu epid jika kodeWilker dipilih (line chart)
+export async function getHasilPengamatanPerWilker(
+  tahun: number,
+  jenis: 'lalat' | 'kecoa',
+  kodeWilker?: string
+) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  let q = supabase
     .from('view_vektor_diare_mingguan')
-    .select('kode_wilker, jml_memenuhi_syarat, jml_pengamatan')
+    .select('kode_wilker, minggu_epid, jml_memenuhi_syarat, jml_pengamatan')
     .eq('tahun_epid', tahun)
     .eq('jenis_kegiatan', jenis);
-  if (error) throw error;
 
+  if (kodeWilker) {
+    q = q.eq('kode_wilker', kodeWilker);
+  }
+
+  const [resData, daftarWilker] = await Promise.all([
+    q,
+    getWilkerRef(),
+  ]);
+
+  if (resData.error) throw resData.error;
+  const data = resData.data;
+  if (!data || data.length === 0) return [];
+
+  // Map Lookup untuk mendukung berbagai versi penamaan properti referensi Wilker
+  const wilkerMap = new Map<string, string>();
+  (daftarWilker ?? []).forEach((w: any) => {
+    const kode = w.kode_wilker || w.kode || w.id;
+    const nama = w.nama_wilker || w.nama_wilayah || w.nama;
+    if (kode && nama) {
+      wilkerMap.set(kode, nama);
+    }
+  });
+
+  // ==========================================
+  // MODE 1: SATU WILKER DIPILIH -> Tampilan Tren Mingguan (Mg-01, Mg-02)
+  // ==========================================
+  if (kodeWilker) {
+    const perMinggu = new Map<number, { memenuhi: number; total: number }>();
+
+    for (const r of data) {
+      if (r.minggu_epid == null) continue;
+      const cur = perMinggu.get(r.minggu_epid) ?? { memenuhi: 0, total: 0 };
+      cur.memenuhi += r.jml_memenuhi_syarat ?? 0;
+      cur.total += r.jml_pengamatan ?? 0;
+      perMinggu.set(r.minggu_epid, cur);
+    }
+
+    return Array.from(perMinggu.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([m, v]) => ({
+        label: `Mg-${String(m).padStart(2, '0')}`,
+        memenuhi: v.memenuhi,
+        tidakMemenuhi: Math.max(v.total - v.memenuhi, 0),
+      }));
+  }
+
+  // ==========================================
+  // MODE 2: SEMUA WILKER -> Tampilkan Nama Wilker (Samarinda, APT Pranoto, dst.)
+  // ==========================================
   const perWilker = new Map<string, { memenuhi: number; total: number }>();
-  for (const r of data ?? []) {
+
+  for (const r of data) {
     if (!r.kode_wilker) continue;
     const cur = perWilker.get(r.kode_wilker) ?? { memenuhi: 0, total: 0 };
     cur.memenuhi += r.jml_memenuhi_syarat ?? 0;
     cur.total += r.jml_pengamatan ?? 0;
     perWilker.set(r.kode_wilker, cur);
   }
+
   return Array.from(perWilker.entries())
-    .sort(([a], [b]) => a.localeCompare(b))   // <-- tambahan ini
-    .map(([kode_wilker, v]) => ({
-      kode_wilker,
-      memenuhi_syarat: v.memenuhi,
-      tidak_memenuhi_syarat: Math.max(v.total - v.memenuhi, 0),
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([kWilker, v]) => ({
+      label: wilkerMap.get(kWilker) || kWilker,
+      memenuhi: v.memenuhi,
+      tidakMemenuhi: Math.max(v.total - v.memenuhi, 0),
     }));
 }
 
@@ -123,7 +185,6 @@ export async function getTrenDiareBulanan(
     }));
 }
 
-// tambahan di queriesVektorDiareEnhanced.ts
 export async function getLokasiTidakMemenuhiSyarat(
   tahun: number,
   jenis: 'lalat' | 'kecoa',
@@ -132,7 +193,7 @@ export async function getLokasiTidakMemenuhiSyarat(
   const supabase = await createClient();
   let q = supabase
     .from('vektor_diare')
-    .select('tgl_kegiatan, kode_wilker, lokasi, hasil_pengamatan, tindakan_pengendalian')
+    .select('tgl_kegiatan, kode_wilker, lokasi, hasil_pengamatan, tindakan_pengendalian, insektisida_terpakai_ml, luas_area_semprot_m2')
     .eq('jenis_kegiatan', jenis)
     .eq('hasil_pengamatan', 'Tidak Memenuhi Syarat')
     .gte('tgl_kegiatan', `${tahun}-01-01`)
@@ -143,4 +204,43 @@ export async function getLokasiTidakMemenuhiSyarat(
   const { data, error } = await q;
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getHasilPengamatanBulanan(
+  tahun: number,
+  jenis: 'lalat' | 'kecoa',
+  kodeWilker?: string
+) {
+  const supabase = await createClient();
+
+  let q = supabase
+    .from('view_vektor_diare_bulanan')
+    .select('bulan, jml_memenuhi_syarat, jml_pengamatan')
+    .eq('tahun', tahun)
+    .eq('jenis_kegiatan', jenis)
+    .order('bulan');
+
+  if (kodeWilker) q = q.eq('kode_wilker', kodeWilker);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
+
+  const perBulan = new Map<number, { memenuhi: number; total: number }>();
+
+  for (const r of data) {
+    if (r.bulan == null) continue;
+    const cur = perBulan.get(r.bulan) ?? { memenuhi: 0, total: 0 };
+    cur.memenuhi += r.jml_memenuhi_syarat ?? 0;
+    cur.total += r.jml_pengamatan ?? 0;
+    perBulan.set(r.bulan, cur);
+  }
+
+  return Array.from(perBulan.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([b, v]) => ({
+      label: NAMA_BULAN[b - 1], // Jan, Feb, Mar ...
+      memenuhi: v.memenuhi,
+      tidakMemenuhi: Math.max(v.total - v.memenuhi, 0),
+    }));
 }

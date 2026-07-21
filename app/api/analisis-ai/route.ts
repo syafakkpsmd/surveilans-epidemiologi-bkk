@@ -199,14 +199,22 @@ export async function POST(request: Request) {
   konteks === 'tikus-lab-bulanan' ||
   konteks === 'vektor-tikus-mingguan' ||
   konteks === 'vektor-tikus-bulanan';
+  const konteksVektorDiare =
+  konteks === 'vektor-diare-lalat-mingguan' ||
+  konteks === 'vektor-diare-kecoa-mingguan';
   const konteksSanitasi = isKonteksSanitasi(konteks);
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   // Metrik pesawat divalidasi lebih lanjut di ambilDataAnalisisPesawat()
   // (menolak kota-asal/kota-tujuan/maskapai-* yang belum siap) -- di sini
   // cukup pastikan ada nilai default yang konsisten untuk key cache.
   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
-  const pakaiMetrik = konteksVektor || konteksPesawat;
-  const metrikUntukCache: string | null = konteksVektor ? metrikVektor : konteksPesawat ? metrikPesawat : null;
+  const metrikUntukCache: string | null = konteksVektor
+    ? metrikVektor
+    : konteksPesawat
+    ? metrikPesawat
+    : typeof metrikMentah === 'string' && metrikMentah.trim() !== ''
+      ? metrikMentah.trim()
+      : null;
 
   if (tipe === 'prediksi' && !konteksVektor && !isKonteksPrediksiNonVektorValid(konteks)) {
     return NextResponse.json(
@@ -244,11 +252,19 @@ export async function POST(request: Request) {
     }
     wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
   } else if (konteksTikusLab) {
-    // Sama seperti pesawat: "Semua Wilayah Kerja" tetap valid, wilayah_kerja
-    // OPSIONAL, tapi kalau diisi formatnya kode_wilker (WK0X).
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
         { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor tikus (format kode: WK01-WK07).` },
+        { status: 400 }
+      );
+    }
+    wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  } else if (konteksVektorDiare) {
+    // Sama pola tikus-lab: "Semua Wilayah Kerja" tetap valid, wilayah_kerja
+    // OPSIONAL, tapi kalau diisi formatnya kode_wilker (WK0X).
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
+      return NextResponse.json(
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor diare (format kode: WK01-WK09).` },
         { status: 400 }
       );
     }
@@ -287,7 +303,7 @@ export async function POST(request: Request) {
       ? queryCache.eq('wilayah_kerja', wilayahKerja)
       : queryCache.is('wilayah_kerja', null);
 
-    queryCache = pakaiMetrik && metrikUntukCache
+    queryCache = metrikUntukCache
       ? queryCache.eq('metrik', metrikUntukCache)
       : queryCache.is('metrik', null);
         const { data: cacheRows, error: cacheError } = await queryCache;

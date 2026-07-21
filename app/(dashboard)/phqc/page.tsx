@@ -465,7 +465,7 @@ export default async function PhqcPage({
               role={role}
               konteks={`phqc-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={targetWilayahDb}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
             />
           </div>
 
@@ -481,14 +481,14 @@ export default async function PhqcPage({
                 role={role}
                 konteks="phqc-daerah-asal"
                 periodeKey={periodeKey}
-                wilayahKerja={targetWilayahDb}
+                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
                 role={role}
                 konteks="phqc-daerah-asal"
                 periodeKey={periodeKey}
-                wilayahKerja={targetWilayahDb}
+                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
               />
             </div>
             <BreakdownCard
@@ -539,14 +539,14 @@ export default async function PhqcPage({
               role={role}
               konteks={`phqc-rba-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={targetWilayahDb}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
             />
             <BoxPrediksiAI
               sudahLogin={sudahLogin}
               role={role}
               konteks={`phqc-rba-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={targetWilayahDb}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
             />
           </div>
 
@@ -579,14 +579,14 @@ export default async function PhqcPage({
               role={role}
               konteks={`phqc-pelabuhan-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={targetWilayahDb}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
             />
             <BoxPrediksiAI
               sudahLogin={sudahLogin}
               role={role}
               konteks={`phqc-pelabuhan-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={targetWilayahDb}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
             />
           </div>
 
@@ -609,14 +609,14 @@ export default async function PhqcPage({
               role={role}
               konteks={`penumpang-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={targetWilayahDb}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
             />
             <BoxPrediksiAI
               sudahLogin={sudahLogin}
               role={role}
               konteks={`penumpang-${mode}`}
               periodeKey={periodeKey}
-              wilayahKerja={targetWilayahDb}
+              wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
             />
           </div>
         </div>

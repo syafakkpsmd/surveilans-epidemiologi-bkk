@@ -3,15 +3,11 @@
 // ================================================================
 // components/vektor/PanelTrenPeriode.tsx
 // Wrapper client component untuk toggle tab "Mingguan (Line)" /
-// "Bulanan (Bar)" — merakit TrenChartMingguan (existing) dan
-// GrafikBarBulanan (existing), plus filter rentang yang sesuai
-// (FilterRentangMinggu / FilterRentangBulan, existing).
-//
-// Dipakai untuk 2 kasus: Anopheles Dewasa & Larva — cukup beda
-// data & seriesList yang dikirim dari page.tsx (server component).
+// "Bulanan (Bar)" — sinkron dengan URL SearchParams agar seluruh
+// komponen halaman beradaptasi secara dinamis.
 // ================================================================
 
-import { useState } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
 import FilterRentangBulan from '@/components/vektor/FilterRentangBulan';
 import TrenChartMingguan, { type SeriesTren } from '@/components/vektor/TrenChartMingguan';
@@ -36,33 +32,59 @@ export default function PanelTrenPeriode({
   seriesListBulanan,
   labelSumbuXBulanan = 'bulanLabel',
 }: PanelTrenPeriodeProps) {
-  const [mode, setMode] = useState<Mode>('mingguan');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Mode dibaca langsung dari URL param 'mode', fallback ke 'mingguan'
+  const modeParam = searchParams.get('mode');
+  const mode: Mode = modeParam === 'bulanan' ? 'bulanan' : 'mingguan';
+
+  // Handler untuk mengubah mode & update query params di URL
+  const handleSwitchMode = (targetMode: Mode) => {
+    if (targetMode === mode) return; // Mencegah re-navigation jika mode sama
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('mode', targetMode);
+
+    // Push URL baru agar Server Component membaca update params
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs">
+        {/* Toggle Switch Mode */}
+        <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs font-medium">
           <button
-            onClick={() => setMode('mingguan')}
-            className={`px-3 py-1.5 ${
-              mode === 'mingguan' ? 'bg-[#0F2A38] text-white' : 'bg-white text-gray-600'
+            type="button"
+            onClick={() => handleSwitchMode('mingguan')}
+            className={`px-3 py-1.5 transition-colors ${
+              mode === 'mingguan'
+                ? 'bg-[#0F2A38] text-white shadow-sm'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
             Mingguan (Line)
           </button>
           <button
-            onClick={() => setMode('bulanan')}
-            className={`px-3 py-1.5 ${
-              mode === 'bulanan' ? 'bg-[#0F2A38] text-white' : 'bg-white text-gray-600'
+            type="button"
+            onClick={() => handleSwitchMode('bulanan')}
+            className={`px-3 py-1.5 transition-colors ${
+              mode === 'bulanan'
+                ? 'bg-[#0F2A38] text-white shadow-sm'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
             Bulanan (Bar)
           </button>
         </div>
 
+        {/* Filter Rentang Sesuai Mode */}
         {mode === 'mingguan' ? <FilterRentangMinggu /> : <FilterRentangBulan />}
       </div>
 
+      {/* Render Chart Sesuai Mode */}
       {mode === 'mingguan' ? (
         <TrenChartMingguan data={dataMingguan} seriesList={seriesListMingguan} />
       ) : (

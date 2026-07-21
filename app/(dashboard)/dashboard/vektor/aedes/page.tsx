@@ -19,8 +19,8 @@ import TrenChartBulanan from '@/components/vektor/TrenChartBulanan';
 import GrafikBarBulanan from '@/components/vektor/GrafikBarBulanan';
 import BreakdownList from '@/components/vektor/BreakdownList';
 import DonutChart from '@/components/vektor/DonutChart';
-import { TombolAnalisisAI } from '@/components/TombolAnalisisAI';
-import { TombolPrediksiAI } from '@/components/TombolPrediksiAI';
+import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
+import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 
 export default async function VektorAedesPage({
   searchParams,
@@ -42,14 +42,6 @@ export default async function VektorAedesPage({
   const [role, daftarWilker, ringkasanMingguan] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
-    // CATATAN PENTING: SELALU pakai getRingkasanVektorDbdRentang (query
-    // ke tabel mentah vektor_dbd), BUKAN getRingkasanVektorDbd (view
-    // teragregasi view_vektor_dbd_mingguan) -- view itu TIDAK menerima
-    // filter zona/sub_lokasi sama sekali, jadi klik Buffer/Perimeter/
-    // Sub-Lokasi tidak akan berpengaruh kalau masih pakai view itu.
-    // Tanpa mgDari/mgSampai, fungsi ini otomatis fallback ke satu
-    // tahun penuh -- hasilnya identik dengan getRingkasanVektorDbd
-    // untuk kasus default, tapi sekarang bisa difilter zona & sub-lokasi.
     getRingkasanVektorDbdRentang({
       tahun,
       mgDari: mgDari ? parseInt(mgDari, 10) : undefined,
@@ -60,12 +52,12 @@ export default async function VektorAedesPage({
     }),
   ]);
 
-  const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
+  const epiSaatIni = getMingguEpidSaatIni();
+  const tahunBerjalan = epiSaatIni.tahunEpid;
+  const mingguBerjalan = Math.max(1, epiSaatIni.mingguEpid - 1); // minggu epid di kurangi 1
   const bulanBerjalan = new Date().getMonth() + 1;
   const { mulai, selesai } = getRentangMingguEpid(tahunBerjalan, mingguBerjalan);
 
-  // Minggu berjalan dikurangi 2 minggu -- dipakai untuk Donut A (data
-  // yang masuk memang tertunda 2 minggu dari lapangan).
   const periodeMinggu1Lalu = periodeMingguanSebelumnya({
     jenis: 'mingguan',
     tahun: tahunBerjalan,
@@ -166,25 +158,7 @@ export default async function VektorAedesPage({
           {/* ================= MINGGUAN ================= */}
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Tren HI / CI / ABJ — Tahun {tahun}</h2>
-              <div className="flex items-center gap-2">
-                <TombolAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={roleAI}
-                  konteks={konteksMingguan}
-                  periodeKey={periodeKeyMingguan}
-                  wilayahKerja={wilker ?? undefined}
-                  metrik="hi-ci-abj"
-                />
-                <TombolPrediksiAI
-                  sudahLogin={sudahLogin}
-                  konteks={konteksMingguan}
-                  periodeKey={periodeKeyMingguan}
-                  wilayahKerja={wilker ?? undefined}
-                />
-              </div>
-            </div>
+            <h2 className="mb-2 text-sm font-semibold text-gray-700">Tren HI / CI / ABJ — Tahun {tahun}</h2>
             <TrenChartMingguan
               data={dataChart}
               seriesList={[
@@ -195,12 +169,34 @@ export default async function VektorAedesPage({
                 { key: 'curah_hujan_mm', label: 'Curah Hujan (mm)', warna: '#0F4C5C', axis: 'kanan', tipe: 'bar' },
               ]}
             />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksMingguan}
+                periodeKey={periodeKeyMingguan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="hi-ci-abj"
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksMingguan}
+                periodeKey={periodeKeyMingguan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="hi-ci-abj"
+              />
+            </div>
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Rumah Diperiksa — Mingguan</h2>
-              <TombolAnalisisAI
+            <h2 className="mb-2 text-sm font-semibold text-gray-700">Rumah Diperiksa — Mingguan</h2>
+            <TrenChartMingguan
+              data={dataAktivitasMingguan}
+              seriesList={[{ key: 'rumah_diperiksa', label: 'Rumah Diperiksa', warna: '#0F4C5C' }]}
+            />
+            <div className="mt-4">
+              <BoxAnalisisAI
                 sudahLogin={sudahLogin}
                 role={roleAI}
                 konteks={konteksMingguan}
@@ -209,16 +205,16 @@ export default async function VektorAedesPage({
                 metrik="rumah-diperiksa"
               />
             </div>
-            <TrenChartMingguan
-              data={dataAktivitasMingguan}
-              seriesList={[{ key: 'rumah_diperiksa', label: 'Rumah Diperiksa', warna: '#0F4C5C' }]}
-            />
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Container Diperiksa — Mingguan</h2>
-              <TombolAnalisisAI
+            <h2 className="mb-2 text-sm font-semibold text-gray-700">Container Diperiksa — Mingguan</h2>
+            <TrenChartMingguan
+              data={dataAktivitasMingguan}
+              seriesList={[{ key: 'container_diperiksa', label: 'Container Diperiksa', warna: '#2563EB' }]}
+            />
+            <div className="mt-4">
+              <BoxAnalisisAI
                 sudahLogin={sudahLogin}
                 role={roleAI}
                 konteks={konteksMingguan}
@@ -227,18 +223,21 @@ export default async function VektorAedesPage({
                 metrik="container-diperiksa"
               />
             </div>
-            <TrenChartMingguan
-              data={dataAktivitasMingguan}
-              seriesList={[{ key: 'container_diperiksa', label: 'Container Diperiksa', warna: '#2563EB' }]}
-            />
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">
-                Rumah Positif + Container Positif — Mingguan
-              </h2>
-              <TombolAnalisisAI
+            <h2 className="mb-2 text-sm font-semibold text-gray-700">
+              Rumah Positif + Container Positif — Mingguan
+            </h2>
+            <TrenChartMingguan
+              data={dataAktivitasMingguan}
+              seriesList={[
+                { key: 'rumah_positif', label: 'Rumah Positif', warna: '#B71C1C' },
+                { key: 'container_positif', label: 'Container Positif', warna: '#EF6C00' },
+              ]}
+            />
+            <div className="mt-4">
+              <BoxAnalisisAI
                 sudahLogin={sudahLogin}
                 role={roleAI}
                 konteks={konteksMingguan}
@@ -247,93 +246,72 @@ export default async function VektorAedesPage({
                 metrik="rumah-container-positif"
               />
             </div>
-            <TrenChartMingguan
-              data={dataAktivitasMingguan}
-              seriesList={[
-                { key: 'rumah_positif', label: 'Rumah Positif', warna: '#B71C1C' },
-                { key: 'container_positif', label: 'Container Positif', warna: '#EF6C00' },
-              ]}
-            />
           </div>
 
           {/* ================= BULANAN ================= */}
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-gray-700">Tren Bulanan HI / CI / ABJ — Tahun {tahun}</h2>
-              <div className="flex items-center gap-2">
-                <TombolAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={roleAI}
-                  konteks={konteksBulanan}
-                  periodeKey={periodeKeyBulanan}
-                  wilayahKerja={wilker ?? undefined}
-                  metrik="hi-ci-abj"
-                />
-                <TombolPrediksiAI
-                  sudahLogin={sudahLogin}
-                  konteks={konteksBulanan}
-                  periodeKey={periodeKeyBulanan}
-                  wilayahKerja={wilker ?? undefined}
-                />
-              </div>
-            </div>
+            <h2 className="mb-2 text-sm font-semibold text-gray-700">Tren Bulanan HI / CI / ABJ — Tahun {tahun}</h2>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <FilterWilker daftarWilker={daftarWilker} />
               <FilterZonaSubLokasi />
               <FilterRentangBulan />
             </div>
             <TrenChartBulanan data={dataBulanan} />
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksBulanan}
+                periodeKey={periodeKeyBulanan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="hi-ci-abj"
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksBulanan}
+                periodeKey={periodeKeyBulanan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="hi-ci-abj"
+              />
+            </div>
           </div>
 
           <div className="lg:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="flex justify-end">
-                <TombolAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={roleAI}
-                  konteks={konteksBulanan}
-                  periodeKey={periodeKeyBulanan}
-                  wilayahKerja={wilker ?? undefined}
-                  metrik="rumah-diperiksa"
-                />
-              </div>
               <GrafikBarBulanan
                 judul="Rumah Diperiksa — Bulanan"
                 data={dataAktivitasBulanan}
                 seriesList={[{ key: 'rumah_diperiksa', label: 'Rumah Diperiksa', warna: '#0F4C5C' }]}
               />
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksBulanan}
+                periodeKey={periodeKeyBulanan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="rumah-diperiksa"
+              />
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-end">
-                <TombolAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={roleAI}
-                  konteks={konteksBulanan}
-                  periodeKey={periodeKeyBulanan}
-                  wilayahKerja={wilker ?? undefined}
-                  metrik="container-diperiksa"
-                />
-              </div>
               <GrafikBarBulanan
                 judul="Container Diperiksa — Bulanan"
                 data={dataAktivitasBulanan}
                 seriesList={[{ key: 'container_diperiksa', label: 'Container Diperiksa', warna: '#2563EB' }]}
               />
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksBulanan}
+                periodeKey={periodeKeyBulanan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="container-diperiksa"
+              />
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-end">
-                <TombolAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={roleAI}
-                  konteks={konteksBulanan}
-                  periodeKey={periodeKeyBulanan}
-                  wilayahKerja={wilker ?? undefined}
-                  metrik="rumah-container-positif"
-                />
-              </div>
               <GrafikBarBulanan
                 judul="Rumah Positif + Container Positif — Bulanan"
                 data={dataAktivitasBulanan}
@@ -342,37 +320,33 @@ export default async function VektorAedesPage({
                   { key: 'container_positif', label: 'Container Positif', warna: '#EF6C00' },
                 ]}
               />
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksBulanan}
+                periodeKey={periodeKeyBulanan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="rumah-container-positif"
+              />
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-end">
-                <TombolAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={roleAI}
-                  konteks={konteksBulanan}
-                  periodeKey={periodeKeyBulanan}
-                  wilayahKerja={wilker ?? undefined}
-                  metrik="larvasida"
-                />
-              </div>
               <GrafikBarBulanan
                 judul="Larvasida — Bulanan"
                 data={dataAktivitasBulanan}
                 seriesList={[{ key: 'larvasida_gram', label: 'Larvasida (gram)', warna: '#7C3AED' }]}
               />
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksBulanan}
+                periodeKey={periodeKeyBulanan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="larvasida"
+              />
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <div className="flex justify-end">
-                <TombolAnalisisAI
-                  sudahLogin={sudahLogin}
-                  role={roleAI}
-                  konteks={konteksBulanan}
-                  periodeKey={periodeKeyBulanan}
-                  wilayahKerja={wilker ?? undefined}
-                  metrik="luas-insektisida"
-                />
-              </div>
               <GrafikBarBulanan
                 judul="Luas Wilayah Fogging + Insektisida Fogging — Bulanan"
                 data={dataAktivitasBulanan}
@@ -380,6 +354,14 @@ export default async function VektorAedesPage({
                   { key: 'luas_wilayah_fogging_ha', label: 'Luas Wilayah (Ha)', warna: '#0D9488', desimal: 2 },
                   { key: 'jml_insektisida_fogging_ml', label: 'Insektisida (ml)', warna: '#EA580C', axis: 'kanan' },
                 ]}
+              />
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks={konteksBulanan}
+                periodeKey={periodeKeyBulanan}
+                wilayahKerja={wilker ?? undefined}
+                metrik="luas-insektisida"
               />
             </div>
           </div>

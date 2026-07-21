@@ -1,5 +1,15 @@
 // components/vektor/DaftarLokasiTidakMemenuhi.tsx
-export default function DaftarLokasiTidakMemenuhi({ data }: { data: any[] }) {
+export default function DaftarLokasiTidakMemenuhi({
+  data,
+  daftarWilker,
+}: {
+  data: any[];
+  daftarWilker: { kode: string; nama: string }[];
+}) {
+  const petaWilker = Object.fromEntries(
+    daftarWilker.map((w) => [w.kode, w.nama])
+  );
+
   if (data.length === 0) {
     return (
       <div className="rounded-xl bg-white p-4 shadow-sm">
@@ -20,16 +30,20 @@ export default function DaftarLokasiTidakMemenuhi({ data }: { data: any[] }) {
               <th className="pb-2 pr-3">Tanggal</th>
               <th className="pb-2 pr-3">Wilker</th>
               <th className="pb-2 pr-3">Lokasi</th>
-              <th className="pb-2">Tindakan Pengendalian</th>
+              <th className="pb-2 pr-3">Tindakan Pengendalian</th>
+              <th className="pb-2 pr-3">Insektisida (ml)</th>
+              <th className="pb-2">Luas Semprot (m²)</th>
             </tr>
           </thead>
           <tbody>
             {data.map((r, i) => (
               <tr key={i} className="border-t border-gray-100">
                 <td className="py-2 pr-3">{new Date(r.tgl_kegiatan).toLocaleDateString('id-ID')}</td>
-                <td className="py-2 pr-3">{r.kode_wilker}</td>
+                <td className="py-2 pr-3">{petaWilker[r.kode_wilker] ?? r.kode_wilker}</td>
                 <td className="py-2 pr-3">{r.lokasi ?? '-'}</td>
-                <td className="py-2 text-risiko-merah">{r.tindakan_pengendalian ?? '-'}</td>
+                <td className="py-2 pr-3 text-risiko-merah">{r.tindakan_pengendalian ?? '-'}</td>
+                <td className="py-2 pr-3">{r.insektisida_terpakai_ml ?? '-'}</td>
+                <td className="py-2">{r.luas_area_semprot_m2 ?? '-'}</td>
               </tr>
             ))}
           </tbody>

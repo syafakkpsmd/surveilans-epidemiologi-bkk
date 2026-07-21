@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   BuildingIcon,
   Pipette,
+  ExternalLink,
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -163,8 +164,7 @@ function kumpulkanSemuaHref(groups: NavGroup[]): string[] {
  * Cari href PALING SPESIFIK (paling panjang) yang cocok dengan pathname
  * saat ini. Ini mencegah menu induk (mis. "/dashboard/alat-angkut") ikut
  * ter-highlight ketika yang aktif sebenarnya adalah menu anak yang
- * kebetulan satu prefix folder (mis. "/dashboard/alat-angkut/pesawat"),
- * padahal keduanya dimaksudkan sebagai menu SEJAJAR, bukan parent-child.
+ * kebetulan satu prefix folder (mis. "/dashboard/alat-angkut/pesawat").
  */
 function cariHrefPalingCocok(pathname: string, semuaHref: string[]): string | null {
   let terbaik: string | null = null;
@@ -196,9 +196,6 @@ export default function SidebarNav({ role }: SidebarNavProps) {
 
   const groupsToRender = role === "admin" ? [...NAV_GROUPS, ADMIN_GROUP] : NAV_GROUPS;
 
-  // Dihitung sekali per render dari pathname saat ini -- dipakai oleh
-  // isActive/isParentActive di bawah supaya hanya SATU menu yang paling
-  // spesifik yang ter-highlight, bukan semua menu yang prefix-nya cocok.
   const hrefAktifTerbaik = useMemo(() => {
     const semuaHref = kumpulkanSemuaHref(groupsToRender);
     return cariHrefPalingCocok(pathname, semuaHref);
@@ -244,6 +241,9 @@ export default function SidebarNav({ role }: SidebarNavProps) {
               const active = isParentActive(item);
               const hasChildren = !!item.children?.length;
               const open = expanded[item.label];
+              
+              // Deteksi otomatis apakah item ini adalah URL Eksternal (misal: http:// atau https://)
+              const isExternal = !!item.href && item.href.startsWith("http");
 
               const rowClasses = [
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
@@ -262,9 +262,13 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                       className={`opacity-60 transition-transform ${open ? "rotate-90" : ""}`}
                     />
                   )}
+                  {isExternal && (
+                    <ExternalLink size={14} className="shrink-0 opacity-50" />
+                  )}
                 </>
               );
 
+              // Render Sub-menu (Children)
               if (hasChildren) {
                 return (
                   <div key={item.label}>
@@ -277,32 +281,40 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                     </button>
                     {open && (
                       <div className="ml-8 mt-1 flex flex-col gap-1 border-l border-white/10 pl-3">
-                        {item.children!.map((child) => (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            onClick={close}
-                            className={[
-                              "rounded-md px-2 py-1.5 text-sm transition-colors",
-                              isActive(child.href)
-                                ? "text-cyan-300"
-                                : "text-slate-400 hover:text-white",
-                            ].join(" ")}
-                          >
-                            {child.label}
-                          </Link>
-                        ))}
+                        {item.children!.map((child) => {
+                          const isChildExternal = child.href.startsWith("http");
+                          return (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              onClick={isChildExternal ? undefined : close}
+                              target={isChildExternal ? "_blank" : undefined}
+                              rel={isChildExternal ? "noopener noreferrer" : undefined}
+                              className={[
+                                "rounded-md px-2 py-1.5 text-sm transition-colors",
+                                isActive(child.href)
+                                  ? "text-cyan-300"
+                                  : "text-slate-400 hover:text-white",
+                              ].join(" ")}
+                            >
+                              {child.label}
+                            </Link>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 );
               }
 
+              // Render Menu Biasa (Internal/External Link)
               return (
                 <Link
                   key={item.label}
                   href={item.href!}
-                  onClick={close}
+                  onClick={isExternal ? undefined : close}
+                  target={isExternal ? "_blank" : undefined}
+                  rel={isExternal ? "noopener noreferrer" : undefined}
                   prefetch={item.href === "/dashboard/tpp" ? false : undefined}
                   className={rowClasses}
                 >

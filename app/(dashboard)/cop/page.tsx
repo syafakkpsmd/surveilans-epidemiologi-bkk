@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { FilterPeriodeWilayah } from "@/components/FilterPeriodeWilayah";
 import { TrenChartGanda } from "@/components/TrenChartGanda";
 import { DonutRba } from "@/components/cop/DonutRba";
@@ -497,14 +499,24 @@ export default async function CopPage({
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        {/* Sisi Kiri: Teks Judul */}
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">
             BKK Kelas I Samarinda
           </p>
           <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan COP</h1>
         </div>
-      </div>
+
+        {/* Sisi Kanan: Tombol Kembali (Dikeluarkan dari div atas) */}
+        <Link
+          href="/dashboard/alat-angkut/"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Kembali ke Dashboard Alat Angkut Kapal
+        </Link>
+        </div>
 
       <FilterPeriodeWilayah mode={mode} wilayah={wilayah} />
 

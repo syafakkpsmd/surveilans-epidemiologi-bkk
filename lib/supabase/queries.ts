@@ -31,18 +31,18 @@ export type JenisTabel = 'cop' | 'phqc';
 
 export async function getBuletin() {
   const supabase = await createClient();
+
   const { data, error } = await supabase
-    .from('buletin')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .from("buletin")
+    .select("*")
+    .order("tahun", { ascending: false });
 
   if (error) {
-    // Ubah log ini untuk melihat detail error sebenarnya
-    console.error("DEBUG SUPABASE ERROR:", JSON.stringify(error, null, 2));
+    console.error("Error fetching buletin:", error.message);
     return [];
   }
-  
-  return data || [];
+
+  return data;
 }
 
 export async function getRingkasanMingguan(

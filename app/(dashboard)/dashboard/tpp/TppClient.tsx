@@ -9,9 +9,16 @@ import { PeranUser } from "@/types/database.types";
 
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
+const KOLOM_ANGKA = [
+  "jumlah_tpp_diperiksa", "total_sampel", "jumlah_ms", "jumlah_tms",
+  "ikl_ms", "ikl_tms", "tms_formaldehyde", "tms_borax", "tms_metyl_yellow",
+  "tms_rodamin_b", "tms_bakteriologis", "tms_hy_rise",
+] as const;
+
 type TppClientProps = {
   daftarWilayah: string[];
   dataBulanan: any[];
+  dataMingguan: any[];
   role: string;
   tahunBerjalan: number;
   bulanBerjalan: number;
@@ -21,54 +28,39 @@ type TppClientProps = {
 export default function TppClient({
   daftarWilayah,
   dataBulanan,
+  dataMingguan,
   role,
   tahunBerjalan,
   bulanBerjalan,
   wilayahParam,
 }: TppClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
+  const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
   const [bulanAnalisis, setBulanAnalisis] = useState<number>(bulanBerjalan);
   const [chartData, setChartData] = useState<any[]>([]);
-  const [chartTms, setChartTms] = useState<any[]>([]);
 
   useEffect(() => {
-    const filtered = dataBulanan.filter(
+    const sumberData = granularitas === "bulanan" ? dataBulanan : dataMingguan;
+    const kolomPeriode = granularitas === "bulanan" ? "bulan" : "minggu";
+
+    const filtered = sumberData.filter(
       (d) => selectedWilayah === "semua" || d.wilayah_kerja === selectedWilayah
     );
 
-    const petaBulan = new Map<number, any>();
+    const peta = new Map<number, any>();
     filtered.forEach((item) => {
-      const existing = petaBulan.get(item.bulan) ?? {
-        name: NAMA_BULAN[item.bulan - 1] || `Bln-${item.bulan}`,
-        urutan: item.bulan,
-        jumlah_tpp_diperiksa: 0,
-        total_sampel: 0,
-        ikl_ms: 0,
-        ikl_tms: 0,
-        tms_formaldehyde: 0,
-        tms_borax: 0,
-        tms_metyl_yellow: 0,
-        tms_rodamin_b: 0,
-        tms_bakteriologis: 0,
-        tms_hy_rise: 0,
-      };
-      existing.jumlah_tpp_diperiksa += Number(item.jumlah_tpp_diperiksa || 0);
-      existing.total_sampel += Number(item.total_sampel || 0);
-      existing.ikl_ms += Number(item.ikl_ms || 0);
-      existing.ikl_tms += Number(item.ikl_tms || 0);
-      existing.tms_formaldehyde += Number(item.tms_formaldehyde || 0);
-      existing.tms_borax += Number(item.tms_borax || 0);
-      existing.tms_metyl_yellow += Number(item.tms_metyl_yellow || 0);
-      existing.tms_rodamin_b += Number(item.tms_rodamin_b || 0);
-      existing.tms_bakteriologis += Number(item.tms_bakteriologis || 0);
-      existing.tms_hy_rise += Number(item.tms_hy_rise || 0);
-      petaBulan.set(item.bulan, existing);
+      const urutan = item[kolomPeriode];
+      const label = granularitas === "bulanan" ? NAMA_BULAN[urutan - 1] || `Bln-${urutan}` : `Mg-${urutan}`;
+      const existing =
+        peta.get(urutan) ?? Object.fromEntries([["name", label], ["urutan", urutan], ...KOLOM_ANGKA.map((k) => [k, 0])]);
+      KOLOM_ANGKA.forEach((k) => {
+        existing[k] += Number(item[k] || 0);
+      });
+      peta.set(urutan, existing);
     });
 
-    const hasil = Array.from(petaBulan.values()).sort((a, b) => a.urutan - b.urutan);
-    setChartData(hasil);
-    setChartTms(hasil);
-  }, [selectedWilayah, dataBulanan]);
+    setChartData(Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan));
+  }, [selectedWilayah, granularitas, dataBulanan, dataMingguan]);
 
   const seriesTms: SeriesChecklist[] = [
     { key: "ikl_tms", label: "IKL - TMS", warna: "#B71C1C" },
@@ -81,6 +73,7 @@ export default function TppClient({
   ];
 
   const periodeKey = `${tahunBerjalan}-${bulanAnalisis}`;
+  const adaTms = chartData.some((d) => seriesTms.some((s) => Number(d[s.key] || 0) > 0));
 
   return (
     <div className="space-y-6">
@@ -93,6 +86,21 @@ export default function TppClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
+            <button
+              onClick={() => setGranularitas("mingguan")}
+              className={`rounded-md px-3 py-1 ${granularitas === "mingguan" ? "bg-[#0F4C5C] text-white" : "text-gray-600"}`}
+            >
+              Mingguan
+            </button>
+            <button
+              onClick={() => setGranularitas("bulanan")}
+              className={`rounded-md px-3 py-1 ${granularitas === "bulanan" ? "bg-[#0F4C5C] text-white" : "text-gray-600"}`}
+            >
+              Bulanan
+            </button>
+          </div>
+
           <select
             value={selectedWilayah}
             onChange={(e) => setSelectedWilayah(e.target.value)}
@@ -123,13 +131,27 @@ export default function TppClient({
 
       {chartData.length === 0 ? (
         <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500">
-          Belum ada data TPP untuk tahun {tahunBerjalan}.
+          Belum ada data TPP {granularitas} untuk tahun {tahunBerjalan}.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Jumlah TPP Diperiksa & Total Sampel per Bulan
+              Kepatuhan TPP — Memenuhi Syarat vs Tidak Memenuhi Syarat ({granularitas})
+            </h3>
+            <TrenChartLine
+              data={chartData}
+              tipeChart="bar"
+              seriesList={[
+                { key: "jumlah_ms", label: "Memenuhi Syarat", warna: "#1B5E20" },
+                { key: "jumlah_tms", label: "Tidak Memenuhi Syarat", warna: "#B71C1C" },
+              ]}
+            />
+          </div>
+
+          <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Jumlah TPP Diperiksa & Total Sampel ({granularitas})
             </h3>
             <TrenChartLine
               data={chartData}
@@ -143,9 +165,15 @@ export default function TppClient({
 
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Breakdown Komponen Tidak Memenuhi Syarat (TMS) per Bulan
+              Breakdown Komponen Tidak Memenuhi Syarat (TMS) — {granularitas}
             </h3>
-            <TrenChecklistMingguan data={chartTms} seriesList={seriesTms} maxAktifDefault={3} variant="bar" />
+            {adaTms ? (
+              <TrenChecklistMingguan data={chartData} seriesList={seriesTms} maxAktifDefault={3} variant="bar" />
+            ) : (
+              <div className="rounded-lg bg-green-50 p-6 text-center text-sm text-green-700">
+                ✅ Tidak ada temuan Tidak Memenuhi Syarat pada periode ini — seluruh komponen TPP terkendali.
+              </div>
+            )}
           </div>
 
           <BoxAnalisisAI

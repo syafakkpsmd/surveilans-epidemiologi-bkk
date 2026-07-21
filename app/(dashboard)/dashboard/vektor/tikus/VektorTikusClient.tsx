@@ -3,7 +3,6 @@
 import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
 import { useEffect, useState } from "react";
 import TrenChartLine from "@/components/vektor/TrenChartLine";
-import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
@@ -15,9 +14,11 @@ type VektorTikusClientProps = {
   dataBulanan: any[];
   labMingguan: any[];
   labBulanan: any[];
+  sudahLogin: boolean;
   role: string;
   tahunBerjalan: number;
   mingguBerjalan: number;
+  bulanBerjalan: number;
   wilkerParam?: string;
 };
 
@@ -27,9 +28,11 @@ export default function VektorTikusClient({
   dataBulanan,
   labMingguan,
   labBulanan,
+  sudahLogin,
   role,
   tahunBerjalan,
   mingguBerjalan,
+  bulanBerjalan,
   wilkerParam,
 }: VektorTikusClientProps) {
   const [selectedWilker, setSelectedWilker] = useState<string>(wilkerParam || "semua");
@@ -37,6 +40,19 @@ export default function VektorTikusClient({
   const [chartData, setChartData] = useState<any[]>([]);
 
   const namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
+  // periodeKey grafik utama mengikuti toggle Mingguan/Bulanan yang aktif
+  const periodeKeyUtama =
+    periodeType === "mingguan"
+      ? `${tahunBerjalan}-W${mingguBerjalan}`
+      : `${tahunBerjalan}-${bulanBerjalan}`;
+
+  // periodeKey tetap untuk masing-masing boks lab (tidak ikut toggle, karena
+  // keduanya selalu tampil berdampingan)
+  const periodeKeyLabMingguan = `${tahunBerjalan}-W${mingguBerjalan}`;
+  const periodeKeyLabBulanan = `${tahunBerjalan}-${bulanBerjalan}`;
+
+  const wilayahKerjaAktif = selectedWilker !== "semua" ? selectedWilker : undefined;
 
   useEffect(() => {
     // 1. Pilih dataset sesuai toggle periode, lalu filter berdasarkan wilayah kerja
@@ -60,7 +76,7 @@ export default function VektorTikusClient({
           diperiksa: 0,
           tertangkap: 0,
           RT: 0,
-          RN: 0, // Dipetakan ke kolom 'rn' (Rattus norvegicus)
+          RN: 0,
           MM: 0,
           Lainnya: 0,
           akumulasiTsi: 0,
@@ -71,21 +87,18 @@ export default function VektorTikusClient({
 
       const g = kelompokData[keyWaktu];
 
-      // Agregasi indikator perangkap dan indeks pinjal
       g.diperiksa += Number(item.jml_trap_dipasang || 0);
       g.tertangkap += Number(item.jml_trap_tertangkap || 0);
       g.akumulasiTsi += Number(item.tsi || 0);
       g.akumulasiPinjal += Number(item.index_pinjal || 0);
       g.hitung += 1;
 
-      // Akumulasi kuantitas spesies tikus
       g.RT += Number(item.rt || 0);
       g.RN += Number(item.rn || 0);
       g.MM += Number(item.mm || 0);
       g.Lainnya += Number(item.jenis_lainnya || 0);
     });
 
-    // 3. Transformasikan hasil akumulasi ke format array ChartData
     const hasil = Object.values(kelompokData).map((g: any) => ({
       name: g.name,
       RT: g.RT,
@@ -180,7 +193,6 @@ export default function VektorTikusClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Toggle Periode */}
           <div className="flex rounded-lg bg-gray-100 p-1">
             <button
               onClick={() => setPeriodeType("mingguan")}
@@ -200,9 +212,6 @@ export default function VektorTikusClient({
             </button>
           </div>
 
-          {/* Dropdown Wilayah Kerja -- 6 pelabuhan laut + 1 bandara APT
-             Pranoto saja; 2 bandara tambang (LNG Bontang, KPC Sangatta)
-             sengaja dikecualikan karena bukan wilker aktif untuk modul ini. */}
           <select
             value={selectedWilker}
             onChange={(e) => setSelectedWilker(e.target.value)}
@@ -215,14 +224,6 @@ export default function VektorTikusClient({
                 <option key={w.kode} value={w.kode}>{w.nama}</option>
               ))}
           </select>
-
-          <TombolAnalisisAI
-            sudahLogin={true}
-            role={role as PeranUser}
-            konteks={`vektor-tikus-${periodeType}`}
-            periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
-            wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
-          />
         </div>
       </div>
 
@@ -272,6 +273,30 @@ export default function VektorTikusClient({
             />
           </div>
 
+          {/* Analisis & Prediksi AI -- grafik utama distribusi/trap/indikator,
+             mengikuti toggle Mingguan/Bulanan yang aktif */}
+          <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Analisis &amp; Prediksi AI — Vektor Tikus ({periodeType === "mingguan" ? "Mingguan" : "Bulanan"})
+            </h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={role as PeranUser}
+                konteks={`vektor-tikus-${periodeType}`}
+                periodeKey={periodeKeyUtama}
+                wilayahKerja={wilayahKerjaAktif}
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={role as PeranUser}
+                konteks={`vektor-tikus-${periodeType}`}
+                periodeKey={periodeKeyUtama}
+                wilayahKerja={wilayahKerjaAktif}
+              />
+            </div>
+          </div>
+
           {/* Grafik Uji Lab & Hasil Pemeriksaan -- Bulanan (Bar) */}
           <div className="rounded-xl bg-white p-4 shadow-xs">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
@@ -285,18 +310,18 @@ export default function VektorTikusClient({
             />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <BoxAnalisisAI
-                sudahLogin={true}
+                sudahLogin={sudahLogin}
                 role={role as PeranUser}
                 konteks="tikus-lab-bulanan"
-                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
-                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+                periodeKey={periodeKeyLabBulanan}
+                wilayahKerja={wilayahKerjaAktif}
               />
               <BoxPrediksiAI
-                sudahLogin={true}
+                sudahLogin={sudahLogin}
                 role={role as PeranUser}
                 konteks="tikus-lab-bulanan"
-                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
-                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+                periodeKey={periodeKeyLabBulanan}
+                wilayahKerja={wilayahKerjaAktif}
               />
             </div>
           </div>
@@ -314,18 +339,18 @@ export default function VektorTikusClient({
             />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <BoxAnalisisAI
-                sudahLogin={true}
+                sudahLogin={sudahLogin}
                 role={role as PeranUser}
-                konteks="tikus-lab-bulanan"
-                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
-                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+                konteks="tikus-lab-mingguan"
+                periodeKey={periodeKeyLabMingguan}
+                wilayahKerja={wilayahKerjaAktif}
               />
               <BoxPrediksiAI
-                sudahLogin={true}
+                sudahLogin={sudahLogin}
                 role={role as PeranUser}
-                konteks="tikus-lab-bulanan"
-                periodeKey={`${tahunBerjalan}-${mingguBerjalan}`}
-                wilayahKerja={selectedWilker !== "semua" ? selectedWilker : undefined}
+                konteks="tikus-lab-mingguan"
+                periodeKey={periodeKeyLabMingguan}
+                wilayahKerja={wilayahKerjaAktif}
               />
             </div>
           </div>

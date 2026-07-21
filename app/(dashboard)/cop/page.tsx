@@ -8,9 +8,6 @@ import { generateWarnaNegara } from "@/lib/warnaNegara";
 import { PieBreakdown } from "@/components/cop/PieBreakdown";
 import { DaftarNegaraKedatangan } from "@/components/cop/DaftarNegaraKedatangan";
 import { BreakdownCard } from "@/components/BreakdownCard";
-// GANTI: TombolAnalisisAI/PanelAnalisisAI (popup) -> BoxAnalisisAI/BoxPrediksiAI
-// (box statis di bawah grafik, auto-fetch GET tanpa auth, hasil bisa dibaca siapa saja;
-// tombol "Generate" tetap hanya aktif untuk admin/petugas lewat prop role)
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
@@ -196,8 +193,12 @@ export default async function CopPage({
   const roleAI = role === "admin" || role === "petugas" ? role : null;
 
   const sekarang = new Date();
-  const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIni } =
+  // 1. Ambil minggu & tahun epidemiologi saat ini
+  const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIniRaw } =
     hitungMingguEpidemiologi(sekarang);
+
+  // 2. Kurangi 1 minggu (dengan proteksi jika minggu ke-1, batas minimal tetap 1)
+  const mingguEpidSaatIni = mingguEpidSaatIniRaw - 1 > 0 ? mingguEpidSaatIniRaw - 1 : 1;
 
   const tahun = mode === "mingguan" ? tahunEpidSaatIni : sekarang.getFullYear();
 
@@ -503,26 +504,6 @@ export default async function CopPage({
           </p>
           <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan COP</h1>
         </div>
-      </div>
-
-      {/* Box ringkasan AI umum halaman COP -- dulunya TombolAnalisisAI (popup) di header */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <BoxAnalisisAI
-          sudahLogin={sudahLogin}
-          role={roleAI}
-          konteks={`cop-${mode}`}
-          periodeKey={periodeKey}
-          wilayahKerja={wilayahKerjaAi}
-          metrik="ringkasan-umum"
-        />
-        <BoxPrediksiAI
-          sudahLogin={sudahLogin}
-          role={roleAI}
-          konteks={`cop-${mode}`}
-          periodeKey={periodeKey}
-          wilayahKerja={wilayahKerjaAi}
-          metrik="ringkasan-umum"
-        />
       </div>
 
       <FilterPeriodeWilayah mode={mode} wilayah={wilayah} />

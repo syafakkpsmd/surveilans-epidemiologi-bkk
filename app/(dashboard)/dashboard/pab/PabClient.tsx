@@ -9,9 +9,15 @@ import { PeranUser } from "@/types/database.types";
 
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
+const KOLOM_ANGKA = [
+  "jumlah_pemeriksaan", "total_pab_diperiksa", "jumlah_ms", "jumlah_tms",
+  "tms_fisik", "tms_kimia", "tms_bakteriologis",
+] as const;
+
 type PabClientProps = {
   daftarWilayah: string[];
   dataBulanan: any[];
+  dataMingguan: any[];
   role: string;
   tahunBerjalan: number;
   bulanBerjalan: number;
@@ -21,41 +27,39 @@ type PabClientProps = {
 export default function PabClient({
   daftarWilayah,
   dataBulanan,
+  dataMingguan,
   role,
   tahunBerjalan,
   bulanBerjalan,
   wilayahParam,
 }: PabClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
+  const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
   const [bulanAnalisis, setBulanAnalisis] = useState<number>(bulanBerjalan);
   const [chartData, setChartData] = useState<any[]>([]);
 
   useEffect(() => {
-    const filtered = dataBulanan.filter(
+    const sumberData = granularitas === "bulanan" ? dataBulanan : dataMingguan;
+    const kolomPeriode = granularitas === "bulanan" ? "bulan" : "minggu";
+
+    const filtered = sumberData.filter(
       (d) => selectedWilayah === "semua" || d.wilayah_kerja === selectedWilayah
     );
 
-    const petaBulan = new Map<number, any>();
+    const peta = new Map<number, any>();
     filtered.forEach((item) => {
-      const existing = petaBulan.get(item.bulan) ?? {
-        name: NAMA_BULAN[item.bulan - 1] || `Bln-${item.bulan}`,
-        urutan: item.bulan,
-        jumlah_pemeriksaan: 0,
-        total_pab_diperiksa: 0,
-        tms_fisik: 0,
-        tms_kimia: 0,
-        tms_bakteriologis: 0,
-      };
-      existing.jumlah_pemeriksaan += Number(item.jumlah_pemeriksaan || 0);
-      existing.total_pab_diperiksa += Number(item.total_pab_diperiksa || 0);
-      existing.tms_fisik += Number(item.tms_fisik || 0);
-      existing.tms_kimia += Number(item.tms_kimia || 0);
-      existing.tms_bakteriologis += Number(item.tms_bakteriologis || 0);
-      petaBulan.set(item.bulan, existing);
+      const urutan = item[kolomPeriode];
+      const label = granularitas === "bulanan" ? NAMA_BULAN[urutan - 1] || `Bln-${urutan}` : `Mg-${urutan}`;
+      const existing =
+        peta.get(urutan) ?? Object.fromEntries([["name", label], ["urutan", urutan], ...KOLOM_ANGKA.map((k) => [k, 0])]);
+      KOLOM_ANGKA.forEach((k) => {
+        existing[k] += Number(item[k] || 0);
+      });
+      peta.set(urutan, existing);
     });
 
-    setChartData(Array.from(petaBulan.values()).sort((a, b) => a.urutan - b.urutan));
-  }, [selectedWilayah, dataBulanan]);
+    setChartData(Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan));
+  }, [selectedWilayah, granularitas, dataBulanan, dataMingguan]);
 
   const seriesTms: SeriesChecklist[] = [
     { key: "tms_fisik", label: "Fisik - TMS", warna: "#E65100" },
@@ -76,6 +80,21 @@ export default function PabClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
+            <button
+              onClick={() => setGranularitas("mingguan")}
+              className={`rounded-md px-3 py-1 ${granularitas === "mingguan" ? "bg-[#0F4C5C] text-white" : "text-gray-600"}`}
+            >
+              Mingguan
+            </button>
+            <button
+              onClick={() => setGranularitas("bulanan")}
+              className={`rounded-md px-3 py-1 ${granularitas === "bulanan" ? "bg-[#0F4C5C] text-white" : "text-gray-600"}`}
+            >
+              Bulanan
+            </button>
+          </div>
+
           <select
             value={selectedWilayah}
             onChange={(e) => setSelectedWilayah(e.target.value)}
@@ -106,13 +125,27 @@ export default function PabClient({
 
       {chartData.length === 0 ? (
         <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500">
-          Belum ada data PAB untuk tahun {tahunBerjalan}.
+          Belum ada data PAB {granularitas} untuk tahun {tahunBerjalan}.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Jumlah Pemeriksaan & Titik PAB Diperiksa per Bulan
+              Kepatuhan PAB — Memenuhi Syarat vs Tidak Memenuhi Syarat ({granularitas})
+            </h3>
+            <TrenChartLine
+              data={chartData}
+              tipeChart="bar"
+              seriesList={[
+                { key: "jumlah_ms", label: "Memenuhi Syarat", warna: "#1B5E20" },
+                { key: "jumlah_tms", label: "Tidak Memenuhi Syarat", warna: "#B71C1C" },
+              ]}
+            />
+          </div>
+
+          <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
+            <h3 className="mb-4 text-sm font-semibold text-gray-700">
+              Jumlah Pemeriksaan & Titik PAB Diperiksa ({granularitas})
             </h3>
             <TrenChartLine
               data={chartData}
@@ -126,7 +159,7 @@ export default function PabClient({
 
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Breakdown Parameter Tidak Memenuhi Syarat (TMS) per Bulan
+              Breakdown Parameter Tidak Memenuhi Syarat (TMS) — {granularitas}
             </h3>
             <TrenChecklistMingguan data={chartData} seriesList={seriesTms} maxAktifDefault={3} variant="bar" />
           </div>

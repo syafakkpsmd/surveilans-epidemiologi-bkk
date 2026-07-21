@@ -5,9 +5,8 @@ import {
   getUjiLabVektorTikusMingguan,
   getUjiLabVektorTikusBulanan,
 } from "@/lib/supabase/queries";
-import { getUserRole } from "@/lib/auth/get-user-role";
+import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { getMingguEpidSaatIni } from "@/lib/epi-week";
-import { getValidRole } from "@/lib/auth/utils";
 import VektorTikusClient from "./VektorTikusClient";
 
 export default async function VektorTikusPage({
@@ -18,9 +17,11 @@ export default async function VektorTikusPage({
   const { wilker, tahun: tahunParam } = await searchParams;
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
 
-  const [role, daftarWilker, ringkasanMingguan, ringkasanBulanan, ujiLabMingguan, ujiLabBulanan] =
+  // sudahLogin & role dari sumber yang sama dipakai di seluruh project (bukan getUserRole terpisah)
+  const { sudahLogin, role } = await getStatusAkses();
+
+  const [daftarWilker, ringkasanMingguan, ringkasanBulanan, ujiLabMingguan, ujiLabBulanan] =
     await Promise.all([
-      getUserRole(),
       getWilkerRef(),
       getRingkasanVektorTikus(tahun, wilker),
       getRingkasanVektorTikusBulanan(tahun, wilker),
@@ -29,6 +30,7 @@ export default async function VektorTikusPage({
     ]);
 
   const { tahunEpid, mingguEpid } = getMingguEpidSaatIni();
+  const bulanBerjalan = new Date().getMonth() + 1; // untuk periodeKey Analisis/Prediksi AI mode Bulanan
 
   const dataMingguan = ringkasanMingguan.map((r: any) => ({
     minggu_epid: r.minggu_epid || 0,
@@ -90,10 +92,6 @@ export default async function VektorTikusPage({
     };
   });
 
-console.log("DEBUG daftarWilker:", daftarWilker);
-console.log("DEBUG contoh baris ringkasanMingguan:", ringkasanMingguan[0]);
-console.log("DEBUG contoh baris labMingguan:", labMingguan[0]);
-
   return (
     <VektorTikusClient
       daftarWilker={daftarWilker}
@@ -101,9 +99,11 @@ console.log("DEBUG contoh baris labMingguan:", labMingguan[0]);
       dataBulanan={dataBulanan}
       labMingguan={labMingguan}
       labBulanan={labBulanan}
+      sudahLogin={sudahLogin}
       role={role ?? ""}
       tahunBerjalan={tahunEpid}
-      mingguBerjalan={mingguEpid}
+      mingguBerjalan={Math.max(1, mingguEpid - 1)}
+      bulanBerjalan={bulanBerjalan}
       wilkerParam={wilker}
     />
   );

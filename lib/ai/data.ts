@@ -32,6 +32,7 @@ export const KONTEKS_TREN = [
   'cop-bulanan',
   'phqc-mingguan',
   'phqc-bulanan',
+  'cop-negara-tren', 
   'penumpang-mingguan',
   'penumpang-bulanan',
   'pesawat-mingguan',
@@ -40,6 +41,8 @@ export const KONTEKS_TREN = [
   'vektor-dbd-bulanan',
   'tikus-lab-mingguan',
   'tikus-lab-bulanan',
+  'vektor-tikus-mingguan',   // <-- TAMBAH
+  'vektor-tikus-bulanan',    // <-- TAMBAH
   'anopheles-dewasa-mingguan',
   'anopheles-dewasa-bulanan',
   'anopheles-larva-mingguan',
@@ -53,6 +56,7 @@ export const KONTEKS_BREAKDOWN = [
   'cop-rba',
   'cop-negara-asal',
   'cop-faktor-risiko',
+  'cop-per-wilker', 
   'phqc-daerah-asal',
   'phqc-rba-mingguan',
   'phqc-rba-bulanan',
@@ -69,6 +73,8 @@ export const KONTEKS_BREAKDOWN = [
 export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'cop-rba',
   'cop-negara-asal',
+  'cop-negara-tren',        
+  'cop-per-wilker', 
   'phqc-daerah-asal',
   'phqc-rba-mingguan',
   'phqc-rba-bulanan',
@@ -78,10 +84,15 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'pesawat-bulanan',
   'tikus-lab-mingguan',
   'tikus-lab-bulanan',
+  'vektor-tikus-mingguan',   // <-- TAMBAH
+  'vektor-tikus-bulanan',    // <-- TAMBAH
   'anopheles-dewasa-mingguan',
   'anopheles-dewasa-bulanan',
   'anopheles-larva-mingguan',
   'anopheles-larva-bulanan',
+  'tpp-bulanan',   // <-- TAMBAH
+  'ttu-bulanan',   // <-- TAMBAH
+  'pab-bulanan',   // <-- TAMBAH
 ] as const;
 
 export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN] as const;
@@ -118,6 +129,8 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
     konteks === 'pesawat-bulanan' ||
     konteks === 'tikus-lab-mingguan' ||
     konteks === 'tikus-lab-bulanan' ||
+    konteks === 'vektor-tikus-mingguan' ||   // <-- TAMBAH
+    konteks === 'vektor-tikus-bulanan' ||    // <-- TAMBAH
     konteks.startsWith('anopheles-')
   );
 }
@@ -288,6 +301,56 @@ async function ambilTikusLabBulanan(
   };
 }
 
+async function ambilVektorTikusMingguan(
+  p: PeriodeMingguan,
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const ringkasan = await getRingkasanVektorTikus(p.tahun, wilayahKerja);
+  const barisMinggu = (ringkasan as any[]).filter((r) => r.minggu_epid === p.minggu);
+  const jumlahkan = (kolom: string) =>
+    barisMinggu.reduce((total, r) => total + (Number(r[kolom]) || 0), 0);
+  const rerata = (kolom: string) => {
+    const nilai = barisMinggu.map((r) => Number(r[kolom]) || 0).filter((v) => v > 0);
+    return nilai.length > 0 ? Number((nilai.reduce((a, b) => a + b, 0) / nilai.length).toFixed(2)) : 0;
+  };
+
+  return {
+    trap_dipasang: jumlahkan('jml_trap_dipasang'),
+    trap_tertangkap: jumlahkan('jml_trap_tertangkap'),
+    tsi_rerata: rerata('tsi_rerata'),
+    index_pinjal_rerata: rerata('index_pinjal_rerata'),
+    rattus_tanezumi: jumlahkan('rt'),
+    rattus_norvegicus: jumlahkan('rn'),
+    mus_musculus: jumlahkan('mm'),
+    spesies_lainnya: jumlahkan('jenis_lainnya'),
+  };
+}
+
+async function ambilVektorTikusBulanan(
+  p: PeriodeBulanan,
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const ringkasan = await getRingkasanVektorTikusBulanan(p.tahun, wilayahKerja);
+  const barisBulan = (ringkasan as any[]).filter((r) => r.bulan === p.bulan);
+  const jumlahkan = (kolom: string) =>
+    barisBulan.reduce((total, r) => total + (Number(r[kolom]) || 0), 0);
+  const rerata = (kolom: string) => {
+    const nilai = barisBulan.map((r) => Number(r[kolom]) || 0).filter((v) => v > 0);
+    return nilai.length > 0 ? Number((nilai.reduce((a, b) => a + b, 0) / nilai.length).toFixed(2)) : 0;
+  };
+
+  return {
+    trap_dipasang: jumlahkan('jml_trap_dipasang'),
+    trap_tertangkap: jumlahkan('jml_trap_tertangkap'),
+    tsi_rerata: rerata('tsi_rerata'),
+    index_pinjal_rerata: rerata('index_pinjal_rerata'),
+    rattus_tanezumi: jumlahkan('rt'),
+    rattus_norvegicus: jumlahkan('rn'),
+    mus_musculus: jumlahkan('mm'),
+    spesies_lainnya: jumlahkan('jenis_lainnya'),
+  };
+}
+
 async function ambilAnophelesRingkasan(
   tahun: number,
   wilayahKerja: string | undefined,
@@ -353,6 +416,106 @@ const NAMA_WILKER: Record<string, string> = {
   WK07: 'Bandara APT Pranoto',
 };
 
+const DAFTAR_WILAYAH_COP = [
+  'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',
+] as const;
+
+
+async function ambilNegaraKedatanganPeriode(
+  tahun: number,
+  urutan: number,
+  wilayahKerja: string | undefined,
+  granularitas: 'mingguan' | 'bulanan'
+): Promise<Record<string, number>> {
+  const filter =
+    granularitas === 'mingguan'
+      ? { tahun_epid: tahun, minggu_epid: urutan, kategori: 'negara_kedatangan' as const }
+      : { tahun, bulan: urutan, kategori: 'negara_kedatangan' as const };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baris = await (getKategoriBreakdown as any)('cop', granularitas, {
+    ...filter,
+    ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
+  });
+
+  const peta = new Map<string, number>();
+  (baris as { nilai: string; jumlah: number }[]).forEach((b) => {
+    const nilai = b.nilai?.trim();
+    if (!nilai) return;
+    peta.set(nilai, (peta.get(nilai) ?? 0) + b.jumlah);
+  });
+  return Object.fromEntries(peta.entries());
+}
+
+/**
+ * Ambil top N negara (berdasar total kedatangan periode ini+sebelumnya
+ * digabung), lalu selaraskan kedua record supaya key-nya sama persis
+ * (negara yang tidak muncul di salah satu periode diisi 0) -- supaya
+ * AI bisa membandingkan apple-to-apple per negara.
+ */
+function pangkasTopNegara(
+  saatIniPenuh: Record<string, number>,
+  sebelumnyaPenuh: Record<string, number>,
+  maxNegara = 8
+): { saatIni: Record<string, number>; sebelumnya: Record<string, number> } {
+  const semuaNegara = new Set([...Object.keys(saatIniPenuh), ...Object.keys(sebelumnyaPenuh)]);
+  const terurut = Array.from(semuaNegara)
+    .sort(
+      (a, b) =>
+        (saatIniPenuh[b] ?? 0) + (sebelumnyaPenuh[b] ?? 0) -
+        ((saatIniPenuh[a] ?? 0) + (sebelumnyaPenuh[a] ?? 0))
+    )
+    .slice(0, maxNegara);
+
+  const saatIni: Record<string, number> = {};
+  const sebelumnya: Record<string, number> = {};
+  terurut.forEach((negara) => {
+    saatIni[negara] = saatIniPenuh[negara] ?? 0;
+    sebelumnya[negara] = sebelumnyaPenuh[negara] ?? 0;
+  });
+  return { saatIni, sebelumnya };
+}
+
+/**
+ * Breakdown jumlah_kapal per 6 wilayah kerja COP untuk SATU periode.
+ * CATATAN: wilayah_kerja SENGAJA diabaikan (parameter tidak diminta) --
+ * section ini memang selalu membandingkan ke-6 wilayah sekaligus, sama
+ * seperti TrenPerWilkerChart di page.tsx yang tidak ikut filter wilayah.
+ */
+async function ambilDataBreakdownPerWilkerCop(periodeKey: string): Promise<DataBreakdownAnalisis> {
+  const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
+
+  let labelPeriode: string;
+  let baris: { wilayah_kerja: string; jumlah_kapal: number }[];
+
+  if (isMingguan) {
+    const p = parsePeriodeMingguan(periodeKey);
+    labelPeriode = labelPeriodeMingguan(p);
+    const semua = await getRingkasanMingguan('cop', p.tahun);
+    baris = semua.filter((b) => b.minggu_epid === p.minggu);
+  } else {
+    const p = parsePeriodeBulanan(periodeKey);
+    labelPeriode = labelPeriodeBulanan(p);
+    const semua = await getRingkasanBulanan('cop', p.tahun);
+    baris = semua.filter((b) => b.bulan === p.bulan);
+  }
+
+  const peta = new Map<string, number>();
+  baris.forEach((b) => peta.set(b.wilayah_kerja, (peta.get(b.wilayah_kerja) ?? 0) + b.jumlah_kapal));
+
+  const breakdown = DAFTAR_WILAYAH_COP
+    .map((w) => ({ nilai: w, jumlah: peta.get(w) ?? 0 }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+  const totalKapal = breakdown.reduce((total, b) => total + b.jumlah, 0);
+
+  return {
+    labelKonteks: 'Perbandingan Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
+    labelWilayah: 'Seluruh wilayah kerja BKK Kelas I Samarinda (perbandingan 6 wilayah)',
+    labelPeriode,
+    totalKapal,
+    breakdown,
+  };
+}
 /**
  * Titik masuk utama -- dipanggil dari Route Handler
  * (app/api/analisis-ai/route.ts). wilayahKerja generik string:
@@ -403,6 +566,42 @@ export async function ambilDataAnalisis(
     ]);
     return {
       labelKonteks: 'Volume Penumpang PHQC (tiba/berangkat) — Bulanan',
+      labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni,
+      ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  if (konteks === 'vektor-tikus-mingguan' || konteks === 'vektor-tikus-bulanan') {
+    if (konteks === 'vektor-tikus-mingguan') {
+      const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilVektorTikusMingguan(periodeSaatIni, wilayahKerja),
+        ambilVektorTikusMingguan(periodeSebelumnya, wilayahKerja),
+      ]);
+      return {
+        labelKonteks: 'Surveilans Vektor Tikus — Trap & Distribusi Spesies',
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilVektorTikusBulanan(periodeSaatIni, wilayahKerja),
+      ambilVektorTikusBulanan(periodeSebelumnya, wilayahKerja),
+    ]);
+    return {
+      labelKonteks: 'Surveilans Vektor Tikus — Trap & Distribusi Spesies',
       labelWilayah,
       labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
       labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
@@ -509,6 +708,46 @@ export async function ambilDataAnalisis(
         : 'Surveilans PAB (Penyediaan Air Bersih)';
     return {
       labelKonteks: labelModul,
+      labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni,
+      ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  if (konteks === 'cop-negara-tren') {
+    const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
+
+    if (isMingguan) {
+      const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIniPenuh, sebelumnyaPenuh] = await Promise.all([
+        ambilNegaraKedatanganPeriode(periodeSaatIni.tahun, periodeSaatIni.minggu, wilayahKerja, 'mingguan'),
+        ambilNegaraKedatanganPeriode(periodeSebelumnya.tahun, periodeSebelumnya.minggu, wilayahKerja, 'mingguan'),
+      ]);
+      const { saatIni, sebelumnya } = pangkasTopNegara(saatIniPenuh, sebelumnyaPenuh);
+      return {
+        labelKonteks: 'Tren Kedatangan Kapal per Negara Asal (Kegiatan COP)',
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIniPenuh, sebelumnyaPenuh] = await Promise.all([
+      ambilNegaraKedatanganPeriode(periodeSaatIni.tahun, periodeSaatIni.bulan, wilayahKerja, 'bulanan'),
+      ambilNegaraKedatanganPeriode(periodeSebelumnya.tahun, periodeSebelumnya.bulan, wilayahKerja, 'bulanan'),
+    ]);
+    const { saatIni, sebelumnya } = pangkasTopNegara(saatIniPenuh, sebelumnyaPenuh);
+    return {
+      labelKonteks: 'Tren Kedatangan Kapal per Negara Asal (Kegiatan COP)',
       labelWilayah,
       labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
       labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
@@ -692,6 +931,7 @@ const KATEGORI_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, string> = {
   'cop-rba': 'rba' satisfies KategoriCop,
   'cop-negara-asal': 'negara_kedatangan' satisfies KategoriCop,
   'cop-faktor-risiko': 'faktor_risiko' satisfies KategoriCop,
+  'cop-per-wilker': 'wilayah_kerja',
   'phqc-daerah-asal': 'pelabuhan_kedatangan',
   'phqc-rba-mingguan': 'rba',
   'phqc-rba-bulanan': 'rba',
@@ -704,6 +944,7 @@ const TABEL_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, 'cop' | 'phqc'> = {
   'cop-rba': 'cop',
   'cop-negara-asal': 'cop',
   'cop-faktor-risiko': 'cop',
+  'cop-per-wilker': 'cop',
   'phqc-daerah-asal': 'phqc',
   'phqc-rba-mingguan': 'phqc',
   'phqc-rba-bulanan': 'phqc',
@@ -715,6 +956,7 @@ const LABEL_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, string> = {
   'cop-rba': 'Klasifikasi Risiko (RBA) Kegiatan COP',
   'cop-negara-asal': 'Negara Kedatangan Kapal (Kegiatan COP)',
   'cop-faktor-risiko': 'Faktor Risiko Kegiatan COP',
+  'cop-per-wilker': 'Perbandingan Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
   'phqc-daerah-asal': 'Daerah Asal — Pelabuhan Kedatangan (Kegiatan PHQC)',
   'phqc-rba-mingguan': 'Klasifikasi Risiko (RBA) Kegiatan PHQC — Mingguan',
   'phqc-rba-bulanan': 'Klasifikasi Risiko (RBA) Kegiatan PHQC — Bulanan',

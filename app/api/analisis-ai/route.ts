@@ -38,6 +38,12 @@ import {
   susunPromptPrediksiTtu,
   susunPromptPab,
   susunPromptPrediksiPab,
+  susunPromptPerWilker,
+  susunPromptPrediksiPerWilker,
+  susunPromptNegaraTren,
+  susunPromptPrediksiNegaraTren,
+  susunPromptVektorTikus,
+  susunPromptPrediksiVektorTikus,
 } from '@/lib/ai/prompt';
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
@@ -173,7 +179,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          'konteks tidak dikenal. Nilai yang valid: dashboard-utama, alat-angkut-ringkasan, cop-mingguan, cop-bulanan, phqc-mingguan, phqc-bulanan, penumpang-mingguan, penumpang-bulanan, pesawat-mingguan, pesawat-bulanan, cop-rba, cop-negara-asal, cop-faktor-risiko, phqc-daerah-asal, phqc-rba-mingguan, phqc-rba-bulanan, phqc-pelabuhan-mingguan, phqc-pelabuhan-bulanan, vektor-dbd-mingguan, vektor-dbd-bulanan.',
+  'Prediksi AI belum tersedia untuk konteks ini. Saat ini Prediksi AI mendukung: data vektor (HI/CI/BI/ABJ/Curah Hujan), cop-rba, cop-negara-asal, cop-negara-tren, cop-per-wilker, phqc-daerah-asal, phqc-rba-mingguan, phqc-rba-bulanan, penumpang-mingguan, penumpang-bulanan, pesawat-mingguan, pesawat-bulanan, tikus-lab-mingguan, tikus-lab-bulanan, vektor-tikus-mingguan, vektor-tikus-bulanan, anopheles-dewasa-mingguan, anopheles-dewasa-bulanan, anopheles-larva-mingguan, anopheles-larva-bulanan, tpp-bulanan, ttu-bulanan, pab-bulanan.',
       },
       { status: 400 }
     );
@@ -188,7 +194,11 @@ export async function POST(request: Request) {
   isKonteksVektor(konteks) || 
   konteks.startsWith('anopheles-');
   const konteksPesawat = konteks === 'pesawat-mingguan' || konteks === 'pesawat-bulanan';
-  const konteksTikusLab = konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan';
+  const konteksTikusLab =
+  konteks === 'tikus-lab-mingguan' ||
+  konteks === 'tikus-lab-bulanan' ||
+  konteks === 'vektor-tikus-mingguan' ||
+  konteks === 'vektor-tikus-bulanan';
   const konteksSanitasi = isKonteksSanitasi(konteks);
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   // Metrik pesawat divalidasi lebih lanjut di ambilDataAnalisisPesawat()
@@ -353,12 +363,15 @@ export async function POST(request: Request) {
         // Belum ada prompt Prediksi untuk ini -- gerbang di atas sudah
         // menolak tipe="prediksi" untuk konteks ini sebelum sampai sini.
         promptTeks = susunPromptPelabuhanPhqc(data);
-      } else {
-        // cop-faktor-risiko: belum ada prompt Prediksi -- gerbang di atas
-        // sudah menolak tipe="prediksi" untuk konteks ini sebelum sampai sini.
+      } else if (konteks === 'cop-per-wilker') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPerWilker(data) : susunPromptPerWilker(data);
+      } else if (konteks === 'cop-faktor-risiko') {
         promptTeks = susunPromptFaktorRisiko(data);
+      } else {
+        throw new Error(`Konteks breakdown "${konteks}" belum punya fungsi susunPrompt yang dipasang di route.ts.`);
       }
 
+      
      } else if ((konteks as any) === 'global-emerging-mingguan' || (konteks as any) === 'global-emerging-bulanan') {
         const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
         
@@ -379,10 +392,21 @@ export async function POST(request: Request) {
 
         labelPeriodeSaatIni = data.labelPeriodeSaatIni;
         labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
-      
+
+    } else if (konteks === 'cop-negara-tren') {
+    const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+    promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNegaraTren(data) : susunPromptNegaraTren(data);
+    labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+    labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
     } else if (konteks === 'penumpang-mingguan' || konteks === 'penumpang-bulanan') {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPenumpang(data) : susunPromptPenumpang(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'vektor-tikus-mingguan' || konteks === 'vektor-tikus-bulanan') {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiVektorTikus(data) : susunPromptVektorTikus(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else if (konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan') {

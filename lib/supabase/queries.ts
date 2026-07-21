@@ -1083,3 +1083,34 @@ export async function getRingkasanPabBulanan(tahun: number, wilayahKerja?: strin
   if (error) throw new Error(`Gagal ambil ringkasan PAB: ${error.message}`);
   return (data ?? []) as any[];
 }
+
+// Tambahkan 3 fungsi ini SETELAH getRingkasanPabBulanan() yang sudah kamu
+// punya (baik versi biasa maupun versi "as any" workaround, pola di bawah
+// pakai "as any" supaya konsisten dengan workaround yang kamu pakai sebelumnya).
+
+export async function getRingkasanTppMingguan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any).from('view_tpp_mingguan').select('*').eq('tahun', tahun).order('minggu');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan mingguan TPP: ${error.message}`);
+  return (data ?? []) as any[];
+}
+
+export async function getRingkasanTtuMingguan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any).from('view_ttu_mingguan').select('*').eq('tahun', tahun).order('minggu');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan mingguan TTU: ${error.message}`);
+  return (data ?? []) as any[];
+}
+
+export async function getRingkasanPabMingguan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any).from('view_pab_mingguan').select('*').eq('tahun', tahun).order('minggu');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan mingguan PAB: ${error.message}`);
+  return (data ?? []) as any[];
+}

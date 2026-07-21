@@ -184,6 +184,86 @@ const STANDAR_VEKTOR_DBD = `STANDAR BAKU MUTU VEKTOR AEDES (rujukan resmi, JANGA
 - CI (Container Index) tinggi menunjukkan banyak kontainer/wadah air berpotensi jadi tempat perkembangbiakan jentik.
 - Untuk wilayah kerja pelabuhan/bandara, pengendalian vektor mengacu juga pada IHR (2005) Annex 1B dan WHO Guide to Vector Surveillance and Control at Ports, Airports and Ground Crossings -- kewajiban menjaga area bebas vektor penular penyakit karantina di titik masuk negara (point of entry).`;
 
+export function susunPromptPerWilker(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis distribusi kedatangan kapal antar 6 wilayah kerja BKK Kelas I Samarinda untuk periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER WILAYAH KERJA (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini (6 wilayah): ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": jelaskan wilayah kerja mana yang paling sibuk dan paling sepi kedatangan kapalnya periode ini, beserta proporsinya terhadap total.
+TUGAS KHUSUS untuk field "anomali": soroti ketimpangan beban kerja antar wilayah jika ada (misalnya satu wilayah menangani porsi jauh lebih besar dari yang lain) -- ini murni observasi distribusi, BUKAN klaim ada masalah kesehatan/epidemiologi.
+TUGAS KHUSUS untuk field "rekomendasi": saran alokasi sumber daya/petugas yang relevan berdasarkan beban kerja tiap wilayah (mis. wilayah dengan volume tinggi perlu penguatan petugas pemeriksa).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiPerWilker(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI beban kerja pemeriksaan kekarantinaan kesehatan per wilayah kerja untuk periode mendatang, berdasarkan distribusi kedatangan kapal periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER WILAYAH KERJA (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini (6 wilayah): ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi wilayah kerja dengan tren volume kedatangan tertinggi yang berpotensi berlanjut ke periode berikutnya.
+TUGAS KHUSUS untuk field "anomali": proyeksikan risiko KUALITATIF -- wilayah mana yang berisiko kewalahan (understaffed) jika volume kedatangan terus tinggi tanpa penyesuaian sumber daya. Nyatakan EKSPLISIT ini proyeksi kualitatif berbasis pola volume, BUKAN prediksi statistik pasti.
+TUGAS KHUSUS untuk field "rekomendasi": langkah antisipasi konkret (rotasi/penambahan petugas, koordinasi lintas wilayah) untuk wilayah berisiko kewalahan tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptNegaraTren(data: DataAnalisis): string {
+  const daftarNegara = Object.keys(data.ringkasanSaatIni);
+  const barisPerbandingan = daftarNegara
+    .map((negara) => `- ${negara}: ${data.ringkasanSaatIni[negara]} (periode sebelumnya: ${data.ringkasanSebelumnya[negara] ?? 0})`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis tren kedatangan kapal per negara asal, membandingkan periode ${data.labelPeriodeSaatIni} dengan periode sebelumnya (${data.labelPeriodeSebelumnya}), wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+PERBANDINGAN JUMLAH KAPAL PER NEGARA (top ${daftarNegara.length} negara berdasar volume gabungan kedua periode):
+${barisPerbandingan}
+
+TUGAS KHUSUS untuk field "ringkasan": jelaskan negara mana yang kedatangan kapalnya naik/turun paling signifikan dibanding periode sebelumnya.
+TUGAS KHUSUS untuk field "anomali": soroti kenaikan tajam dari negara tertentu jika ada, dan kaitkan secara kualitatif dengan risiko penyakit menular yang umum diketahui endemis di negara tersebut (rujuk DAFTAR SUMBER RUJUKAN, JANGAN mengarang wabah spesifik terbaru yang tidak bisa dipastikan).
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal yang perlu diprioritaskan untuk negara dengan tren kenaikan tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiNegaraTren(data: DataAnalisis): string {
+  const daftarNegara = Object.keys(data.ringkasanSaatIni);
+  const barisPerbandingan = daftarNegara
+    .map((negara) => `- ${negara}: ${data.ringkasanSaatIni[negara]} (periode sebelumnya: ${data.ringkasanSebelumnya[negara] ?? 0})`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI arah tren kedatangan kapal per negara asal untuk periode mendatang, berdasarkan perbandingan periode ${data.labelPeriodeSaatIni} vs ${data.labelPeriodeSebelumnya}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+PERBANDINGAN JUMLAH KAPAL PER NEGARA:
+${barisPerbandingan}
+
+TUGAS KHUSUS untuk field "ringkasan": negara mana yang tren kenaikannya paling konsisten dan berpotensi berlanjut.
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF jika tren kenaikan dari negara berisiko tersebut terus berlanjut tanpa penguatan pemeriksaan. Nyatakan EKSPLISIT ini skenario kualitatif, BUKAN prediksi statistik pasti dan BUKAN klaim penularan aktual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal yang perlu disiapkan mengantisipasi tren kenaikan tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
 export function susunPromptVektor(data: DataAnalisis): string {
   return `${PERSONA_EPIDEMIOLOG}
 
@@ -443,6 +523,47 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
   "rekomendasi": "rekomendasi kesiapan pengendalian vektor & kesehatan masyarakat berbasis proyeksi tren ini, 1-3 poin"
 }`;
 }
+
+export function susunPromptVektorTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis hasil surveilans vektor tikus (trap & distribusi spesies) periode ${data.labelPeriodeSaatIni} dibanding periode sebelumnya (${data.labelPeriodeSebelumnya}), wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PERIODE ${data.labelPeriodeSaatIni}:
+${formatRingkasanKeyValue(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
+
+TUGAS KHUSUS untuk field "ringkasan": jelaskan jumlah trap dipasang/tertangkap, TSI (Trap Success Index) dan Index Pinjal periode ini, serta spesies tikus dominan yang tertangkap (Rattus tanezumi/Rattus norvegicus/Mus musculus/lainnya).
+TUGAS KHUSUS untuk field "anomali": bandingkan dengan periode sebelumnya -- soroti kenaikan TSI/Index Pinjal yang signifikan (indikator kepadatan vektor & risiko penularan penyakit tular tikus seperti leptospirosis/pes/hantavirus).
+TUGAS KHUSUS untuk field "rekomendasi": langkah pengendalian vektor tikus yang relevan berdasarkan tren TSI/Index Pinjal (mis. penambahan titik trap, rodentisida, edukasi sanitasi lingkungan) di wilayah dengan angka tertinggi.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiVektorTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI risiko penularan penyakit tular tikus (leptospirosis, pes, hantavirus) untuk periode mendatang, berdasarkan tren TSI dan Index Pinjal periode ${data.labelPeriodeSaatIni} dibanding ${data.labelPeriodeSebelumnya}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PERIODE ${data.labelPeriodeSaatIni}:
+${formatRingkasanKeyValue(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi arah tren TSI/Index Pinjal (naik/turun/stabil) dan spesies dominan yang berpotensi berlanjut.
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF penularan penyakit tular tikus jika tren kepadatan vektor terus naik tanpa intervensi. Nyatakan EKSPLISIT ini proyeksi kualitatif berbasis indikator kepadatan vektor, BUKAN prediksi statistik pasti dan BUKAN klaim ada kasus aktual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah pengendalian vektor yang perlu diprioritaskan untuk mengantisipasi tren tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
 // TAMBAHKAN ke lib/ai/prompt.ts (dekat susunPromptPenumpang, gaya sama persis)
 
 export function susunPromptGlobalEmerging(data: DataAnalisis): string {
@@ -636,21 +757,40 @@ export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
     throw new Error('Respons AI bukan JSON yang valid -- tidak bisa ditampilkan sebagai hasil analisis.');
   }
 
-  if (
-    typeof parsed !== 'object' ||
-    parsed === null ||
-    typeof (parsed as Record<string, unknown>).ringkasan !== 'string' ||
-    typeof (parsed as Record<string, unknown>).anomali !== 'string' ||
-    typeof (parsed as Record<string, unknown>).rekomendasi !== 'string'
-  ) {
-    console.error('DEBUG RAW AI RESPONSE:', bersih); throw new Error('Respons AI tidak memuat field ringkasan/anomali/rekomendasi yang lengkap.');
+  /**
+   * AI kadang membalas field (terutama "rekomendasi") sebagai ARRAY
+   * berisi beberapa poin, bukan 1 string -- terutama kalau isinya
+   * wajar dipecah jadi beberapa poin (mis. 3 rekomendasi terpisah).
+   * Gabungkan jadi 1 string bernomor supaya tetap valid & enak dibaca,
+   * daripada menolak respons yang sebenarnya isinya sudah bagus.
+   */
+  function normalisasiField(nilai: unknown): string | null {
+    if (typeof nilai === 'string') return nilai;
+    if (Array.isArray(nilai) && nilai.every((item) => typeof item === 'string')) {
+      return (nilai as string[]).map((item, i) => `${i + 1}. ${item}`).join('\n');
+    }
+    return null;
   }
 
-  const hasil = parsed as HasilAnalisisAi;
+  if (typeof parsed !== 'object' || parsed === null) {
+    console.error('DEBUG RAW AI RESPONSE:', bersih);
+    throw new Error('Respons AI tidak memuat field ringkasan/anomali/rekomendasi yang lengkap.');
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const ringkasan = normalisasiField(obj.ringkasan);
+  const anomali = normalisasiField(obj.anomali);
+  const rekomendasi = normalisasiField(obj.rekomendasi);
+
+  if (ringkasan === null || anomali === null || rekomendasi === null) {
+    console.error('DEBUG RAW AI RESPONSE:', bersih);
+    throw new Error('Respons AI tidak memuat field ringkasan/anomali/rekomendasi yang lengkap.');
+  }
+
   return {
-    ringkasan: hasil.ringkasan.trim(),
-    anomali: hasil.anomali.trim(),
-    rekomendasi: hasil.rekomendasi.trim(),
+    ringkasan: ringkasan.trim(),
+    anomali: anomali.trim(),
+    rekomendasi: rekomendasi.trim(),
   };
 }
 
@@ -882,4 +1022,10 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
   "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
   "rekomendasi": "rekomendasi kesiapan pengawasan PAB berbasis proyeksi tren ini, 1-3 poin"
 }`;
+}
+
+function formatRingkasanKeyValue(ringkasan: Record<string, number>): string {
+  return Object.entries(ringkasan)
+    .map(([key, value]) => `- ${key}: ${value}`)
+    .join('\n');
 }

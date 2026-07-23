@@ -12,6 +12,12 @@ import {
   periodeBulananSebelumnya,
   labelPeriodeMingguan,
   labelPeriodeBulanan,
+  isPeriodeRentangMingguan,
+  isPeriodeRentangBulanan,
+  parseRentangMingguan,
+  parseRentangBulanan,
+  labelRentangMingguan,
+  labelRentangBulanan,
 } from './periode';
 import type { DataAnalisis } from './data';
 
@@ -189,4 +195,100 @@ export async function ambilDataAnalisisVektorDbd(
     ringkasanSebelumnya: saring(sebelumnyaPenuh, kunci),
     topKategori: breakdownZona.map((k) => ({ kategori: 'zona', nilai: k.kategori, jumlah: k.jumlah })),
   };
+}
+
+export async function ambilDataAnalisisVektorDbdRentang(
+  periodeKey: string,
+  kodeWilker: string | undefined,
+  metrik: MetrikVektor = 'hi-ci-abj'
+): Promise<DataAnalisis> {
+  if (!kodeWilker) {
+    throw new Error(
+      'Analisis AI untuk data vektor DBD wajib memilih satu Wilayah Kerja tertentu, tidak berlaku untuk rekap "Semua Wilayah Kerja".'
+    );
+  }
+
+  const labelWilayah = await namaWilker(kodeWilker);
+  const kunci = KUNCI_PER_METRIK[metrik];
+  const labelMetrik = LABEL_PER_METRIK[metrik];
+
+  if (isPeriodeRentangMingguan(periodeKey)) {
+    const r = parseRentangMingguan(periodeKey);
+    const rentangAwal = getRentangMingguEpid(r.tahun, r.mingguAwal);
+    const rentangAkhir = getRentangMingguEpid(r.tahun, r.mingguAkhir);
+
+    const adaSebelumnya = r.mingguAwal > 1;
+    const rentangSebelumnyaAkhir = adaSebelumnya ? getRentangMingguEpid(r.tahun, r.mingguAwal - 1) : null;
+    const rentangSebelumnyaAwal = adaSebelumnya ? getRentangMingguEpid(r.tahun, 1) : null;
+
+    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona] = await Promise.all([
+      ringkasVektorDbdRentang(rentangAwal.mulai, rentangAkhir.selesai, kodeWilker),
+      adaSebelumnya
+        ? ringkasVektorDbdRentang(rentangSebelumnyaAwal!.mulai, rentangSebelumnyaAkhir!.selesai, kodeWilker)
+        : Promise.resolve({}),
+      getBreakdownKategori({
+        tabel: 'vektor_dbd',
+        kolomTanggal: 'tgl_survei',
+        kolomKategori: 'zona',
+        tglMulai: rentangAwal.mulai,
+        tglSelesai: rentangAkhir.selesai,
+        kodeWilker,
+      }),
+    ]);
+
+    return {
+      labelKonteks: `Vektor Aedes (DBD) — ${labelMetrik} — Rentang Mingguan`,
+      labelWilayah,
+      labelPeriodeSaatIni: labelRentangMingguan(r),
+      labelPeriodeSebelumnya: adaSebelumnya
+        ? `minggu epidemiologi ke-1 s.d. ke-${r.mingguAwal - 1} tahun ${r.tahun} (sebelum rentang ini)`
+        : 'Tidak ada data sebelum minggu ke-1',
+      ringkasanSaatIni: saring(saatIniPenuh, kunci),
+      ringkasanSebelumnya: saring(sebelumnyaPenuh, kunci),
+      topKategori: breakdownZona.map((k) => ({ kategori: 'zona', nilai: k.kategori, jumlah: k.jumlah })),
+    };
+  }
+
+  if (isPeriodeRentangBulanan(periodeKey)) {
+    const r = parseRentangBulanan(periodeKey);
+    const tglMulai = `${r.tahun}-${String(r.bulanAwal).padStart(2, '0')}-01`;
+    const tglSelesai = new Date(Date.UTC(r.tahun, r.bulanAkhir, 0)).toISOString().split('T')[0];
+
+    const adaSebelumnya = r.bulanAwal > 1;
+    const tglMulaiSebelumnya = `${r.tahun}-01-01`;
+    const tglSelesaiSebelumnya = adaSebelumnya
+      ? new Date(Date.UTC(r.tahun, r.bulanAwal - 1, 0)).toISOString().split('T')[0]
+      : '';
+
+    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona] = await Promise.all([
+      ringkasVektorDbdRentang(tglMulai, tglSelesai, kodeWilker),
+      adaSebelumnya
+        ? ringkasVektorDbdRentang(tglMulaiSebelumnya, tglSelesaiSebelumnya, kodeWilker)
+        : Promise.resolve({}),
+      getBreakdownKategori({
+        tabel: 'vektor_dbd',
+        kolomTanggal: 'tgl_survei',
+        kolomKategori: 'zona',
+        tglMulai,
+        tglSelesai,
+        kodeWilker,
+      }),
+    ]);
+
+    return {
+      labelKonteks: `Vektor Aedes (DBD) — ${labelMetrik} — Rentang Bulanan`,
+      labelWilayah,
+      labelPeriodeSaatIni: labelRentangBulanan(r),
+      labelPeriodeSebelumnya: adaSebelumnya
+        ? `Januari s.d. bulan sebelum rentang ini, tahun ${r.tahun}`
+        : 'Tidak ada data sebelum bulan pertama',
+      ringkasanSaatIni: saring(saatIniPenuh, kunci),
+      ringkasanSebelumnya: saring(sebelumnyaPenuh, kunci),
+      topKategori: breakdownZona.map((k) => ({ kategori: 'zona', nilai: k.kategori, jumlah: k.jumlah })),
+    };
+  }
+
+  // Fallback: format periode_key LAMA (1 titik, "2026-W28") -- tetap
+  // jalan seperti biasa lewat fungsi yang sudah ada.
+  return ambilDataAnalisisVektorDbd(periodeKey, kodeWilker, metrik);
 }

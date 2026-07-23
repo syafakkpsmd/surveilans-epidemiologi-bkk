@@ -16,20 +16,21 @@ import DonutChart from '@/components/vektor/DonutChart';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
+import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
 
 export default async function LarvaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ wilker?: string; tahun?: string }>;
+  searchParams: Promise<{ wilker?: string; tahun?: string; mgDari?: string; mgSampai?: string }>;
 }) {
-  const { wilker, tahun: tahunParam } = await searchParams;
+  const { wilker, tahun: tahunParam, mgDari, mgSampai } = await searchParams;
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
   const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
 
-  // WAJIB persis literal 'anopheles-larva-mingguan' (lihat
-  // app/api/analisis-ai/route.ts) -- tidak boleh digabung kode wilker.
   const konteksAI = 'anopheles-larva-mingguan';
-  const periodeKey = `${tahunBerjalan}-W${mingguBerjalan}`;
+  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
+  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
+  const periodeKey = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
 
   const [role, daftarWilker, dataMingguan, dataBulanan, macamTempat, keadaanTempat] = await Promise.all([
     getUserRole(),
@@ -52,6 +53,7 @@ export default async function LarvaPage({
         <div className="flex flex-wrap items-center gap-2">
           <FilterWilker daftarWilker={daftarWilker} />
           <FilterZonaSubLokasi />
+          <FilterRentangMinggu />
         </div>
       </div>
 

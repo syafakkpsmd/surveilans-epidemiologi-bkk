@@ -129,8 +129,15 @@ export default async function VektorAedesPage({
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
   const konteksMingguan = 'vektor-dbd-mingguan';
   const konteksBulanan = 'vektor-dbd-bulanan';
-  const periodeKeyMingguan = `${tahunBerjalan}-W${mingguBerjalan}`;
-  const periodeKeyBulanan = `${tahun}-${bulanBerjalan}`;
+  // Rentang minggu yang dipilih user (fallback: minggu berjalan saja kalau belum pilih apa-apa)
+  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
+  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
+  const periodeKeyMingguan = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
+
+  // Rentang bulan yang dipilih user (fallback: bulan berjalan saja kalau belum pilih apa-apa)
+  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari, 10) : bulanBerjalan;
+  const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai, 10) : bulanBerjalan;
+  const periodeKeyBulanan = `${tahun}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
 
   return (
     <div className="space-y-6">

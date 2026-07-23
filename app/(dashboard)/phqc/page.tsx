@@ -138,7 +138,14 @@ interface TitikTrenPhqc {
 export default async function PhqcPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mode?: string; wilayah?: string }>;
+  searchParams: Promise<{
+  mode?: string;
+  wilayah?: string;
+  minggu_awal?: string;
+  minggu_akhir?: string;
+  bulan_awal?: string;
+  bulan_akhir?: string;
+}>;
 }) {
   const sp = await searchParams;
   const isMingguan = sp.mode !== "bulanan";
@@ -164,9 +171,21 @@ export default async function PhqcPage({
   }
 
   const tahun = isMingguan ? tahunEpidSaatIni : tahunTampilanBulanan;
+
+  let mingguAwal = sp.minggu_awal ? parseInt(sp.minggu_awal, 10) : 1;
+  let mingguAkhir = sp.minggu_akhir ? parseInt(sp.minggu_akhir, 10) : mingguEpidTampilan;
+  if (mingguAwal > mingguAkhir) [mingguAwal, mingguAkhir] = [mingguAkhir, mingguAwal];
+
+  let bulanAwal = sp.bulan_awal ? parseInt(sp.bulan_awal, 10) : 1;
+  let bulanAkhir = sp.bulan_akhir ? parseInt(sp.bulan_akhir, 10) : bulanTampilan;
+  if (bulanAwal > bulanAkhir) [bulanAwal, bulanAkhir] = [bulanAkhir, bulanAwal];
+
+  const batasAwal = isMingguan ? mingguAwal : bulanAwal;
+  const batasAkhir = isMingguan ? mingguAkhir : bulanAkhir;
+
   const periodeKey = isMingguan
-    ? `${tahunEpidSaatIni}-W${mingguEpidTampilan}`
-    : `${tahunTampilanBulanan}-${bulanTampilan}`;
+    ? `${tahunEpidSaatIni}-W${mingguAkhir}`
+    : `${tahunTampilanBulanan}-${bulanAkhir}`;
 
   let errorMuat: string | null = null;
   let trenData: TitikTrenPhqc[] = [];
@@ -301,6 +320,7 @@ export default async function PhqcPage({
     const petaTren = new Map<number, TitikTrenPhqc>();
     terfilterRingkasan.forEach((r) => {
       const urutan = isMingguan ? (r as any).minggu_epid : (r as any).bulan;
+      if (urutan < batasAwal || urutan > batasAkhir) return;   // <-- TAMBAH
       const label = isMingguan ? `Mg ${urutan}` : (NAMA_BULAN[urutan - 1] ?? `Bln ${urutan}`);
 
       const existing = petaTren.get(urutan) ?? {
@@ -359,7 +379,11 @@ export default async function PhqcPage({
       .map(([nilai, jumlah]) => ({ nilai, jumlah }))
       .sort((a, b) => b.jumlah - a.jumlah);
 
-    const pivotRba = pivotKategoriDinamis(rowsRbaTahunan, mode, (n) => n);
+    const rowsRbaTahunanTerfilter = rowsRbaTahunan.filter((r) => {
+      const urutan = isMingguan ? (r.minggu_epid ?? 0) : (r.bulan ?? 0);
+      return urutan >= batasAwal && urutan <= batasAkhir;
+    });
+    const pivotRba = pivotKategoriDinamis(rowsRbaTahunanTerfilter, mode, (n) => n);
     trenRbaPeriodik = pivotRba.data;
     seriesRba = pivotRba.totals.map(([nilai]) => ({
       key: nilai,
@@ -373,7 +397,11 @@ export default async function PhqcPage({
       ...rowsTujuan.map((r) => ({ ...r, nilai: `Tujuan: ${normalisasiNilaiKategori(r.nilai)}` })),
     ];
     
-    const pivotPelabuhan = pivotKategoriDinamis(gabunganPelabuhan, mode, (n) => n);
+    const gabunganPelabuhanTerfilter = gabunganPelabuhan.filter((r) => {
+      const urutan = isMingguan ? (r.minggu_epid ?? 0) : (r.bulan ?? 0);
+      return urutan >= batasAwal && urutan <= batasAkhir;
+    });
+    const pivotPelabuhan = pivotKategoriDinamis(gabunganPelabuhanTerfilter, mode, (n) => n);
     trenPelabuhanPeriodik = pivotPelabuhan.data;
     seriesPelabuhan = pivotPelabuhan.totals.map(([nilai], i) => ({
       key: nilai,
@@ -417,7 +445,15 @@ export default async function PhqcPage({
         </Link>
       </div>
 
-      <FilterPeriodeWilayah mode={mode} wilayah={wilayah} />
+      <FilterPeriodeWilayah
+        mode={mode}
+        wilayah={wilayah}
+        tampilkanRentang
+        mingguAwal={mingguAwal}
+        mingguAkhir={mingguAkhir}
+        bulanAwal={bulanAwal}
+        bulanAkhir={bulanAkhir}
+      />
 
       {errorMuat ? (
         <div className="rounded-card border border-risiko-merah/30 bg-surface p-6 text-sm text-risiko-merah">

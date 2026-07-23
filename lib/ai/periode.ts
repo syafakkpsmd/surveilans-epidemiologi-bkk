@@ -133,3 +133,46 @@ export function rentangHariIniWita(sekarang: Date = new Date()): { mulaiUtc: Dat
 
   return { mulaiUtc, akhirUtc };
 }
+
+const POLA_RENTANG_MINGGUAN = /^(\d{4})-W(\d{1,2})_W(\d{1,2})$/;
+const POLA_RENTANG_BULANAN = /^(\d{4})-M(\d{1,2})_M(\d{1,2})$/;
+
+export type RentangMingguan = { tahun: number; mingguAwal: number; mingguAkhir: number };
+export type RentangBulanan = { tahun: number; bulanAwal: number; bulanAkhir: number };
+
+export function isPeriodeRentangMingguan(periodeKey: string): boolean {
+  return POLA_RENTANG_MINGGUAN.test(periodeKey);
+}
+
+export function isPeriodeRentangBulanan(periodeKey: string): boolean {
+  return POLA_RENTANG_BULANAN.test(periodeKey);
+}
+
+export function parseRentangMingguan(periodeKey: string): RentangMingguan {
+  const cocok = periodeKey.match(POLA_RENTANG_MINGGUAN);
+  if (!cocok) {
+    throw new Error(`periode_key "${periodeKey}" bukan format rentang mingguan (contoh: "2026-W1_W9").`);
+  }
+  return { tahun: Number(cocok[1]), mingguAwal: Number(cocok[2]), mingguAkhir: Number(cocok[3]) };
+}
+
+export function parseRentangBulanan(periodeKey: string): RentangBulanan {
+  const cocok = periodeKey.match(POLA_RENTANG_BULANAN);
+  if (!cocok) {
+    throw new Error(`periode_key "${periodeKey}" bukan format rentang bulanan (contoh: "2026-M1_M5").`);
+  }
+  return { tahun: Number(cocok[1]), bulanAwal: Number(cocok[2]), bulanAkhir: Number(cocok[3]) };
+}
+
+export function labelRentangMingguan(r: RentangMingguan): string {
+  return r.mingguAwal === r.mingguAkhir
+    ? `minggu epidemiologi ke-${r.mingguAkhir} tahun ${r.tahun}`
+    : `minggu epidemiologi ke-${r.mingguAwal} s.d. ke-${r.mingguAkhir} tahun ${r.tahun}`;
+}
+
+export function labelRentangBulanan(r: RentangBulanan): string {
+  const nama = (b: number) => NAMA_BULAN[b - 1] ?? String(b);
+  return r.bulanAwal === r.bulanAkhir
+    ? `${nama(r.bulanAkhir)} ${r.tahun}`
+    : `${nama(r.bulanAwal)} s.d. ${nama(r.bulanAkhir)} ${r.tahun}`;
+}

@@ -178,7 +178,7 @@ ${ATURAN_UMUM_BREAKDOWN}`;
 }
 
 const STANDAR_VEKTOR_DBD = `STANDAR BAKU MUTU VEKTOR AEDES (rujukan resmi, JANGAN diubah/ditafsirkan lain):
-- ABJ (Angka Bebas Jentik) AMAN bila >= 95% (Permenkes No. 50 Tahun 2017 tentang Standar Baku Mutu Kesehatan Lingkungan dan Persyaratan Kesehatan untuk Vektor dan Binatang Pembawa Penyakit). Di bawah 95% berarti risiko penularan DBD meningkat.
+- ABJ (Angka Bebas Jentik) AMAN bila >= 95% (Permenkes No. 02 Tahun 2023 tentang Standar Baku Mutu Kesehatan Lingkungan dan Persyaratan Kesehatan untuk Vektor dan Binatang Pembawa Penyakit). Di bawah 95% berarti risiko penularan DBD meningkat.
 - HI (House Index) WHO: ideal < 1%, kategori AMAN < 5%. HI >= 5% menandakan kepadatan vektor tinggi.
 - BI (Breteau Index) klasifikasi risiko WHO: < 5 = RENDAH, 5-50 = SEDANG, > 50 = TINGGI penularan DBD.
 - CI (Container Index) tinggi menunjukkan banyak kontainer/wadah air berpotensi jadi tempat perkembangbiakan jentik.

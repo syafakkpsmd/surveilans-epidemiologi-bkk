@@ -39,31 +39,49 @@ export default function VektorTikusClient({
   const [periodeType, setPeriodeType] = useState<"mingguan" | "bulanan">("mingguan");
   const [chartData, setChartData] = useState<any[]>([]);
 
+  // Rentang yang dipilih user -- default: dari minggu/bulan 1 s.d. periode
+  // berjalan saat ini (perilaku lama). daftar 52 minggu / 12 bulan untuk
+  // opsi dropdown.
+  const [mgDari, setMgDari] = useState(1);
+  const [mgSampai, setMgSampai] = useState(mingguBerjalan);
+  const [bulanDari, setBulanDari] = useState(1);
+  const [bulanSampai, setBulanSampai] = useState(bulanBerjalan);
+
+  const daftarMinggu = Array.from({ length: 52 }, (_, i) => i + 1);
+  const daftarBulanAngka = Array.from({ length: 12 }, (_, i) => i + 1);
+
   const namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
-  // periodeKey grafik utama mengikuti toggle Mingguan/Bulanan yang aktif
+  // periodeKey grafik utama mengikuti toggle Mingguan/Bulanan yang aktif,
+  // DAN mengikuti rentang yang dipilih user (format rentang: "2026-W1_W9"
+  // atau "2026-M1_M5", dibaca lib/ai/periode.ts di backend)
   const periodeKeyUtama =
     periodeType === "mingguan"
-      ? `${tahunBerjalan}-W${mingguBerjalan}`
-      : `${tahunBerjalan}-${bulanBerjalan}`;
+      ? `${tahunBerjalan}-W${mgDari}_W${mgSampai}`
+      : `${tahunBerjalan}-M${bulanDari}_M${bulanSampai}`;
 
-  // periodeKey tetap untuk masing-masing boks lab (tidak ikut toggle, karena
-  // keduanya selalu tampil berdampingan)
-  const periodeKeyLabMingguan = `${tahunBerjalan}-W${mingguBerjalan}`;
-  const periodeKeyLabBulanan = `${tahunBerjalan}-${bulanBerjalan}`;
+  // periodeKey untuk masing-masing boks lab (tidak ikut toggle, karena
+  // keduanya selalu tampil berdampingan) -- tetap ikut rentang mingguan/
+  // bulanan yang dipilih user
+  const periodeKeyLabMingguan = `${tahunBerjalan}-W${mgDari}_W${mgSampai}`;
+  const periodeKeyLabBulanan = `${tahunBerjalan}-M${bulanDari}_M${bulanSampai}`;
 
   const wilayahKerjaAktif = selectedWilker !== "semua" ? selectedWilker : undefined;
 
   useEffect(() => {
-    // 1. Pilih dataset sesuai toggle periode, lalu filter berdasarkan wilayah kerja
+    // 1. Pilih dataset sesuai toggle periode, filter wilayah kerja DAN rentang
     const sumberData = periodeType === "mingguan" ? dataMingguan : dataBulanan;
-    const filtered = sumberData.filter(
-      (d) => selectedWilker === "semua" || d.kode_wilker === selectedWilker
-    );
+    const filtered = sumberData.filter((d) => {
+      const cocokWilker = selectedWilker === "semua" || d.kode_wilker === selectedWilker;
+      const cocokRentang =
+        periodeType === "mingguan"
+          ? d.minggu_epid >= mgDari && d.minggu_epid <= mgSampai
+          : d.bulan >= bulanDari && d.bulan <= bulanSampai;
+      return cocokWilker && cocokRentang;
+    });
 
     const kelompokData: { [key: string]: any } = {};
 
-    // 2. Lakukan agregasi data dari database Supabase
     filtered.forEach((item) => {
       const keyWaktu =
         periodeType === "mingguan"
@@ -112,7 +130,7 @@ export default function VektorTikusClient({
     }));
 
     setChartData(hasil);
-  }, [selectedWilker, periodeType, dataMingguan, dataBulanan]);
+  }, [selectedWilker, periodeType, dataMingguan, dataBulanan, mgDari, mgSampai, bulanDari, bulanSampai]);
 
   const [chartLabMingguan, setChartLabMingguan] = useState<any[]>([]);
   const [chartLabBulanan, setChartLabBulanan] = useState<any[]>([]);
@@ -129,7 +147,10 @@ export default function VektorTikusClient({
 
   useEffect(() => {
     const filteredMingguan = labMingguan.filter(
-      (d) => selectedWilker === "semua" || d.kode_wilker === selectedWilker
+      (d) =>
+        (selectedWilker === "semua" || d.kode_wilker === selectedWilker) &&
+        d.minggu_epid >= mgDari &&
+        d.minggu_epid <= mgSampai
     );
     const petaMingguan = new Map<number, any>();
     filteredMingguan.forEach((item) => {
@@ -156,7 +177,10 @@ export default function VektorTikusClient({
     setChartLabMingguan(Array.from(petaMingguan.values()).sort((a, b) => a.urutan - b.urutan));
 
     const filteredBulanan = labBulanan.filter(
-      (d) => selectedWilker === "semua" || d.kode_wilker === selectedWilker
+      (d) =>
+        (selectedWilker === "semua" || d.kode_wilker === selectedWilker) &&
+        d.bulan >= bulanDari &&
+        d.bulan <= bulanSampai
     );
     const petaBulanan = new Map<number, any>();
     filteredBulanan.forEach((item) => {
@@ -181,7 +205,7 @@ export default function VektorTikusClient({
       petaBulanan.set(item.bulan, existing);
     });
     setChartLabBulanan(Array.from(petaBulanan.values()).sort((a, b) => a.urutan - b.urutan));
-  }, [selectedWilker, labMingguan, labBulanan]);
+  }, [selectedWilker, labMingguan, labBulanan, mgDari, mgSampai, bulanDari, bulanSampai]);
 
   return (
     <div className="space-y-6">
@@ -212,6 +236,58 @@ export default function VektorTikusClient({
             </button>
           </div>
 
+          {/* Rentang Minggu -- tampil kalau toggle Mingguan aktif */}
+          {periodeType === "mingguan" && (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-gray-600">Rentang</span>
+              <select
+                value={mgDari}
+                onChange={(e) => setMgDari(Number(e.target.value))}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
+              >
+                {daftarMinggu.map((m) => (
+                  <option key={`mg-dari-${m}`} value={m}>Mg-{m}</option>
+                ))}
+              </select>
+              <span className="text-gray-500">s.d.</span>
+              <select
+                value={mgSampai}
+                onChange={(e) => setMgSampai(Number(e.target.value))}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
+              >
+                {daftarMinggu.map((m) => (
+                  <option key={`mg-sampai-${m}`} value={m}>Mg-{m}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Rentang Bulan -- tampil kalau toggle Bulanan aktif */}
+          {periodeType === "bulanan" && (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-gray-600">Rentang</span>
+              <select
+                value={bulanDari}
+                onChange={(e) => setBulanDari(Number(e.target.value))}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
+              >
+                {daftarBulanAngka.map((b) => (
+                  <option key={`bln-dari-${b}`} value={b}>{namaBulan[b - 1]}</option>
+                ))}
+              </select>
+              <span className="text-gray-500">s.d.</span>
+              <select
+                value={bulanSampai}
+                onChange={(e) => setBulanSampai(Number(e.target.value))}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
+              >
+                {daftarBulanAngka.map((b) => (
+                  <option key={`bln-sampai-${b}`} value={b}>{namaBulan[b - 1]}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <select
             value={selectedWilker}
             onChange={(e) => setSelectedWilker(e.target.value)}
@@ -234,7 +310,6 @@ export default function VektorTikusClient({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* 1. Grafik Tren Distribusi Spesies */}
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">Grafik Distribusi Spesies Tikus</h3>
             <TrenChartLine
@@ -249,7 +324,6 @@ export default function VektorTikusClient({
             />
           </div>
 
-          {/* 2. Grafik Total Perangkap Dipasang */}
           <div className="rounded-xl bg-white p-4 shadow-xs">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">Total Tikus Diperiksa (Trap Dipasang)</h3>
             <TrenChartLine
@@ -259,7 +333,6 @@ export default function VektorTikusClient({
             />
           </div>
 
-          {/* 3. Grafik Indikator Kunci (Kepadatan & Faktor Risiko) */}
           <div className="rounded-xl bg-white p-4 shadow-xs">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">Kunci Indikator (Tertangkap, TSI, Pinjal)</h3>
             <TrenChartLine
@@ -273,8 +346,6 @@ export default function VektorTikusClient({
             />
           </div>
 
-          {/* Analisis & Prediksi AI -- grafik utama distribusi/trap/indikator,
-             mengikuti toggle Mingguan/Bulanan yang aktif */}
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
               Analisis &amp; Prediksi AI — Vektor Tikus ({periodeType === "mingguan" ? "Mingguan" : "Bulanan"})
@@ -297,7 +368,6 @@ export default function VektorTikusClient({
             </div>
           </div>
 
-          {/* Grafik Uji Lab & Hasil Pemeriksaan -- Bulanan (Bar) */}
           <div className="rounded-xl bg-white p-4 shadow-xs">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
               Uji Lab & Hasil Pemeriksaan — Bulanan
@@ -326,7 +396,6 @@ export default function VektorTikusClient({
             </div>
           </div>
 
-          {/* Grafik Uji Lab & Hasil Pemeriksaan -- Mingguan (Line) */}
           <div className="rounded-xl bg-white p-4 shadow-xs">
             <h3 className="mb-4 text-sm font-semibold text-gray-700">
               Uji Lab & Hasil Pemeriksaan — Mingguan

@@ -1,48 +1,36 @@
 ﻿import type { FungsiProviderAi } from '../types';
 
-/**
- * Adapter untuk Gemini (Google AI Studio -- ada tier gratis).
- * Dokumentasi: https://ai.google.dev/api/generate-content
- *
- * Endpoint SELALU generativelanguage.googleapis.com -- karena itu
- * `baseUrl` tidak dipakai di sini (beda dengan adapter
- * openai_compatible yang base_url-nya memang bervariasi per provider).
- *
- * Pola retry & sanitasi teks diadaptasi dari fungsi callGeminiAPI_ di
- * GAS Code.gs (EPIC-AI BKK Kelas I Samarinda) yang sudah teruji stabil
- * di produksi -- Gemini API cukup sering membalas 503/429 pada jam
- * sibuk, jadi retry dengan backoff bukan opsional.
- */
+export const maxDuration = 30; // detik
 
 const HTTP_RETRYABLE = new Set([500, 502, 503, 429, 529]);
-const JEDA_MS = [5000, 12000, 25000, 45000, 60000];
-const MAX_RETRY = 5;
+const MAX_RETRY = 3; // Dikurangi agar tidak menghabiskan maxDuration Vercel (30 detik)
 
 /**
- * Bersihkan teks dari karakter yang bisa merusak payload JSON:
- * newline/tab -> spasi, karakter non-printable ASCII -> spasi,
- * kutip ganda -> kutip tunggal, backslash -> slash.
+ * Jeda dinamis dengan Exponential Backoff + Jitter khusus HTTP 429
  */
-function bersihkanTeks(teks: string): string {
-  return String(teks ?? '')
-    .split('')
-    .map((ch) => {
-      const code = ch.charCodeAt(0);
-      if (code === 10 || code === 13 || code === 9) return ' ';
-      if (code < 32 || code > 126) return ' ';
-      if (code === 34) return "'";
-      if (code === 92) return '/';
-      return ch;
-    })
-    .join('')
-    .replace(/\s{2,}/g, ' ')
+function hitungJedaMs(percobaan: number, isRateLimit: boolean): number {
+  if (isRateLimit) {
+    // Jika 429 (Rate Limit), jeda harus lebih panjang (6s, 12s, dst) agar kuota RPM reset
+    const base = Math.pow(2, percobaan + 1) * 3000; // 6000ms, 12000ms...
+    const jitter = Math.random() * 1000;
+    return base + jitter;
+  }
+  // Error server biasa (500/503)
+  return Math.pow(2, percobaan) * 1000 + Math.random() * 500;
+}
+
+/**
+ * Sanitasi prompt secukupnya tanpa merusak karakter unicode / struktur teks
+ */
+function bersihkanPrompt(teks: string): string {
+  if (!teks) return '';
+  return teks
+    .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F]/g, '') // Hapus kontrol karakter tersembunyi
     .trim();
 }
 
 /**
- * Perbaiki JSON yang terpotong karena MAX_TOKENS tercapai -- tutup
- * kutip yang belum ditutup, tutup kurung kurawal/siku yang masih
- * terbuka.
+ * Perbaiki JSON yang terpotong jika kena MAX_TOKENS
  */
 function perbaikiJsonTerpotong(teks: string): string {
   let t = teks.trim().replace(/,\s*$/, '');
@@ -64,21 +52,23 @@ export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt })
     throw new Error('API key Gemini belum diset. Hubungi Admin untuk konfigurasi di /admin/pengaturan-ai.');
   }
 
-  const promptBersih = bersihkanTeks(prompt);
-  const promptFinal =
-    promptBersih.length > 6000 ? promptBersih.slice(0, 6000) + '...' : promptBersih;
+  const promptBersih = bersihkanPrompt(prompt);
+  const promptFinal = promptBersih.length > 8000 ? promptBersih.slice(0, 8000) + '...' : promptBersih;
+
+  // Nama model default fallback jika param kosong
+  const namaModel = model || 'gemini-1.5-flash';
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model
+    namaModel
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const payload = {
     contents: [{ role: 'user', parts: [{ text: promptFinal }] }],
     generationConfig: {
-      temperature: 0.3,
+      temperature: 0.2,
       maxOutputTokens: 1024,
       responseMimeType: 'application/json',
-      thinkingConfig: { thinkingBudget: 0 },
+      // 'thinkingConfig' DIBUANG agar kompatibel dengan seluruh seri Gemini 1.5/2.0 Flash
     },
   };
 
@@ -87,10 +77,6 @@ export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt })
   let bodyTeks = '';
 
   for (let percobaan = 0; percobaan < MAX_RETRY; percobaan++) {
-    if (percobaan > 0) {
-      await new Promise((r) => setTimeout(r, JEDA_MS[percobaan - 1]));
-    }
-
     response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -98,23 +84,46 @@ export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt })
     });
 
     kodeStatus = response.status;
+
     if (kodeStatus === 200) {
       bodyTeks = await response.text();
       break;
     }
+
+    bodyTeks = await response.text().catch(() => '');
+
+    // Jika error tidak bisa di-retry (misal 400 Bad Request, 403 Invalid Key), hentikan loop
     if (!HTTP_RETRYABLE.has(kodeStatus)) {
-      bodyTeks = await response.text().catch(() => '');
       break;
     }
-    // retryable -> lanjut percobaan berikutnya
+
+    // Jika masih ada sisa percobaan, tunggu dengan jeda terukur
+    if (percobaan < MAX_RETRY - 1) {
+      const isRateLimit = kodeStatus === 429;
+      const jeda = hitungJedaMs(percobaan, isRateLimit);
+      await new Promise((r) => setTimeout(r, jeda));
+    }
   }
 
   if (kodeStatus !== 200) {
-    throw new Error(`Gemini API gagal (HTTP ${kodeStatus}): ${bodyTeks.slice(0, 500)}`);
+    if (kodeStatus === 429) {
+      throw new Error(
+        `Gemini API mencapai batas kuota gratis (429 Too Many Requests). Silakan tunggu 15-30 detik sebelum menekan tombol analisis lagi.`
+      );
+    }
+    throw new Error(`Gemini API gagal (HTTP ${kodeStatus}): ${bodyTeks.slice(0, 300)}`);
   }
 
-  const data = JSON.parse(bodyTeks);
-  if (data.error) throw new Error(data.error.message || 'Gemini mengembalikan error tanpa pesan.');
+  let data: any;
+  try {
+    data = JSON.parse(bodyTeks);
+  } catch (e) {
+    throw new Error('Gagal melakukan parsing respons JSON dari Gemini API.');
+  }
+
+  if (data.error) {
+    throw new Error(data.error.message || 'Gemini mengembalikan error tanpa pesan.');
+  }
 
   const candidates = data?.candidates;
   if (!candidates || candidates.length === 0) {
@@ -123,16 +132,17 @@ export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt })
 
   const finishReason: string = candidates[0]?.finishReason || '';
   if (finishReason === 'SAFETY') {
-    throw new Error('Gemini API memblokir respons karena safety filter.');
+    throw new Error('Gemini API memblokir respons karena filter keamanan.');
   }
 
   let teks: string | undefined = candidates[0]?.content?.parts?.[0]?.text;
 
   if (!teks) {
-    throw new Error('Gemini API mengembalikan respons tanpa teks (mungkin diblokir safety filter).');
+    throw new Error('Gemini API mengembalikan respons kosong.');
   }
 
-  teks = teks.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+  // Bersihkan markdown code block jika Gemini membungkusnya dalam ```json ... ```
+  teks = teks.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
 
   if (finishReason === 'MAX_TOKENS') {
     teks = perbaikiJsonTerpotong(teks);
@@ -140,4 +150,3 @@ export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt })
 
   return teks;
 };
-

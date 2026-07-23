@@ -15,23 +15,43 @@ import DonutChart from '@/components/vektor/DonutChart';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
+import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
 
 export default async function AnophelesDewasaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ wilker?: string; tahun?: string }>;
+  searchParams: Promise<{
+    wilker?: string;
+    tahun?: string;
+    mgDari?: string;
+    mgSampai?: string;
+    bulanDari?: string;
+    bulanSampai?: string;
+    mode?: string;
+  }>;
 }) {
-  const { wilker, tahun: tahunParam } = await searchParams;
+  const { wilker, tahun: tahunParam, mgDari, mgSampai, bulanDari, bulanSampai, mode } = await searchParams;
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
-  const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
+  const { mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
+  const bulanBerjalanNum = new Date().getMonth() + 1;
 
-  // WAJIB persis salah satu literal yang dikenal API:
-  // 'anopheles-dewasa-mingguan' | 'anopheles-dewasa-bulanan' |
-  // 'anopheles-larva-mingguan' | 'anopheles-larva-bulanan'
-  // (lihat app/api/analisis-ai/route.ts). TIDAK boleh digabung kode wilker
-  // di sini -- wilayah dikirim terpisah lewat prop wilayahKerja.
-  const konteksAI = 'anopheles-dewasa-mingguan';
-  const periodeKey = `${tahunBerjalan}-W${mingguBerjalan}`;
+  const modeAktif: 'mingguan' | 'bulanan' = mode === 'bulanan' ? 'bulanan' : 'mingguan';
+
+  // Rentang Mingguan (dari FilterRentangMinggu: angka polos "1".."52")
+  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
+  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
+  const periodeKeyMingguan = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
+
+  // Rentang Bulanan (dari FilterRentangBulan: format "2026-01" -- tahun
+  // digabung dengan bulan, jadi tahun rentang diambil dari string ini,
+  // bukan dari param `tahun` biasa)
+  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari.split('-')[1], 10) : bulanBerjalanNum;
+  const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai.split('-')[1], 10) : bulanBerjalanNum;
+  const tahunBulan = bulanDari ? parseInt(bulanDari.split('-')[0], 10) : tahun;
+  const periodeKeyBulanan = `${tahunBulan}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
+
+  const konteksMingguan = 'anopheles-dewasa-mingguan';
+  const konteksBulanan = 'anopheles-dewasa-bulanan';
 
   const [role, daftarWilker, dataMingguan, dataBulanan, metodeTangkap] = await Promise.all([
     getUserRole(),
@@ -74,22 +94,43 @@ export default async function AnophelesDewasaPage({
         ]}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <BoxAnalisisAI
-          konteks={konteksAI}
-          periodeKey={periodeKey}
-          wilayahKerja={wilker}
-          sudahLogin={!!role}
-          role={role === 'tamu' ? null : role}
-        />
-        <BoxPrediksiAI
-          konteks={konteksAI}
-          periodeKey={periodeKey}
-          wilayahKerja={wilker}
-          sudahLogin={!!role}
-          role={role === 'tamu' ? null : role}
-        />
-      </div>
+      {/* Kotak AI mengikuti tab (Mingguan/Bulanan) yang sedang aktif di
+         PanelTrenPeriode -- hanya SATU pasang yang tampil di satu waktu */}
+      {modeAktif === 'mingguan' ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <BoxAnalisisAI
+            konteks={konteksMingguan}
+            periodeKey={periodeKeyMingguan}
+            wilayahKerja={wilker}
+            sudahLogin={!!role}
+            role={role === 'tamu' ? null : role}
+          />
+          <BoxPrediksiAI
+            konteks={konteksMingguan}
+            periodeKey={periodeKeyMingguan}
+            wilayahKerja={wilker}
+            sudahLogin={!!role}
+            role={role === 'tamu' ? null : role}
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <BoxAnalisisAI
+            konteks={konteksBulanan}
+            periodeKey={periodeKeyBulanan}
+            wilayahKerja={wilker}
+            sudahLogin={!!role}
+            role={role === 'tamu' ? null : role}
+          />
+          <BoxPrediksiAI
+            konteks={konteksBulanan}
+            periodeKey={periodeKeyBulanan}
+            wilayahKerja={wilker}
+            sudahLogin={!!role}
+            role={role === 'tamu' ? null : role}
+          />
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DonutChart judul="Metode Tangkap" data={metodeTangkap} />

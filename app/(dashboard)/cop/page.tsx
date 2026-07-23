@@ -184,7 +184,14 @@ interface TitikTrenCop {
 export default async function CopPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mode?: string; wilayah?: string }>;
+  searchParams: Promise<{
+    mode?: string;
+    wilayah?: string;
+    minggu_awal?: string;
+    minggu_akhir?: string;
+    bulan_awal?: string;
+    bulan_akhir?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const mode: "mingguan" | "bulanan" = sp.mode === "bulanan" ? "bulanan" : "mingguan";
@@ -204,15 +211,28 @@ export default async function CopPage({
 
   const tahun = mode === "mingguan" ? tahunEpidSaatIni : sekarang.getFullYear();
 
-  const periodeKey =
-    mode === "mingguan"
-      ? `${tahunEpidSaatIni}-W${mingguEpidSaatIni}`
-      : `${sekarang.getFullYear()}-${sekarang.getMonth() + 1}`;
+// Rentang minggu/bulan untuk Section 5 & 5B -- HARUS dihitung SEBELUM
+// periodeKey, karena periodeKey memakai mingguAkhir/bulanAkhir.
+let mingguAwal = sp.minggu_awal ? parseInt(sp.minggu_awal, 10) : 1;
+let mingguAkhir = sp.minggu_akhir ? parseInt(sp.minggu_akhir, 10) : mingguEpidSaatIni;
+if (mingguAwal > mingguAkhir) [mingguAwal, mingguAkhir] = [mingguAkhir, mingguAwal];
 
-  // periodeKey khusus section 3 & 4, yang SELALU mingguan tahun epid berjalan
-  const periodeKeyMingguanSelalu = `${tahunEpidSaatIni}-W${mingguEpidSaatIni}`;
+let bulanAwal = sp.bulan_awal ? parseInt(sp.bulan_awal, 10) : 1;
+let bulanAkhir = sp.bulan_akhir ? parseInt(sp.bulan_akhir, 10) : sekarang.getMonth() + 1;
+if (bulanAwal > bulanAkhir) [bulanAwal, bulanAkhir] = [bulanAkhir, bulanAwal];
 
-  const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
+const batasAwal = mode === "mingguan" ? mingguAwal : bulanAwal;
+const batasAkhir = mode === "mingguan" ? mingguAkhir : bulanAkhir;
+
+const periodeKey =
+  mode === "mingguan"
+    ? `${tahunEpidSaatIni}-W${mingguAkhir}`
+    : `${sekarang.getFullYear()}-${bulanAkhir}`;
+
+// periodeKey khusus section 3 & 4, yang SELALU mingguan tahun epid berjalan
+const periodeKeyMingguanSelalu = `${tahunEpidSaatIni}-W${mingguEpidSaatIni}`;
+
+const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
   let errorMuat: string | null = null;
   let trenData: TitikTrenCop[] = [];
@@ -327,6 +347,7 @@ export default async function CopPage({
       const peta = new Map<number, TitikTrenCop>();
       terfilter.forEach((r) => {
         const urutan = mode === "mingguan" ? (r as RingkasanMingguanCop).minggu_epid : (r as RingkasanBulananCop).bulan;
+        if (urutan < batasAwal || urutan > batasAkhir) return;
         const label = mode === "mingguan" ? `Mg ${urutan}` : NAMA_BULAN[urutan - 1];
         const existing = peta.get(urutan) ?? {
           label,
@@ -354,6 +375,7 @@ export default async function CopPage({
         const negara = normalisasiNilaiKategori(r.nilai);
         if (!negara) return;
         const urutan = mode === "mingguan" ? (r as { minggu_epid: number }).minggu_epid : (r as { bulan: number }).bulan;
+        if (urutan < batasAwal || urutan > batasAkhir) return;   // <-- TAMBAH
         const label = mode === "mingguan" ? `Mg ${urutan}` : NAMA_BULAN[urutan - 1];
         const existing: Record<string, string | number> = petaTrenNegara.get(urutan) ?? { label, urutan };
         existing[negara] = ((existing[negara] as number) ?? 0) + r.jumlah;
@@ -518,7 +540,15 @@ export default async function CopPage({
         </Link>
         </div>
 
-      <FilterPeriodeWilayah mode={mode} wilayah={wilayah} />
+      <FilterPeriodeWilayah
+        mode={mode}
+        wilayah={wilayah}
+        tampilkanRentang
+        mingguAwal={mingguAwal}
+        mingguAkhir={mingguAkhir}
+        bulanAwal={bulanAwal}
+        bulanAkhir={bulanAkhir}
+      />
 
       {errorMuat && (
         <div className="rounded-card border border-risiko-merah/30 bg-surface p-6 text-sm text-risiko-merah">
@@ -644,7 +674,9 @@ export default async function CopPage({
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-              Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} Tahun {tahun}
+              Tren {mode === "mingguan"
+                ? `Mingguan (Mg ${mingguAwal}–${mingguAkhir})`
+                : `Bulanan (${NAMA_BULAN[bulanAwal - 1]}–${NAMA_BULAN[bulanAkhir - 1]})`} Tahun {tahun}
             </h2>
             {trenData.length === 0 ? (
               <p className="text-sm text-muted">Belum ada data untuk ditampilkan.</p>

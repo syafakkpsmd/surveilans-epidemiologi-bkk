@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
@@ -11,6 +11,9 @@ const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des"
 ];
+
+// Array 1 sampai 52 untuk pilihan minggu
+const DAFTAR_MINGGU = Array.from({ length: 52 }, (_, i) => i + 1);
 
 // Daftar Komponen Penilaian TTU
 const KOMPONEN_TTU = [
@@ -27,19 +30,6 @@ const KOMPONEN_TTU = [
   { id: "pemeliharaan_jamban_kamar_mandi", label: "Jamban & Kamar Mandi", warnaMs: "#004D40", warnaTms: "#37474F" },
 ] as const;
 
-// Membuat susunan series untuk MS dan TMS
-const SERIES_MS_TTU: SeriesChecklist[] = KOMPONEN_TTU.map((k) => ({
-  key: `ms_${k.id}`,
-  label: k.label,
-  warna: k.warnaMs,
-}));
-
-const SERIES_TMS_TTU: SeriesChecklist[] = KOMPONEN_TTU.map((k) => ({
-  key: `tms_${k.id}`,
-  label: k.label,
-  warna: k.warnaTms,
-}));
-
 type TtuClientProps = {
   daftarWilayah: string[];
   dataBulanan: any[];
@@ -48,10 +38,12 @@ type TtuClientProps = {
   role: string;
   tahunBerjalan: number;
   bulanBerjalan: number;
+  tahunEpidBerjalan: number;   // <-- FIX: sebelumnya hilang dari tipe
+  mingguEpidBerjalan: number;  // <-- FIX: sebelumnya hilang dari tipe
   wilayahParam?: string;
 };
 
-// Helper untuk mengecek status
+// Helper untuk mengecek status TMS
 const isTmsVal = (val: any): boolean => {
   if (!val) return false;
   if (typeof val === "string") {
@@ -69,29 +61,67 @@ export default function TtuClient({
   role,
   tahunBerjalan,
   bulanBerjalan,
+  tahunEpidBerjalan,   // <-- FIX: sebelumnya tidak di-destructure,
+  mingguEpidBerjalan,  // <-- FIX: menyebabkan ReferenceError di periodeKey
   wilayahParam,
 }: TtuClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
-  const [bulanAnalisis, setBulanAnalisis] = useState<number>(bulanBerjalan);
-  const [chartData, setChartData] = useState<any[]>([]);
 
-  // 1. OLAH DATA UNTUK GRAFIK (MS, TMS, DAN KOMPONEN DETIL)
-  useEffect(() => {
+  // State Input Rentang (Temporary sebelum diklik 'Terapkan')
+  const [tempBulanAwal, setTempBulanAwal] = useState<number>(1);
+  const [tempBulanAkhir, setTempBulanAkhir] = useState<number>(bulanBerjalan);
+  const [tempMingguAwal, setTempMingguAwal] = useState<number>(1);
+  const [tempMingguAkhir, setTempMingguAkhir] = useState<number>(52);
+
+  // State Rentang Aktif (Setelah diklik 'Terapkan')
+  const [rentangBulan, setRentangBulan] = useState<{ awal: number; akhir: number }>({
+    awal: 1,
+    akhir: bulanBerjalan,
+  });
+  const [rentangMinggu, setRentangMinggu] = useState<{ awal: number; akhir: number }>({
+    awal: 1,
+    akhir: 52,
+  });
+
+  // Handler saat tombol "Terapkan" diklik
+  const handleTerapkanRentang = () => {
+    if (granularitas === "bulanan") {
+      let awal = tempBulanAwal;
+      let akhir = tempBulanAkhir;
+      if (awal > akhir) [awal, akhir] = [akhir, awal]; // Swap jika terbalik
+      setRentangBulan({ awal, akhir });
+    } else {
+      let awal = tempMingguAwal;
+      let akhir = tempMingguAkhir;
+      if (awal > akhir) [awal, akhir] = [akhir, awal]; // Swap jika terbalik
+      setRentangMinggu({ awal, akhir });
+    }
+  };
+
+  // 1. OLAH DATA UNTUK GRAFIK BERDASARKAN RENTANG TERAPKAN
+  // FIX: diubah dari useEffect+setState (extra render/flicker) ke useMemo
+  const chartData = useMemo(() => {
     const sumberData = granularitas === "bulanan" ? dataBulanan : dataMingguan;
     const kolomPeriode = granularitas === "bulanan" ? "bulan" : "minggu";
 
-    const filtered = sumberData.filter(
-      (d) => selectedWilayah === "semua" || d.wilayah_kerja === selectedWilayah
-    );
+    const batasAwal = granularitas === "bulanan" ? rentangBulan.awal : rentangMinggu.awal;
+    const batasAkhir = granularitas === "bulanan" ? rentangBulan.akhir : rentangMinggu.akhir;
+
+    const filtered = sumberData.filter((d) => {
+      const wilayahMatch = selectedWilayah === "semua" || d.wilayah_kerja === selectedWilayah;
+      const urutan = Number(d[kolomPeriode]);
+      const periodeMatch = urutan >= batasAwal && urutan <= batasAkhir;
+      return wilayahMatch && periodeMatch;
+    });
 
     const peta = new Map<number, any>();
     filtered.forEach((item) => {
       const urutan = item[kolomPeriode];
       if (urutan === undefined || urutan === null) return;
 
-      const label = granularitas === "bulanan" 
-        ? NAMA_BULAN[urutan - 1] || `Bln-${urutan}` 
+      const label = granularitas === "bulanan"
+        ? NAMA_BULAN[urutan - 1] || `Bln-${urutan}`
         : `Mg-${urutan}`;
 
       const existing = peta.get(urutan) ?? {
@@ -103,20 +133,16 @@ export default function TtuClient({
         jumlah_tms: 0,
       };
 
-      // Inisialisasi properti komponen jika belum ada
       KOMPONEN_TTU.forEach((k) => {
         if (existing[`ms_${k.id}`] === undefined) existing[`ms_${k.id}`] = 0;
         if (existing[`tms_${k.id}`] === undefined) existing[`tms_${k.id}`] = 0;
       });
 
-      // Hitung total MS dan TMS dasar
       existing.jumlah_diperiksa += Number(item.jumlah_diperiksa || 0);
       existing.jumlah_ms += Number(item.jumlah_ms || 0);
       existing.jumlah_tms += Number(item.jumlah_tms || 0);
 
-      // Hitung breakdown komponen MS dan TMS
       KOMPONEN_TTU.forEach((k) => {
-        // Ambil nilai dari kemungkinan nama kolom
         const valMs = item[`ms_${k.id}`] ?? item[k.id];
         const valTms = item[`tms_${k.id}`];
 
@@ -127,25 +153,47 @@ export default function TtuClient({
       peta.set(urutan, existing);
     });
 
-    setChartData(Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan));
-  }, [selectedWilayah, granularitas, dataBulanan, dataMingguan]);
+    return Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
+  }, [selectedWilayah, granularitas, rentangBulan, rentangMinggu, dataBulanan, dataMingguan]);
 
   const tipeChartAktif = granularitas === "mingguan" ? "line" : "bar";
-  const periodeKey = `${tahunBerjalan}-${bulanAnalisis}`;
+
+  // Format Periode Key untuk AI
+  const periodeKey = granularitas === "bulanan"
+  ? `${tahunBerjalan}-${rentangBulan.akhir}`
+  : `${tahunBerjalan}-W${rentangMinggu.akhir}`;
 
   // 2. FILTER DATA DETAIL UNTUK TABEL TMS
-  const sumberDataDetail = dataDetailTtu.length > 0 
-    ? dataDetailTtu 
-    : (granularitas === "bulanan" ? dataBulanan : dataMingguan);
+  // FIX: dibungkus useMemo supaya tidak dihitung ulang setiap render
+  const daftarTmsDetail = useMemo(() => {
+    const sumberDataDetail = dataDetailTtu.length > 0
+      ? dataDetailTtu
+      : (granularitas === "bulanan" ? dataBulanan : dataMingguan);
 
-  const daftarTmsDetail = sumberDataDetail.filter((item) => {
-    const wilayahMatch = selectedWilayah === "semua" || item.wilayah_kerja === selectedWilayah;
-    const adaParamTms = KOMPONEN_TTU.some((col) => isTmsVal(item[`tms_${col.id}`]));
-    const adaTotalTms = Number(item.jumlah_tms || 0) > 0;
-    const statusTms = isTmsVal(item.status) || isTmsVal(item.status_sanitasi);
-    
-    return wilayahMatch && (adaParamTms || adaTotalTms || statusTms);
-  });
+    const kolomPeriode = granularitas === "bulanan" ? "bulan" : "minggu";
+    const batasAwal = granularitas === "bulanan" ? rentangBulan.awal : rentangMinggu.awal;
+    const batasAkhir = granularitas === "bulanan" ? rentangBulan.akhir : rentangMinggu.akhir;
+
+    return sumberDataDetail.filter((item) => {
+      const wilayahMatch = selectedWilayah === "semua" || item.wilayah_kerja === selectedWilayah;
+      const urutan = Number(item[kolomPeriode]);
+      const periodeMatch = !urutan || (urutan >= batasAwal && urutan <= batasAkhir);
+
+      const adaParamTms = KOMPONEN_TTU.some((col) => isTmsVal(item[`tms_${col.id}`]));
+      const adaTotalTms = Number(item.jumlah_tms || 0) > 0;
+      const statusTms = isTmsVal(item.status) || isTmsVal(item.status_sanitasi);
+
+      return wilayahMatch && periodeMatch && (adaParamTms || adaTotalTms || statusTms);
+    });
+  }, [
+    dataDetailTtu,
+    dataBulanan,
+    dataMingguan,
+    granularitas,
+    selectedWilayah,
+    rentangBulan,
+    rentangMinggu,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -165,8 +213,8 @@ export default function TtuClient({
               type="button"
               onClick={() => setGranularitas("mingguan")}
               className={`rounded-md px-3 py-1.5 transition-all ${
-                granularitas === "mingguan" 
-                  ? "bg-[#0F4C5C] text-white shadow-xs" 
+                granularitas === "mingguan"
+                  ? "bg-[#0F4C5C] text-white shadow-xs"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -176,8 +224,8 @@ export default function TtuClient({
               type="button"
               onClick={() => setGranularitas("bulanan")}
               className={`rounded-md px-3 py-1.5 transition-all ${
-                granularitas === "bulanan" 
-                  ? "bg-[#0F4C5C] text-white shadow-xs" 
+                granularitas === "bulanan"
+                  ? "bg-[#0F4C5C] text-white shadow-xs"
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
@@ -199,33 +247,88 @@ export default function TtuClient({
             ))}
           </select>
 
-          {/* Selector Bulan AI */}
-          <select
-            value={bulanAnalisis}
-            onChange={(e) => setBulanAnalisis(parseInt(e.target.value, 10))}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 focus:ring-2 focus:ring-[#0F4C5C] focus:outline-hidden"
-            title="Bulan Fokus Analisis & Prediksi AI"
-          >
-            {NAMA_BULAN.map((nama, idx) => (
-              <option key={nama} value={idx + 1}>
-                {nama}
-              </option>
-            ))}
-          </select>
+          {/* FILTER RENTANG DARI - SAMPAI & TOMBOL TERAPKAN */}
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-1.5 text-xs">
+            {granularitas === "bulanan" ? (
+              <>
+                <span className="text-gray-500 font-medium pl-1">Dari:</span>
+                <select
+                  value={tempBulanAwal}
+                  onChange={(e) => setTempBulanAwal(parseInt(e.target.value, 10))}
+                  className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-hidden"
+                >
+                  {NAMA_BULAN.map((nama, idx) => (
+                    <option key={nama} value={idx + 1}>
+                      {nama}
+                    </option>
+                  ))}
+                </select>
+
+                <span className="text-gray-500 font-medium">s/d:</span>
+                <select
+                  value={tempBulanAkhir}
+                  onChange={(e) => setTempBulanAkhir(parseInt(e.target.value, 10))}
+                  className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-hidden"
+                >
+                  {NAMA_BULAN.map((nama, idx) => (
+                    <option key={nama} value={idx + 1}>
+                      {nama}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <>
+                <span className="text-gray-500 font-medium pl-1">Mg:</span>
+                <select
+                  value={tempMingguAwal}
+                  onChange={(e) => setTempMingguAwal(parseInt(e.target.value, 10))}
+                  className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-hidden"
+                >
+                  {DAFTAR_MINGGU.map((m) => (
+                    <option key={m} value={m}>
+                      Mg {m}
+                    </option>
+                  ))}
+                </select>
+
+                <span className="text-gray-500 font-medium">s/d Mg:</span>
+                <select
+                  value={tempMingguAkhir}
+                  onChange={(e) => setTempMingguAkhir(parseInt(e.target.value, 10))}
+                  className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-hidden"
+                >
+                  {DAFTAR_MINGGU.map((m) => (
+                    <option key={m} value={m}>
+                      Mg {m}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={handleTerapkanRentang}
+              className="rounded-md bg-[#0F4C5C] px-3 py-1 font-semibold text-white shadow-xs hover:bg-[#0c3e4b] transition-colors"
+            >
+              Terapkan
+            </button>
+          </div>
         </div>
       </div>
 
       {/* DASHBOARD GRAFIK */}
       {chartData.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-sm text-gray-500">
-          Data surveilans TTU periode {granularitas} untuk tahun {tahunBerjalan} belum tersedia.
+          Data surveilans TTU rentang {granularitas} pilihan Anda untuk tahun {tahunBerjalan} belum tersedia.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* GRAFIK 1: KEPATUHAN UTAMA (MS vs TMS) */}
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-bold text-gray-800 flex items-center gap-2">
-              <span>📈</span> Kepatuhan TTU — Memenuhi Syarat (MS) vs Tidak Memenuhi Syarat (TMS) [{granularitas}]
+            <h3 className="flex items-center justify-center text-center mb-4 text-sm font-bold text-gray-800 gap-2">
+              <span>📈</span> Distribusi Hasil Pengawasan Tempat-Tempat Umum (TTU) di BKK Kelas I Samarinda [{granularitas}]
             </h3>
             <TrenChartLine
               data={chartData}
@@ -237,44 +340,18 @@ export default function TtuClient({
             />
           </div>
 
-          {/* GRAFIK 2: BREAKDOWN KOMPONEN MEMENUHI SYARAT (MS) */}
-          <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-bold text-green-900 flex items-center gap-2">
-              <span>✅</span> Breakdown Komponen Memenuhi Syarat (MS) — {granularitas}
-            </h3>
-            <TrenChecklistMingguan 
-              data={chartData} 
-              seriesList={SERIES_MS_TTU} 
-              maxAktifDefault={3} 
-              variant={tipeChartAktif} 
-            />
-          </div>
-
-          {/* GRAFIK 3: BREAKDOWN KOMPONEN TIDAK MEMENUHI SYARAT (TMS) */}
-          <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-bold text-red-900 flex items-center gap-2">
-              <span>⚠️</span> Breakdown Komponen Tidak Memenuhi Syarat (TMS) — {granularitas}
-            </h3>
-            <TrenChecklistMingguan 
-              data={chartData} 
-              seriesList={SERIES_TMS_TTU} 
-              maxAktifDefault={3} 
-              variant={tipeChartAktif} 
-            />
-          </div>
-
           {/* BOX ANALISIS AI & PREDIKSI AI */}
           <BoxAnalisisAI
             sudahLogin={true}
             role={role as PeranUser}
-            konteks="ttu-bulanan"
+            konteks={granularitas === "bulanan" ? "ttu-bulanan" : "ttu-mingguan"}
             periodeKey={periodeKey}
             wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
           />
           <BoxPrediksiAI
             sudahLogin={true}
             role={role as PeranUser}
-            konteks="ttu-bulanan"
+            konteks={granularitas === "bulanan" ? "ttu-bulanan" : "ttu-mingguan"}
             periodeKey={periodeKey}
             wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
           />
@@ -314,19 +391,18 @@ export default function TtuClient({
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {daftarTmsDetail.map((item, idx) => {
-                      const periodeText = item.tanggal_kegiatan 
+                      const periodeText = item.tanggal_kegiatan
                         ? item.tanggal_kegiatan
                         : granularitas === "bulanan"
                           ? NAMA_BULAN[item.bulan - 1] || `Bulan ${item.bulan}`
                           : `Minggu ke-${item.minggu}`;
 
-                      const namaTtuSpesifik = 
-                        item.nama_ttu || 
-                        item.nama_tempat_umum || 
-                        item.nama_fasilitas || 
+                      const namaTtuSpesifik =
+                        item.nama_ttu ||
+                        item.nama_tempat_umum ||
+                        item.nama_fasilitas ||
                         `TTU Wilayah ${item.wilayah_kerja || ""}`;
 
-                      // Temukan komponen yang TMS
                       const temuanTms: string[] = [];
                       KOMPONEN_TTU.forEach((col) => {
                         if (isTmsVal(item[`tms_${col.id}`]) || isTmsVal(item[col.id])) {

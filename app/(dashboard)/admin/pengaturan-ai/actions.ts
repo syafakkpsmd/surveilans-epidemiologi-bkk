@@ -10,6 +10,11 @@
  * `pengaturan_ai` sengaja tidak punya policy INSERT/UPDATE/DELETE
  * untuk role authenticated -- satu-satunya jalur tulis yang sah adalah
  * lewat sini, SETELAH verifikasi admin di kode aplikasi.
+ *
+ * CATATAN: sejak fitur fallback multi-provider ditambahkan, BOLEH ada
+ * lebih dari satu provider aktif=true sekaligus. route.ts akan mencoba
+ * semua provider aktif berurutan sesuai urutan_prioritas (angka kecil
+ * dicoba duluan) sampai salah satu berhasil.
  */
 
 import { revalidatePath } from 'next/cache';
@@ -29,19 +34,9 @@ function ambilString(formData: FormData, nama: string): string {
   return String(formData.get(nama) ?? '').trim();
 }
 
-/** Kalau aktif=true, non-aktifkan semua provider LAIN supaya hanya ada 1 provider aktif. */
-async function pastikanHanyaSatuAktif(
-  supabase: ReturnType<typeof createServiceRoleClient>,
-  idYangAktif: number
-): Promise<void> {
-  const { error } = await supabase
-    .from('pengaturan_ai')
-    .update({ aktif: false })
-    .neq('id', idYangAktif);
-
-  if (error) {
-    console.error('Gagal menonaktifkan provider lain:', error.message);
-  }
+function ambilUrutanPrioritas(formData: FormData): number {
+  const nilai = parseInt(ambilString(formData, 'urutan_prioritas'), 10);
+  return Number.isFinite(nilai) && nilai > 0 ? nilai : 1;
 }
 
 export async function tambahProvider(formData: FormData): Promise<void> {
@@ -53,6 +48,7 @@ export async function tambahProvider(formData: FormData): Promise<void> {
   const model = ambilString(formData, 'model');
   const api_key = ambilString(formData, 'api_key');
   const aktif = formData.get('aktif') === 'on';
+  const urutan_prioritas = ambilUrutanPrioritas(formData);
 
   if (!nama_tampilan || !model || !api_key) {
     throw new Error('Nama tampilan, model, dan API key wajib diisi untuk provider baru.');
@@ -62,18 +58,25 @@ export async function tambahProvider(formData: FormData): Promise<void> {
   }
 
   const supabase = createServiceRoleClient();
-  const { data: baru, error } = await supabase
+
+  // Memisahkan objek payload dan melabelinya dengan `as any`
+  // agar tidak terbentur masalah tipe 'never' dari definisi Supabase
+  const payloadData = {
+    nama_tampilan,
+    tipe_provider,
+    base_url,
+    model,
+    api_key,
+    aktif,
+    urutan_prioritas,
+  };
+
+  const { error } = await supabase
     .from('pengaturan_ai')
-    .insert({ nama_tampilan, tipe_provider, base_url, model, api_key, aktif })
-    .select('id')
-    .single();
+    .insert(payloadData as any);
 
   if (error) {
     throw new Error(`Gagal menyimpan provider baru: ${error.message}`);
-  }
-
-  if (aktif && baru) {
-    await pastikanHanyaSatuAktif(supabase, baru.id);
   }
 
   revalidatePath('/admin/pengaturan-ai');
@@ -88,6 +91,7 @@ export async function updateProvider(id: number, formData: FormData): Promise<vo
   const model = ambilString(formData, 'model');
   const api_key_baru = ambilString(formData, 'api_key');
   const aktif = formData.get('aktif') === 'on';
+  const urutan_prioritas = ambilUrutanPrioritas(formData);
 
   if (!nama_tampilan || !model) {
     throw new Error('Nama tampilan dan model wajib diisi.');
@@ -100,25 +104,26 @@ export async function updateProvider(id: number, formData: FormData): Promise<vo
 
   // api_key WRITE-ONLY: kosongkan field di form = "tidak diganti".
   // Hanya update kolom api_key kalau admin benar-benar mengisi ulang.
-  const dataUpdate: Partial<Omit<PengaturanAi, 'id'>> = {
+  const dataUpdate: Record<string, any> = {
     nama_tampilan,
     tipe_provider,
     base_url,
     model,
     aktif,
+    urutan_prioritas,
   };
+  
   if (api_key_baru) {
     dataUpdate.api_key = api_key_baru;
   }
 
-  const { error } = await supabase.from('pengaturan_ai').update(dataUpdate as any).eq('id', id);
+  const { error } = await supabase
+    .from('pengaturan_ai')
+    .update(dataUpdate as any)
+    .eq('id', id);
 
   if (error) {
     throw new Error(`Gagal memperbarui provider: ${error.message}`);
-  }
-
-  if (aktif) {
-    await pastikanHanyaSatuAktif(supabase, id);
   }
 
   revalidatePath('/admin/pengaturan-ai');
@@ -128,7 +133,10 @@ export async function hapusProvider(id: number): Promise<void> {
   await pastikanAdmin();
 
   const supabase = createServiceRoleClient();
-  const { error } = await supabase.from('pengaturan_ai').delete().eq('id', id);
+  const { error } = await supabase
+    .from('pengaturan_ai')
+    .delete()
+    .eq('id', id);
 
   if (error) {
     throw new Error(`Gagal menghapus provider: ${error.message}`);

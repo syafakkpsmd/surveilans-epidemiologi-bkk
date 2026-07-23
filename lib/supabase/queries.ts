@@ -1161,3 +1161,18 @@ export async function getDetailPemeriksaanTtu(tahun: number, wilayah?: string) {
 
   return data || [];
 }
+
+export async function getDaftarPabTmsDetail(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any)
+    .from('pab')
+    .select('id, wilayah_kerja, nama_ttu, tanggal, fisik, kimia, bakteriologis')
+    .gte('tanggal', `${tahun}-01-01`)
+    .lte('tanggal', `${tahun}-12-31`)
+    .or('fisik.eq.Tidak Memenuhi Syarat,kimia.eq.Tidak Memenuhi Syarat,bakteriologis.eq.Tidak Memenuhi Syarat')
+    .order('tanggal', { ascending: false });
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil daftar PAB TMS: ${error.message}`);
+  return (data ?? []) as any[];
+}

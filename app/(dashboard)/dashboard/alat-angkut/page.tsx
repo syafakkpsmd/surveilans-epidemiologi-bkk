@@ -177,6 +177,12 @@ export default async function DashboardPage() {
           >
             Lihat Dashboard SSCEC Lengkap
           </Link>
+          <Link
+            href="/dashboard/alat-angkut/ratguard"
+            className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
+          >
+            Lihat Dashboard Rat Guard Lengkap
+          </Link>
         </div>
       </div>
 

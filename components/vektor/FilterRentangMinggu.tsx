@@ -8,16 +8,16 @@ export default function FilterRentangMinggu() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [mgAwal, setMgAwal] = useState(searchParams.get('mgAwal') || '1');
-  const [mgAkhir, setMgAkhir] = useState(searchParams.get('mgAkhir') || '9');
+  const [mgDari, setMgDari] = useState(searchParams.get('mgDari') || '1');
+  const [mgSampai, setMgSampai] = useState(searchParams.get('mgSampai') || '9');
 
   // Generate 52 minggu epidemiologi
   const daftarMinggu = Array.from({ length: 52 }, (_, i) => i + 1);
 
   const handleTerapkan = () => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set('mgAwal', mgAwal);
-    params.set('mgAkhir', mgAkhir);
+    params.set('mgDari', mgDari);
+    params.set('mgSampai', mgSampai);
 
     router.push(`${pathname}?${params.toString()}`);
   };
@@ -27,8 +27,8 @@ export default function FilterRentangMinggu() {
       <span className="text-gray-600">Rentang Minggu</span>
       
       <select
-        value={mgAwal}
-        onChange={(e) => setMgAwal(e.target.value)}
+        value={mgDari}
+        onChange={(e) => setMgDari(e.target.value)}
         className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
       >
         {daftarMinggu.map((m) => (
@@ -41,8 +41,8 @@ export default function FilterRentangMinggu() {
       <span className="text-gray-500">s.d.</span>
 
       <select
-        value={mgAkhir}
-        onChange={(e) => setMgAkhir(e.target.value)}
+        value={mgSampai}
+        onChange={(e) => setMgSampai(e.target.value)}
         className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
       >
         {daftarMinggu.map((m) => (

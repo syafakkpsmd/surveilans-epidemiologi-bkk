@@ -5,11 +5,15 @@ import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import {
   ambilDataAnalisis,
   ambilDataBreakdownAnalisis,
+  ambilDataAnalisisSanitasi,
   isKonteksValid,
   isKonteksBreakdown,
   isKonteksVektor,
   isKonteksPrediksiNonVektorValid,
   isKonteksSanitasi,
+  ambilDataAnalisisCop,
+  ambilDataAnalisisPhqc,
+  ambilDataAnalisisPenumpang,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -51,6 +55,8 @@ import { rentangHariIniWita } from '@/lib/ai/periode';
 import type { Wilayah } from '@/types/database.types';
 import { type MetrikVektor } from '@/lib/ai/dataVektor';
 
+export const maxDuration = 60;
+
 const DAFTAR_WILAYAH: readonly Wilayah[] = [
   'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',
 ];
@@ -59,7 +65,6 @@ function isWilayahValid(nilai: unknown): nilai is Wilayah {
   return typeof nilai === 'string' && (DAFTAR_WILAYAH as readonly string[]).includes(nilai);
 }
 
-/** kode_wilker vektor formatnya "WK01".."WK07". */
 function isKodeWilkerValid(nilai: unknown): nilai is string {
   return typeof nilai === 'string' && /^WK\d{2}$/.test(nilai);
 }
@@ -75,16 +80,6 @@ function isMetrikValid(nilai: unknown): nilai is MetrikVektor {
 
 type TipeAnalisis = 'analisis' | 'prediksi';
 
-/**
- * GET /api/analisis-ai?konteks=...&periode_key=...&wilayah_kerja=...&tipe=...&metrik=...
- *
- * Endpoint BACA -- bisa diakses SIAPA SAJA tanpa login. Mengembalikan
- * hasil Analisis/Prediksi AI TERBARU yang tersimpan di riwayat_analisis_ai
- * untuk kombinasi konteks+periode+wilayah+tipe+metrik ini (kapan pun
- * hasil itu dibuat, TIDAK dibatasi cache hari ini seperti di POST).
- * Kalau belum pernah ada yang generate untuk kombinasi ini, kembalikan
- * ada:false supaya UI bisa tampilkan pesan "belum ada analisis".
- */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const konteks = searchParams.get('konteks');
@@ -139,10 +134,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  // ---------- 1. VERIFIKASI ROLE DI SERVER ----------
-  // Generate/jalankan Analisis-Prediksi AI HANYA untuk admin & petugas.
-  // (Membaca hasil yang sudah tersimpan sekarang lewat GET di bawah,
-  // yang bisa diakses siapa saja tanpa login.)
   const { role } = await getStatusAkses();
   if (role !== 'admin' && role !== 'petugas') {
     return NextResponse.json(
@@ -151,7 +142,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // ---------- 2. VALIDASI INPUT ----------
   let body: unknown;
   try {
     body = await request.json();
@@ -204,9 +194,6 @@ export async function POST(request: Request) {
   konteks === 'vektor-diare-kecoa-mingguan';
   const konteksSanitasi = isKonteksSanitasi(konteks);
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
-  // Metrik pesawat divalidasi lebih lanjut di ambilDataAnalisisPesawat()
-  // (menolak kota-asal/kota-tujuan/maskapai-* yang belum siap) -- di sini
-  // cukup pastikan ada nilai default yang konsisten untuk key cache.
   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
   const metrikUntukCache: string | null = konteksVektor
     ? metrikVektor
@@ -226,7 +213,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // ---------- Validasi wilayah_kerja sesuai kelompok konteks ----------
   let wilayahKerja: string | undefined;
 
   if (konteksVektor) {
@@ -241,9 +227,6 @@ export async function POST(request: Request) {
     }
     wilayahKerja = wilayah_kerja;
   } else if (konteksPesawat) {
-    // Beda dari vektor: "Semua Bandara" tetap valid untuk pesawat, jadi
-    // wilayah_kerja OPSIONAL -- tapi kalau diisi, formatnya tetap harus
-    // kode_wilker (WK0X), sama seperti vektor, BUKAN enum Wilayah.
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
         { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks pesawat (format kode: WK01-WK07).` },
@@ -260,8 +243,6 @@ export async function POST(request: Request) {
     }
     wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
   } else if (konteksVektorDiare) {
-    // Sama pola tikus-lab: "Semua Wilayah Kerja" tetap valid, wilayah_kerja
-    // OPSIONAL, tapi kalau diisi formatnya kode_wilker (WK0X).
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
         { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor diare (format kode: WK01-WK09).` },
@@ -270,7 +251,6 @@ export async function POST(request: Request) {
     }
     wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
   } else if (konteksSanitasi) {
-    // TPP/TTU/PAB: wilayah_kerja teks bebas, OPSIONAL (kosong = Semua Wilayah Kerja).
     wilayahKerja =
       typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
         ? wilayah_kerja
@@ -284,7 +264,6 @@ export async function POST(request: Request) {
 
   const supabase = await createClient();
 
-  // ---------- 3. CEK CACHE HARIAN (WITA), KECUALI paksaPerbarui ----------
   if (!paksaPerbarui) {
     const { mulaiUtc, akhirUtc } = rentangHariIniWita();
 
@@ -323,15 +302,12 @@ export async function POST(request: Request) {
     }
   }
 
-  // ---------- 4. AMBIL PROVIDER AKTIF ----------
   const supabaseServiceRole = createServiceRoleClient();
-  const { data: pengaturanAktif, error: pengaturanError } = await supabaseServiceRole
+  const { data: daftarProviderAktif, error: pengaturanError } = await supabaseServiceRole
     .from('pengaturan_ai')
     .select('*')
     .eq('aktif', true)
-    .order('id', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order('urutan_prioritas', { ascending: true });
 
   if (pengaturanError) {
     console.error('Gagal mengambil pengaturan_ai:', pengaturanError.message);
@@ -341,14 +317,13 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!pengaturanAktif) {
+  if (!daftarProviderAktif || daftarProviderAktif.length === 0) {
     return NextResponse.json(
       { error: 'Analisis AI belum dikonfigurasi. Hubungi Admin.' },
       { status: 503 }
     );
   }
 
-  // ---------- 5. AMBIL DATA + SUSUN PROMPT ----------
   let promptTeks: string;
   let labelPeriodeSaatIni: string | undefined;
   let labelPeriodeSebelumnya: string | undefined;
@@ -373,11 +348,8 @@ export async function POST(request: Request) {
       } else if (konteks === 'phqc-daerah-asal') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPhqcDaerahAsal(data) : susunPromptPhqcDaerahAsal(data);
       } else if (konteks === 'phqc-rba-mingguan' || konteks === 'phqc-rba-bulanan') {
-        // Definisi RBA sama persis antara COP & PHQC -- pakai ulang prompt yang sama.
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRba(data) : susunPromptRba(data);
       } else if (konteks === 'phqc-pelabuhan-mingguan' || konteks === 'phqc-pelabuhan-bulanan') {
-        // Belum ada prompt Prediksi untuk ini -- gerbang di atas sudah
-        // menolak tipe="prediksi" untuk konteks ini sebelum sampai sini.
         promptTeks = susunPromptPelabuhanPhqc(data);
       } else if (konteks === 'cop-per-wilker') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPerWilker(data) : susunPromptPerWilker(data);
@@ -391,11 +363,9 @@ export async function POST(request: Request) {
      } else if ((konteks as any) === 'global-emerging-mingguan' || (konteks as any) === 'global-emerging-bulanan') {
         const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
         
-        // Mencari fungsi secara aman lewat global scope tanpa memanggil namanya langsung
         const pembuatPromptPrediksi = (globalThis as any)['susunPromptPrediksiGlobalEmerging'];
         const pembuatPromptGlobal = (globalThis as any)['susunPromptGlobalEmerging'];
 
-        // Jalankan fungsi jika sudah terdefinisi di global scope, jika tidak gunakan teks default
         if (tipe === 'prediksi') {
           promptTeks = typeof pembuatPromptPrediksi === 'function'
             ? pembuatPromptPrediksi(data)
@@ -416,10 +386,11 @@ export async function POST(request: Request) {
     labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
 
     } else if (konteks === 'penumpang-mingguan' || konteks === 'penumpang-bulanan') {
-      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      const data = await ambilDataAnalisisPenumpang(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPenumpang(data) : susunPromptPenumpang(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
     } else if (konteks === 'vektor-tikus-mingguan' || konteks === 'vektor-tikus-bulanan') {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiVektorTikus(data) : susunPromptVektorTikus(data);
@@ -430,18 +401,23 @@ export async function POST(request: Request) {
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiLabTikus(data) : susunPromptLabTikus(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
-    } else if (konteks === 'tpp-bulanan') {
-      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+    } else if (konteks === 'tpp-bulanan' || konteks === 'tpp-mingguan') {
+      // FIX: pakai ambilDataAnalisisSanitasi (kumulatif untuk
+      // tipe="analisis", periode tunggal untuk tipe="prediksi" --
+      // tidak lagi ambilDataAnalisis() generik.
+      const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTpp(data) : susunPromptTpp(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
-    } else if (konteks === 'ttu-bulanan') {
-      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+    } else if (konteks === 'ttu-bulanan' || konteks === 'ttu-mingguan') {
+      // FIX: sama seperti TPP di atas.
+      const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTtu(data) : susunPromptTtu(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
-    } else if (konteks === 'pab-bulanan') {
-      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+    } else if (konteks === 'pab-bulanan' || konteks === 'pab-mingguan') {
+      // FIX: sama seperti TPP/TTU di atas.
+      const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPab(data) : susunPromptPab(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
@@ -453,7 +429,6 @@ export async function POST(request: Request) {
     ) {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
       
-      // BUNGKUS DENGAN TRY-CATCH AMAN
       try {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiAnopheles(data) : susunPromptAnopheles(data);
       } catch (e) {
@@ -466,6 +441,16 @@ export async function POST(request: Request) {
 
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'cop-mingguan' || konteks === 'cop-bulanan') {
+      const data = await ambilDataAnalisisCop(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = susunPrompt(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+    } else if (konteks === 'phqc-mingguan' || konteks === 'phqc-bulanan') {
+      const data = await ambilDataAnalisisPhqc(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = susunPrompt(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
       promptTeks = susunPrompt(data);
@@ -477,24 +462,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: pesan }, { status: 400 });
   }
 
-  // ---------- 6. PANGGIL PROVIDER AI ----------
-  let hasil;
-  try {
-    const teksMentah = await panggilAI(pengaturanAktif, promptTeks);
-    console.log('TEKS MENTAH DARI AI:', teksMentah); // <-- baris baru, sementara untuk debug
-    hasil = parseHasilAi(teksMentah);
-  } catch (err) {
-    const pesan = err instanceof Error ? err.message : 'Analisis AI gagal dijalankan.';
-    console.error('Panggilan AI gagal:', pesan);
-    return NextResponse.json({ error: `Analisis AI gagal dijalankan: ${pesan}` }, { status: 502 });
+  let hasil: ReturnType<typeof parseHasilAi> | undefined;
+  let pengaturanTerpakai: (typeof daftarProviderAktif)[number] | null = null;
+  const pesanErrorPerProvider: string[] = [];
+
+  for (const provider of daftarProviderAktif) {
+    try {
+      const teksMentah = await panggilAI(provider, promptTeks);
+      console.log(`TEKS MENTAH DARI AI (${provider.nama_tampilan}):`, teksMentah);
+      hasil = parseHasilAi(teksMentah);
+      pengaturanTerpakai = provider;
+      break;
+    } catch (err) {
+      const pesan = err instanceof Error ? err.message : 'Gagal tanpa pesan.';
+      console.error(`Provider "${provider.nama_tampilan}" gagal:`, pesan);
+      pesanErrorPerProvider.push(`${provider.nama_tampilan}: ${pesan}`);
+    }
   }
 
-  // ---------- 7. SIMPAN KE riwayat_analisis_ai ----------
+  if (!hasil || !pengaturanTerpakai) {
+    return NextResponse.json(
+      {
+        error: `Semua provider AI gagal dijalankan. Detail: ${pesanErrorPerProvider.join(' | ')}`,
+      },
+      { status: 502 }
+    );
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const providerDipakai = `${pengaturanAktif.nama_tampilan} (${pengaturanAktif.model})`;
+  const providerDipakai = `${pengaturanTerpakai.nama_tampilan} (${pengaturanTerpakai.model})`;
 
   const { error: insertError } = await supabase.from('riwayat_analisis_ai').insert({
     konteks,

@@ -13,7 +13,7 @@ from epiweeks import Week
 sys.path.append("..")
 from config import NEGARA_OWID_KE_LOKAL
 
-URL_CSV = "https://covid.ourworldindata.org/data/owid-covid-data.csv"
+URL_CSV = "https://catalog.ourworldindata.org/garden/covid/latest/compact/compact.csv"
 PENYAKIT = "Covid-19"
 SUMBER = "OWID (WHO COVID-19 Dashboard)"
 
@@ -36,7 +36,34 @@ def ambil_data(jenis: str) -> list[dict]:
     Return: list baris siap upsert ke laporan_penyakit_emerging.
     """
     print(f"[owid_covid] Mengunduh {URL_CSV} ...")
-    df = pd.read_csv(URL_CSV, usecols=["location", "date", "new_cases", "new_deaths"])
+    df_penuh = pd.read_csv(URL_CSV, nrows=5)
+    kolom_tersedia = df_penuh.columns.tolist()
+    print(f"[owid_covid] Kolom terdeteksi: {kolom_tersedia}")
+
+    def cari_kolom(kandidat: list[str]) -> str:
+        for k in kandidat:
+            if k in kolom_tersedia:
+                return k
+        raise KeyError(
+            f"Tidak ada kolom yang cocok dari kandidat {kandidat}. "
+            f"Kolom yang tersedia di CSV: {kolom_tersedia}"
+        )
+
+    kolom_lokasi = cari_kolom(["location", "country", "Entity"])
+    kolom_tanggal = cari_kolom(["date", "Day", "year"])
+    kolom_kasus = cari_kolom(["new_cases", "cases_new", "new_confirmed"])
+    kolom_kematian = cari_kolom(["new_deaths", "deaths_new", "new_confirmed_deaths"])
+
+    df = pd.read_csv(
+        URL_CSV,
+        usecols=[kolom_lokasi, kolom_tanggal, kolom_kasus, kolom_kematian],
+    )
+    df = df.rename(columns={
+        kolom_lokasi: "location",
+        kolom_tanggal: "date",
+        kolom_kasus: "new_cases",
+        kolom_kematian: "new_deaths",
+    })
     df = df[df["location"].isin(NEGARA_OWID_KE_LOKAL.keys())].copy()
     df["date"] = pd.to_datetime(df["date"])
 

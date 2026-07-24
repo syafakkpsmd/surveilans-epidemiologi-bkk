@@ -105,12 +105,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Informasi Lainnya",
     items: [
-      { label: "Buletin Surveilans", href: "/dashboard/buletin", icon: Newspaper },
+      { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper },
       { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin },
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
       { label: "LMS Kemenkes", href: "https://lms.kemkes.go.id/", icon: Building2 },
       { label: "e-Office Kemenkes", href: "https://auth-eoffice.kemkes.go.id/", icon: Building2 },
       { label: "e-Kinerja Kemenkes", href: "https://ekinerja-portal-eoffice.kemkes.go.id/", icon: TrendingUp },
+      { label: "SRIKANDI", href: "https://srikandi.arsip.go.id/auth/login/", icon: Database },
       { label: "SINKARKES", href: "https://sinkarkes.kemkes.go.id/", icon: Database },
       { label: "Penyakit Infeksi Emerging", href: "https://infeksiemerging.kemkes.go.id/", icon: Microscope },
       { label: "SKDR", href: "https://skdr.kemkes.go.id/auth/", icon: Database },

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import TrenChartLine from "@/components/vektor/TrenChartLine";
-import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";

@@ -14,6 +14,7 @@ import {
   ambilDataAnalisisCop,
   ambilDataAnalisisPhqc,
   ambilDataAnalisisPenumpang,
+  ambilDataAnalisisRatGuard,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -48,12 +49,17 @@ import {
   susunPromptPrediksiNegaraTren,
   susunPromptVektorTikus,
   susunPromptPrediksiVektorTikus,
+  susunPromptVektorDiare,
+  susunPromptPrediksiVektorDiare,
+  susunPromptRatGuard,
+  susunPromptPrediksiRatGuard,
 } from '@/lib/ai/prompt';
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
 import { rentangHariIniWita } from '@/lib/ai/periode';
 import type { Wilayah } from '@/types/database.types';
 import { type MetrikVektor } from '@/lib/ai/dataVektor';
+
 
 export const maxDuration = 60;
 
@@ -191,7 +197,9 @@ export async function POST(request: Request) {
   konteks === 'vektor-tikus-bulanan';
   const konteksVektorDiare =
   konteks === 'vektor-diare-lalat-mingguan' ||
-  konteks === 'vektor-diare-kecoa-mingguan';
+  konteks === 'vektor-diare-kecoa-mingguan' ||
+  konteks === 'vektor-diare-lalat-bulanan' ||
+  konteks === 'vektor-diare-kecoa-bulanan';
   const konteksSanitasi = isKonteksSanitasi(konteks);
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
@@ -334,7 +342,7 @@ export async function POST(request: Request) {
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else if (konteksPesawat) {
-      const data = await ambilDataAnalisisPesawat(periodeKey, wilayahKerja, metrikPesawat as MetrikPesawat);
+      const data = await ambilDataAnalisisPesawat(periodeKey, wilayahKerja, metrikPesawat as MetrikPesawat, tipe);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPesawatTren(data) : susunPromptPesawatTren(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
@@ -416,11 +424,29 @@ export async function POST(request: Request) {
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else if (konteks === 'pab-bulanan' || konteks === 'pab-mingguan') {
-      // FIX: sama seperti TPP/TTU di atas.
       const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPab(data) : susunPromptPab(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'rat-guard-bulanan' || konteks === 'rat-guard-mingguan') {
+      // pakai ambilDataAnalisisRatGuard sendiri, BUKAN ambilDataAnalisisSanitasi
+      // (yang else-fallback-nya jatuh ke PAB kalau dipakai untuk rat-guard).
+      const data = await ambilDataAnalisisRatGuard(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRatGuard(data) : susunPromptRatGuard(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (
+      konteks === 'vektor-diare-lalat-mingguan' ||
+      konteks === 'vektor-diare-kecoa-mingguan' ||
+      konteks === 'vektor-diare-lalat-bulanan' ||
+      konteks === 'vektor-diare-kecoa-bulanan'
+    ) {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiVektorDiare(data) : susunPromptVektorDiare(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
     } else if (
       konteks === 'anopheles-dewasa-mingguan' ||
       konteks === 'anopheles-dewasa-bulanan' ||

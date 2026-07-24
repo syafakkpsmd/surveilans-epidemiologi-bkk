@@ -125,8 +125,23 @@ export default async function AlatAngkutPesawatPage({
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
   const konteksMingguan = 'pesawat-mingguan';
   const konteksBulanan = 'pesawat-bulanan';
-  const periodeKeyMingguan = `${tahun}-W${mingguBerjalan}`;
-  const periodeKeyBulanan = `${tahun}-${bulanBerjalan}`;
+
+  // periodeKey sekarang ikut rentang filter FilterRentangMinggu/
+  // FilterRentangBulan (bukan cuma "minggu/bulan berjalan" lagi) --
+  // format "TAHUN-WawaL_Wakhir" / "TAHUN-awal_akhir", diparse oleh
+  // ambilDataAnalisisPesawat() di lib/ai/dataPesawat.ts. Default kalau
+  // user belum menerapkan filter: minggu 1 s.d. minggu berjalan /
+  // Januari s.d. bulan berjalan.
+  let mgDariNum = mgDari ? parseInt(mgDari, 10) : 1;
+  let mgSampaiNum = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
+  if (mgDariNum > mgSampaiNum) [mgDariNum, mgSampaiNum] = [mgSampaiNum, mgDariNum];
+
+  let bulanDariNum = formatBulanDari ? parseInt(formatBulanDari.split('-')[1], 10) : 1;
+  let bulanSampaiNum = formatBulanSampai ? parseInt(formatBulanSampai.split('-')[1], 10) : bulanBerjalan;
+  if (bulanDariNum > bulanSampaiNum) [bulanDariNum, bulanSampaiNum] = [bulanSampaiNum, bulanDariNum];
+
+  const periodeKeyMingguan = `${tahun}-W${mgDariNum}_W${mgSampaiNum}`;
+  const periodeKeyBulanan = `${tahun}-${bulanDariNum}_${bulanSampaiNum}`;
 
   const ringkasanBulananBerlabel = tambahLabelBulan(ringkasanBulanan);
   const dataGenderBulananBerlabel = tambahLabelBulan(dataGenderBulanan);

@@ -1176,3 +1176,39 @@ export async function getDaftarPabTmsDetail(tahun: number, wilayahKerja?: string
   if (error) throw new Error(`Gagal ambil daftar PAB TMS: ${error.message}`);
   return (data ?? []) as any[];
 }
+export async function getRingkasanRatGuardBulanan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let query = (supabase as any)
+    .from('view_rat_guard_bulanan')
+    .select('*')
+    .eq('tahun', tahun)
+    .order('bulan');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan bulanan Rat Guard: ${error.message}`);
+  return (data ?? []) as any[];
+}
+
+export async function getRingkasanRatGuardMingguan(tahun: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  // alias minggu_epid -> minggu supaya konsisten dengan key kolom yang dipakai
+  // RatGuardClient.tsx (sama seperti TtuClient.tsx pakai "minggu", bukan "minggu_epid")
+  let query = (supabase as any)
+    .from('view_rat_guard_mingguan')
+    .select('tahun, minggu:minggu_epid, wilayah_kerja, jumlah_kapal, pasang, tidak_pasang, persentase_kepatuhan')
+    .eq('tahun', tahun)
+    .order('minggu_epid');
+  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
+  const { data, error } = await query;
+  if (error) throw new Error(`Gagal ambil ringkasan mingguan Rat Guard: ${error.message}`);
+  return (data ?? []) as any[];
+}
+
+export async function getDaftarWilayahKerjaRatGuard() {
+  const supabase = await createClient();
+  const { data, error } = await (supabase as any)
+    .from('view_wilayah_kerja_rat_guard')
+    .select('wilayah_kerja');
+  if (error) throw new Error(`Gagal ambil daftar wilayah kerja Rat Guard: ${error.message}`);
+  return (data ?? []).map((d: any) => d.wilayah_kerja) as string[];
+}

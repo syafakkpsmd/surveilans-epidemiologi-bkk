@@ -14,9 +14,11 @@ import {
   getRingkasanTppMingguan,
   getRingkasanTtuMingguan,
   getRingkasanPabMingguan,
+  getRingkasanRatGuardMingguan,   // <-- tambahkan
+  getRingkasanRatGuardBulanan,
 } from '@/lib/supabase/queries';
-import { getTrenDiareMultiVariabel } from '@/lib/supabase/queriesVektorDiareEnhanced';
-import type { Wilayah, KategoriCop } from '@/types/database.types';
+import { getTrenDiareMultiVariabel, getTrenDiareBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
+import type { KategoriCop } from '@/types/database.types';
 import {
   parsePeriodeMingguan,
   parsePeriodeBulanan,
@@ -33,7 +35,7 @@ import {
   type PeriodeMingguan,
   type PeriodeBulanan,
 } from './periode';
-import { ambilDataAnalisisVektorDbd, ambilDataAnalisisVektorDbdRentang, type MetrikVektor } from './dataVektor';
+import { ambilDataAnalisisVektorDbdRentang, type MetrikVektor } from './dataVektor';
 
 export const KONTEKS_TREN = [
   'dashboard-utama',
@@ -55,6 +57,8 @@ export const KONTEKS_TREN = [
   'vektor-tikus-bulanan',
   'vektor-diare-lalat-mingguan',
   'vektor-diare-kecoa-mingguan',
+  'vektor-diare-lalat-bulanan',
+  'vektor-diare-kecoa-bulanan',
   'anopheles-dewasa-mingguan',
   'anopheles-dewasa-bulanan',
   'anopheles-larva-mingguan',
@@ -65,6 +69,8 @@ export const KONTEKS_TREN = [
   'tpp-mingguan',
   'ttu-mingguan',
   'pab-mingguan',
+  'rat-guard-mingguan',
+  'rat-guard-bulanan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -97,6 +103,8 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'vektor-tikus-bulanan',
   'vektor-diare-lalat-mingguan',
   'vektor-diare-kecoa-mingguan',
+  'vektor-diare-lalat-bulanan',
+  'vektor-diare-kecoa-bulanan',
   'anopheles-dewasa-mingguan',
   'anopheles-dewasa-bulanan',
   'anopheles-larva-mingguan',
@@ -107,6 +115,8 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'tpp-mingguan',
   'ttu-mingguan',
   'pab-mingguan',
+  'rat-guard-mingguan',
+  'rat-guard-bulanan',
 ] as const;
 
 export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN] as const;
@@ -141,6 +151,8 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
     konteks === 'vektor-tikus-bulanan' ||
     konteks === 'vektor-diare-lalat-mingguan' ||
     konteks === 'vektor-diare-kecoa-mingguan' ||
+    konteks === 'vektor-diare-lalat-bulanan' ||
+    konteks === 'vektor-diare-kecoa-bulanan' ||
     konteks.startsWith('anopheles-')
   );
 }
@@ -148,7 +160,8 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
 export function isKonteksSanitasi(konteks: KonteksAnalisis): boolean {
   return (
     konteks === 'tpp-bulanan' || konteks === 'ttu-bulanan' || konteks === 'pab-bulanan' ||
-    konteks === 'tpp-mingguan' || konteks === 'ttu-mingguan' || konteks === 'pab-mingguan'
+    konteks === 'tpp-mingguan' || konteks === 'ttu-mingguan' || konteks === 'pab-mingguan' ||
+    konteks === 'rat-guard-bulanan' || konteks === 'rat-guard-mingguan'
   );
 }
 
@@ -344,6 +357,133 @@ export async function ambilDataAnalisisCop(
   ]);
   return {
     labelKonteks: 'Kegiatan COP (Certificate of Pratique)',
+    labelWilayah,
+    labelPeriodeSaatIni: `Januari s.d. ${labelPeriodeBulanan(periodeSaatIni)} (kumulatif)`,
+    labelPeriodeSebelumnya:
+      periodeSaatIni.bulan > 1
+        ? `Januari s.d. ${labelPeriodeBulanan({ jenis: 'bulanan', tahun: periodeSaatIni.tahun, bulan: periodeSaatIni.bulan - 1 })} (kumulatif)`
+        : 'Belum ada data sebelum Januari',
+    ringkasanSaatIni: saatIni,
+    ringkasanSebelumnya: sebelumnya,
+    topKategori: [],
+  };
+}
+
+const KOLOM_ANGKA_RATGUARD = ['jumlah_kapal', 'pasang', 'tidak_pasang'] as const;
+// CATATAN: persentase_kepatuhan SENGAJA tidak dimasukkan ke sini — kalau ikut disum
+// mentah (via jumlahkanRingkasan/jumlahkanRentang) hasilnya salah waktu ada >1 wilayah
+// kerja (mis. 60% + 90% = 150%). Dihitung ulang manual setelah agregasi, lihat
+// tambahkanPersentaseKepatuhan() di bawah.
+
+function tambahkanPersentaseKepatuhan(ringkasan: Record<string, number>): Record<string, number> {
+  const jumlahKapal = ringkasan.jumlah_kapal ?? 0;
+  const pasang = ringkasan.pasang ?? 0;
+  return {
+    ...ringkasan,
+    persentase_kepatuhan: jumlahKapal > 0 ? Math.round((pasang / jumlahKapal) * 1000) / 10 : 0,
+  };
+}
+
+async function ambilRatGuardMingguan(p: PeriodeMingguan, wilayahKerja: string | undefined) {
+  const ringkasan = await getRingkasanRatGuardMingguan(p.tahun, wilayahKerja);
+  const baris = (ringkasan as any[]).filter((r) => r.minggu === p.minggu);
+  return tambahkanPersentaseKepatuhan(cariAtauJumlahkan(baris, wilayahKerja, KOLOM_ANGKA_RATGUARD as any));
+}
+
+async function ambilRatGuardBulanan(p: PeriodeBulanan, wilayahKerja: string | undefined) {
+  const ringkasan = await getRingkasanRatGuardBulanan(p.tahun, wilayahKerja);
+  const baris = (ringkasan as any[]).filter((r) => r.bulan === p.bulan);
+  return tambahkanPersentaseKepatuhan(cariAtauJumlahkan(baris, wilayahKerja, KOLOM_ANGKA_RATGUARD as any));
+}
+
+async function ambilRatGuardKumulatifMingguan(tahun: number, mingguAkhir: number, wilayahKerja: string | undefined) {
+  const ringkasan = await getRingkasanRatGuardMingguan(tahun, wilayahKerja);
+  const baris = (ringkasan as any[]).filter((r) => Number(r.minggu) >= 1 && Number(r.minggu) <= mingguAkhir);
+  return tambahkanPersentaseKepatuhan(jumlahkanRentang(baris, wilayahKerja, KOLOM_ANGKA_RATGUARD as any));
+}
+
+async function ambilRatGuardKumulatifBulanan(tahun: number, bulanAkhir: number, wilayahKerja: string | undefined) {
+  const ringkasan = await getRingkasanRatGuardBulanan(tahun, wilayahKerja);
+  const baris = (ringkasan as any[]).filter((r) => Number(r.bulan) >= 1 && Number(r.bulan) <= bulanAkhir);
+  return tambahkanPersentaseKepatuhan(jumlahkanRentang(baris, wilayahKerja, KOLOM_ANGKA_RATGUARD as any));
+}
+
+export async function ambilDataAnalisisRatGuard(
+  konteks: 'rat-guard-mingguan' | 'rat-guard-bulanan',
+  periodeKey: string,
+  wilayahKerja: string | undefined,
+  tipe: 'analisis' | 'prediksi'
+): Promise<DataAnalisis> {
+  const labelWilayah = wilayahKerja
+    ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+  const labelModul = 'Pengawasan Rat Guard';
+  const isMingguan = konteks === 'rat-guard-mingguan';
+
+  if (tipe === 'prediksi') {
+    if (isMingguan) {
+      const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilRatGuardMingguan(periodeSaatIni, wilayahKerja),
+        ambilRatGuardMingguan(periodeSebelumnya, wilayahKerja),
+      ]);
+      return {
+        labelKonteks: labelModul,
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilRatGuardBulanan(periodeSaatIni, wilayahKerja),
+      ambilRatGuardBulanan(periodeSebelumnya, wilayahKerja),
+    ]);
+    return {
+      labelKonteks: labelModul,
+      labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni,
+      ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  if (isMingguan) {
+    const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilRatGuardKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu, wilayahKerja),
+      ambilRatGuardKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu - 1, wilayahKerja),
+    ]);
+    return {
+      labelKonteks: labelModul,
+      labelWilayah,
+      labelPeriodeSaatIni: `Minggu epidemiologi 1 s.d. ${periodeSaatIni.minggu} tahun ${periodeSaatIni.tahun} (kumulatif)`,
+      labelPeriodeSebelumnya:
+        periodeSaatIni.minggu > 1
+          ? `Minggu epidemiologi 1 s.d. ${periodeSaatIni.minggu - 1} tahun ${periodeSaatIni.tahun} (kumulatif)`
+          : 'Belum ada data sebelum minggu epidemiologi ke-1',
+      ringkasanSaatIni: saatIni,
+      ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+  const [saatIni, sebelumnya] = await Promise.all([
+    ambilRatGuardKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan, wilayahKerja),
+    ambilRatGuardKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan - 1, wilayahKerja),
+  ]);
+
+  return {
+    labelKonteks: labelModul,
     labelWilayah,
     labelPeriodeSaatIni: `Januari s.d. ${labelPeriodeBulanan(periodeSaatIni)} (kumulatif)`,
     labelPeriodeSebelumnya:
@@ -595,6 +735,7 @@ export async function ambilDataAnalisisPenumpang(
   };
 }
 
+
 async function ambilTikusLabMingguan(
   p: PeriodeMingguan,
   wilayahKerja: string | undefined
@@ -818,6 +959,68 @@ async function ambilVektorDiareMingguan(
     if (typeof v === 'number') hasil[k] = v;
   }
   return hasil;
+}
+
+const KOLOM_RERATA_DIARE_SUFFIX = '_rerata';
+
+function agregasiDiareRentang(rows: any[]): Record<string, number> {
+  if (rows.length === 0) return {};
+  const kunciNumerik = new Set<string>();
+  rows.forEach((r) => Object.keys(r).forEach((k) => { if (typeof r[k] === 'number') kunciNumerik.add(k); }));
+
+  const hasil: Record<string, number> = {};
+  kunciNumerik.forEach((k) => {
+    const nilai = rows.map((r) => Number(r[k]) || 0);
+    if (k.endsWith(KOLOM_RERATA_DIARE_SUFFIX)) {
+      const nonZero = nilai.filter((v) => v > 0);
+      hasil[k] = nonZero.length > 0 ? Number((nonZero.reduce((a, b) => a + b, 0) / nonZero.length).toFixed(2)) : 0;
+    } else {
+      hasil[k] = nilai.reduce((a, b) => a + b, 0);
+    }
+  });
+  return hasil;
+}
+
+async function ambilVektorDiareRentangMingguan(
+  tahun: number,
+  jenis: 'lalat' | 'kecoa',
+  mgAwal: number,
+  mgAkhir: number,
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const rows = await getTrenDiareMultiVariabel(tahun, jenis, wilayahKerja);
+  const terfilter = (rows as any[]).filter(
+    (r) => r.minggu_epid >= mgAwal && r.minggu_epid <= mgAkhir
+  );
+  return agregasiDiareRentang(terfilter);
+}
+
+async function ambilVektorDiareBulananSatuBulan(
+  tahun: number,
+  jenis: 'lalat' | 'kecoa',
+  bulan: number,
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const rows = await getTrenDiareBulanan(tahun, jenis, wilayahKerja);
+  const baris = (rows as any[]).find((r) => r.bulan === bulan);
+  if (!baris) return {};
+  const hasil: Record<string, number> = {};
+  for (const [k, v] of Object.entries(baris)) {
+    if (typeof v === 'number') hasil[k] = v;
+  }
+  return hasil;
+}
+
+async function ambilVektorDiareRentangBulanan(
+  tahun: number,
+  jenis: 'lalat' | 'kecoa',
+  bulanAwal: number,
+  bulanAkhir: number,
+  wilayahKerja: string | undefined
+): Promise<Record<string, number>> {
+  const rows = await getTrenDiareBulanan(tahun, jenis, wilayahKerja);
+  const terfilter = (rows as any[]).filter((r) => r.bulan >= bulanAwal && r.bulan <= bulanAkhir);
+  return agregasiDiareRentang(terfilter);
 }
 
 async function ambilAnophelesRingkasan(
@@ -1151,20 +1354,87 @@ export async function ambilDataAnalisis(
     };
   }
 
-  if (konteks === 'vektor-diare-lalat-mingguan' || konteks === 'vektor-diare-kecoa-mingguan') {
-    const jenis: 'lalat' | 'kecoa' = konteks === 'vektor-diare-lalat-mingguan' ? 'lalat' : 'kecoa';
-    const periodeSaatIni = parsePeriodeMingguan(periodeKey);
-    const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
-      ambilVektorDiareMingguan(periodeSaatIni, jenis, wilayahKerja),
-      ambilVektorDiareMingguan(periodeSebelumnya, jenis, wilayahKerja),
-    ]);
+  if (
+    konteks === 'vektor-diare-lalat-mingguan' ||
+    konteks === 'vektor-diare-kecoa-mingguan' ||
+    konteks === 'vektor-diare-lalat-bulanan' ||
+    konteks === 'vektor-diare-kecoa-bulanan'
+  ) {
+    const jenis: 'lalat' | 'kecoa' = konteks.includes('lalat') ? 'lalat' : 'kecoa';
     const labelJenis = jenis === 'lalat' ? 'Lalat (Fly Index)' : 'Kecoa (Kepadatan/m²)';
+
+    if (konteks.endsWith('-mingguan')) {
+      if (isPeriodeRentangMingguan(periodeKey)) {
+        const r = parseRentangMingguan(periodeKey);
+        const adaSebelumnya = r.mingguAwal > 1;
+        const [saatIni, sebelumnya] = await Promise.all([
+          ambilVektorDiareRentangMingguan(r.tahun, jenis, r.mingguAwal, r.mingguAkhir, wilayahKerja),
+          adaSebelumnya
+            ? ambilVektorDiareRentangMingguan(r.tahun, jenis, 1, r.mingguAwal - 1, wilayahKerja)
+            : Promise.resolve({}),
+        ]);
+        return {
+          labelKonteks: `Surveilans Vektor Diare — ${labelJenis}`,
+          labelWilayah,
+          labelPeriodeSaatIni: labelRentangMingguan(r),
+          labelPeriodeSebelumnya: adaSebelumnya
+            ? `minggu epidemiologi ke-1 s.d. ke-${r.mingguAwal - 1} tahun ${r.tahun} (sebelum rentang ini)`
+            : 'Tidak ada data sebelum minggu ke-1',
+          ringkasanSaatIni: saatIni,
+          ringkasanSebelumnya: sebelumnya,
+          topKategori: [],
+        };
+      }
+      const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilVektorDiareMingguan(periodeSaatIni, jenis, wilayahKerja),
+        ambilVektorDiareMingguan(periodeSebelumnya, jenis, wilayahKerja),
+      ]);
+      return {
+        labelKonteks: `Surveilans Vektor Diare — ${labelJenis}`,
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    if (isPeriodeRentangBulanan(periodeKey)) {
+      const r = parseRentangBulanan(periodeKey);
+      const adaSebelumnya = r.bulanAwal > 1;
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilVektorDiareRentangBulanan(r.tahun, jenis, r.bulanAwal, r.bulanAkhir, wilayahKerja),
+        adaSebelumnya
+          ? ambilVektorDiareRentangBulanan(r.tahun, jenis, 1, r.bulanAwal - 1, wilayahKerja)
+          : Promise.resolve({}),
+      ]);
+      return {
+        labelKonteks: `Surveilans Vektor Diare — ${labelJenis}`,
+        labelWilayah,
+        labelPeriodeSaatIni: labelRentangBulanan(r),
+        labelPeriodeSebelumnya: adaSebelumnya
+          ? `Januari s.d. bulan sebelum rentang ini, tahun ${r.tahun}`
+          : 'Tidak ada data sebelum bulan pertama',
+        ringkasanSaatIni: saatIni,
+        ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    const periodeSaatIni = parsePeriodeBulanan(periodeKey);
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilVektorDiareBulananSatuBulan(periodeSaatIni.tahun, jenis, periodeSaatIni.bulan, wilayahKerja),
+      ambilVektorDiareBulananSatuBulan(periodeSebelumnya.tahun, jenis, periodeSebelumnya.bulan, wilayahKerja),
+    ]);
     return {
       labelKonteks: `Surveilans Vektor Diare — ${labelJenis}`,
       labelWilayah,
-      labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
-      labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],

@@ -846,6 +846,74 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
 }`;
 }
 
+// Prompt DIARE LALAT DAN KECOA
+
+const STANDAR_VEKTOR_DIARE = `STANDAR BAKU MUTU VEKTOR PENYAKIT DIARE (rujukan Permenkes No. 02 Tahun 2023 tentang Standar Baku Mutu Kesehatan Lingkungan dan Persyaratan Kesehatan untuk Vektor dan Binatang Pembawa Penyakit):
+- Fly Index (kepadatan lalat) AMAN bila < 2 (indikator rendah), 2-5 sedang, > 5 tinggi/padat -- pada baku mutu operasional lapangan BKK, ambang siaga umumnya diset di 8 sebagai batas kepadatan tinggi yang wajib direspons dengan pengendalian.
+- Kepadatan kecoa (per m²) AMAN bila mendekati 0; nilai lebih dari 2 ekor/m² menunjukkan infestasi yang perlu direspons.
+- Lalat dan kecoa berperan sebagai vektor mekanis penyakit diare (termasuk disentri, kolera, tifoid) dengan cara memindahkan patogen dari sumber kontaminasi (sampah, kotoran, bangkai) ke makanan/permukaan yang kontak dengan manusia -- risiko meningkat di area pelabuhan/bandara dengan lalu lintas pangan dan sanitasi lingkungan yang kurang terjaga.`;
+
+export function susunPromptVektorDiare(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis khusus untuk grafik "${data.labelKonteks}" di wilayah kerja: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+${STANDAR_VEKTOR_DIARE}
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+BREAKDOWN LOKASI PENGAMATAN (konteks tambahan, bukan fokus utama):
+${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah}`).join('\n') : '(tidak ada data lokasi untuk periode ini)'}
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Kalau data berisi fly_index_rerata atau kepadatan_kecoa_rerata: bandingkan dengan ambang baku mutu di atas, sebutkan AMAN/WASPADA/BAHAYA.
+- Kalau data berisi variabel lingkungan (suhu, kelembapan, curah hujan): kaitkan secara kualitatif dengan kondisi yang mendukung/menekan perkembangbiakan lalat atau kecoa (mis. kelembaban tinggi & suhu hangat cenderung mendukung populasi lalat), tanpa mengklaim hubungan sebab-akibat statistik yang tidak bisa dibuktikan dari data ini.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
+- Kaitkan temuan kepadatan tinggi (bila ada) dengan risiko kesehatan masyarakat: penyakit diare, disentri, tifoid melalui kontaminasi makanan/permukaan, terutama di area dengan aktivitas pangan (mis. dekat TPP/kantin pelabuhan-bandara).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan kondisi kepadatan vektor & faktor lingkungan periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi anomali/lonjakan dibanding periode sebelumnya, atau nyatakan aman sesuai baku mutu",
+  "rekomendasi": "rekomendasi pengendalian vektor & sanitasi lingkungan berbasis angka di atas, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiVektorDiare(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren untuk grafik "${data.labelKonteks}" di wilayah kerja: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+${STANDAR_VEKTOR_DIARE}
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+ATURAN WAJIB:
+- Prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi sederhana dari data historis di atas, BUKAN model time-series canggih.
+- Hitung arah & besar perubahan dari data di atas, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kalau proyeksi fly_index/kepadatan kecoa mendekati/melewati ambang baku mutu, nyatakan eksplisit risiko WASPADA/BAHAYA yang mengancam.
+- Kaitkan proyeksi kenaikan (bila ada) dengan potensi eskalasi risiko penyakit diare dan kebutuhan intensifikasi pengendalian (pengasapan/insektisida, sanitasi lingkungan, edukasi pengelola area pangan).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren periode berikutnya berdasarkan data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi pengendalian vektor berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
 // ============================================================
 // TPP / TTU / PAB — Surveilans Sanitasi Lingkungan
 // Data biner Memenuhi Syarat (MS) / Tidak Memenuhi Syarat (TMS) per
@@ -1028,4 +1096,71 @@ function formatRingkasanKeyValue(ringkasan: Record<string, number>): string {
   return Object.entries(ringkasan)
     .map(([key, value]) => `- ${key}: ${value}`)
     .join('\n');
+}
+
+export function susunPromptRatGuard(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan Rat Guard (alat pencegah tikus naik dari tali tambat kapal) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN ISTILAH:
+- "jumlah_kapal" = jumlah kapal yang diperiksa kelengkapan rat guard-nya periode ini.
+- "pasang"/"tidak_pasang" = jumlah kapal yang terpasang/tidak terpasang rat guard.
+- "persentase_kepatuhan" = proporsi kapal yang terpasang rat guard dari total kapal diperiksa.
+
+KONTEKS KEBIJAKAN: Rat Guard adalah alat wajib pada kapal yang bersandar, bagian dari upaya
+kekarantinaan kesehatan untuk mencegah introduksi vektor pes (tikus) dari kapal ke wilayah
+pelabuhan/darat, sesuai International Health Regulations (IHR) dan Permenkes Kekarantinaan
+Kesehatan.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah kapal diperiksa dan persentase kepatuhan.
+- Kalau ada wilayah kerja dengan kepatuhan rendah dibanding wilayah lain, soroti sebagai prioritas pembinaan.
+- Kalau kepatuhan 100% dan stabil, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan Rat Guard periode berjalan, 2-4 kalimat",
+  "anomali": "penurunan kepatuhan atau wilayah kerja dengan kepatuhan rendah, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut kekarantinaan kesehatan berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiRatGuard(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren kepatuhan pemasangan Rat Guard untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN ISTILAH:
+- "jumlah_kapal" = jumlah kapal yang diperiksa kelengkapan rat guard-nya periode ini.
+- "pasang"/"tidak_pasang" = jumlah kapal yang terpasang/tidak terpasang rat guard.
+- "persentase_kepatuhan" = proporsi kapal yang terpasang rat guard dari total kapal diperiksa.
+
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan persentase kepatuhan dari 2 titik itu, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi penurunan kepatuhan dengan kebutuhan intensifikasi pengawasan kekarantinaan kesehatan di wilayah terkait (risiko introduksi vektor pes dari kapal).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren persentase kepatuhan periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengawasan kekarantinaan berbasis proyeksi tren ini, 1-3 poin"
+}`;
 }

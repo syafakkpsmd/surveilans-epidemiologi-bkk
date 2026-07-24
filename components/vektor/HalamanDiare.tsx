@@ -53,38 +53,63 @@ export default async function HalamanDiare({
     wilker?: string;
     tahun?: string;
     mode?: string;
-    mgAwal?: string;
-    mgAkhir?: string;
+    mgDari?: string;
+    mgSampai?: string;
+    bulanDari?: string;
+    bulanSampai?: string;
   }>;
 }) {
   const cfg = KONFIG[jenis];
 
-  // 1. Unwrap searchParams & Parse Nilai
-  const { wilker, tahun: tahunParam, mode, mgAwal, mgAkhir } = await searchParams;
-  const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
-  const mingguAwal = mgAwal ? parseInt(mgAwal, 10) : undefined;
-  const mingguAkhir = mgAkhir ? parseInt(mgAkhir, 10) : undefined;
+  // 1. Unwrap searchParams
+  const resolvedParams = await searchParams;
+  const { wilker, tahun: tahunParam, mode, mgDari, mgSampai, bulanDari, bulanSampai } = resolvedParams;
 
-  // 2. Tentukan Mode Tampilan (Bulanan vs Mingguan)
+  const { tahunEpid, mingguEpid: mingguEpidAsli } = getMingguEpidSaatIni();
+  const bulanBerjalan = new Date().getMonth() + 1;
+
+  // 2. Hitung minggu berjalan aman (minus 1 minggu)
+  let tahunDefault = tahunEpid;
+  let mingguBerjalan = mingguEpidAsli - 1;
+
+  if (mingguBerjalan < 1) {
+    tahunDefault = tahunEpid - 1;
+    mingguBerjalan = 52;
+  }
+
+  // 3. Tahun yang dipakai query
+  const tahun = tahunParam ? parseInt(tahunParam, 10) : tahunDefault;
+
+  // 4. Rentang Mingguan (tangkap mgDari / mgAwal & mgSampai / mgAkhir)
+  const paramsAny = resolvedParams as Record<string, string | undefined>;
+  const mgDariParam = mgDari || paramsAny.mgAwal;
+  const mgSampaiParam = mgSampai || paramsAny.mgAkhir;
+
+  const mgAwalDipilih = mgDariParam ? parseInt(mgDariParam, 10) : mingguBerjalan;
+  const mgAkhirDipilih = mgSampaiParam ? parseInt(mgSampaiParam, 10) : mingguBerjalan;
+
+  // 5. Rentang Bulanan
+  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari.split('-')[1], 10) : bulanBerjalan;
+  const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai.split('-')[1], 10) : bulanBerjalan;
+  const tahunBulanDipilih = bulanDari ? parseInt(bulanDari.split('-')[0], 10) : tahun;
+
+  // 6. Tentukan Mode Tampilan (Bulanan vs Mingguan)
   const isModeBulanan = mode === 'bulanan';
 
-  // 3. Fetch Data secara Parallel
+  // 7. Fetch Data secara Parallel
   const [role, daftarWilker, dataMingguan, dataBulanan, hasilPerWilker, lokasiTidakMemenuhi] =
     await Promise.all([
       getUserRole(),
       getWilkerRef(),
-      getTrenDiareMultiVariabel(tahun, jenis, wilker, mingguAwal, mingguAkhir),
+      getTrenDiareMultiVariabel(tahun, jenis, wilker, mgAwalDipilih, mgAkhirDipilih),
       getTrenDiareBulanan(tahun, jenis, wilker),
-      // Switch query data sesuai mode aktif: Bulanan atau Mingguan
       isModeBulanan
         ? getHasilPengamatanBulanan(tahun, jenis, wilker)
         : getHasilPengamatanPerWilker(tahun, jenis, wilker),
       getLokasiTidakMemenuhiSyarat(tahun, jenis, wilker),
     ]);
 
-  const { tahunEpid, mingguEpid: mingguEpidAsli } = getMingguEpidSaatIni();
-  const mingguEpid = mingguEpidAsli - 1;
-  const { mulai, selesai } = getRentangMingguEpid(tahunEpid, mingguEpid);
+  const { mulai, selesai } = getRentangMingguEpid(tahunEpid, mingguBerjalan);
 
   const breakdownLokasi = await getBreakdownKategori({
     tabel: 'vektor_diare',
@@ -96,9 +121,13 @@ export default async function HalamanDiare({
     filterTambahan: { jenis_kegiatan: jenis },
   });
 
-  const periodeKey = `${tahunEpid}-W${mingguEpid}`;
+  // Periode Key
+  const periodeKeyMingguan = `${tahunEpid}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
+  const periodeKeyBulanan = `${tahunBulanDipilih}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
+  const konteksMingguan = `${cfg.konteks}`;
+  const konteksBulanan = cfg.konteks.replace('-mingguan', '-bulanan');
 
-  // Cari nama wilayah berdasarkan kode wilker yang dipilih
+  // Cari nama wilayah
   const wilkerTerpilih = daftarWilker.find(
     (w: any) => (w.kode_wilker || w.kode || w.id) === wilker
   );
@@ -134,52 +163,69 @@ export default async function HalamanDiare({
           />
         </div>
 
-        {/* Kartu Grafik Hasil Pengamatan */}
         <div className="rounded-xl bg-white p-4 shadow-sm">
           <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">
             {isModeBulanan
               ? `Hasil Pengamatan Bulanan ${namaWilkerLengkap ? `(${namaWilkerLengkap})` : ''}`
               : `Hasil Pengamatan Mingguan ${namaWilkerLengkap ? `(${namaWilkerLengkap})` : ''}`}
           </h2>
-
-          <GrafikHasilPengamatanWilker
-            data={hasilPerWilker}
-            isBulanan={isModeBulanan}
-          />
+          <GrafikHasilPengamatanWilker data={hasilPerWilker} isBulanan={isModeBulanan} />
         </div>
 
-        {/* Kartu Grafik Insektisida vs Luas Area */}
         <div className="rounded-xl bg-white p-4 shadow-sm">
           <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">
             Jumlah Insektisida vs Luas Area
           </h2>
           <GrafikInsektisidaVsLuas
-  data={isModeBulanan ? dataBulanan : dataMingguan}
-  warna={cfg.metrikUtama.warna}
-  isBulanan={isModeBulanan} // <-- Tambahkan prop ini
-/>
+            data={isModeBulanan ? dataBulanan : dataMingguan}
+            warna={cfg.metrikUtama.warna}
+            isBulanan={isModeBulanan}
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <BoxAnalisisAI
-          sudahLogin={role !== null}
-          role={getValidRole(role)}
-          konteks={cfg.konteks}
-          periodeKey={periodeKey}
-          wilayahKerja={wilker}
-          metrik={cfg.metrikUtama.key}
-        />
-        <BoxPrediksiAI
-          sudahLogin={role !== null}
-          role={getValidRole(role)}
-          konteks={cfg.konteks}
-          periodeKey={periodeKey}
-          wilayahKerja={wilker}
-          metrik={cfg.metrikUtama.key}
-        />
+        {isModeBulanan ? (
+          <>
+            <BoxAnalisisAI
+              sudahLogin={role !== null}
+              role={getValidRole(role)}
+              konteks={konteksBulanan}
+              periodeKey={periodeKeyBulanan}
+              wilayahKerja={wilker}
+              metrik={cfg.metrikUtama.key}
+            />
+            <BoxPrediksiAI
+              sudahLogin={role !== null}
+              role={getValidRole(role)}
+              konteks={konteksBulanan}
+              periodeKey={periodeKeyBulanan}
+              wilayahKerja={wilker}
+              metrik={cfg.metrikUtama.key}
+            />
+          </>
+        ) : (
+          <>
+            <BoxAnalisisAI
+              sudahLogin={role !== null}
+              role={getValidRole(role)}
+              konteks={konteksMingguan}
+              periodeKey={periodeKeyMingguan}
+              wilayahKerja={wilker}
+              metrik={cfg.metrikUtama.key}
+            />
+            <BoxPrediksiAI
+              sudahLogin={role !== null}
+              role={getValidRole(role)}
+              konteks={konteksMingguan}
+              periodeKey={periodeKeyMingguan}
+              wilayahKerja={wilker}
+              metrik={cfg.metrikUtama.key}
+            />
+          </>
+        )}
         <BreakdownList
-          judul={`Lokasi Pengamatan — Minggu Epid ke-${mingguEpid}`}
+          judul={`Lokasi Pengamatan — Minggu Epid ke-${mingguBerjalan}`}
           data={breakdownLokasi}
           warna={cfg.metrikUtama.warna}
         />

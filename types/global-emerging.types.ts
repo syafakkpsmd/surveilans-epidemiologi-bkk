@@ -68,7 +68,7 @@ export interface RingkasanPenyakitEmerging {
 // Filter yang dipakai halaman /dashboard/global-emerging (dari searchParams)
 export interface FilterGlobalEmerging {
   jenis: JenisPeriode;
-  tahunEpid?: number;
+  tahunEpid: number;
   penyakit?: Penyakit;
   negara?: Negara;
 }

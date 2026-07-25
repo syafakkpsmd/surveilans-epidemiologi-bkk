@@ -4,6 +4,7 @@
 // (import getStatusAkses, hitungMingguEpidemiologi, TombolAnalisisAI,
 // TombolPrediksiAI semuanya dari lokasi asli project Anda).
 
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
@@ -74,6 +75,14 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
             </p>
           </div>
           <div className="flex gap-2">
+            {(role === 'petugas' || role === 'admin') && (
+              <Link
+                href="/dashboard/global-emerging/input"
+                className="inline-flex items-center rounded-lg border border-[#0F4C5C] px-4 py-2 text-sm font-medium text-[#0F4C5C] hover:bg-[#0F4C5C] hover:text-white transition"
+              >
+                + Input Data Manual
+              </Link>
+            )}
             <TombolAnalisisAI
               sudahLogin={sudahLogin}
               role={role}
@@ -97,6 +106,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
           jenisAktif={jenis}
           penyakitAktif={filter.penyakit}
           negaraAktif={filter.negara}
+          tahunAktif={filter.tahunEpid}
         />
 
         {ringkasan.length === 0 ? (

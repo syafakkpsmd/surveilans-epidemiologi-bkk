@@ -7,6 +7,11 @@
 import { useState } from 'react';
 import type { LaporanPenyakitEmerging } from '@/types/global-emerging.types';
 
+const NAMA_BULAN = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+];
+
 interface GlobalEmergingTabelMentahProps {
   data: LaporanPenyakitEmerging[];
 }
@@ -46,7 +51,7 @@ export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelM
                   <td className="py-2 pr-4">
                     {row.jenis_periode === 'mingguan'
                       ? `M${row.minggu_epid} / ${row.tahun_epid}`
-                      : `Bln ${row.bulan} / ${row.tahun_epid}`}
+                      : `${NAMA_BULAN[(row.bulan ?? 1) - 1] ?? row.bulan} ${row.tahun_epid}`}
                   </td>
                   <td className="py-2 pr-4">{row.jumlah_kasus}</td>
                   <td className="py-2 pr-4">{row.jumlah_kematian}</td>

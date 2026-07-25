@@ -13,12 +13,23 @@ interface GlobalEmergingFilterBarProps {
   jenisAktif: JenisPeriode;
   penyakitAktif?: string;
   negaraAktif?: string;
+  tahunAktif: number;
+}
+
+function daftarTahunPilihan(): number[] {
+  const tahunSekarang = new Date().getFullYear();
+  const tahun: number[] = [];
+  for (let t = tahunSekarang; t >= tahunSekarang - 7; t--) {
+    tahun.push(t);
+  }
+  return tahun;
 }
 
 export default function GlobalEmergingFilterBar({
   jenisAktif,
   penyakitAktif,
   negaraAktif,
+  tahunAktif,
 }: GlobalEmergingFilterBarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -36,6 +47,19 @@ export default function GlobalEmergingFilterBar({
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-[10px] bg-white p-4 shadow-sm">
+      {/* Filter Tahun */}
+      <select
+        value={tahunAktif}
+        onChange={(e) => updateParam('tahun', e.target.value)}
+        className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+      >
+        {daftarTahunPilihan().map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+
       {/* Toggle Mingguan/Bulanan */}
       <div className="flex rounded-lg overflow-hidden border border-gray-200">
         {(['mingguan', 'bulanan'] as JenisPeriode[]).map((jenis) => (

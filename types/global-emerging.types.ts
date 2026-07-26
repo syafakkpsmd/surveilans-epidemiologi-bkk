@@ -16,6 +16,8 @@ export const DAFTAR_PENYAKIT = [
   'CCHF',
   'Meningitis',
   'Oropouche',
+  'Ebola',
+  'Influenza',
 ] as const;
 
 export const DAFTAR_NEGARA = [

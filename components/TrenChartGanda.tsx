@@ -30,8 +30,8 @@ interface TrenChartGandaProps {
   tipe: "garis" | "batang";
   seriAbk: SeriDef[];
   seriKapalTotal: SeriDef[];
-  judulAbk?: string;
-  judulKapalTotal?: string;
+  judulAbk: React.ReactNode;
+  judulKapalTotal: React.ReactNode;
 }
 
 function PanelChart({
@@ -43,7 +43,7 @@ function PanelChart({
   data: TitikTrenGanda[];
   tipe: "garis" | "batang";
   seri: SeriDef[];
-  judul: string;
+  judul: React.ReactNode;
 }) {
   const adaSumbuKanan = seri.some((s) => s.sumbu === "kanan");
 
@@ -104,7 +104,7 @@ export function TrenChartGanda({
   tipe,
   seriAbk,
   seriKapalTotal,
-  judulAbk = "ABK WNA vs WNI",
+  judulAbk = "ABK WNA & WNI",
   judulKapalTotal = "Total ABK & Jumlah Kapal",
 }: TrenChartGandaProps) {
   return (

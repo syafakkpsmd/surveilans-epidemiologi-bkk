@@ -28,11 +28,13 @@ export interface RingkasanMingguanPesawat {
   iaos_total: number;
   jenazah_total: number;
   kier_total: number;
+  pesawat_tiba: number;
+  pesawat_berangkat: number;
   [key: string]: unknown;
 }
 
 export interface RingkasanBulananPesawat {
-  bulan: string; // format 'YYYY-MM'
+  bulan: string;
   crew_berangkat: number;
   penumpang_berangkat: number;
   crew_datang: number;
@@ -42,6 +44,8 @@ export interface RingkasanBulananPesawat {
   iaos_total: number;
   jenazah_total: number;
   kier_total: number;
+  pesawat_tiba: number;
+  pesawat_berangkat: number;
   [key: string]: unknown;
 }
 
@@ -147,6 +151,8 @@ export async function getRingkasanPesawatMingguan({
       iaos_total: 0,
       jenazah_total: 0,
       kier_total: 0,
+      pesawat_tiba: 0,
+      pesawat_berangkat: 0,
     };
 
     acc.crew_berangkat += row.crew_berangkat ?? 0;
@@ -158,6 +164,8 @@ export async function getRingkasanPesawatMingguan({
     acc.iaos_total += row.iaos_total ?? 0;
     acc.jenazah_total += row.jenazah_total ?? 0;
     acc.kier_total += row.kier_total ?? 0;
+    acc.pesawat_tiba += 1;
+    acc.pesawat_berangkat += 1;
 
     perMinggu.set(mg, acc);
   }
@@ -199,6 +207,8 @@ export async function getRingkasanPesawatBulanan({
       iaos_total: 0,
       jenazah_total: 0,
       kier_total: 0,
+      pesawat_tiba: 0,
+      pesawat_berangkat: 0,
     };
 
     acc.crew_berangkat += row.crew_berangkat ?? 0;
@@ -210,6 +220,8 @@ export async function getRingkasanPesawatBulanan({
     acc.iaos_total += row.iaos_total ?? 0;
     acc.jenazah_total += row.jenazah_total ?? 0;
     acc.kier_total += row.kier_total ?? 0;
+    acc.pesawat_tiba += 1;
+    acc.pesawat_berangkat += 1;
 
     perBulan.set(bulan, acc);
   }

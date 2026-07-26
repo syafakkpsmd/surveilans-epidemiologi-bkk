@@ -71,21 +71,6 @@ export function TrenPerWilkerChart({
 
   return (
     <div>
-      {/* Baris checkbox -- 1 checkbox per wilayah kerja */}
-      <div className="mb-3 flex flex-wrap gap-4">
-        {seriesList.map((s) => (
-          <label key={s.key} className="flex items-center gap-1.5 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={aktif.has(s.key)}
-              onChange={() => toggle(s.key)}
-              style={{ accentColor: s.warna }}
-            />
-            <span>{s.label}</span>
-          </label>
-        ))}
-      </div>
-
       <ResponsiveContainer width="100%" height={360}>
         <ComposedChart data={data} margin={{ top: 8, right: 24, bottom: 8, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -113,6 +98,21 @@ export function TrenPerWilkerChart({
             )}
         </ComposedChart>
       </ResponsiveContainer>
+
+      {/* Baris checkbox -- 1 checkbox per wilayah kerja */}
+      <div className="mt-3 flex flex-wrap gap-4">
+        {seriesList.map((s) => (
+          <label key={s.key} className="flex items-center gap-1.5 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={aktif.has(s.key)}
+              onChange={() => toggle(s.key)}
+              style={{ accentColor: s.warna }}
+            />
+            <span>{s.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

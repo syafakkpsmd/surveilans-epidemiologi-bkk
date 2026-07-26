@@ -65,7 +65,8 @@ export default async function AlatAngkutPesawatPage({
     bulanSampai?: string;
   }>;
 }) {
-  const { wilker, tahun: tahunParam, mgDari, mgSampai, bulanDari, bulanSampai } = await searchParams;
+  const { wilker: wilkerParam, tahun: tahunParam, mgDari, mgSampai, bulanDari, bulanSampai } = await searchParams;
+  const wilker = wilkerParam ?? 'WK07'; // default: Bandara APT Pranoto
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
 
   // Normalisasi filter rentang bulan agar selalu YYYY-MM
@@ -145,6 +146,12 @@ export default async function AlatAngkutPesawatPage({
 
   const ringkasanBulananBerlabel = tambahLabelBulan(ringkasanBulanan);
   const dataGenderBulananBerlabel = tambahLabelBulan(dataGenderBulanan);
+  const totalPenumpangTiba = ringkasanMingguan.reduce((a, r) => a + r.penumpang_datang, 0);
+  const totalPenumpangBerangkat = ringkasanMingguan.reduce((a, r) => a + r.penumpang_berangkat, 0);
+  const totalCrewTiba = ringkasanMingguan.reduce((a, r) => a + r.crew_datang, 0);
+  const totalCrewBerangkat = ringkasanMingguan.reduce((a, r) => a + r.crew_berangkat, 0);
+  const totalPesawatTiba = ringkasanMingguan.reduce((a, r) => a + r.pesawat_tiba, 0);
+  const totalPesawatBerangkat = ringkasanMingguan.reduce((a, r) => a + r.pesawat_berangkat, 0);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -174,8 +181,36 @@ export default async function AlatAngkutPesawatPage({
           Filter Analisis Data Karantina:
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <FilterWilker daftarWilker={daftarWilker} />
+          <FilterWilker daftarWilker={daftarWilker} sembunyikanNonAktif={false} />
           <FilterRentangMinggu />
+        </div>
+      </div>
+
+      {/* 3B. Kartu Ringkasan */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500">Penumpang Tiba</p>
+          <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPenumpangTiba.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500">Penumpang Berangkat</p>
+          <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPenumpangBerangkat.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500">Crew Tiba</p>
+          <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalCrewTiba.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500">Crew Berangkat</p>
+          <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalCrewBerangkat.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500">Pswt Tiba</p>
+          <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPesawatTiba.toLocaleString('id-ID')}</p>
+        </div>
+        <div className="rounded-xl bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium text-gray-500">Pswt Berangkat</p>
+          <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPesawatBerangkat.toLocaleString('id-ID')}</p>
         </div>
       </div>
 
@@ -184,7 +219,9 @@ export default async function AlatAngkutPesawatPage({
 
         {/* ================= MINGGUAN ================= */}
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">Crew &amp; Penumpang — Mingguan (Tahun {tahun})</h2>
+          <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Crew &amp; Penumpang Pesawat
+            <br />
+            dalam Mingguan selama Tahun {tahun}</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
               data={ringkasanMingguan}
@@ -205,7 +242,7 @@ export default async function AlatAngkutPesawatPage({
         </div>
 
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">Sertifikat Kesehatan — Mingguan (Tahun {tahun})</h2>
+          <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Sertifikat Kesehatan dalam Mingguan selama Tahun {tahun}</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
               data={ringkasanMingguan}
@@ -223,6 +260,21 @@ export default async function AlatAngkutPesawatPage({
           <div className="mt-3">
             <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" />
           </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
+          <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Kedatangan dan Keberangkatan Pesawat dalam Mingguan selama Tahun {tahun}</h2>
+          {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
+            <TrenChartMingguan
+              data={ringkasanMingguan}
+              seriesList={[
+                { key: 'pesawat_tiba', label: 'Pesawat Tiba', warna: '#0F4C5C' },
+                { key: 'pesawat_berangkat', label: 'Pesawat Berangkat', warna: '#EA580C', tipe: 'bar' },
+              ]}
+            />
+          ) : (
+            <p className="text-sm text-gray-400 py-4 text-center">Data pesawat mingguan kosong.</p>
+          )}
         </div>
 
         {/* ================= BULANAN ================= */}
@@ -275,6 +327,17 @@ export default async function AlatAngkutPesawatPage({
 
         <div className="lg:col-span-2">
           <GrafikSertifikatGenderBulanan data={dataGenderBulananBerlabel as Record<string, any>[]} />
+        </div>
+
+        <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
+          <GrafikBarBulanan
+            judul="Pesawat Tiba vs Berangkat — Bulanan"
+            data={ringkasanBulananBerlabel}
+            seriesList={[
+              { key: 'pesawat_tiba', label: 'Pesawat Tiba', warna: '#0F4C5C', tipe: 'line' },
+              { key: 'pesawat_berangkat', label: 'Pesawat Berangkat', warna: '#EA580C', tipe: 'bar' },
+            ]}
+          />
         </div>
 
         {/* ================= BREAKDOWN ================= */}

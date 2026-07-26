@@ -5,6 +5,7 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Bar,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -18,7 +19,8 @@ export interface SeriesBar {
   label: string;
   warna: string;
   axis?: 'kiri' | 'kanan';
-  desimal?: number; // default 0 -- pakai 1-2 untuk satuan seperti hektar
+  desimal?: number;
+  tipe?: 'bar' | 'line'; // default 'bar'
 }
 
 const LABEL_KONTRAS = {
@@ -82,24 +84,47 @@ export default function GrafikBarBulanan({
             {pakaiDuaSumbu && <YAxis yAxisId="kanan" orientation="right" tick={{ fontSize: 11 }} />}
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            {seriesAktif.map((s) => (
-              <Bar
-                key={s.key}
-                dataKey={s.key}
-                name={s.label}
-                fill={s.warna}
-                yAxisId={s.axis === 'kanan' ? 'kanan' : 'kiri'}
-              >
-                <LabelList
+            {seriesAktif.map((s) =>
+              s.tipe === 'line' ? (
+                <Line
+                  key={s.key}
+                  type="monotone"
                   dataKey={s.key}
-                  position="top"
-                  style={LABEL_KONTRAS}
-                  formatter={(v: any) =>
-                    typeof v === 'number' ? v.toFixed(s.desimal ?? 0) : (v ?? '')
-                  }
-                />
-              </Bar>
-            ))}
+                  name={s.label}
+                  stroke={s.warna}
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  yAxisId={s.axis === 'kanan' ? 'kanan' : 'kiri'}
+                  connectNulls
+                >
+                  <LabelList
+                    dataKey={s.key}
+                    position="top"
+                    style={LABEL_KONTRAS}
+                    formatter={(v: any) =>
+                      typeof v === 'number' ? v.toFixed(s.desimal ?? 0) : (v ?? '')
+                    }
+                  />
+                </Line>
+              ) : (
+                <Bar
+                  key={s.key}
+                  dataKey={s.key}
+                  name={s.label}
+                  fill={s.warna}
+                  yAxisId={s.axis === 'kanan' ? 'kanan' : 'kiri'}
+                >
+                  <LabelList
+                    dataKey={s.key}
+                    position="top"
+                    style={LABEL_KONTRAS}
+                    formatter={(v: any) =>
+                      typeof v === 'number' ? v.toFixed(s.desimal ?? 0) : (v ?? '')
+                    }
+                  />
+                </Bar>
+              )
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       )}

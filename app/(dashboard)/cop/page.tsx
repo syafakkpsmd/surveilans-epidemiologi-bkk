@@ -370,7 +370,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
     {
       const petaTrenNegara = new Map<number, Record<string, string | number>>();
       const totalPerNegara = new Map<string, number>();
-
+      
       rowsNegaraTren.forEach((r) => {
         const negara = normalisasiNilaiKategori(r.nilai);
         if (!negara) return;
@@ -460,6 +460,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   // ============================================================
   const totalKapalKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.jumlah_kapal, 0);
   const totalAbkKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.total_abk, 0);
+  const totalAbkWnaKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.total_abk_wna, 0);
+  const totalAbkWniKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.total_abk_wni, 0);
 
   const kapalPerWilayah = WILAYAH_URUTAN.map((w) => ({
     wilayah: w,
@@ -483,6 +485,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   // ============================================================
   const petaTrenWilker = new Map<number, Record<string, number | string>>();
   ringkasanMingguanSemuaWilker.forEach((r) => {
+    if (r.minggu_epid < batasAwal || r.minggu_epid > batasAkhir) return;
     const existing = petaTrenWilker.get(r.minggu_epid) ?? {
       label: `Mg ${r.minggu_epid}`,
       urutan: r.minggu_epid,
@@ -508,6 +511,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   // ============================================================
   const petaTrenWilkerBulanan = new Map<number, Record<string, number | string>>();
   ringkasanBulananSemuaWilker.forEach((r) => {
+    if (r.bulan < batasAwal || r.bulan > batasAkhir) return;
     const existing = petaTrenWilkerBulanan.get(r.bulan) ?? {
       label: NAMA_BULAN[r.bulan - 1],
       urutan: r.bulan,
@@ -516,6 +520,41 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
     petaTrenWilkerBulanan.set(r.bulan, existing);
   });
   const dataTrenPerWilkerBulanan = Array.from(petaTrenWilkerBulanan.values()).sort(
+    (a, b) => (a.urutan as number) - (b.urutan as number)
+  );
+
+// ============================================================
+  // DATA CHART BARU -- DISTRIBUSI KEDATANGAN ABK PER WILAYAH.
+  // Sama persis pola dataTrenPerWilker/dataTrenPerWilkerBulanan di
+  // atas, cuma pakai r.total_abk sebagai ganti r.jumlah_kapal.
+  // Sumbernya SAMA (ringkasanMingguanSemuaWilker /
+  // ringkasanBulananSemuaWilker) -- jadi TIDAK ada query tambahan.
+  // ============================================================
+  const petaTrenWilkerAbk = new Map<number, Record<string, number | string>>();
+  ringkasanMingguanSemuaWilker.forEach((r) => {
+    if (r.minggu_epid < batasAwal || r.minggu_epid > batasAkhir) return;
+    const existing = petaTrenWilkerAbk.get(r.minggu_epid) ?? {
+      label: `Mg ${r.minggu_epid}`,
+      urutan: r.minggu_epid,
+    };
+    existing[r.wilayah_kerja] = ((existing[r.wilayah_kerja] as number) ?? 0) + r.total_abk;
+    petaTrenWilkerAbk.set(r.minggu_epid, existing);
+  });
+  const dataTrenPerWilkerAbk = Array.from(petaTrenWilkerAbk.values()).sort(
+    (a, b) => (a.urutan as number) - (b.urutan as number)
+  );
+
+  const petaTrenWilkerAbkBulanan = new Map<number, Record<string, number | string>>();
+  ringkasanBulananSemuaWilker.forEach((r) => {
+    if (r.bulan < batasAwal || r.bulan > batasAkhir) return;
+    const existing = petaTrenWilkerAbkBulanan.get(r.bulan) ?? {
+      label: NAMA_BULAN[r.bulan - 1],
+      urutan: r.bulan,
+    };
+    existing[r.wilayah_kerja] = ((existing[r.wilayah_kerja] as number) ?? 0) + r.total_abk;
+    petaTrenWilkerAbkBulanan.set(r.bulan, existing);
+  });
+  const dataTrenPerWilkerAbkBulanan = Array.from(petaTrenWilkerAbkBulanan.values()).sort(
     (a, b) => (a.urutan as number) - (b.urutan as number)
   );
 
@@ -563,25 +602,37 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               TAMBAH KARTU BARU: tinggal duplikasi 1 blok <div> KPI di
               bawah, dan/atau tambah 1 kolom baru di grid breakdown.
              ============================================================ */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-card bg-surface p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Total Kapal Keseluruhan (Tahun {tahunEpidSaatIni})
               </p>
-              <p className="mt-1 text-2xl font-bold text-ink">{totalKapalKeseluruhan}</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalKapalKeseluruhan.toLocaleString('id-ID')}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Total ABK Keseluruhan (Tahun {tahunEpidSaatIni})
               </p>
-              <p className="mt-1 text-2xl font-bold text-ink">{totalAbkKeseluruhan}</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalAbkKeseluruhan.toLocaleString('id-ID')}</p>
+            </div>
+            <div className="rounded-card bg-surface p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Total ABK WNA (Tahun {tahunEpidSaatIni})
+              </p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalAbkWnaKeseluruhan.toLocaleString('id-ID')}</p>
+            </div>
+            <div className="rounded-card bg-surface p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Total ABK WNI (Tahun {tahunEpidSaatIni})
+              </p>
+              <p className="mt-1 text-2xl font-bold text-ink">{totalAbkWniKeseluruhan.toLocaleString('id-ID')}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Kapal per Wilayah Kerja (Tahun {tahunEpidSaatIni})
+                Distribusi Kedatangan Kapal per Wilayah Kerja (Tahun {tahunEpidSaatIni})
               </h2>
               <div className="space-y-3">
                 {kapalPerWilayah.map((w) => (
@@ -606,7 +657,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                ABK per Wilayah Kerja (Tahun {tahunEpidSaatIni})
+                Distribusi Kedatangan ABK per Wilayah Kerja (Tahun {tahunEpidSaatIni})
               </h2>
               <div className="space-y-3">
                 {abkPerWilayah.map((w) => (
@@ -637,12 +688,11 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               + BoxAnalisisAI/BoxPrediksiAI (BARU)
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
-            <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-muted">
-              Perbandingan Kedatangan Kapal {mode === "mingguan" ? "Mingguan" : "Bulanan"} — 6 Wilayah Kerja
+            <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Distribusi Kedatangan Kapal dari Luar Negeri {mode === "mingguan" ? "Mingguan" : "Bulanan"}
+              <br />
+              di BKK Kelas I Samarinda
             </h2>
-            <p className="mb-4 text-xs text-muted">
-              Centang/hilangkan centang untuk membandingkan wilayah tertentu saja.
-            </p>
             <TrenPerWilkerChart
               data={mode === "mingguan" ? dataTrenPerWilker : dataTrenPerWilkerBulanan}
               seriesList={seriesWilker}
@@ -669,12 +719,33 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           </div>
 
           {/* ============================================================
+              SECTION 4B -- CHART BARU: DISTRIBUSI KEDATANGAN ABK PER
+              WILAYAH. Sama persis pola Section 4 (kapal), tapi metrik
+              total_abk. SELALU mingguan-line di tab Mingguan / bar di
+              tab Bulanan, tidak ikut filter rentang mode+wilayah utama
+              (konsisten dengan Section 4).
+             ============================================================ */}
+          <div className="rounded-card bg-surface p-6">
+            <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Distribusi Kedatangan ABK dari Luar Negeri {mode === "mingguan" ? "Mingguan" : "Bulanan"}
+              <br />
+              di BKK Kelas I Samarinda
+            </h2>
+            <TrenPerWilkerChart
+              data={mode === "mingguan" ? dataTrenPerWilkerAbk : dataTrenPerWilkerAbkBulanan}
+              seriesList={seriesWilker}
+              tipe={mode === "mingguan" ? "garis" : "batang"}
+            />
+          </div>
+
+
+          {/* ============================================================
               SECTION 5 -- TREN GABUNGAN (mengikuti filter mode+wilayah)
               + BoxAnalisisAI/BoxPrediksiAI (BARU)
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-              Tren {mode === "mingguan"
+            <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Distribusi Kedatangan ABK dan Kapal dalam Tren {mode === "mingguan"
                 ? `Mingguan (Mg ${mingguAwal}–${mingguAkhir})`
                 : `Bulanan (${NAMA_BULAN[bulanAwal - 1]}–${NAMA_BULAN[bulanAkhir - 1]})`} Tahun {tahun}
             </h2>
@@ -684,6 +755,21 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               <TrenChartGanda
                 data={trenData}
                 tipe={mode === "mingguan" ? "garis" : "batang"}
+                // 1. Tambahkan prop judul dengan wrapper text-center di sini:
+                judulAbk={
+                  <span className="block text-center">
+                    Distribusi ABK WNA & WNI {mode === "mingguan" ? "Mingguan" : "Bulanan"}
+                    <br />
+                    di BKK Kelas I Samarinda
+                  </span>
+                }
+                judulKapalTotal={
+                  <span className="block text-center">
+                    Distribusi Total ABK & Jumlah Kapal {mode === "mingguan" ? "Mingguan" : "Bulanan"}
+                    <br />
+                    di BKK Kelas I Samarinda
+                  </span>
+                }
                 seriAbk={[
                   { dataKey: "total_abk_wna", nama: "ABK WNA", warna: "#2F9E44" },
                   { dataKey: "total_abk_wni", nama: "ABK WNI", warna: "#5B7083" },
@@ -720,8 +806,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               + BoxAnalisisAI/BoxPrediksiAI (BARU)
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
-            <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-muted">
-              Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} Negara Kedatangan — Tahun {tahun}
+            <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Distribusi Asal Negara Kedatangan Kapal dalam  {mode === "mingguan" ? "Mingguan" : "Bulanan"} Tahun {tahun}
             </h2>
             <p className="mb-4 text-xs text-muted">
               Pilih beberapa negara untuk membandingkan, atau 1 negara saja untuk melihat trennya sendiri.
@@ -762,14 +848,18 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           {mode === "mingguan" ? (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                  RBA — Minggu Epidemiologi ke-{mingguEpidSaatIni}
+                <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                  Risk Based Assessment (RBA) 
+                  <br />
+                  Minggu Epidemiologi ke-{mingguEpidSaatIni}
                 </h3>
                 <DonutRba data={kategoriRbaMingguIni} />
               </div>
               <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                  RBA — Total Tahun {tahun}
+                <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                  Risk Based Assessment (RBA)
+                  <br />
+                   Tahun {tahun}
                 </h3>
                 <DonutRba data={kategoriData.rba} />
                 <div className="mt-4 space-y-3">
@@ -847,13 +937,13 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           {/* SECTION 8 */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+              <h3 className="mb-4 text-center  text-sm font-bold uppercase tracking-wide text-muted">
                 Daerah Terjangkit
               </h3>
               <PieBreakdown data={kategoriData.daerah_terjangkit} skema="terjangkit" />
             </div>
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
                 Keberadaan Vektor
               </h3>
               <PieBreakdown data={kategoriData.keberadaan_vektor} skema="vektor" />
@@ -863,7 +953,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           {/* SECTION 9 */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
                 Faktor Risiko
               </h3>
               <PieBreakdown data={kategoriData.faktor_risiko} skema="faktor-risiko" />
@@ -885,7 +975,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               </div>
             </div>
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
                 Kelengkapan Dokumen
               </h3>
               <PieBreakdown data={kategoriData.kelengkapan_dokumen} skema="kelengkapan" />
@@ -896,8 +986,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               SECTION 10B -- PETA SEBARAN NEGARA KEDATANGAN
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-              Peta Sebaran Negara Kedatangan
+            <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Peta Sebaran Negara Kedatangan Kapal ke BKK Kelas I Samarinda Selama Tahun {tahun}
             </h3>
             <PetaNegaraKedatangan data={kategoriData.negara_kedatangan} />
           </div>

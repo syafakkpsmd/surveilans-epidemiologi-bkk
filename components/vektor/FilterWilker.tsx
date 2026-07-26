@@ -10,12 +10,19 @@
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import type { WilkerRef } from '@/types/database.types';
 
-export default function FilterWilker({ daftarWilker }: { daftarWilker: WilkerRef[] }) {
+export default function FilterWilker({
+  daftarWilker,
+  sembunyikanNonAktif = true,
+}: {
+  daftarWilker: WilkerRef[];
+  /** Sembunyikan Bandara Badak LNG Bontang & Tanjung Bara Sangatta (dipakai halaman Vektor). Set false untuk halaman yang justru butuh 2 bandara ini, mis. Alat Angkut Pesawat. */
+  sembunyikanNonAktif?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const wilkerAktif = searchParams.get('wilker') ?? '';
+  const wilkerAktif = searchParams.get('wilker') ?? 'WK07';
 
   function ubahWilker(kode: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -36,7 +43,7 @@ export default function FilterWilker({ daftarWilker }: { daftarWilker: WilkerRef
       // Sesudah
       <option value="">Semua Wilayah Kerja</option>
       {daftarWilker
-        .filter((w) => !/bontang|tanjung bara/i.test(w.nama))
+        .filter((w) => !sembunyikanNonAktif || !/bontang|tanjung bara/i.test(w.nama))
         .map((w) => (
           <option key={w.kode} value={w.kode}>
             {w.jenis === 'Bandara' ? '✈️' : '⚓'} {w.nama}

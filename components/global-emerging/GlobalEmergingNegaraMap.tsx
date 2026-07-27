@@ -116,7 +116,7 @@ export default function GlobalEmergingNegaraMap({ data }: Props) {
 
   if (loading) {
     return (
-      <div className="flex h-[420px] items-center justify-center rounded-[10px] bg-white text-sm text-gray-500 shadow-sm">
+      <div className="flex h-105 items-center justify-center rounded-[10px] bg-white text-sm text-gray-500 shadow-sm">
         Memuat peta dunia...
       </div>
     );
@@ -124,7 +124,7 @@ export default function GlobalEmergingNegaraMap({ data }: Props) {
 
   if (error || !geoJson) {
     return (
-      <div className="flex h-[420px] items-center justify-center rounded-[10px] bg-white p-4 text-center text-sm text-red-600 shadow-sm">
+      <div className="flex h-105 items-center justify-center rounded-[10px] bg-white p-4 text-center text-sm text-red-600 shadow-sm">
         {error ?? 'Gagal memuat peta dunia.'}
       </div>
     );
@@ -134,7 +134,7 @@ export default function GlobalEmergingNegaraMap({ data }: Props) {
     <div className="rounded-[10px] bg-white p-4 shadow-sm">
       <h2 className="text-sm font-semibold text-[#0F2A38] mb-3">Peta sebaran kasus per negara</h2>
 
-      <div className="relative isolate h-[420px] w-full overflow-hidden rounded-xl border">
+      <div className="relative isolate h-105 w-full overflow-hidden rounded-xl border">
         <MapContainer center={PUSAT_PETA} zoom={ZOOM_AWAL} style={{ height: '100%', width: '100%' }} scrollWheelZoom>
           <TileLayer
             attribution='&copy; OpenStreetMap contributors &copy; CARTO'

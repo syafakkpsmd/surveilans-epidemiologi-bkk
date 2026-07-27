@@ -1,4 +1,4 @@
-// app/(dashboard)/global-emerging/page.tsx
+﻿// app/(dashboard)/global-emerging/page.tsx
 
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -13,7 +13,7 @@ import { getRingkasanPenyakitEmerging, getDataMentahPenyakitEmerging } from '@/l
 import { DAFTAR_NEGARA, type FilterGlobalEmerging, type JenisPeriode, type Penyakit, type Negara } from '@/types/global-emerging.types';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
-import GlobalEmergingNegaraMap from '@/components/global-emerging/GlobalEmergingNegaraMap';
+import GlobalEmergingNegaraMap from '@/components/global-emerging/GlobalEmergingNegaraMapClient';
 
 interface GlobalEmergingPageProps {
   searchParams: Promise<{

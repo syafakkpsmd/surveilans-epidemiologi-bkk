@@ -9,7 +9,7 @@ const GlobalEmergingNegaraMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[420px] items-center justify-center rounded-[10px] bg-white text-sm text-gray-500 shadow-sm">
+      <div className="flex h-105 items-center justify-center rounded-[10px] bg-white text-sm text-gray-500 shadow-sm">
         Memuat peta...
       </div>
     ),

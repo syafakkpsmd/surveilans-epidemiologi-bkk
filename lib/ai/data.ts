@@ -1,4 +1,4 @@
-import {
+﻿import {
   getRingkasanMingguan,
   getRingkasanBulanan,
   getKategoriBreakdown,
@@ -18,7 +18,7 @@ import {
   getRingkasanRatGuardBulanan,
 } from '@/lib/supabase/queries';
 import { getTrenDiareMultiVariabel, getTrenDiareBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
-import type { KategoriCop } from '@/types/kategori.types';
+import type { KategoriCop } from '@/types/database.types';
 import {
   parsePeriodeMingguan,
   parsePeriodeBulanan,

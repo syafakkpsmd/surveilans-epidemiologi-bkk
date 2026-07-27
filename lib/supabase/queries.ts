@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FUNGSI QUERY DASAR -- BUKAN KOMPONEN UI.
  *
  * Semua fungsi di sini dipanggil dari SERVER COMPONENT (async function
@@ -27,7 +27,7 @@ import {
   KategoriBreakdownBulananPhqc,
   KategoriCop,
   KategoriPhqc,
-} from '@/types/kategori.types';
+} from '@/types/database.types';
 
 export type JenisTabel = 'cop' | 'phqc';
 

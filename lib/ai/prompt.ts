@@ -374,6 +374,43 @@ TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal konkret untuk kapa
 ${ATURAN_UMUM_BREAKDOWN}`;
 }
 
+export function susunPromptPhqcDaerahTujuan(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis daerah tujuan kapal berdasarkan pelabuhan tujuan (kegiatan PHQC) untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN TUJUAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS: identifikasi pelabuhan tujuan dengan jumlah kapal TERBANYAK dari data di atas. Untuk SETIAP pelabuhan yang kamu bahas, tentukan dulu apakah itu pelabuhan DALAM NEGERI (domestik, Indonesia) atau LUAR NEGERI (internasional) berdasarkan namanya:
+- Kalau DALAM NEGERI: kaitkan dengan pola penyakit menular endemis antar-wilayah di Indonesia yang sudah mapan (mis. dengue, leptospirosis, diare, penyakit yang tercakup SKDR Kemenkes) -- fokus pada risiko transmisi antar-pulau/antar-provinsi dari BKK Samarinda MENUJU pelabuhan tersebut, BUKAN kerangka lintas negara.
+- Kalau LUAR NEGERI: kaitkan dengan pengetahuan umum kesehatan masyarakat global tentang penyakit menular yang endemis/rawan/sedang berkembang di negara tujuan tersebut, rujuk DAFTAR SUMBER RUJUKAN di atas.
+- JANGAN mengarang kejadian wabah spesifik terbaru yang tidak bisa kamu pastikan kebenarannya. Tegaskan eksplisit di "anomali" bahwa ini pengetahuan umum epidemiologi, BUKAN data surveilans real-time, dan sarankan verifikasi ke sumber rujukan resmi yang sesuai (SKDR Kemenkes untuk domestik, WHO/CDC/ECDC untuk internasional).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiPhqcDaerahTujuan(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular DARI wilayah kerja BKK Samarinda KE pelabuhan tujuan, berdasarkan pola pelabuhan tujuan kapal (PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan TIDAK dijalankan sesuai prosedur untuk kapal menuju pelabuhan-pelabuhan tersebut.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN TUJUAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi 1-3 pelabuhan tujuan TERBANYAK. Untuk tiap pelabuhan, tentukan dulu domestik atau luar negeri (dari namanya), lalu jelaskan penyakit menular yang relevan -- pola endemis antar-wilayah Indonesia (rujuk SKDR Kemenkes) untuk pelabuhan domestik, atau penyakit yang UMUM diketahui endemis/berkembang di negara tujuan (rujuk DAFTAR SUMBER RUJUKAN) untuk pelabuhan luar negeri. Jangan mengarang wabah spesifik terbaru.
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF -- potensi jalur penyebaran penyakit dari wilayah kerja ke pelabuhan tujuan lewat kapal tersebut jika pemeriksaan tidak dijalankan. Nyatakan EKSPLISIT ini skenario risiko kualitatif, BUKAN prediksi statistik dan BUKAN klaim penularan aktual, karena data hanya jumlah kapal per pelabuhan tujuan, bukan hasil pemeriksaan kesehatan individual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal konkret untuk kapal menuju pelabuhan berisiko tersebut (mis. pemeriksaan dokumen kesehatan lebih ketat sebelum keberangkatan, koordinasi dengan KKP/dinas kesehatan pelabuhan tujuan untuk pelabuhan domestik, kewaspadaan petugas untuk pelabuhan luar negeri).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
 /* =========================================================================
  * MODUL PELABUHAN KEDATANGAN & TUJUAN GABUNGAN (PHQC)
  * Untuk grafik tren tahunan gabungan (bukan analisis "asal" per kapal
@@ -632,6 +669,72 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
 }`;
 }
 
+export function susunPromptNasionalEmerging(data: DataAnalisis): string {
+  const topKategoriTeks = data.topKategori
+    .map((k) => `- ${k.nilai}: ${k.jumlah} kasus`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis tren kasus penyakit infeksi emerging tingkat nasional untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+RINCIAN PER PROPINSI (periode berjalan):
+${topKategoriTeks || '(tidak ada data)'}
+
+ATURAN WAJIB:
+- Data ini adalah data kasus dan kematian terkonfirmasi tingkat nasional Indonesia untuk penyakit yang dipilih, dipecah per propinsi (data surveilans nasional Kemenkes, BUKAN data kewaspadaan kapal/pelabuhan).
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama propinsi yang tidak tercantum.
+- Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit), termasuk case fatality rate (CFR) bila datanya memungkinkan dihitung.
+- Soroti propinsi dengan lonjakan kasus paling signifikan, dan kaitkan dengan implikasi kewaspadaan dini bagi BKK Kelas I Samarinda sebagai pintu masuk (kesiapan skrining, koordinasi RBA, edukasi publik) -- TANPA mengklaim ada kasus terkonfirmasi di Samarinda/Kalimantan Timur kalau propinsi tersebut tidak muncul di data.
+- Tulis dalam Bahasa Indonesia, istilah epidemiologi baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren kasus & kematian penyakit ini secara nasional periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya per propinsi, atau nyatakan aman",
+  "rekomendasi": "rekomendasi kewaspadaan dini bagi wilayah kerja BKK Samarinda berbasis data ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiNasionalEmerging(data: DataAnalisis): string {
+  const topKategoriTeks = data.topKategori
+    .map((k) => `- ${k.nilai}: ${k.jumlah} kasus`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: proyeksi/prediksi tren kasus penyakit infeksi emerging tingkat nasional untuk periode BERIKUTNYA, berdasarkan data historis, untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+RINCIAN PER PROPINSI (periode berjalan):
+${topKategoriTeks || '(tidak ada data)'}
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas sebagai dasar proyeksi. JANGAN mengarang angka.
+- Proyeksi harus berbasis tren dua periode ini (naik/turun/stabil) -- jangan klaim kepastian, gunakan bahasa probabilistik ("kemungkinan", "berpotensi").
+- Fokuskan proyeksi pada propinsi dengan tren kenaikan paling jelas.
+- Sertakan tindakan antisipatif yang relevan bagi BKK Kelas I Samarinda sebagai pintu masuk, sesuai skala risiko dari tren nasional ini.
+- Tulis dalam Bahasa Indonesia.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "kondisi kasus nasional saat ini berdasarkan data, 2-3 kalimat",
+  "anomali": "proyeksi/perkiraan kondisi periode berikutnya jika tren berlanjut, 2-3 kalimat",
+  "rekomendasi": "tindakan antisipatif yang perlu dilakukan sekarang, 1-3 poin"
+}`;
+}
+
 /* =========================================================================
  * MODUL KEGIATAN PESAWAT -- DAERAH ASAL & PENYAKIT SEDANG BERKEMBANG
  * (paralel dengan cop-negara-asal/phqc-daerah-asal, untuk grafik daerah
@@ -682,22 +785,34 @@ ${ATURAN_UMUM_BREAKDOWN}`;
  * dipakai di halaman Alat Angkut Pesawat sekarang.
  * ======================================================================= */
 
+function formatTopKategori(topKategori: { kategori: string; nilai: string; jumlah: number }[]): string {
+  return topKategori
+    .map((t, i) => `${i + 1}. ${t.nilai}: ${t.jumlah}`)
+    .join('\n');
+}
+
 export function susunPromptPesawatTren(data: DataAnalisis): string {
+  const adaBreakdown = data.topKategori.length > 0;
+
   return `${PERSONA_EPIDEMIOLOG}
 
 TUGAS SAAT INI: analisis khusus untuk grafik "${data.labelKonteks}", wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
 
 DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}) -- HANYA metrik yang relevan dengan grafik ini:
-${formatRingkasan(data.ringkasanSaatIni)}
+${formatRingkasanKeyValue(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
-${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
+${adaBreakdown ? `
+BREAKDOWN KATEGORI TERBANYAK (top ${data.topKategori.length}, periode berjalan):
+${formatTopKategori(data.topKategori)}
+` : ''}
 ATURAN WAJIB:
 - FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- JANGAN membahas indikator lain yang tidak tercantum di sana (mis. kalau datanya cuma soal Sertifikat, JANGAN membahas jumlah crew/penumpang).
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
-- Kalau metriknya sertifikat kesehatan (SKLT/TD Laik/IAOS/KIER/Jenazah), kaitkan lonjakan jumlah dengan implikasi beban kerja pemeriksaan kesehatan penerbangan & kebutuhan kesiapsiagaan petugas -- SKLT (Surat Keterangan Laik Terbang) dan TD Laik relevan dengan kelaikan kesehatan penumpang/crew untuk terbang, IAOS & KIER relevan dengan pengawasan sanitasi pesawat, Jenazah relevan dengan prosedur karantina jenazah.
+${adaBreakdown ? '- Kalau ada "BREAKDOWN KATEGORI TERBANYAK", sebut secara spesifik maskapai/kota dengan jumlah tertinggi, jangan cuma membahas total gabungan.\n' : ''}- Kalau metriknya sertifikat kesehatan (SKLT/TD Laik/IAOS/KIER/Jenazah), kaitkan lonjakan jumlah dengan implikasi beban kerja pemeriksaan kesehatan penerbangan & kebutuhan kesiapsiagaan petugas -- SKLT (Surat Keterangan Laik Terbang) dan TD Laik relevan dengan kelaikan kesehatan penumpang/crew untuk terbang, IAOS & KIER relevan dengan pengawasan sanitasi pesawat, Jenazah relevan dengan prosedur karantina jenazah.
 - Kalau metriknya crew/penumpang, bandingkan arus datang vs berangkat, dan kaitkan lonjakan dengan beban kerja skrining kesehatan serta risiko penumpukan/kerumunan di titik pemeriksaan.
+- Kalau metriknya maskapai kedatangan atau kota asal, kaitkan konsentrasi pada maskapai/kota tertentu dengan implikasi prioritas pengawasan kesehatan penerbangan (mis. maskapai/rute dengan volume tinggi perlu skrining lebih ketat).
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
 

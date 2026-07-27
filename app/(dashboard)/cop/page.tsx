@@ -563,10 +563,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
       <div className="flex flex-wrap items-end justify-between gap-4">
         {/* Sisi Kiri: Teks Judul */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-            BKK Kelas I Samarinda
-          </p>
-          <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan COP</h1>
+          <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan Pengawasan Kapal dari Luar Negeri</h1>
         </div>
 
         {/* Sisi Kanan: Tombol Kembali (Dikeluarkan dari div atas) */}
@@ -575,7 +572,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Kembali ke Dashboard Alat Angkut Kapal
+          Dashboard Alat Angkut Kapal
         </Link>
         </div>
 
@@ -604,26 +601,26 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
              ============================================================ */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-card bg-surface p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Total Kapal Keseluruhan (Tahun {tahunEpidSaatIni})
+              <p className="text-xs font-semibold tracking-wide text-muted">
+                Total Kapal Tahun {tahunEpidSaatIni}
               </p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalKapalKeseluruhan.toLocaleString('id-ID')}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Total ABK Keseluruhan (Tahun {tahunEpidSaatIni})
+              <p className="text-xs font-semibold tracking-wide text-muted">
+                Total ABK Tahun {tahunEpidSaatIni}
               </p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalAbkKeseluruhan.toLocaleString('id-ID')}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Total ABK WNA (Tahun {tahunEpidSaatIni})
+              <p className="text-xs font-semibold tracking-wide text-muted">
+                ABK WNA Tahun {tahunEpidSaatIni}
               </p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalAbkWnaKeseluruhan.toLocaleString('id-ID')}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Total ABK WNI (Tahun {tahunEpidSaatIni})
+              <p className="text-xs font-semibold tracking-wide text-muted">
+                ABK WNI Tahun {tahunEpidSaatIni}
               </p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalAbkWniKeseluruhan.toLocaleString('id-ID')}</p>
             </div>
@@ -631,8 +628,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Distribusi Kedatangan Kapal per Wilayah Kerja (Tahun {tahunEpidSaatIni})
+              <h2 className="mb-4 text-sm font-bold tracking-wide text-muted">
+                Distribusi Kedatangan Kapal per Wilayah Kerja selama Tahun {tahunEpidSaatIni}
               </h2>
               <div className="space-y-3">
                 {kapalPerWilayah.map((w) => (
@@ -656,8 +653,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
             </div>
 
             <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Distribusi Kedatangan ABK per Wilayah Kerja (Tahun {tahunEpidSaatIni})
+              <h2 className="mb-4 text-sm font-bold tracking-wide text-muted">
+                Distribusi Kedatangan ABK per Wilayah Kerja selama Tahun {tahunEpidSaatIni}
               </h2>
               <div className="space-y-3">
                 {abkPerWilayah.map((w) => (
@@ -994,8 +991,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
           {/* SECTION 11 */}
           <details className="rounded-card bg-surface p-6">
-            <summary className="cursor-pointer text-sm font-bold uppercase tracking-wide text-muted">
-              Data Mentah (50 Terbaru) — untuk Verifikasi/Audit
+            <summary className="cursor-pointer text-sm font-bold tracking-wide text-muted">
+              Data Terbaru (50 Terbaru) 
             </summary>
             <div className="mt-4 overflow-x-auto">
               {dataMentah.length === 0 ? (

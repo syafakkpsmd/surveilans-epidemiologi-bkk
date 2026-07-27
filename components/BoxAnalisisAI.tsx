@@ -11,6 +11,8 @@ interface BoxAnalisisAIProps {
   periodeKey: string;
   wilayahKerja?: string;
   metrik?: string;
+  /** Default true. Set false untuk konteks yang memang tidak pakai wilayah kerja (mis. global-emerging, berbasis negara/metrik). */
+  wajibWilayahKerja?: boolean;
 }
 
 type HasilAnalisis = {
@@ -24,8 +26,8 @@ type HasilAnalisis = {
 // Tombol generate hanya aktif kalau: (1) role admin/petugas, DAN (2) sudah
 // dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
 // untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
-const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string) =>
-  (role === "admin" || role === "petugas") && !!wilayahKerja;
+const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = true) =>
+  (role === "admin" || role === "petugas") && (!wajibWilayahKerja || !!wilayahKerja);
 
 export function BoxAnalisisAI({
   sudahLogin,
@@ -34,6 +36,7 @@ export function BoxAnalisisAI({
   periodeKey,
   wilayahKerja,
   metrik,
+  wajibWilayahKerja = true,
 }: BoxAnalisisAIProps) {
   const [memuat, setMemuat] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +126,7 @@ export function BoxAnalisisAI({
       )}
 
       <div className="mt-3 border-t border-gray-100 pt-3">
-        {!memuat && bolehGenerate(role, wilayahKerja) && (
+        {!memuat && bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
           <button
             type="button"
             onClick={() => void jalankan()}
@@ -133,9 +136,9 @@ export function BoxAnalisisAI({
           </button>
         )}
 
-        {!memuat && !bolehGenerate(role, wilayahKerja) && (
+        {!memuat && !bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
           <p className="text-xs text-gray-400">
-            {!wilayahKerja ? (
+            {wajibWilayahKerja && !wilayahKerja ? (
               "Pilih satu Wilayah Kerja tertentu untuk menjalankan analisis."
             ) : sudahLogin ? (
               "Hanya Petugas/Admin yang dapat menjalankan analisis baru."

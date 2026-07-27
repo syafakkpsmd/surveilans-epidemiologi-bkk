@@ -16,16 +16,18 @@ import type {
   RingkasanMingguanPhqc,
   RingkasanBulananCop,
   RingkasanBulananPhqc,
+  KegiatanCopEnriched,
+  KegiatanPhqcEnriched,
+  Wilayah,
+} from '@/types/database.types';
+import {
   KategoriBreakdownMingguanCop,
   KategoriBreakdownMingguanPhqc,
   KategoriBreakdownBulananCop,
   KategoriBreakdownBulananPhqc,
   KategoriCop,
   KategoriPhqc,
-  KegiatanCopEnriched,
-  KegiatanPhqcEnriched,
-  Wilayah,
-} from '@/types/database.types';
+} from '@/types/kategori.types';
 
 export type JenisTabel = 'cop' | 'phqc';
 

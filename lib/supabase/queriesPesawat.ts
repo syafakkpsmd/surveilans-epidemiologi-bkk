@@ -64,6 +64,8 @@ interface BarisRekapPesawat {
   tahun: number;
   status_data: string;
   maskapai: string;
+  keberangkatan: string | null;   // <-- tambahan: kota tujuan (untuk metrik kota-tujuan)
+  kedatangan: string | null;      // <-- tambahan: kota asal (untuk metrik kota-asal)
   crew_berangkat: number | null;
   penumpang_berangkat: number | null;
   crew_datang: number | null;
@@ -250,6 +252,155 @@ export async function getBreakdownMaskapai({
   return Array.from(perMaskapai.entries())
     .map(([kategori, jumlah]) => ({ kategori, jumlah }))
     .sort((a, b) => b.jumlah - a.jumlah);
+}
+
+// ---------------------------------------------------------------------
+// BREAKDOWN MASKAPAI KEDATANGAN, PER MINGGU / PER BULAN
+// (beda dari getBreakdownMaskapai: itu total setahun & gabung arah;
+// ini dipecah per periode & KHUSUS kedatangan, untuk AI Analisis/Prediksi)
+// ---------------------------------------------------------------------
+export interface RingkasanMaskapaiMingguan {
+  minggu_epid: number;
+  maskapai: string;
+  penumpang_datang: number;
+  crew_datang: number;
+}
+
+export interface RingkasanMaskapaiBulanan {
+  bulan: string; // 'YYYY-MM'
+  maskapai: string;
+  penumpang_datang: number;
+  crew_datang: number;
+}
+
+export async function getRingkasanMaskapaiKedatanganMingguan({
+  tahun,
+  kodeWilker,
+}: {
+  tahun: number;
+  kodeWilker?: string;
+}): Promise<RingkasanMaskapaiMingguan[]> {
+  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const peta = new Map<string, RingkasanMaskapaiMingguan>();
+
+  for (const row of baris) {
+    const kunci = `${row.epi_week}|${row.maskapai}`;
+    const acc = peta.get(kunci) ?? {
+      minggu_epid: row.epi_week,
+      maskapai: row.maskapai,
+      penumpang_datang: 0,
+      crew_datang: 0,
+    };
+    acc.penumpang_datang += row.penumpang_datang ?? 0;
+    acc.crew_datang += row.crew_datang ?? 0;
+    peta.set(kunci, acc);
+  }
+
+  return Array.from(peta.values());
+}
+
+export async function getRingkasanMaskapaiKedatanganBulanan({
+  tahun,
+  kodeWilker,
+}: {
+  tahun: number;
+  kodeWilker?: string;
+}): Promise<RingkasanMaskapaiBulanan[]> {
+  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const peta = new Map<string, RingkasanMaskapaiBulanan>();
+
+  for (const row of baris) {
+    const bulan = String(row.tanggal).slice(0, 7);
+    const kunci = `${bulan}|${row.maskapai}`;
+    const acc = peta.get(kunci) ?? {
+      bulan,
+      maskapai: row.maskapai,
+      penumpang_datang: 0,
+      crew_datang: 0,
+    };
+    acc.penumpang_datang += row.penumpang_datang ?? 0;
+    acc.crew_datang += row.crew_datang ?? 0;
+    peta.set(kunci, acc);
+  }
+
+  return Array.from(peta.values());
+}
+
+// ---------------------------------------------------------------------
+// BREAKDOWN KOTA ASAL (kedatangan), PER MINGGU / PER BULAN
+// kolom `kedatangan` = kota asal pesawat yang DATANG ke bandara ini
+// ---------------------------------------------------------------------
+export interface RingkasanKotaMingguan {
+  minggu_epid: number;
+  kota: string;
+  penumpang_datang: number;
+  crew_datang: number;
+}
+
+export interface RingkasanKotaBulanan {
+  bulan: string; // 'YYYY-MM'
+  kota: string;
+  penumpang_datang: number;
+  crew_datang: number;
+}
+
+export async function getRingkasanKotaAsalMingguan({
+  tahun,
+  kodeWilker,
+}: {
+  tahun: number;
+  kodeWilker?: string;
+}): Promise<RingkasanKotaMingguan[]> {
+  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const peta = new Map<string, RingkasanKotaMingguan>();
+
+  for (const row of baris) {
+    const kota = row.kedatangan?.trim();
+    if (!kota) continue; // lewati baris tanpa kota asal terisi
+
+    const kunci = `${row.epi_week}|${kota}`;
+    const acc = peta.get(kunci) ?? {
+      minggu_epid: row.epi_week,
+      kota,
+      penumpang_datang: 0,
+      crew_datang: 0,
+    };
+    acc.penumpang_datang += row.penumpang_datang ?? 0;
+    acc.crew_datang += row.crew_datang ?? 0;
+    peta.set(kunci, acc);
+  }
+
+  return Array.from(peta.values());
+}
+
+export async function getRingkasanKotaAsalBulanan({
+  tahun,
+  kodeWilker,
+}: {
+  tahun: number;
+  kodeWilker?: string;
+}): Promise<RingkasanKotaBulanan[]> {
+  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const peta = new Map<string, RingkasanKotaBulanan>();
+
+  for (const row of baris) {
+    const kota = row.kedatangan?.trim();
+    if (!kota) continue;
+
+    const bulan = String(row.tanggal).slice(0, 7);
+    const kunci = `${bulan}|${kota}`;
+    const acc = peta.get(kunci) ?? {
+      bulan,
+      kota,
+      penumpang_datang: 0,
+      crew_datang: 0,
+    };
+    acc.penumpang_datang += row.penumpang_datang ?? 0;
+    acc.crew_datang += row.crew_datang ?? 0;
+    peta.set(kunci, acc);
+  }
+
+  return Array.from(peta.values());
 }
 
 // ---------------------------------------------------------------------

@@ -51,3 +51,26 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/*
+ * Label permanen nama negara + jumlah data pada peta Leaflet
+ * (dipakai di COP dan Global Emerging).
+ */
+.label-negara-cop,
+.label-negara-emerging {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--color-ink);
+  pointer-events: none;
+}
+.label-negara-cop::before,
+.label-negara-emerging::before {
+  display: none !important;
+}

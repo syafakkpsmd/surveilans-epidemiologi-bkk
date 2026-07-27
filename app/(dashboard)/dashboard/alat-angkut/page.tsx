@@ -150,7 +150,7 @@ export default async function DashboardPage() {
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-green-600">Alat Angkut Kapal (COP &amp; PHQC)</h1>
+          <h1 className="text-2xl font-bold text-green-600">Alat Angkut Kapal (Kapal datang dari Luar Negeri &amp; Keberangkatan Kapal)</h1>
           <p className="text-sm text-muted">
             Minggu Epidemiologi ke-{mingguEpid} Tahun {tahunEpid}
           </p>
@@ -163,19 +163,19 @@ export default async function DashboardPage() {
             href="/cop"
             className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
           >
-            Lihat Dashboard COP Lengkap
+            Dashboard Kapal dari Luar Negeri
           </Link>
           <Link
             href="/phqc"
             className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
           >
-            Lihat Dashboard PHQC Lengkap
+            Dashboard Keberangkatan Kapal
           </Link>
           <Link
             href="/dashboard/alat-angkut/sscec"
             className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
           >
-            Lihat Dashboard SSCEC Lengkap
+            Dashboard Pengawasan SSCEC
           </Link>
           <Link
             href="/dashboard/alat-angkut/rat-guard"
@@ -209,15 +209,17 @@ export default async function DashboardPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                RBA — Minggu Epidemiologi ke-{mingguEpid}
+              <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                Risk Based Assessment (RBA)
+                <br />
+                Minggu Epidemiologi ke-{mingguEpid}
               </h2>
               <DonutRba data={kategoriRbaTerjumlah} />
             </div>
 
             <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                RBA — Total Tahun {tahunEpid}
+              <h2 className="mb-4 text-center stext-sm font-bold uppercase tracking-wide text-muted">
+                Risk Based Assessment (RBA) selama Tahun {tahunEpid}
               </h2>
               <DonutRba data={kategoriRbaTotalTahunTerjumlah} />
             </div>
@@ -226,7 +228,7 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Per Wilayah Kerja — COP
+                Pengawasan Kapal dari Luar Neger Per Wilayah Kerja
               </h2>
               <div className="space-y-3">
                 {wilayahBarCop.map((w) => (
@@ -248,7 +250,7 @@ export default async function DashboardPage() {
 
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Per Wilayah Kerja — PHQC
+                Pengawasan Keberangkatan Kapal Per Wilayah Kerja
               </h2>
               <div className="space-y-3">
                 {wilayahBarPhqc.map((w) => (
@@ -270,10 +272,10 @@ export default async function DashboardPage() {
           </div>
 
           <div className="rounded-card bg-surface p-6">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+            <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
               Daerah Terjangkit Minggu Ini (COP)
             </h2>
-            <p className="mb-4 text-xs text-muted">
+            <p className="mb-4 text-center text-xs text-muted">
               Hijau = kapal dari daerah sehat (tidak terjangkit) • Merah = kapal dari daerah terjangkit wabah
             </p>
             <PieBreakdown data={kategoriDaerahTerjangkitTerjumlah} skema="terjangkit" />

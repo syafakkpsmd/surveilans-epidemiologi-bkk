@@ -6,11 +6,13 @@ import type { PeranUser } from "@/types/database.types";
 
 interface BoxPrediksiAIProps {
   sudahLogin: boolean;
-  role?: PeranUser | null;
+  role: PeranUser | null;
   konteks: string;
   periodeKey: string;
   wilayahKerja?: string;
   metrik?: string;
+  /** Default true. Set false untuk konteks yang memang tidak pakai wilayah kerja (mis. global-emerging, berbasis negara/metrik). */
+  wajibWilayahKerja?: boolean;
 }
 
 type HasilPrediksi = {
@@ -24,8 +26,8 @@ type HasilPrediksi = {
 // Tombol generate hanya aktif kalau: (1) role admin/petugas, DAN (2) sudah
 // dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
 // untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
-const bolehGenerate = (role?: PeranUser | null, wilayahKerja?: string) =>
-  (role === "admin" || role === "petugas") && !!wilayahKerja;
+const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = true) =>
+  (role === "admin" || role === "petugas") && (!wajibWilayahKerja || !!wilayahKerja);
 
 export function BoxPrediksiAI({
   sudahLogin,
@@ -34,6 +36,7 @@ export function BoxPrediksiAI({
   periodeKey,
   wilayahKerja,
   metrik,
+  wajibWilayahKerja = true,
 }: BoxPrediksiAIProps) {
   const [memuat, setMemuat] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +127,7 @@ export function BoxPrediksiAI({
       )}
 
       <div className="mt-3 border-t border-gray-100 pt-3">
-        {!memuat && bolehGenerate(role, wilayahKerja) && (
+        {!memuat && bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
           <button
             type="button"
             onClick={() => void jalankan()}
@@ -134,9 +137,9 @@ export function BoxPrediksiAI({
           </button>
         )}
 
-        {!memuat && !bolehGenerate(role, wilayahKerja) && (
+        {!memuat && !bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
           <p className="text-xs text-gray-400">
-            {!wilayahKerja ? (
+            {wajibWilayahKerja && !wilayahKerja ? (
               "Pilih satu Wilayah Kerja tertentu untuk menjalankan prediksi."
             ) : sudahLogin ? (
               "Hanya Petugas/Admin yang dapat menjalankan prediksi baru."

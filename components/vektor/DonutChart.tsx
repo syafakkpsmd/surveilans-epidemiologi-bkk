@@ -18,7 +18,7 @@ export default function DonutChart({
   if (data.length === 0 || total === 0) {
     return (
       <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700">{judul}</h3>
+        <h3 className="mb-3 text-center text-sm font-semibold text-gray-700">{judul}</h3>
         <div className="flex h-56 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
           Belum ada data untuk periode ini.
         </div>
@@ -28,8 +28,8 @@ export default function DonutChart({
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm">
-      <h3 className="mb-1 text-sm font-semibold text-gray-700">{judul}</h3>
-      <p className="mb-2 text-xs text-gray-400">Total: {total} kegiatan</p>
+      <h3 className="mb-1 text-center text-sm font-semibold text-gray-700">{judul}</h3>
+      <p className="mb-2 text-center text-xs text-gray-400">Total: {total} kegiatan</p>
       <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie

@@ -59,7 +59,7 @@ export default function GrafikBarBulanan({
   if (!data.length) {
     return (
       <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-2 text-sm font-semibold text-gray-700">{judul}</h3>
+        <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judul}</h3>
         <div className="flex h-56 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
           Belum ada data untuk periode ini.
         </div>
@@ -69,7 +69,7 @@ export default function GrafikBarBulanan({
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm">
-      <h3 className="mb-2 text-sm font-semibold text-gray-700">{judul}</h3>
+      <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judul}</h3>
 
       {seriesAktif.length === 0 ? (
         <div className="flex h-[280px] items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-400">

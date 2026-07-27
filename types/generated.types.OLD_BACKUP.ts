@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -463,45 +463,6 @@ export type Database = {
         }
         Relationships: []
       }
-      laporan_penyakit_nasional: {
-        Row: {
-          created_at: string
-          id: string
-          jumlah_kasus: number
-          jumlah_kematian: number
-          minggu_epid: number
-          penyakit: string
-          propinsi: string
-          sumber: string
-          tahun_epid: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          jumlah_kasus?: number
-          jumlah_kematian?: number
-          minggu_epid: number
-          penyakit: string
-          propinsi: string
-          sumber?: string
-          tahun_epid: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          jumlah_kasus?: number
-          jumlah_kematian?: number
-          minggu_epid?: number
-          penyakit?: string
-          propinsi?: string
-          sumber?: string
-          tahun_epid?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
       malaria_migrasi: {
         Row: {
           dibuat_pada: string
@@ -616,7 +577,6 @@ export type Database = {
           model: string
           nama_tampilan: string
           tipe_provider: string
-          urutan_prioritas: number
         }
         Insert: {
           aktif?: boolean
@@ -627,7 +587,6 @@ export type Database = {
           model: string
           nama_tampilan: string
           tipe_provider: string
-          urutan_prioritas?: number
         }
         Update: {
           aktif?: boolean
@@ -638,7 +597,6 @@ export type Database = {
           model?: string
           nama_tampilan?: string
           tipe_provider?: string
-          urutan_prioritas?: number
         }
         Relationships: []
       }
@@ -690,36 +648,6 @@ export type Database = {
           nama_lengkap?: string | null
           role?: string
           status?: string
-        }
-        Relationships: []
-      }
-      rat_guard: {
-        Row: {
-          created_at: string
-          id: number
-          jumlah_kapal: number
-          pasang: number
-          tanggal: string
-          tidak_pasang: number
-          wilayah_kerja: string
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          jumlah_kapal?: number
-          pasang?: number
-          tanggal: string
-          tidak_pasang?: number
-          wilayah_kerja: string
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          jumlah_kapal?: number
-          pasang?: number
-          tanggal?: string
-          tidak_pasang?: number
-          wilayah_kerja?: string
         }
         Relationships: []
       }
@@ -1398,26 +1326,6 @@ export type Database = {
           },
         ]
       }
-      v_nasional_emerging_mingguan: {
-        Row: {
-          minggu_epid: number | null
-          penyakit: string | null
-          tahun_epid: number | null
-          total_kasus: number | null
-          total_kematian: number | null
-        }
-        Relationships: []
-      }
-      v_nasional_emerging_per_propinsi: {
-        Row: {
-          penyakit: string | null
-          propinsi: string | null
-          tahun_epid: number | null
-          total_kasus: number | null
-          total_kematian: number | null
-        }
-        Relationships: []
-      }
       view_bulanan_kategori: {
         Row: {
           bulan: number | null
@@ -1625,36 +1533,6 @@ export type Database = {
         }
         Relationships: []
       }
-      view_pab_bulanan: {
-        Row: {
-          bulan: number | null
-          jumlah_ms: number | null
-          jumlah_pemeriksaan: number | null
-          jumlah_tms: number | null
-          tahun: number | null
-          tms_bakteriologis: number | null
-          tms_fisik: number | null
-          tms_kimia: number | null
-          total_pab_diperiksa: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
-      view_pab_mingguan: {
-        Row: {
-          jumlah_ms: number | null
-          jumlah_pemeriksaan: number | null
-          jumlah_tms: number | null
-          minggu: number | null
-          tahun: number | null
-          tms_bakteriologis: number | null
-          tms_fisik: number | null
-          tms_kimia: number | null
-          total_pab_diperiksa: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
       view_pesawat_kota_bulanan: {
         Row: {
           arah: string | null
@@ -1677,30 +1555,6 @@ export type Database = {
         }
         Relationships: []
       }
-      view_rat_guard_bulanan: {
-        Row: {
-          bulan: number | null
-          jumlah_kapal: number | null
-          pasang: number | null
-          persentase_kepatuhan: number | null
-          tahun: number | null
-          tidak_pasang: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
-      view_rat_guard_mingguan: {
-        Row: {
-          jumlah_kapal: number | null
-          minggu_epid: number | null
-          pasang: number | null
-          persentase_kepatuhan: number | null
-          tahun: number | null
-          tidak_pasang: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
       view_tb_mingguan: {
         Row: {
           kode_wilker: string | null
@@ -1719,102 +1573,6 @@ export type Database = {
             referencedColumns: ["kode"]
           },
         ]
-      }
-      view_tpp_bulanan: {
-        Row: {
-          bulan: number | null
-          ikl_ms: number | null
-          ikl_tms: number | null
-          jumlah_ms: number | null
-          jumlah_tms: number | null
-          jumlah_tpp_diperiksa: number | null
-          ms_bakteriologis: number | null
-          ms_borax: number | null
-          ms_formaldehyde: number | null
-          ms_hy_rise: number | null
-          ms_metyl_yellow: number | null
-          ms_rodamin_b: number | null
-          tahun: number | null
-          tms_bakteriologis: number | null
-          tms_borax: number | null
-          tms_formaldehyde: number | null
-          tms_hy_rise: number | null
-          tms_metyl_yellow: number | null
-          tms_rodamin_b: number | null
-          total_sampel: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
-      view_tpp_mingguan: {
-        Row: {
-          ikl_ms: number | null
-          ikl_tms: number | null
-          jumlah_ms: number | null
-          jumlah_tms: number | null
-          jumlah_tpp_diperiksa: number | null
-          minggu: number | null
-          ms_bakteriologis: number | null
-          ms_borax: number | null
-          ms_formaldehyde: number | null
-          ms_hy_rise: number | null
-          ms_metyl_yellow: number | null
-          ms_rodamin_b: number | null
-          tahun: number | null
-          tms_bakteriologis: number | null
-          tms_borax: number | null
-          tms_formaldehyde: number | null
-          tms_hy_rise: number | null
-          tms_metyl_yellow: number | null
-          tms_rodamin_b: number | null
-          total_sampel: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
-      view_ttu_bulanan: {
-        Row: {
-          bulan: number | null
-          jumlah_diperiksa: number | null
-          jumlah_ms: number | null
-          jumlah_tms: number | null
-          tahun: number | null
-          tms_getaran_diruang_kerja: number | null
-          tms_instalasi: number | null
-          tms_kebisingan: number | null
-          tms_lingkungan_luar_halaman: number | null
-          tms_pemeliharaan_jamban_kamar_mandi: number | null
-          tms_pencahayaan: number | null
-          tms_pengelolaan_limbah: number | null
-          tms_pengendalian_vektor_penyakit: number | null
-          tms_penyehatan_air: number | null
-          tms_penyehatan_udara_ruang: number | null
-          tms_ruang_bangunan: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
-      view_ttu_mingguan: {
-        Row: {
-          jumlah_diperiksa: number | null
-          jumlah_ms: number | null
-          jumlah_tms: number | null
-          minggu: number | null
-          tahun: number | null
-          tms_getaran_diruang_kerja: number | null
-          tms_instalasi: number | null
-          tms_kebisingan: number | null
-          tms_lingkungan_luar_halaman: number | null
-          tms_pemeliharaan_jamban_kamar_mandi: number | null
-          tms_pencahayaan: number | null
-          tms_pengelolaan_limbah: number | null
-          tms_pengendalian_vektor_penyakit: number | null
-          tms_penyehatan_air: number | null
-          tms_penyehatan_udara_ruang: number | null
-          tms_ruang_bangunan: number | null
-          wilayah_kerja: string | null
-        }
-        Relationships: []
       }
       view_vektor_anopheles_mingguan: {
         Row: {
@@ -1973,24 +1731,8 @@ export type Database = {
           },
         ]
       }
-      view_wilayah_kerja_rat_guard: {
-        Row: {
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
-      view_wilayah_kerja_sanitasi: {
-        Row: {
-          wilayah_kerja: string | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
-      epi_week_start: {
-        Args: { p_minggu: number; p_tahun: number }
-        Returns: string
-      }
       is_admin: { Args: never; Returns: boolean }
       mmwr_week: {
         Args: { d: string }

@@ -15,6 +15,8 @@ import {
   ambilDataAnalisisPhqc,
   ambilDataAnalisisPenumpang,
   ambilDataAnalisisRatGuard,
+  ambilDataAnalisisGlobalEmerging,
+  ambilDataAnalisisNasionalEmerging,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -25,6 +27,8 @@ import {
   susunPromptFaktorRisiko,
   susunPromptPhqcDaerahAsal,
   susunPromptPrediksiPhqcDaerahAsal,
+  susunPromptPhqcDaerahTujuan,        // <-- tambah
+  susunPromptPrediksiPhqcDaerahTujuan, // <-- tambah
   susunPromptPelabuhanPhqc,
   susunPromptPenumpang,
   susunPromptPrediksiPenumpang,
@@ -53,6 +57,10 @@ import {
   susunPromptPrediksiVektorDiare,
   susunPromptRatGuard,
   susunPromptPrediksiRatGuard,
+  susunPromptGlobalEmerging,
+  susunPromptPrediksiGlobalEmerging,
+  susunPromptNasionalEmerging,          // <-- tambah
+  susunPromptPrediksiNasionalEmerging,  // <-- tambah
 } from '@/lib/ai/prompt';
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
@@ -201,6 +209,8 @@ export async function POST(request: Request) {
   konteks === 'vektor-diare-lalat-bulanan' ||
   konteks === 'vektor-diare-kecoa-bulanan';
   const konteksSanitasi = isKonteksSanitasi(konteks);
+  const konteksGlobalEmerging = konteks.startsWith('global-emerging-');
+  const konteksNasionalEmerging = konteks.startsWith('nasional-emerging-'); // <-- tambah
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
   const metrikUntukCache: string | null = konteksVektor
@@ -220,6 +230,20 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+  if (konteksGlobalEmerging && (typeof metrikMentah !== 'string' || metrikMentah.trim() === '')) {
+    return NextResponse.json(
+      { error: 'Pilih penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI Global Emerging.' },
+      { status: 400 }
+    );
+  }
+  if (konteksNasionalEmerging && (typeof metrikMentah !== 'string' || metrikMentah.trim() === '')) {
+    return NextResponse.json(
+      { error: 'Pilih penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI Nasional Emerging.' },
+      { status: 400 }
+    );
+  }
+
 
   let wilayahKerja: string | undefined;
 
@@ -263,6 +287,10 @@ export async function POST(request: Request) {
       typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
         ? wilayah_kerja
         : undefined;
+  } else if (konteksGlobalEmerging) {
+  wilayahKerja = undefined;
+  } else if (konteksNasionalEmerging) {   // <-- tambah
+    wilayahKerja = undefined;
   } else {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
       return NextResponse.json({ error: `wilayah_kerja "${wilayah_kerja}" tidak dikenal.` }, { status: 400 });
@@ -355,6 +383,8 @@ export async function POST(request: Request) {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNegaraAsal(data) : susunPromptNegaraAsal(data);
       } else if (konteks === 'phqc-daerah-asal') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPhqcDaerahAsal(data) : susunPromptPhqcDaerahAsal(data);
+      } else if (konteks === 'phqc-daerah-tujuan') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPhqcDaerahTujuan(data) : susunPromptPhqcDaerahTujuan(data);
       } else if (konteks === 'phqc-rba-mingguan' || konteks === 'phqc-rba-bulanan') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRba(data) : susunPromptRba(data);
       } else if (konteks === 'phqc-pelabuhan-mingguan' || konteks === 'phqc-pelabuhan-bulanan') {
@@ -367,25 +397,17 @@ export async function POST(request: Request) {
         throw new Error(`Konteks breakdown "${konteks}" belum punya fungsi susunPrompt yang dipasang di route.ts.`);
       }
 
-      
-     } else if ((konteks as any) === 'global-emerging-mingguan' || (konteks as any) === 'global-emerging-bulanan') {
-        const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
-        
-        const pembuatPromptPrediksi = (globalThis as any)['susunPromptPrediksiGlobalEmerging'];
-        const pembuatPromptGlobal = (globalThis as any)['susunPromptGlobalEmerging'];
+    } else if (konteks === 'global-emerging-mingguan' || konteks === 'global-emerging-bulanan') {
+    const data = await ambilDataAnalisisGlobalEmerging(konteks, periodeKey, metrikMentah, tipe);
+    promptTeks = tipe === 'prediksi' ? susunPromptPrediksiGlobalEmerging(data) : susunPromptGlobalEmerging(data);
+    labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+    labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
 
-        if (tipe === 'prediksi') {
-          promptTeks = typeof pembuatPromptPrediksi === 'function'
-            ? pembuatPromptPrediksi(data)
-            : `Analisis prediksi data global emerging berikut: ${JSON.stringify(data)}`;
-        } else {
-          promptTeks = typeof pembuatPromptGlobal === 'function'
-            ? pembuatPromptGlobal(data)
-            : `Analisis data global emerging berikut: ${JSON.stringify(data)}`;
-        }
-
-        labelPeriodeSaatIni = data.labelPeriodeSaatIni;
-        labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'nasional-emerging-mingguan' || konteks === 'nasional-emerging-bulanan') {
+    const data = await ambilDataAnalisisNasionalEmerging(konteks, periodeKey, metrikMentah, tipe);
+    promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNasionalEmerging(data) : susunPromptNasionalEmerging(data);
+    labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+    labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
 
     } else if (konteks === 'cop-negara-tren') {
     const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);

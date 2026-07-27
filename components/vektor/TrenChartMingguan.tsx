@@ -65,21 +65,6 @@ export default function TrenChartMingguan({
 
   return (
     <div>
-      {/* Checkbox toggle per series */}
-      <div className="mb-2 flex flex-wrap gap-3">
-        {seriesList.map((s) => (
-          <label key={s.key} className="flex items-center gap-1.5 text-xs text-gray-600">
-            <input
-              type="checkbox"
-              checked={seriesAktif.has(s.key)}
-              onChange={() => toggleSeries(s.key)}
-              style={{ accentColor: s.warna }}
-            />
-            <span>{s.label}</span>
-          </label>
-        ))}
-      </div>
-
       <ResponsiveContainer width="100%" height={280}>
         <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -119,6 +104,21 @@ export default function TrenChartMingguan({
             )}
         </ComposedChart>
       </ResponsiveContainer>
+
+      {/* Checkbox toggle per series */}
+      <div className="mt-2 flex flex-wrap gap-3">
+        {seriesList.map((s) => (
+          <label key={s.key} className="flex items-center gap-1.5 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={seriesAktif.has(s.key)}
+              onChange={() => toggleSeries(s.key)}
+              style={{ accentColor: s.warna }}
+            />
+            <span>{s.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

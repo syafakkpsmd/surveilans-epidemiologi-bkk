@@ -18,7 +18,7 @@ import {
   getRingkasanRatGuardBulanan,
 } from '@/lib/supabase/queries';
 import { getTrenDiareMultiVariabel, getTrenDiareBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
-import type { KategoriCop } from '@/types/database.types';
+import type { KategoriCop } from '@/types/kategori.types';
 import {
   parsePeriodeMingguan,
   parsePeriodeBulanan,
@@ -36,6 +36,11 @@ import {
   type PeriodeBulanan,
 } from './periode';
 import { ambilDataAnalisisVektorDbdRentang, type MetrikVektor } from './dataVektor';
+import { getRingkasanPenyakitEmerging } from '@/lib/supabase/global-emerging-queries';
+import type { RingkasanPenyakitEmerging, Penyakit, Negara } from '@/types/global-emerging.types';
+import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
+import { createClient } from '@/lib/supabase/server';
+
 
 export const KONTEKS_TREN = [
   'dashboard-utama',
@@ -71,6 +76,10 @@ export const KONTEKS_TREN = [
   'pab-mingguan',
   'rat-guard-mingguan',
   'rat-guard-bulanan',
+  'global-emerging-mingguan',   // <-- tambah
+  'global-emerging-bulanan',    // <-- tambah
+  'nasional-emerging-mingguan',   // <-- tambah
+  'nasional-emerging-bulanan',    // <-- tambah
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -79,6 +88,7 @@ export const KONTEKS_BREAKDOWN = [
   'cop-faktor-risiko',
   'cop-per-wilker', 
   'phqc-daerah-asal',
+  'phqc-daerah-tujuan',
   'phqc-rba-mingguan',
   'phqc-rba-bulanan',
   'phqc-pelabuhan-mingguan',
@@ -91,6 +101,7 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'cop-negara-tren',        
   'cop-per-wilker', 
   'phqc-daerah-asal',
+  'phqc-daerah-tujuan',
   'phqc-rba-mingguan',
   'phqc-rba-bulanan',
   'penumpang-mingguan',
@@ -117,7 +128,12 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'pab-mingguan',
   'rat-guard-mingguan',
   'rat-guard-bulanan',
+  'global-emerging-mingguan',   // <-- tambah
+  'global-emerging-bulanan',    // <-- tambah
+  'nasional-emerging-mingguan',   // <-- tambah
+  'nasional-emerging-bulanan',    // <-- tambah
 ] as const;
+
 
 export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN] as const;
 
@@ -153,7 +169,8 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
     konteks === 'vektor-diare-kecoa-mingguan' ||
     konteks === 'vektor-diare-lalat-bulanan' ||
     konteks === 'vektor-diare-kecoa-bulanan' ||
-    konteks.startsWith('anopheles-')
+    konteks.startsWith('anopheles-') ||
+    konteks.startsWith('global-emerging-')
   );
 }
 
@@ -1241,6 +1258,394 @@ async function ambilDataBreakdownPerWilkerCop(periodeKey: string): Promise<DataB
   };
 }
 
+function agregasiEmergingPerNegara(rows: RingkasanPenyakitEmerging[]): Record<string, number> {
+  const petaKasus = new Map<string, number>();
+  let totalKematian = 0;
+  rows.forEach((r) => {
+    petaKasus.set(r.negara, (petaKasus.get(r.negara) ?? 0) + (r.total_kasus ?? 0));
+    totalKematian += r.total_kematian ?? 0;
+  });
+  const hasil = Object.fromEntries(petaKasus.entries());
+  hasil['Total Kematian (seluruh negara)'] = totalKematian;
+  return hasil;
+}
+
+async function ambilGlobalEmergingMingguan(
+  tahun: number,
+  mgAwal: number,
+  mgAkhir: number,
+  penyakit: string
+): Promise<Record<string, number>> {
+  if (mgAkhir < mgAwal) return {};
+  const supabase = await createClient();
+  const rows = await getRingkasanPenyakitEmerging(supabase, {
+    jenis: 'mingguan',
+    tahunEpid: tahun,
+    penyakit: penyakit as Penyakit,
+  });
+  const terfilter = rows.filter((r) => (r.minggu_epid ?? 0) >= mgAwal && (r.minggu_epid ?? 0) <= mgAkhir);
+  return agregasiEmergingPerNegara(terfilter);
+}
+
+async function ambilGlobalEmergingBulanan(
+  tahun: number,
+  blnAwal: number,
+  blnAkhir: number,
+  penyakit: string
+): Promise<Record<string, number>> {
+  if (blnAkhir < blnAwal) return {};
+  const supabase = await createClient();
+  const rows = await getRingkasanPenyakitEmerging(supabase, {
+    jenis: 'bulanan',
+    tahunEpid: tahun,
+    penyakit: penyakit as Penyakit,
+  });
+  const terfilter = rows.filter((r) => (r.bulan ?? 0) >= blnAwal && (r.bulan ?? 0) <= blnAkhir);
+  return agregasiEmergingPerNegara(terfilter);
+}
+
+/**
+ * Titik masuk KHUSUS untuk global-emerging-mingguan/bulanan.
+ * Wajib pilih 1 penyakit dulu (parameter `penyakit`) -- kalau kosong,
+ * lempar error supaya route.ts mengembalikan pesan jelas ke Box AI.
+ *
+ * tipe="analisis" : KUMULATIF minggu 1 s.d. minggu terpilih (atau
+ *   Januari s.d. bulan terpilih), breakdown per negara -- sama pola
+ *   dengan ambilDataAnalisisCop/Phqc.
+ * tipe="prediksi" : periode TUNGGAL terkini vs periode tunggal
+ *   sebelumnya, breakdown per negara -- untuk proyeksi tren ke depan.
+ */
+async function ambilGlobalEmergingRentang(
+  jenis: 'mingguan' | 'bulanan',
+  tahun: number,
+  awal: number,
+  akhir: number,
+  mode: 'penyakit' | 'negara',
+  nilai: string
+): Promise<{ ringkasan: Record<string, number>; topKategori: { kategori: string; nilai: string; jumlah: number }[] }> {
+  if (akhir < awal) return { ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] };
+
+  const supabase = await createClient();
+  const rows = await getRingkasanPenyakitEmerging(supabase, {
+    jenis,
+    tahunEpid: tahun,
+    penyakit: mode === 'penyakit' ? (nilai as Penyakit) : undefined,
+    negara: mode === 'negara' ? (nilai as Negara) : undefined,
+  });
+
+  const kolomPeriode = jenis === 'mingguan' ? 'minggu_epid' : 'bulan';
+  const terfilter = rows.filter((r) => {
+    const p = (r as any)[kolomPeriode] ?? 0;
+    return p >= awal && p <= akhir;
+  });
+
+  const petaLain = new Map<string, number>();
+  let totalKasus = 0;
+  let totalKematian = 0;
+  terfilter.forEach((r) => {
+    totalKasus += r.total_kasus ?? 0;
+    totalKematian += r.total_kematian ?? 0;
+    const kunciLain = mode === 'penyakit' ? r.negara : r.penyakit;
+    petaLain.set(kunciLain, (petaLain.get(kunciLain) ?? 0) + (r.total_kasus ?? 0));
+  });
+
+  const kategoriLabel = mode === 'penyakit' ? 'negara' : 'penyakit';
+  const topKategori = Array.from(petaLain.entries())
+    .map(([nilai, jumlah]) => ({ kategori: kategoriLabel, nilai, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+
+  return { ringkasan: { total_kasus: totalKasus, total_kematian: totalKematian }, topKategori };
+}
+
+/**
+ * Titik masuk KHUSUS untuk global-emerging-mingguan/bulanan. Wajib pilih
+ * 1 nilai (`metrik`) dulu -- otomatis dideteksi apakah itu nama PENYAKIT
+ * atau nama NEGARA (dua mode terpisah, toggle dari filter halaman):
+ * - metrik = penyakit -> breakdown per NEGARA (topKategori kategori='negara')
+ * - metrik = negara   -> breakdown per PENYAKIT (topKategori kategori='penyakit')
+ *
+ * periodeKey SELALU format rentang ("2026-W1_W24" / "2026-1_7") --
+ * dikirim dari page.tsx mengikuti filter Mg/Bulan yang aktif.
+ *
+ * tipe="analisis" : KUMULATIF dari 1 s.d. periode akhir rentang (mirip
+ *   pola vektor-tikus/vektor-diare -- sebelumnya = kumulatif 1 s.d.
+ *   sebelum periode awal rentang).
+ * tipe="prediksi" : periode TUNGGAL terakhir dalam rentang vs periode
+ *   tunggal sebelumnya, untuk proyeksi ke depan.
+ */
+export async function ambilDataAnalisisGlobalEmerging(
+  konteks: 'global-emerging-mingguan' | 'global-emerging-bulanan',
+  periodeKey: string,
+  metrik: string | undefined,
+  tipe: 'analisis' | 'prediksi'
+): Promise<DataAnalisis> {
+  if (!metrik) {
+    throw new Error('Pilih penyakit atau negara terlebih dahulu untuk menjalankan Analisis/Prediksi AI Global Emerging.');
+  }
+
+  const mode: 'penyakit' | 'negara' = (DAFTAR_PENYAKIT as readonly string[]).includes(metrik)
+    ? 'penyakit'
+    : (DAFTAR_NEGARA as readonly string[]).includes(metrik)
+    ? 'negara'
+    : (() => {
+        throw new Error(`Nilai "${metrik}" tidak dikenal sebagai penyakit maupun negara.`);
+      })();
+
+  const labelWilayah =
+    mode === 'penyakit'
+      ? 'Seluruh negara yang dipantau (breakdown per negara)'
+      : 'Seluruh penyakit yang dipantau (breakdown per penyakit)';
+  const labelKonteks =
+    mode === 'penyakit' ? `Penyakit Infeksi Emerging — ${metrik}` : `Penyakit Infeksi Emerging — Negara: ${metrik}`;
+  const isMingguan = konteks === 'global-emerging-mingguan';
+
+  if (isMingguan) {
+    const r = isPeriodeRentangMingguan(periodeKey)
+      ? parseRentangMingguan(periodeKey)
+      : (() => {
+          const p = parsePeriodeMingguan(periodeKey);
+          return { tahun: p.tahun, mingguAwal: p.minggu, mingguAkhir: p.minggu };
+        })();
+
+    if (tipe === 'prediksi') {
+      const periodeSaatIni: PeriodeMingguan = { jenis: 'mingguan', tahun: r.tahun, minggu: r.mingguAkhir };
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilGlobalEmergingRentang('mingguan', periodeSaatIni.tahun, periodeSaatIni.minggu, periodeSaatIni.minggu, mode, metrik),
+        ambilGlobalEmergingRentang('mingguan', periodeSebelumnya.tahun, periodeSebelumnya.minggu, periodeSebelumnya.minggu, mode, metrik),
+      ]);
+      return {
+        labelKonteks,
+        labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni.ringkasan,
+        ringkasanSebelumnya: sebelumnya.ringkasan,
+        topKategori: saatIni.topKategori,
+      };
+    }
+
+    const adaSebelumnya = r.mingguAwal > 1;
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilGlobalEmergingRentang('mingguan', r.tahun, r.mingguAwal, r.mingguAkhir, mode, metrik),
+      adaSebelumnya
+        ? ambilGlobalEmergingRentang('mingguan', r.tahun, 1, r.mingguAwal - 1, mode, metrik)
+        : Promise.resolve({ ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] }),
+    ]);
+    return {
+      labelKonteks,
+      labelWilayah,
+      labelPeriodeSaatIni: labelRentangMingguan(r),
+      labelPeriodeSebelumnya: adaSebelumnya
+        ? `minggu epidemiologi ke-1 s.d. ke-${r.mingguAwal - 1} tahun ${r.tahun} (sebelum rentang ini)`
+        : 'Tidak ada data sebelum minggu ke-1',
+      ringkasanSaatIni: saatIni.ringkasan,
+      ringkasanSebelumnya: sebelumnya.ringkasan,
+      topKategori: saatIni.topKategori,
+    };
+  }
+
+  // bulanan
+  const r = isPeriodeRentangBulanan(periodeKey)
+    ? parseRentangBulanan(periodeKey)
+    : (() => {
+        const p = parsePeriodeBulanan(periodeKey);
+        return { tahun: p.tahun, bulanAwal: p.bulan, bulanAkhir: p.bulan };
+      })();
+
+  if (tipe === 'prediksi') {
+    const periodeSaatIni: PeriodeBulanan = { jenis: 'bulanan', tahun: r.tahun, bulan: r.bulanAkhir };
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilGlobalEmergingRentang('bulanan', periodeSaatIni.tahun, periodeSaatIni.bulan, periodeSaatIni.bulan, mode, metrik),
+      ambilGlobalEmergingRentang('bulanan', periodeSebelumnya.tahun, periodeSebelumnya.bulan, periodeSebelumnya.bulan, mode, metrik),
+    ]);
+    return {
+      labelKonteks,
+      labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni.ringkasan,
+      ringkasanSebelumnya: sebelumnya.ringkasan,
+      topKategori: saatIni.topKategori,
+    };
+  }
+
+  const adaSebelumnya = r.bulanAwal > 1;
+  const [saatIni, sebelumnya] = await Promise.all([
+    ambilGlobalEmergingRentang('bulanan', r.tahun, r.bulanAwal, r.bulanAkhir, mode, metrik),
+    adaSebelumnya
+      ? ambilGlobalEmergingRentang('bulanan', r.tahun, 1, r.bulanAwal - 1, mode, metrik)
+      : Promise.resolve({ ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] }),
+  ]);
+  return {
+    labelKonteks,
+    labelWilayah,
+    labelPeriodeSaatIni: labelRentangBulanan(r),
+    labelPeriodeSebelumnya: adaSebelumnya
+      ? `Januari s.d. bulan sebelum rentang ini, tahun ${r.tahun}`
+      : 'Tidak ada data sebelum bulan pertama',
+    ringkasanSaatIni: saatIni.ringkasan,
+    ringkasanSebelumnya: sebelumnya.ringkasan,
+    topKategori: saatIni.topKategori,
+  };
+}
+
+const DAFTAR_PENYAKIT_NASIONAL = ['Leptospirosis', 'Mpox', 'Polio', 'Legionellosis', 'Hantavirus', 'Covid-19'] as const;
+
+function isPenyakitNasionalValid(nilai: unknown): nilai is (typeof DAFTAR_PENYAKIT_NASIONAL)[number] {
+  return typeof nilai === 'string' && (DAFTAR_PENYAKIT_NASIONAL as readonly string[]).includes(nilai);
+}
+
+// GSS nasional cuma punya kolom Mg1-Mg53 (tidak ada kolom bulan tersimpan),
+// jadi konversi minggu->bulan dilakukan di sini saat agregasi bulanan.
+const BATAS_BULAN_NASIONAL = [
+  { bulan: 1, awal: 1, akhir: 4 }, { bulan: 2, awal: 5, akhir: 8 }, { bulan: 3, awal: 9, akhir: 13 },
+  { bulan: 4, awal: 14, akhir: 17 }, { bulan: 5, awal: 18, akhir: 21 }, { bulan: 6, awal: 22, akhir: 26 },
+  { bulan: 7, awal: 27, akhir: 30 }, { bulan: 8, awal: 31, akhir: 35 }, { bulan: 9, awal: 36, akhir: 39 },
+  { bulan: 10, awal: 40, akhir: 43 }, { bulan: 11, awal: 44, akhir: 48 }, { bulan: 12, awal: 49, akhir: 53 },
+];
+
+function mingguKeBulanNasional(minggu: number): number {
+  return BATAS_BULAN_NASIONAL.find((b) => minggu >= b.awal && minggu <= b.akhir)?.bulan ?? 12;
+}
+
+async function ambilNasionalEmergingRentang(
+  jenis: 'mingguan' | 'bulanan',
+  tahun: number,
+  awal: number,
+  akhir: number,
+  penyakit: string
+): Promise<{ ringkasan: Record<string, number>; topKategori: { kategori: string; nilai: string; jumlah: number }[] }> {
+  if (akhir < awal) return { ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] };
+
+  const supabase = await createClient();
+  const { data: rows, error } = await supabase
+    .from('laporan_penyakit_nasional')
+    .select('propinsi, minggu_epid, jumlah_kasus, jumlah_kematian')
+    .eq('penyakit', penyakit)
+    .eq('tahun_epid', tahun);
+
+  if (error) throw new Error(`Gagal mengambil data nasional emerging: ${error.message}`);
+
+  const terfilter = (rows ?? []).filter((r) => {
+    const p = jenis === 'mingguan' ? r.minggu_epid : mingguKeBulanNasional(r.minggu_epid);
+    return p >= awal && p <= akhir;
+  });
+
+  const petaPropinsi = new Map<string, number>();
+  let totalKasus = 0;
+  let totalKematian = 0;
+  terfilter.forEach((r) => {
+    totalKasus += r.jumlah_kasus ?? 0;
+    totalKematian += r.jumlah_kematian ?? 0;
+    petaPropinsi.set(r.propinsi, (petaPropinsi.get(r.propinsi) ?? 0) + (r.jumlah_kasus ?? 0));
+  });
+
+  const topKategori = Array.from(petaPropinsi.entries())
+    .map(([nilai, jumlah]) => ({ kategori: 'propinsi', nilai, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+
+  return { ringkasan: { total_kasus: totalKasus, total_kematian: totalKematian }, topKategori };
+}
+
+export async function ambilDataAnalisisNasionalEmerging(
+  konteks: 'nasional-emerging-mingguan' | 'nasional-emerging-bulanan',
+  periodeKey: string,
+  metrik: string | undefined,
+  tipe: 'analisis' | 'prediksi'
+): Promise<DataAnalisis> {
+  if (!metrik || !isPenyakitNasionalValid(metrik)) {
+    throw new Error('Pilih penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI Nasional Emerging.');
+  }
+
+  const labelWilayah = 'Seluruh propinsi Indonesia (breakdown per propinsi)';
+  const labelKonteks = `Penyakit Infeksi Emerging Nasional — ${metrik}`;
+  const isMingguan = konteks === 'nasional-emerging-mingguan';
+
+  if (isMingguan) {
+    const r = isPeriodeRentangMingguan(periodeKey)
+      ? parseRentangMingguan(periodeKey)
+      : (() => {
+          const p = parsePeriodeMingguan(periodeKey);
+          return { tahun: p.tahun, mingguAwal: p.minggu, mingguAkhir: p.minggu };
+        })();
+
+    if (tipe === 'prediksi') {
+      const periodeSaatIni: PeriodeMingguan = { jenis: 'mingguan', tahun: r.tahun, minggu: r.mingguAkhir };
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilNasionalEmergingRentang('mingguan', periodeSaatIni.tahun, periodeSaatIni.minggu, periodeSaatIni.minggu, metrik),
+        ambilNasionalEmergingRentang('mingguan', periodeSebelumnya.tahun, periodeSebelumnya.minggu, periodeSebelumnya.minggu, metrik),
+      ]);
+      return {
+        labelKonteks, labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni.ringkasan, ringkasanSebelumnya: sebelumnya.ringkasan,
+        topKategori: saatIni.topKategori,
+      };
+    }
+
+    const adaSebelumnya = r.mingguAwal > 1;
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilNasionalEmergingRentang('mingguan', r.tahun, r.mingguAwal, r.mingguAkhir, metrik),
+      adaSebelumnya
+        ? ambilNasionalEmergingRentang('mingguan', r.tahun, 1, r.mingguAwal - 1, metrik)
+        : Promise.resolve({ ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] }),
+    ]);
+    return {
+      labelKonteks, labelWilayah,
+      labelPeriodeSaatIni: labelRentangMingguan(r),
+      labelPeriodeSebelumnya: adaSebelumnya
+        ? `minggu epidemiologi ke-1 s.d. ke-${r.mingguAwal - 1} tahun ${r.tahun} (sebelum rentang ini)`
+        : 'Tidak ada data sebelum minggu ke-1',
+      ringkasanSaatIni: saatIni.ringkasan, ringkasanSebelumnya: sebelumnya.ringkasan,
+      topKategori: saatIni.topKategori,
+    };
+  }
+
+  const r = isPeriodeRentangBulanan(periodeKey)
+    ? parseRentangBulanan(periodeKey)
+    : (() => {
+        const p = parsePeriodeBulanan(periodeKey);
+        return { tahun: p.tahun, bulanAwal: p.bulan, bulanAkhir: p.bulan };
+      })();
+
+  if (tipe === 'prediksi') {
+    const periodeSaatIni: PeriodeBulanan = { jenis: 'bulanan', tahun: r.tahun, bulan: r.bulanAkhir };
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilNasionalEmergingRentang('bulanan', periodeSaatIni.tahun, periodeSaatIni.bulan, periodeSaatIni.bulan, metrik),
+      ambilNasionalEmergingRentang('bulanan', periodeSebelumnya.tahun, periodeSebelumnya.bulan, periodeSebelumnya.bulan, metrik),
+    ]);
+    return {
+      labelKonteks, labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni.ringkasan, ringkasanSebelumnya: sebelumnya.ringkasan,
+      topKategori: saatIni.topKategori,
+    };
+  }
+
+  const adaSebelumnya = r.bulanAwal > 1;
+  const [saatIni, sebelumnya] = await Promise.all([
+    ambilNasionalEmergingRentang('bulanan', r.tahun, r.bulanAwal, r.bulanAkhir, metrik),
+    adaSebelumnya
+      ? ambilNasionalEmergingRentang('bulanan', r.tahun, 1, r.bulanAwal - 1, metrik)
+      : Promise.resolve({ ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] }),
+  ]);
+  return {
+    labelKonteks, labelWilayah,
+    labelPeriodeSaatIni: labelRentangBulanan(r),
+    labelPeriodeSebelumnya: adaSebelumnya
+      ? `Januari s.d. bulan sebelum rentang ini, tahun ${r.tahun}`
+      : 'Tidak ada data sebelum bulan pertama',
+    ringkasanSaatIni: saatIni.ringkasan, ringkasanSebelumnya: sebelumnya.ringkasan,
+    topKategori: saatIni.topKategori,
+  };
+}
+
 export async function ambilDataAnalisis(
   konteks: KonteksAnalisis,
   periodeKey: string,
@@ -2045,6 +2450,7 @@ const KATEGORI_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, string> = {
   'cop-faktor-risiko': 'faktor_risiko' satisfies KategoriCop,
   'cop-per-wilker': 'wilayah_kerja',
   'phqc-daerah-asal': 'pelabuhan_kedatangan',
+  'phqc-daerah-tujuan': 'pelabuhan_tujuan',
   'phqc-rba-mingguan': 'rba',
   'phqc-rba-bulanan': 'rba',
   'phqc-pelabuhan-mingguan': 'pelabuhan_kedatangan',
@@ -2057,6 +2463,7 @@ const TABEL_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, 'cop' | 'phqc'> = {
   'cop-faktor-risiko': 'cop',
   'cop-per-wilker': 'cop',
   'phqc-daerah-asal': 'phqc',
+  'phqc-daerah-tujuan': 'phqc',
   'phqc-rba-mingguan': 'phqc',
   'phqc-rba-bulanan': 'phqc',
   'phqc-pelabuhan-mingguan': 'phqc',
@@ -2069,6 +2476,7 @@ const LABEL_PER_KONTEKS_BREAKDOWN: Record<KonteksBreakdown, string> = {
   'cop-faktor-risiko': 'Faktor Risiko Kegiatan COP',
   'cop-per-wilker': 'Perbandingan Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
   'phqc-daerah-asal': 'Daerah Asal — Pelabuhan Kedatangan (Kegiatan PHQC)',
+  'phqc-daerah-tujuan': 'Daerah Tujuan — Pelabuhan Tujuan (Kegiatan PHQC)',
   'phqc-rba-mingguan': 'Klasifikasi Risiko (RBA) Kegiatan PHQC — Mingguan',
   'phqc-rba-bulanan': 'Klasifikasi Risiko (RBA) Kegiatan PHQC — Bulanan',
   'phqc-pelabuhan-mingguan': 'Pelabuhan Kedatangan & Tujuan (Kegiatan PHQC) — Mingguan',
@@ -2153,10 +2561,78 @@ async function ambilDataBreakdownPelabuhanPhqc(
 export async function ambilDataBreakdownAnalisis(
   konteks: KonteksBreakdown,
   periodeKey: string,
-  wilayahKerja: string | undefined
+  wilayahKerja: string | undefined,
+  tipe: 'analisis' | 'prediksi' = 'analisis'
 ): Promise<DataBreakdownAnalisis> {
   if (konteks === 'phqc-pelabuhan-mingguan' || konteks === 'phqc-pelabuhan-bulanan') {
     return ambilDataBreakdownPelabuhanPhqc(periodeKey, wilayahKerja);
+  }
+
+  // KUMULATIF khusus phqc-daerah-asal/phqc-daerah-tujuan untuk tipe="analisis"
+  // (sama seperti pola kumulatif di ambilDataAnalisisPhqc/ambilDataAnalisisSanitasi) --
+  // "prediksi" TETAP periode tunggal seperti semula, tidak berubah.
+  if (
+    (konteks === 'phqc-daerah-asal' || konteks === 'phqc-daerah-tujuan') &&
+    tipe === 'analisis'
+  ) {
+    const kategori = konteks === 'phqc-daerah-asal' ? 'pelabuhan_kedatangan' : 'pelabuhan_tujuan';
+    const labelWilayah = wilayahKerja
+      ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+      : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    const wilayahUntukQuery = resolveWilayahPhqcDb(wilayahKerja);
+    const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
+
+    if (isMingguan) {
+      const p = parsePeriodeMingguan(periodeKey);
+      const semua = await (getKategoriBreakdown as any)('phqc', 'mingguan', {
+        tahun_epid: p.tahun,
+        kategori,
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
+      });
+      const terfilter = (semua as { minggu_epid: number; nilai: string; jumlah: number }[]).filter(
+        (b) => b.minggu_epid >= 1 && b.minggu_epid <= p.minggu
+      );
+      const peta = new Map<string, number>();
+      terfilter.forEach((b) => peta.set(b.nilai, (peta.get(b.nilai) ?? 0) + b.jumlah));
+      const breakdown = Array.from(peta.entries())
+        .map(([nilai, jumlah]) => ({ nilai, jumlah }))
+        .sort((a, b) => b.jumlah - a.jumlah);
+
+      const ringkasan = await ambilPhqcKumulatifMingguan(p.tahun, p.minggu, wilayahKerja);
+
+      return {
+        labelKonteks: LABEL_PER_KONTEKS_BREAKDOWN[konteks],
+        labelWilayah,
+        labelPeriode: `Minggu epidemiologi 1 s.d. ${p.minggu} tahun ${p.tahun} (kumulatif)`,
+        totalKapal: ringkasan.jumlah_kapal ?? 0,
+        breakdown,
+      };
+    }
+
+    const p = parsePeriodeBulanan(periodeKey);
+    const semua = await (getKategoriBreakdown as any)('phqc', 'bulanan', {
+      tahun: p.tahun,
+      kategori,
+      ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
+    });
+    const terfilter = (semua as { bulan: number; nilai: string; jumlah: number }[]).filter(
+      (b) => b.bulan >= 1 && b.bulan <= p.bulan
+    );
+    const peta = new Map<string, number>();
+    terfilter.forEach((b) => peta.set(b.nilai, (peta.get(b.nilai) ?? 0) + b.jumlah));
+    const breakdown = Array.from(peta.entries())
+      .map(([nilai, jumlah]) => ({ nilai, jumlah }))
+      .sort((a, b) => b.jumlah - a.jumlah);
+
+    const ringkasan = await ambilPhqcKumulatifBulanan(p.tahun, p.bulan, wilayahKerja);
+
+    return {
+      labelKonteks: LABEL_PER_KONTEKS_BREAKDOWN[konteks],
+      labelWilayah,
+      labelPeriode: `Januari s.d. ${labelPeriodeBulanan(p)} (kumulatif)`,
+      totalKapal: ringkasan.jumlah_kapal ?? 0,
+      breakdown,
+    };
   }
 
   const labelWilayah = wilayahKerja

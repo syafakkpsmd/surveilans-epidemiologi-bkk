@@ -429,10 +429,7 @@ export default async function PhqcPage({
       {/* HEADER & FILTER */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-            BKK Kelas I Samarinda
-          </p>
-          <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan PHQC</h1>
+          <h1 className="text-2xl font-bold text-ink">Dashboard Kegiatan Pengawasan Keberangkatan Kapal</h1>
           <p className="text-sm text-muted">Berdasarkan tanggal keberangkatan</p>
         </div>
 
@@ -441,7 +438,7 @@ export default async function PhqcPage({
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Kembali ke Dashboard Alat Angkut Kapal
+          Dashboard Alat Angkut Kapal
         </Link>
       </div>
 
@@ -464,25 +461,25 @@ export default async function PhqcPage({
           {/* KARTU KPI */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-card bg-surface p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <p className="text-xs font-semibold tracking-wide text-muted">
                 Jumlah Kapal ({mode === "mingguan" ? "Tahunan" : "Bulanan"})
               </p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalKapal.toLocaleString("id-ID")}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total ABK</p>
+              <p className="text-xs font-semibold tracking-wide text-muted">Total ABK</p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalAbkKpi.toLocaleString("id-ID")}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total Penumpang</p>
+              <p className="text-xs font-semibold tracking-wide text-muted">Total Penumpang</p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalPenumpangKpi.toLocaleString("id-ID")}</p>
             </div>
           </div>
 
           {/* TREN UTAMA */}
           <div className="rounded-card bg-surface p-6">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-              Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} Tahun {tahun}
+            <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Distribusi Pengawasan Keberangkatan Kapal {mode === "mingguan" ? "Mingguan" : "Bulanan"} Tahun {tahun}
             </h2>
             {trenData.length === 0 ? (
               <p className="text-sm text-muted">Belum ada data untuk ditampilkan.</p>
@@ -509,7 +506,7 @@ export default async function PhqcPage({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-3">
               <BreakdownCard
-                judul="Pelabuhan Kedatangan (Daerah Asal Kapal)"
+                judul="Distribusi Kapal Berdasarkan Pelabuhan Kedatangan"
                 data={kategoriData["pelabuhan_kedatangan"]}
               />
               <BoxAnalisisAI
@@ -527,10 +524,26 @@ export default async function PhqcPage({
                 wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
               />
             </div>
-            <BreakdownCard
-              judul="Pelabuhan Tujuan"
-              data={kategoriData["pelabuhan_tujuan"]}
-            />
+            <div className="space-y-3">
+              <BreakdownCard
+                judul="Distribusi Kapal Berdasarkan Pelabuhan Tujuan"
+                data={kategoriData["pelabuhan_tujuan"]}
+              />
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={role}
+                konteks="phqc-daerah-tujuan"
+                periodeKey={periodeKey}
+                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={role}
+                konteks="phqc-daerah-tujuan"
+                periodeKey={periodeKey}
+                wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              />
+            </div>
           </div>
 
           {/* BENDERA KAPAL */}

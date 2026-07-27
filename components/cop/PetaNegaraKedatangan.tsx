@@ -50,9 +50,9 @@ export function PetaNegaraKedatangan({ data }: { data: DataNegara[] }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/data/world-countries.geo.json")
+    fetch("/data/world-countries.json")
       .then((res) => {
-        if (!res.ok) throw new Error("File GeoJSON tidak ditemukan di /public/data/world-countries.geo.json");
+        if (!res.ok) throw new Error("File GeoJSON tidak ditemukan di /public/data/world-countries.json");
         return res.json();
       })
       .then((json) => setGeoJson(json))
@@ -101,11 +101,25 @@ export function PetaNegaraKedatangan({ data }: { data: DataNegara[] }) {
   function saatEachFeature(feature: Feature<Geometry>, layer: L.Layer) {
     const nama = String(feature.properties?.name ?? "Tidak diketahui");
     const jumlah = petaJumlah.get(nama.toLowerCase());
+
+    // Tetap tampilkan popup saat diklik (perilaku lama dipertahankan)
     layer.bindPopup(
       jumlah !== undefined
         ? `<div style="font-size:13px"><strong>${nama}</strong><br/>${jumlah} kapal</div>`
         : `<div style="font-size:13px"><strong>${nama}</strong><br/>Tidak ada data kedatangan</div>`
     );
+
+    // Label permanen nama negara + jumlah, hanya untuk negara yang ada datanya
+    if (jumlah !== undefined) {
+      layer.bindTooltip(
+        `<div style="font-size:11px;font-weight:600;text-align:center;line-height:1.3">${nama}<br/>${jumlah} kapal</div>`,
+        {
+          permanent: true,
+          direction: "center",
+          className: "label-negara-cop",
+        }
+      );
+    }
   }
 
   if (loading) {

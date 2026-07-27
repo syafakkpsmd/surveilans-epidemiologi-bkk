@@ -35,8 +35,15 @@ export default function GrafikSertifikatGenderBulanan({
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm">
-      <h3 className="mb-2 text-sm font-semibold text-gray-700">Sertifikat per Jenis Kelamin — Bulanan</h3>
-      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-2">
+      <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Penerbitan Sertifikat by Sex dalam Bulanan</h3>
+      {seriesList.length === 0 ? (
+        <div className="flex h-56 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+          Pilih minimal 1 kategori untuk ditampilkan.
+        </div>
+      ) : (
+        <GrafikBarBulanan judul="" data={data} seriesList={seriesList} />
+      )}
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
         {OPSI.map((o) => (
           <label key={o.key} className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
             <input
@@ -49,13 +56,6 @@ export default function GrafikSertifikatGenderBulanan({
           </label>
         ))}
       </div>
-      {seriesList.length === 0 ? (
-        <div className="flex h-56 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-          Pilih minimal 1 kategori untuk ditampilkan.
-        </div>
-      ) : (
-        <GrafikBarBulanan judul="" data={data} seriesList={seriesList} />
-      )}
     </div>
   );
 }

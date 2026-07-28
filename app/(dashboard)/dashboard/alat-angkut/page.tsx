@@ -172,12 +172,6 @@ export default async function DashboardPage() {
             Dashboard Keberangkatan Kapal
           </Link>
           <Link
-            href="/dashboard/alat-angkut/sscec"
-            className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
-          >
-            Dashboard Pengawasan SSCEC
-          </Link>
-          <Link
             href="/dashboard/alat-angkut/rat-guard"
             className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
           >

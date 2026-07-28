@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import type { PeranUser } from '@/types/database.types';
+import { DAFTAR_PENYAKIT_NASIONAL } from '@/lib/ai/konstanta-penyakit';
 
 const NasionalEmergingPeta = dynamic(
   () => import('@/components/nasional-emerging/NasionalEmergingPeta'),
@@ -29,7 +30,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const DAFTAR_PENYAKIT = ['Leptospirosis', 'Mpox', 'Polio', 'Legionellosis', 'Hantavirus', 'Covid-19'];
+const DAFTAR_PENYAKIT = DAFTAR_PENYAKIT_NASIONAL;
+const OPSI_PETA_PENYAKIT = ['Semua Penyakit', ...DAFTAR_PENYAKIT_NASIONAL];
 const DAFTAR_TAHUN = [2026, 2025, 2024];
 
 const RENTANG_BULAN: { label: string; dari: number; sampai: number }[] = [
@@ -69,8 +71,11 @@ interface Props {
 }
 
 export default function DashboardNasionalEmerging({ sudahLogin, role }: Props) {
-  const [penyakit, setPenyakit] = useState(DAFTAR_PENYAKIT[0]);
+  const [penyakit, setPenyakit] = useState<string>(DAFTAR_PENYAKIT[0]);
   const [tahun, setTahun] = useState(DAFTAR_TAHUN[0]);
+  const [penyakitPeta, setPenyakitPeta] = useState<string>('Semua Penyakit');
+  const [dataPeta, setDataPeta] = useState<Baris[]>([]);
+  const [tampilkanLabelPeta, setTampilkanLabelPeta] = useState(true);
   const [modeRentang, setModeRentang] = useState<'mingguan' | 'bulanan'>('mingguan');
   const [mgDari, setMgDari] = useState(1);
   const [mgSampai, setMgSampai] = useState(53);
@@ -94,25 +99,37 @@ export default function DashboardNasionalEmerging({ sudahLogin, role }: Props) {
       : `${tahun}-M${bulanDari + 1}_M${bulanSampai + 1}`;
   }, [modeRentang, tahun, mgDari, mgSampai, bulanDari, bulanSampai]);
 
-  useEffect(() => {
-    async function ambilData() {
-      setLoading(true);
-      const { data: rows, error } = await supabase
-        .from('laporan_penyakit_nasional')
-        .select('*')
-        .eq('penyakit', penyakit)
-        .eq('tahun_epid', tahun);
-      if (!error && rows) setData(rows as Baris[]);
-      setLoading(false);
-    }
-    ambilData();
-  }, [penyakit, tahun]);
+  // 1. INI YANG ASLI — untuk chart tren (WAJIB ADA, jangan sampai hilang)
+useEffect(() => {
+  async function ambilData() {
+    setLoading(true);
+    const { data: rows, error } = await supabase
+      .from('laporan_penyakit_nasional')
+      .select('*')
+      .eq('penyakit', penyakit)
+      .eq('tahun_epid', tahun);
+    if (!error && rows) setData(rows as Baris[]);
+    setLoading(false);
+  }
+  ambilData();
+}, [penyakit, tahun]);
 
-  const dataRentang = useMemo(
-    () => data.filter(r => r.minggu_epid >= rentangEfektif.dari && r.minggu_epid <= rentangEfektif.sampai),
-    [data, rentangEfektif]
-  );
+// 2. INI YANG BARU — khusus untuk peta
+useEffect(() => {
+  async function ambilDataPeta() {
+    const { data: rows, error } = await supabase
+      .from('laporan_penyakit_nasional')
+      .select('*')
+      .eq('tahun_epid', tahun);
+    if (!error && rows) setDataPeta(rows as Baris[]);
+  }
+  ambilDataPeta();
+}, [tahun]);
 
+const dataRentang = useMemo(
+  () => data.filter(r => r.minggu_epid >= rentangEfektif.dari && r.minggu_epid <= rentangEfektif.sampai),
+  [data, rentangEfektif]
+);
   const trenMingguan = useMemo(() => {
     const peta = new Map<number, number>();
     for (let m = rentangEfektif.dari; m <= rentangEfektif.sampai; m++) peta.set(m, 0);
@@ -136,6 +153,30 @@ export default function DashboardNasionalEmerging({ sudahLogin, role }: Props) {
       .map(([propinsi, total_kasus]) => ({ propinsi, total_kasus }))
       .sort((a, b) => b.total_kasus - a.total_kasus);
   }, [dataRentang]);
+
+  const perPropinsiPeta = useMemo(() => {
+    const dataTerfilter = dataPeta.filter((r) => {
+        const dalamRentang = r.minggu_epid >= rentangEfektif.dari && r.minggu_epid <= rentangEfektif.sampai;
+        const sesuaiPenyakit = penyakitPeta === 'Semua Penyakit' || r.penyakit === penyakitPeta;
+        return dalamRentang && sesuaiPenyakit;
+    });
+
+    const peta = new Map<string, { total_kasus: number; breakdown: Map<string, number> }>();
+    dataTerfilter.forEach((r) => {
+        const existing = peta.get(r.propinsi) ?? { total_kasus: 0, breakdown: new Map<string, number>() };
+        existing.total_kasus += r.jumlah_kasus;
+        existing.breakdown.set(r.penyakit, (existing.breakdown.get(r.penyakit) ?? 0) + r.jumlah_kasus);
+        peta.set(r.propinsi, existing);
+    });
+
+    return Array.from(peta.entries()).map(([propinsi, v]) => ({
+        propinsi,
+        total_kasus: v.total_kasus,
+        breakdown: Array.from(v.breakdown.entries())
+        .map(([penyakit, jumlah_kasus]) => ({ penyakit, jumlah_kasus }))
+        .sort((a, b) => b.jumlah_kasus - a.jumlah_kasus),
+    }));
+  }, [dataPeta, rentangEfektif, penyakitPeta]);
 
   const totalKasus = perPropinsi.reduce((s, p) => s + p.total_kasus, 0);
   const propinsiTertinggi = perPropinsi[0];
@@ -297,21 +338,45 @@ export default function DashboardNasionalEmerging({ sudahLogin, role }: Props) {
 
       {/* ==== PETA NASIONAL ==== */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">Peta Sebaran Kasus per Propinsi selama Tahun {tahun}</h2>
-        <p className="text-xs text-slate-400 absolute top-4 right-4 bg-slate-50 px-2 py-1 rounded border border-slate-100 z-10 pointer-events-none shadow-sm">
-          Scroll untuk Zoom | Klik & Geser untuk Pindah
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+            <h2 className="text-sm font-semibold text-slate-700">Peta Sebaran Kasus per Propinsi selama Tahun {tahun}</h2>
+            <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+                <input
+                    type="checkbox"
+                    checked={tampilkanLabelPeta}
+                    onChange={(e) => setTampilkanLabelPeta(e.target.checked)}
+                    className="h-3.5 w-3.5"
+                />
+                Tampilkan label
+                </label>
+                <select
+                value={penyakitPeta}
+                onChange={(e) => setPenyakitPeta(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-1.5 text-xs"
+                >
+                {OPSI_PETA_PENYAKIT.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+            </div>
+        </div>
+        <p className="text-xs text-slate-400 mb-2">
+           Scroll untuk Zoom | Klik & Geser untuk Pindah
         </p>
-        <NasionalEmergingPeta perPropinsi={perPropinsi} />
+        <NasionalEmergingPeta
+            perPropinsi={perPropinsiPeta}
+            tampilkanBreakdown={penyakitPeta === 'Semua Penyakit'}
+            tampilkanLabel={tampilkanLabelPeta}
+        />
         <div className="flex items-center gap-2 mt-3 text-xs text-slate-500">
-          <span>Tidak ada kasus</span>
-          <span className="w-4 h-4 rounded border border-slate-300" style={{ background: '#e2e8f0' }} />
-          <span className="ml-2">Rendah</span>
-          <span className="w-4 h-4 rounded" style={{ background: '#fde68a' }} />
-          <span className="w-4 h-4 rounded" style={{ background: '#fbbf24' }} />
-          <span className="w-4 h-4 rounded" style={{ background: '#f97316' }} />
-          <span className="w-4 h-4 rounded" style={{ background: '#dc2626' }} />
-          <span className="w-4 h-4 rounded" style={{ background: '#7f1d1d' }} />
-          <span>Tinggi</span>
+            <span>Tidak ada kasus</span>
+            <span className="w-4 h-4 rounded border border-slate-300" style={{ background: '#e2e8f0' }} />
+            <span className="ml-2">Rendah</span>
+            <span className="w-4 h-4 rounded" style={{ background: '#fde68a' }} />
+            <span className="w-4 h-4 rounded" style={{ background: '#fbbf24' }} />
+            <span className="w-4 h-4 rounded" style={{ background: '#f97316' }} />
+            <span className="w-4 h-4 rounded" style={{ background: '#dc2626' }} />
+            <span className="w-4 h-4 rounded" style={{ background: '#7f1d1d' }} />
+            <span>Tinggi</span>
         </div>
       </div>
 

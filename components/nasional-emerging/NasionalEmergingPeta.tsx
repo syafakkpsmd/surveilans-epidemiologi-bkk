@@ -28,13 +28,16 @@ function warnaPropinsi(total: number, maxKasus: number): string {
 interface RingkasanPropinsi {
   propinsi: string;
   total_kasus: number;
+  breakdown?: { penyakit: string; jumlah_kasus: number }[];
 }
 
 interface Props {
   perPropinsi: RingkasanPropinsi[];
+  tampilkanBreakdown?: boolean;
+  tampilkanLabel?: boolean;
 }
 
-export default function NasionalEmergingPeta({ perPropinsi }: Props) {
+export default function NasionalEmergingPeta({ perPropinsi, tampilkanBreakdown = false, tampilkanLabel = true }: Props) {
   const [geoJson, setGeoJson] = useState<GeoJSON.FeatureCollection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,12 @@ export default function NasionalEmergingPeta({ perPropinsi }: Props) {
     return peta;
   }, [perPropinsi]);
 
+  const petaBreakdown = useMemo(() => {
+    const peta = new Map<string, RingkasanPropinsi>();
+    perPropinsi.forEach((p) => peta.set(normalisasiNama(p.propinsi), p));
+    return peta;
+  }, [perPropinsi]);
+
   const maxKasus = useMemo(
     () => Math.max(0, ...perPropinsi.map((p) => p.total_kasus)),
     [perPropinsi]
@@ -73,11 +82,23 @@ export default function NasionalEmergingPeta({ perPropinsi }: Props) {
   }
 
   function saatEachFeature(feature: Feature<Geometry>, layer: L.Layer) {
+    if (!tampilkanLabel) return;
+
     const namaAsli = String(feature.properties?.PROVINSI ?? 'Tidak diketahui');
-    const total = petaTotal.get(normalisasiNama(namaAsli)) ?? 0;
+    const info = petaBreakdown.get(normalisasiNama(namaAsli));
+    const total = info?.total_kasus ?? 0;
+
+    let isiTooltip = `${namaAsli}<br/>${total} kasus`;
+
+    if (tampilkanBreakdown && info?.breakdown && info.breakdown.length > 0) {
+      const daftarPenyakit = info.breakdown
+        .map((b) => `${b.penyakit}: ${b.jumlah_kasus}`)
+        .join('<br/>');
+      isiTooltip = `${namaAsli}<br/>${daftarPenyakit}`;
+    }
 
     layer.bindTooltip(
-      `<div style="font-size:10px;font-weight:600;text-align:center;line-height:1.2">${namaAsli}<br/>${total} kasus</div>`,
+      `<div style="font-size:10px;font-weight:600;text-align:center;line-height:1.3">${isiTooltip}</div>`,
       {
         permanent: true,
         direction: 'center',
@@ -109,7 +130,12 @@ export default function NasionalEmergingPeta({ perPropinsi }: Props) {
           attribution='&copy; OpenStreetMap contributors &copy; CARTO'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
-        <GeoJSON data={geoJson} style={gayaPropinsi} onEachFeature={saatEachFeature} />
+        <GeoJSON
+          key={`${tampilkanLabel}-${tampilkanBreakdown}-${perPropinsi.map(p => `${p.propinsi}:${p.total_kasus}`).join(',')}`}
+          data={geoJson}
+          style={gayaPropinsi}
+          onEachFeature={saatEachFeature}
+        />
       </MapContainer>
     </div>
   );

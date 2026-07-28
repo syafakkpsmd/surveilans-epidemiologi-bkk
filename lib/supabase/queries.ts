@@ -980,7 +980,7 @@ export async function getMacamTempatPerindukan(
   tahun: number,
   wilker: string | undefined,
 ): Promise<DonutDatum[]> {
-  return getAggregateVektorAnopheles(tahun, wilker, 'spesies_larva');
+  return getAggregateVektorAnopheles(tahun, wilker, 'macam_tempat_perindukan');
 }
 
 export async function getKeadaanTempatPerindukan(
@@ -993,7 +993,7 @@ export async function getKeadaanTempatPerindukan(
 async function getAggregateVektorAnopheles(
   tahun: number,
   wilker: string | undefined,
-  kolom: 'spesies_larva' | 'keadaan_tempat_perindukan',
+  kolom: 'macam_tempat_perindukan' | 'keadaan_tempat_perindukan',
 ): Promise<DonutDatum[]> {
   const supabase = await createClient();
 
@@ -1017,7 +1017,6 @@ async function getAggregateVektorAnopheles(
 
   return Array.from(hitung.entries()).map(([kategori, jumlah]) => ({ kategori, jumlah }));
 }
-
 // ----------------------------------------------------------------
 // Hasil AI (prediksi/analisis)
 // ----------------------------------------------------------------

@@ -19,6 +19,15 @@ interface GlobalEmergingTabelMentahProps {
 export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelMentahProps) {
   const [terbuka, setTerbuka] = useState(false);
 
+  const dataTerbaru = [...data]
+    .sort((a, b) => {
+      if (a.tahun_epid !== b.tahun_epid) return b.tahun_epid - a.tahun_epid;
+      const periodeA = a.jenis_periode === 'mingguan' ? a.minggu_epid : a.bulan;
+      const periodeB = b.jenis_periode === 'mingguan' ? b.minggu_epid : b.bulan;
+      return (periodeB ?? 0) - (periodeA ?? 0);
+    })
+    .slice(0, 10);
+
   return (
     <div className="rounded-[10px] bg-white shadow-sm">
       <button
@@ -26,7 +35,7 @@ export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelM
         onClick={() => setTerbuka(!terbuka)}
         className="flex w-full items-center justify-between p-4 text-sm font-semibold text-[#0F2A38]"
       >
-        <span>Data Mentah ({data.length} baris) — untuk verifikasi/audit</span>
+        <span>Data Mentah (10 dari {data.length} baris) untuk Verifikasi</span>
         <span>{terbuka ? '▲' : '▼'}</span>
       </button>
 
@@ -44,7 +53,7 @@ export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelM
               </tr>
             </thead>
             <tbody>
-              {data.map((row) => (
+              {dataTerbaru.map((row) => (
                 <tr key={row.id} className="border-t border-gray-50">
                   <td className="py-2 pr-4">{row.penyakit}</td>
                   <td className="py-2 pr-4">{row.negara}</td>
@@ -60,7 +69,7 @@ export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelM
               ))}
             </tbody>
           </table>
-          {data.length === 0 && (
+          {dataTerbaru.length === 0 && (
             <p className="py-4 text-center text-sm text-gray-500">Tidak ada data.</p>
           )}
         </div>

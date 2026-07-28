@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { MapContainer, TileLayer, GeoJSON, CircleMarker, Tooltip } from 'react-leaflet';
 import type { Feature, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
+import { periodeBulananDariTanggal } from '@/lib/ai/periode';
 
 const PUSAT_PETA: [number, number] = [15, 105]; // fokus Asia, sesuai sebaran negara emerging
 const ZOOM_AWAL = 3;
@@ -132,7 +133,7 @@ export default function GlobalEmergingNegaraMap({ data }: Props) {
 
   return (
     <div className="rounded-[10px] bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-semibold text-[#0F2A38] mb-3">Peta sebaran kasus per negara</h2>
+      <h2 className="text-sm text-center font-semibold text-[#0F2A38] mb-3">PETA SEBARAN KASUS BERDASARKAN NEGARA</h2>
 
       <div className="relative isolate h-105 w-full overflow-hidden rounded-xl border">
         <MapContainer center={PUSAT_PETA} zoom={ZOOM_AWAL} style={{ height: '100%', width: '100%' }} scrollWheelZoom>

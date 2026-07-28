@@ -31,10 +31,12 @@ export interface SeriesTren {
 }
 
 export default function TrenChartMingguan({
+  judul,
   data,
   seriesList,
   labelSumbuX = 'minggu_epid',
 }: {
+  judul?: string;
   data: Record<string, unknown>[];
   seriesList: SeriesTren[];
   labelSumbuX?: string;
@@ -65,8 +67,13 @@ export default function TrenChartMingguan({
 
   return (
     <div>
+      {judul && (
+        <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judul}</h3>
+      )}
+
       <ResponsiveContainer width="100%" height={280}>
         <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          ...
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             dataKey={labelSumbuX}

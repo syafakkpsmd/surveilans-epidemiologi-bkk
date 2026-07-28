@@ -23,14 +23,14 @@ import DaftarLokasiTidakMemenuhi from '@/components/vektor/DaftarLokasiTidakMeme
 const KONFIG = {
   lalat: {
     ikon: '🪰',
-    judul: 'Vektor Diare — Lalat',
+    judul: 'Surveilans Vektor Diare — Lalat',
     metrikUtama: { key: 'fly_index_rerata', label: 'Fly Index', warna: '#E65100' },
     threshold: 8,
     konteks: 'vektor-diare-lalat-mingguan',
   },
   kecoa: {
     ikon: '🪳',
-    judul: 'Vektor Diare — Kecoa',
+    judul: 'Surveilans Vektor Diare — Kecoa',
     metrikUtama: { key: 'kepadatan_kecoa_rerata', label: 'Kepadatan/m²', warna: '#5B21B6' },
     threshold: 2,
     konteks: 'vektor-diare-kecoa-mingguan',
@@ -151,11 +151,9 @@ export default async function HalamanDiare({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">
-            Tren {cfg.metrikUtama.label} vs Faktor Lingkungan — Tahun {tahun}
-          </h2>
           <PanelTrenDiareLingkungan
-            judulBulanan={`${cfg.metrikUtama.label} per Bulan`}
+            judulMingguan={`Tren ${cfg.metrikUtama.label} vs Faktor Lingkungan — Tahun ${tahun}`}
+            judulBulanan={`Tren ${cfg.metrikUtama.label} vs Faktor Lingkungan — Tahun ${tahun}`}
             dataMingguan={dataMingguan}
             dataBulanan={dataBulanan}
             metrikUtama={cfg.metrikUtama}

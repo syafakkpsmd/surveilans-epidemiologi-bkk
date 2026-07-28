@@ -143,7 +143,7 @@ export default async function VektorAedesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Vektor Aedes (DBD)</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Aedes Aegypti (DBD)</h1>
           <p className="text-sm text-gray-500">
             HI, CI, ABJ per zona (Perimeter/Buffer)
             {wilker === 'WK01' ? ' & sub-lokasi (Pelabuhan Umum/TPK Palaran)' : ''}.
@@ -165,7 +165,8 @@ export default async function VektorAedesPage({
           {/* ================= MINGGUAN ================= */}
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-gray-700">Tren HI / CI / ABJ — Tahun {tahun}</h2>
+            <h2 className="mb-2 text-sm text-center font-semibold text-gray-700">Distribusi Hasil Pengawasan Larva Aedes Tahun {tahun} <br />
+              (HI - CI - BI - ABJ - Curah Hujan)</h2>
             <TrenChartMingguan
               data={dataChart}
               seriesList={[
@@ -197,7 +198,7 @@ export default async function VektorAedesPage({
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-gray-700">Rumah Diperiksa — Mingguan</h2>
+            <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Rumah Diperiksa dalam Mingguan, Tahun {tahun}</h2>
             <TrenChartMingguan
               data={dataAktivitasMingguan}
               seriesList={[{ key: 'rumah_diperiksa', label: 'Rumah Diperiksa', warna: '#0F4C5C' }]}
@@ -215,7 +216,7 @@ export default async function VektorAedesPage({
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-gray-700">Container Diperiksa — Mingguan</h2>
+            <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Container Diperiksa dalam Mingguan, Tahun {tahun}</h2>
             <TrenChartMingguan
               data={dataAktivitasMingguan}
               seriesList={[{ key: 'container_diperiksa', label: 'Container Diperiksa', warna: '#2563EB' }]}
@@ -233,8 +234,8 @@ export default async function VektorAedesPage({
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-gray-700">
-              Rumah Positif + Container Positif — Mingguan
+            <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">
+              Distribusi Rumah Positif dan Container Positif dalam Mingguan, Tahun {tahun}
             </h2>
             <TrenChartMingguan
               data={dataAktivitasMingguan}
@@ -258,13 +259,21 @@ export default async function VektorAedesPage({
           {/* ================= BULANAN ================= */}
 
           <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-gray-700">Tren Bulanan HI / CI / ABJ — Tahun {tahun}</h2>
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <FilterWilker daftarWilker={daftarWilker} />
               <FilterZonaSubLokasi />
               <FilterRentangBulan />
             </div>
+
+            <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">
+              Distribusi Hasil Pengawasan Larva Aedes Tahun {tahun} <br />
+              (HI - CI - BI - ABJ - Curah Hujan)
+            </h2>
+
             <TrenChartBulanan data={dataBulanan} />
+
+            {/* checkbox legend — pindah ke sini, di bawah grafik */}
+
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <BoxAnalisisAI
                 sudahLogin={sudahLogin}
@@ -288,7 +297,7 @@ export default async function VektorAedesPage({
           <div className="lg:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <GrafikBarBulanan
-                judul="Rumah Diperiksa — Bulanan"
+                judul="Distribusi Rumah Diperiksa"
                 data={dataAktivitasBulanan}
                 seriesList={[{ key: 'rumah_diperiksa', label: 'Rumah Diperiksa', warna: '#0F4C5C' }]}
               />
@@ -304,7 +313,7 @@ export default async function VektorAedesPage({
 
             <div className="space-y-2">
               <GrafikBarBulanan
-                judul="Container Diperiksa — Bulanan"
+                judul="Distribusi Container Diperiksa"
                 data={dataAktivitasBulanan}
                 seriesList={[{ key: 'container_diperiksa', label: 'Container Diperiksa', warna: '#2563EB' }]}
               />
@@ -320,7 +329,7 @@ export default async function VektorAedesPage({
 
             <div className="space-y-2">
               <GrafikBarBulanan
-                judul="Rumah Positif + Container Positif — Bulanan"
+                judul="Distribusi Rumah Positif & Container Positif "
                 data={dataAktivitasBulanan}
                 seriesList={[
                   { key: 'rumah_positif', label: 'Rumah Positif', warna: '#B71C1C' },
@@ -339,7 +348,7 @@ export default async function VektorAedesPage({
 
             <div className="space-y-2">
               <GrafikBarBulanan
-                judul="Larvasida — Bulanan"
+                judul="Distribusi Larvasida — Bulanan"
                 data={dataAktivitasBulanan}
                 seriesList={[{ key: 'larvasida_gram', label: 'Larvasida (gram)', warna: '#7C3AED' }]}
               />
@@ -355,7 +364,7 @@ export default async function VektorAedesPage({
 
             <div className="space-y-2 md:col-span-2">
               <GrafikBarBulanan
-                judul="Luas Wilayah Fogging + Insektisida Fogging — Bulanan"
+                judul="Distribusi Luas Wilayah Fogging & Jumlah Insektisida — Bulanan"
                 data={dataAktivitasBulanan}
                 seriesList={[
                   { key: 'luas_wilayah_fogging_ha', label: 'Luas Wilayah (Ha)', warna: '#0D9488', desimal: 2 },
@@ -383,7 +392,7 @@ export default async function VektorAedesPage({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <DonutChart
-              judul={`Tindakan Pengendalian — Minggu Epid ke-${periodeMinggu2Lalu.minggu} (data berjalan)`}
+              judul={`Tindakan Pengendalian — Minggu Epid ke-${periodeMinggu1Lalu.minggu} (data berjalan)`}
               data={breakdownTindakanMinggu2Lalu}
             />
             <DonutChart

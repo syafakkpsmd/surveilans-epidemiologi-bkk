@@ -11,6 +11,7 @@ export type SeriKonfig = {
 };
 
 interface PanelTrenDiareLingkunganProps {
+  judulMingguan: string;
   judulBulanan: string;
   dataMingguan: Record<string, unknown>[];
   dataBulanan: Record<string, unknown>[];
@@ -19,13 +20,13 @@ interface PanelTrenDiareLingkunganProps {
 }
 
 export default function PanelTrenDiareLingkungan({
+  judulMingguan,
   judulBulanan,
   dataMingguan,
   dataBulanan,
   metrikUtama,
   seriTambahan,
 }: PanelTrenDiareLingkunganProps) {
-  // State untuk checklist seri variabel tambahan (misal: suhu, kelembaban, dll.)
   const [aktif, setAktif] = useState<Set<string>>(
     () => new Set(seriTambahan.filter((s) => s.default).map((s) => s.key))
   );
@@ -42,12 +43,20 @@ export default function PanelTrenDiareLingkungan({
     });
   };
 
-  // Menggabungkan metrik utama dengan seri tambahan yang dicentang
   const seriAktif = [metrikUtama, ...seriTambahan.filter((s) => aktif.has(s.key))];
 
   return (
     <div className="space-y-3">
-      {/* Checkbox Seri Tambahan */}
+      <PanelTrenPeriode
+        judulMingguan={judulMingguan}
+        judulBulanan={judulBulanan}
+        dataMingguan={dataMingguan}
+        dataBulanan={dataBulanan}
+        seriesListMingguan={seriAktif}
+        seriesListBulanan={seriAktif}
+      />
+
+      {/* Checkbox Seri Tambahan — dipindah ke bawah grafik */}
       <div className="flex flex-wrap gap-4 text-xs">
         {seriTambahan.map((s) => (
           <label key={s.key} className="flex cursor-pointer items-center gap-1.5 select-none">
@@ -64,15 +73,6 @@ export default function PanelTrenDiareLingkungan({
           </label>
         ))}
       </div>
-
-      {/* Komponen Rendering Tren Periode */}
-      <PanelTrenPeriode
-        judulBulanan={judulBulanan}
-        dataMingguan={dataMingguan}
-        dataBulanan={dataBulanan}
-        seriesListMingguan={seriAktif}
-        seriesListBulanan={seriAktif}
-      />
     </div>
   );
 }

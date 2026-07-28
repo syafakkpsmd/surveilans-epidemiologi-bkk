@@ -65,7 +65,7 @@ export default async function AnophelesDewasaPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Vektor Anopheles — Dewasa</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Anopheles — Dewasa</h1>
           <p className="text-sm text-gray-500">
             MHD, MBR, korelasi cuaca/suhu/kelembaban, dan metode tangkap.
           </p>
@@ -77,7 +77,8 @@ export default async function AnophelesDewasaPage({
       </div>
 
       <PanelTrenPeriode
-        judulBulanan="Tren MHD, MBR, Suhu & Kelembaban — Bulanan"
+        judulBulanan="Distribusi Hasil Survei Nyamuk Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
+        judulMingguan="Tren Mingguan Hasil Survei Nyamuk Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
         dataMingguan={dataMingguan}
         dataBulanan={dataBulanan}
         seriesListMingguan={[

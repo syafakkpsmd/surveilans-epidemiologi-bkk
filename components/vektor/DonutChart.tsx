@@ -4,6 +4,26 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 
 const PALET_DEFAULT = ['#0F4C5C', '#B71C1C', '#EF6C00', '#2F9E44', '#7C3AED', '#0D9488', '#EA580C', '#6D28D9'];
 
+function renderLabel(props: any) {
+  const kategori = props?.payload?.kategori ?? props?.name ?? '';
+  const jumlah = props?.payload?.jumlah ?? props?.value ?? 0;
+  const persen = props?.percent ?? 0;
+  const teks = `${kategori}: ${jumlah} (${(persen * 100).toFixed(0)}%)`;
+
+  return (
+    <text
+      x={props.x}
+      y={props.y}
+      textAnchor={props.textAnchor}
+      dominantBaseline="central"
+      fontSize={10}
+      fill="#334155"
+    >
+      {teks}
+    </text>
+  );
+}
+
 export default function DonutChart({
   judul,
   data,
@@ -27,24 +47,19 @@ export default function DonutChart({
   }
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm">
+    <div className="rounded-xl bg-white p-4 shadow-sm overflow-visible">
       <h3 className="mb-1 text-center text-sm font-semibold text-gray-700">{judul}</h3>
       <p className="mb-2 text-center text-xs text-gray-400">Total: {total} kegiatan</p>
       <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
+        <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
           <Pie
             data={data}
             dataKey="jumlah"
             nameKey="kategori"
             innerRadius={35}
-            outerRadius={85}
+            outerRadius={75}
             paddingAngle={2}
-            label={(props: any) => {
-              const kategori = props?.payload?.kategori ?? props?.name ?? '';
-              const jumlah = props?.payload?.jumlah ?? props?.value ?? 0;
-              const persen = props?.percent ?? 0;
-              return `${kategori}: ${jumlah} (${(persen * 100).toFixed(0)}%)`;
-            }}
+            label={renderLabel}
             labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
           >
             {data.map((_, i) => (

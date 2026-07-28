@@ -23,6 +23,7 @@ const NAMA_BULAN = [
   'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
 ];
 
+
 interface GlobalEmergingTrendChartProps {
   data: RingkasanPenyakitEmerging[];
   jenis: JenisPeriode;
@@ -66,8 +67,8 @@ export default function GlobalEmergingTrendChart({ data, jenis }: GlobalEmerging
 
   return (
     <div className="rounded-[10px] bg-white p-4 shadow-sm">
-      <h3 className="mb-3 text-sm font-semibold text-[#0F2A38]">
-        Tren Kasus & Kematian ({jenis === 'mingguan' ? 'per Minggu Epidemiologi' : 'per Bulan'})
+      <h3 className="mb-3 text-center text-sm font-semibold text-[#0F2A38]">
+        Distribusi Kasus & Kematian {jenis === 'mingguan' ? 'per Minggu Epidemiologi' : 'per Bulan'}
       </h3>
       <ResponsiveContainer width="100%" height={300}>
         {jenis === 'bulanan' ? (

@@ -72,7 +72,7 @@ export default function GrafikBarBulanan({
       <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judul}</h3>
 
       {seriesAktif.length === 0 ? (
-        <div className="flex h-[280px] items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-400">
+        <div className="flex h-70 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-400">
           Pilih minimal 1 kategori untuk ditampilkan.
         </div>
       ) : (

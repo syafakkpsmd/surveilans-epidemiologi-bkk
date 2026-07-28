@@ -68,20 +68,6 @@ export default function TrenChartBulanan({ data }: { data: DataBulanan[] }) {
 
   return (
     <div>
-      <div className="mb-2 flex flex-wrap gap-3">
-        {SERIES_BULANAN.map((s) => (
-          <label key={s.key} className="flex items-center gap-1.5 text-xs text-gray-600">
-            <input
-              type="checkbox"
-              checked={seriesAktif.has(s.key)}
-              onChange={() => toggleSeries(s.key)}
-              style={{ accentColor: s.warna }}
-            />
-            <span>{s.label}</span>
-          </label>
-        ))}
-      </div>
-
       <ResponsiveContainer width="100%" height={350}>
         <ComposedChart data={data} margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -137,6 +123,20 @@ export default function TrenChartBulanan({ data }: { data: DataBulanan[] }) {
           )}
         </ComposedChart>
       </ResponsiveContainer>
+
+      <div className="mt-3 flex flex-wrap gap-3">
+        {SERIES_BULANAN.map((s) => (
+          <label key={s.key} className="flex items-center gap-1.5 text-xs text-gray-600">
+            <input
+              type="checkbox"
+              checked={seriesAktif.has(s.key)}
+              onChange={() => toggleSeries(s.key)}
+              style={{ accentColor: s.warna }}
+            />
+            <span>{s.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

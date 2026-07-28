@@ -212,8 +212,8 @@ export default function VektorTikusClient({
       {/* Bagian Header dan Kontrol Filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">Vektor Tikus</h1>
-          <p className="text-sm text-gray-500">Dashboard Manajemen Distribusi Surveilans Tikus.</p>
+          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans Vektor Tikus</h1>
+          <p className="text-sm text-gray-500">Dashboard Manajemen Surveilans Tikus.</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -311,7 +311,7 @@ export default function VektorTikusClient({
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">Grafik Distribusi Spesies Tikus</h3>
+            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">Tren Mingguan Spesies Tikus Tertangkap di Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunBerjalan}</h3>
             <TrenChartLine
               data={chartData}
               tipeChart={periodeType === "bulanan" ? "bar" : "line"}
@@ -325,16 +325,16 @@ export default function VektorTikusClient({
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-xs">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">Total Tikus Diperiksa (Trap Dipasang)</h3>
+            <h3 className="mb-4 text-sm text-center font-semibold text-gray-700">Distribusi Pemasangan Perangkap</h3>
             <TrenChartLine
               data={chartData}
               tipeChart={periodeType === "bulanan" ? "bar" : "line"}
-              seriesList={[{ key: "diperiksa", label: "Jumlah Diperiksa", warna: "#006064" }]}
+              seriesList={[{ key: "diperiksa", label: "Perangkap di pasang", warna: "#006064" }]}
             />
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-xs">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">Kunci Indikator (Tertangkap, TSI, Pinjal)</h3>
+            <h3 className="mb-4 text-sm text-center font-semibold text-gray-700">Distribusi Tikus Tertangkap, TSI  & Indeks Pinjal</h3>
             <TrenChartLine
               data={chartData}
               tipeChart={periodeType === "bulanan" ? "bar" : "line"}
@@ -369,14 +369,16 @@ export default function VektorTikusClient({
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-xs">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Uji Lab & Hasil Pemeriksaan — Bulanan
+            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">
+              Hasil Pemeriksaan Laboratorium <br /> (Bulanan)
             </h3>
             <TrenChecklistMingguan
               data={chartLabBulanan}
               seriesList={seriesLab}
               maxAktifDefault={2}
               variant="bar"
+              tampilan="dropdown"
+              labelItem="uji lab"
             />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <BoxAnalisisAI
@@ -397,14 +399,16 @@ export default function VektorTikusClient({
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-xs">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Uji Lab & Hasil Pemeriksaan — Mingguan
+            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">
+              Hasil Pemeriksaan Laboratorium <br /> (Mingguan)
             </h3>
             <TrenChecklistMingguan
               data={chartLabMingguan}
               seriesList={seriesLab}
               maxAktifDefault={2}
               variant="line"
+              tampilan="dropdown"
+              labelItem="uji lab"
             />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <BoxAnalisisAI

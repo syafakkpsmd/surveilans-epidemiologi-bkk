@@ -30,6 +30,7 @@ import {
   BuildingIcon,
   Pipette,
   ExternalLink,
+  Book,
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -97,7 +98,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2 },
       { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon },
       { label: "Surveilans PAB", href: "/dashboard/pab", icon: Pipette },
-      { label: "PIE Nasional", href: "/dashboard/emerging", icon: ShieldAlert },
+      { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert },
       { label: "KLB", href: "https://script.google.com/macros/s/AKfycbx0LK83R7rZ0UGblcVKqKlwUJ8Jk3EdF9sV_l2JTMXzbAzjyj-ZZJ-WNIfiaHqJ5OMesQ/exec", icon: Siren },
     ],
@@ -107,6 +108,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper },
       { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin },
+      { label: "Download Peraturan", href: "/peraturan", icon: Book },
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
       { label: "LMS Kemenkes", href: "https://lms.kemkes.go.id/", icon: Building2 },
       { label: "e-Office Kemenkes", href: "https://auth-eoffice.kemkes.go.id/", icon: Building2 },

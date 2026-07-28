@@ -77,19 +77,22 @@ export default function GlobalEmergingNegaraChart({
 
   return (
     <div className="rounded-[10px] bg-white p-4 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-[#0F2A38]">
-          Tren Kasus per Penyakit di Satu Negara ({jenis === 'mingguan' ? 'Mingguan' : 'Bulanan'})
+      <div className="mb-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <div /> {/* spacer kiri, biar kolom tengah beneran center */}
+        <h3 className="text-sm text-center font-semibold text-[#0F2A38]">
+          Tren Kasus {jenis === 'mingguan' ? 'Mingguan' : 'Bulanan'} per Penyakit pada Satu Negara
         </h3>
-        <select
-          value={negaraAktif}
-          onChange={(e) => ubahNegaraChart(e.target.value)}
-          className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
-        >
-          {DAFTAR_NEGARA.map((n) => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
+        <div className="flex justify-end">
+          <select
+            value={negaraAktif}
+            onChange={(e) => ubahNegaraChart(e.target.value)}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+          >
+            {DAFTAR_NEGARA.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {dataGrafik.length === 0 ? (

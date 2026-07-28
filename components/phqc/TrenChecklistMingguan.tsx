@@ -27,6 +27,7 @@ interface TrenChecklistMingguanProps {
   maxAktifDefault?: number;
   tampilan?: "inline" | "dropdown";
   variant?: "line" | "bar"; // <-- Properti baru (opsional)
+  labelItem?: string;
 }
 
 export function TrenChecklistMingguan({
@@ -35,6 +36,7 @@ export function TrenChecklistMingguan({
   maxAktifDefault = 5,
   tampilan = "inline",
   variant = "line", // Default diatur ke "line" jika halaman utama tidak mengirimkannya
+  labelItem = "uji lab",
 }: TrenChecklistMingguanProps) {
   const [aktif, setAktif] = useState<Set<string>>(
     new Set(seriesList.slice(0, maxAktifDefault).map((s) => s.key))
@@ -93,7 +95,7 @@ export function TrenChecklistMingguan({
             onClick={() => setTerbuka((v) => !v)}
             className="rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-ink"
           >
-            {aktif.size} dari {seriesList.length} pelabuhan dipilih ▾
+            {aktif.size} dari {seriesList.length} {labelItem} dipilih ▾
           </button>
           {terbuka && (
             <div className="absolute z-10 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-border bg-white shadow-lg">

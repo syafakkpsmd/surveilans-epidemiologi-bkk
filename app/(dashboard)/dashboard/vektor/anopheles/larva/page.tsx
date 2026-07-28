@@ -45,7 +45,7 @@ export default async function LarvaPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Vektor Anopheles — Larva</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Anopheles — Larva</h1>
           <p className="text-sm text-gray-500">
             Kepadatan larva, cidukan positif, dan kondisi tempat perindukan.
           </p>
@@ -58,7 +58,8 @@ export default async function LarvaPage({
       </div>
 
       <PanelTrenPeriode
-        judulBulanan="Tren Cidukan, Larva & Suhu — Bulanan"
+        judulBulanan="Disrtibusi Hasil Survei Larva Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
+        judulMingguan="Tren Mingguan Hasil Survei Larva Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
         dataMingguan={dataMingguan}
         dataBulanan={dataBulanan}
         seriesListMingguan={[
@@ -91,7 +92,7 @@ export default async function LarvaPage({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <DonutChart judul="Macam Tempat Perindukan (via spesies larva)" data={macamTempat} />
+        <DonutChart judul="Macam Tempat Perindukan" data={macamTempat} />
         <DonutChart judul="Keadaan Tempat Perindukan" data={keadaanTempat} />
       </div>
     </div>

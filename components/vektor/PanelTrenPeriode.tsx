@@ -17,6 +17,7 @@ type Mode = 'mingguan' | 'bulanan';
 
 interface PanelTrenPeriodeProps {
   judulBulanan: string;
+  judulMingguan: string;
   dataMingguan: Record<string, unknown>[];
   dataBulanan: Record<string, unknown>[];
   seriesListMingguan: SeriesTren[];
@@ -26,6 +27,7 @@ interface PanelTrenPeriodeProps {
 
 export default function PanelTrenPeriode({
   judulBulanan,
+  judulMingguan,
   dataMingguan,
   dataBulanan,
   seriesListMingguan,
@@ -86,7 +88,7 @@ export default function PanelTrenPeriode({
 
       {/* Render Chart Sesuai Mode */}
       {mode === 'mingguan' ? (
-        <TrenChartMingguan data={dataMingguan} seriesList={seriesListMingguan} />
+        <TrenChartMingguan judul={judulMingguan} data={dataMingguan} seriesList={seriesListMingguan} />
       ) : (
         <GrafikBarBulanan
           judul={judulBulanan}

@@ -96,7 +96,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-[#0F2A38]">
-              Penyakit Infeksi Emerging
+              Penyakit Infeksi Emerging - GLOBAL
             </h1>
             <p className="text-sm text-gray-500">
               Pemantauan {filter.tahunEpid} — {jenis === 'mingguan' ? 'per minggu epidemiologi' : 'per bulan'}
@@ -217,7 +217,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
             }, {})
           ).map(([negara, total_kasus]) => ({ negara, total_kasus }))}
         />
-        <GlobalEmergingTabelMentah data={dataMentah} />
+        <GlobalEmergingTabelMentah data={dataMentah}/>
       </div>
     </div>
   );

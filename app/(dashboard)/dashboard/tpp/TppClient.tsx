@@ -368,9 +368,9 @@ export default function TppClient({
       {/* HEADER & FILTERS */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans TPP</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans Tempat Pengolahan Pangan</h1>
           <p className="text-xs text-gray-500 mt-1">
-            Pengawasan Sanitasi Tempat Pengelolaan Pangan Tahun {tahunBerjalan}
+            Pengawasan Sanitasi Tempat Pengolahan Pangan Tahun {tahunBerjalan}
           </p>
         </div>
 
@@ -500,8 +500,10 @@ export default function TppClient({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* GRAFIK 1: OVERVIEW MS vs TMS */}
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-bold text-gray-800 flex items-center gap-2">
-              <span>📈</span> Kepatuhan TPP — Memenuhi Syarat (MS) vs Tidak Memenuhi Syarat (TMS) [{granularitas}]
+            <h3 className="mb-4 text-center text-sm font-bold text-gray-800">
+              Distribusi Kepatuhan Tempat Pengolahan Pangan
+              {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             <TrenChartLine
               data={chartData}
@@ -515,8 +517,9 @@ export default function TppClient({
 
           {/* GRAFIK 2: VOLUME PEMERIKSAAN */}
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-bold text-gray-800 flex items-center gap-2">
-              <span>🧪</span> Total TPP Diperiksa & Total Sampel Laboratorium [{granularitas}]
+            <h3 className="mb-4 text-sm font-bold text-gray-800 text-center">
+              Distribusi Total TPP Diperiksa & Uji Laboratorium {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             <TrenChartLine
               data={chartData}
@@ -530,8 +533,9 @@ export default function TppClient({
 
           {/* GRAFIK 3: BREAKDOWN TMS */}
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-bold text-gray-800 flex items-center gap-2">
-              <span>⚠️</span> Breakdown Komponen Tidak Memenuhi Syarat (TMS) — {granularitas}
+            <h3 className="mb-4 text-sm font-bold text-gray-800 text-center">
+               Distribusi TPP Memenuhi Syarat (TMS) {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             {adaTms ? (
               <TrenChecklistMingguan
@@ -539,6 +543,8 @@ export default function TppClient({
                 seriesList={seriesTms}
                 maxAktifDefault={3}
                 variant={tipeChartAktif}
+                tampilan="dropdown"
+                labelItem="parameter TMS"
               />
             ) : (
               <div className="rounded-lg bg-green-50 p-6 text-center text-xs font-semibold text-green-700 border border-green-200">
@@ -549,8 +555,9 @@ export default function TppClient({
 
           {/* GRAFIK 4: BREAKDOWN MS */}
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-            <h3 className="mb-4 text-sm font-bold text-gray-800 flex items-center gap-2">
-              <span>✅</span> Breakdown Komponen Memenuhi Syarat (MS) — {granularitas}
+            <h3 className="mb-4 text-sm font-bold text-gray-800 text-center">
+              Distribusi TPP Memenuhi Syarat (MS) {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             {adaMs ? (
               <TrenChecklistMingguan
@@ -558,6 +565,8 @@ export default function TppClient({
                 seriesList={seriesMs}
                 maxAktifDefault={3}
                 variant={tipeChartAktif}
+                tampilan="dropdown"
+                labelItem="parameter TMS"
               />
             ) : (
               <div className="rounded-lg bg-gray-50 p-6 text-center text-xs font-semibold text-gray-500 border border-gray-200">
@@ -587,7 +596,7 @@ export default function TppClient({
             <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-red-900 flex items-center gap-2">
-                  <span>🚨</span> Daftar Fasilitas TPP Tidak Memenuhi Syarat (TMS)
+                  Daftar Fasilitas TPP Tidak Memenuhi Syarat (TMS) {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Rincian fasilitas TPP yang teridentifikasi mengandung bahan berbahaya atau gagal pengujian sanitasi.

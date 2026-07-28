@@ -189,7 +189,7 @@ export default function PabClient({
       {/* HEADER & FILTER */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-4 shadow-xs">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans PAB</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans Tempat Penyediaan Air Bersih</h1>
           <p className="text-sm text-gray-500">
             Pengawasan kualitas Penyediaan Air Bersih — {tahunBerjalan}.
           </p>
@@ -309,8 +309,9 @@ export default function PabClient({
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Chart 1: MS vs TMS */}
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Kepatuhan PAB — Memenuhi Syarat vs Tidak Memenuhi Syarat ({granularitas})
+            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">
+              Distribusi Hasil Pemeriksaan Tempat Penyediaan Air Bersih {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             <TrenChartLine
               data={chartData}
@@ -324,8 +325,9 @@ export default function PabClient({
 
           {/* Chart 2: Jumlah Pemeriksaan vs Titik PAB */}
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Jumlah Pemeriksaan & Titik PAB Diperiksa ({granularitas})
+            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">
+              Distribusi PAB Diperiksa {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             <TrenChartLine
               data={chartData}
@@ -339,8 +341,9 @@ export default function PabClient({
 
           {/* Chart 3: Breakdown Parameter TMS */}
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
-            <h3 className="mb-4 text-sm font-semibold text-gray-700">
-              Breakdown Parameter Tidak Memenuhi Syarat (TMS) — {granularitas}
+            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">
+              Distribusi PAB Tidak Memenuhi Syarat (TMS) {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             <TrenChecklistMingguan 
               data={chartData} 

@@ -60,8 +60,6 @@ export default function TtuClient({
   role,
   tahunBerjalan,
   bulanBerjalan,
-  tahunEpidBerjalan,   // <-- FIX: sebelumnya tidak di-destructure,
-  mingguEpidBerjalan,  // <-- FIX: menyebabkan ReferenceError di periodeKey
   wilayahParam,
 }: TtuClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
@@ -199,7 +197,7 @@ export default function TtuClient({
       {/* HEADER & FILTERS */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans TTU</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans Sanitasi Tempat Tempat Umum</h1>
           <p className="text-xs text-gray-500 mt-1">
             Pengawasan Sanitasi Tempat-Tempat Umum (TTU) Tahun {tahunBerjalan}
           </p>
@@ -327,7 +325,8 @@ export default function TtuClient({
           {/* GRAFIK 1: KEPATUHAN UTAMA (MS vs TMS) */}
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
             <h3 className="flex items-center justify-center text-center mb-4 text-sm font-bold text-gray-800 gap-2">
-              <span>📈</span> Distribusi Hasil Pengawasan Tempat-Tempat Umum (TTU) di BKK Kelas I Samarinda [{granularitas}]
+              Distribusi Hasil Pengawasan Tempat-Tempat Umum (TTU) {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
+              <br /> ({granularitas})
             </h3>
             <TrenChartLine
               data={chartData}
@@ -360,7 +359,7 @@ export default function TtuClient({
             <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-red-900 flex items-center gap-2">
-                  <span>🚨</span> Daftar Fasilitas / Tempat Umum (TTU) Tidak Memenuhi Syarat (TMS)
+                  Distribusi Tempat-Tempat Umum (TTU) Tidak Memenuhi Syarat (TMS) {selectedWilayah !== 'semua' ? ` di ${selectedWilayah}` : ''} Tahun  {tahunBerjalan}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Rincian sarana/fasilitas umum yang tidak memenuhi standar kualitas kesehatan lingkungan.

@@ -22,7 +22,7 @@ export default function FilterWilker({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const wilkerAktif = searchParams.get('wilker') ?? 'WK07';
+  const wilkerAktif = searchParams.get('wilker') ?? '';
 
   function ubahWilker(kode: string) {
     const params = new URLSearchParams(searchParams.toString());

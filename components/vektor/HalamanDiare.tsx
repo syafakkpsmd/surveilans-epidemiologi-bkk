@@ -11,7 +11,6 @@ import { getBreakdownKategori, getRentangMingguEpid } from '@/lib/supabase/queri
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterWilker from '@/components/vektor/FilterWilker';
-import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
 import BreakdownList from '@/components/vektor/BreakdownList';
 import { GrafikHasilPengamatanWilker } from '@/components/vektor/GrafikHasilPengamatanWilker';
 import GrafikInsektisidaVsLuas from '@/components/vektor/GrafikInsektisidaVsLuas';
@@ -24,6 +23,7 @@ const KONFIG = {
   lalat: {
     ikon: '🪰',
     judul: 'Surveilans Vektor Diare — Lalat',
+    labelMingguan: 'Angka Kepadatan Lalat',
     metrikUtama: { key: 'fly_index_rerata', label: 'Fly Index', warna: '#E65100' },
     threshold: 8,
     konteks: 'vektor-diare-lalat-mingguan',
@@ -31,6 +31,7 @@ const KONFIG = {
   kecoa: {
     ikon: '🪳',
     judul: 'Surveilans Vektor Diare — Kecoa',
+    labelMingguan: 'Angka Kepadatan Kecoa',
     metrikUtama: { key: 'kepadatan_kecoa_rerata', label: 'Kepadatan/m²', warna: '#5B21B6' },
     threshold: 2,
     konteks: 'vektor-diare-kecoa-mingguan',
@@ -145,15 +146,14 @@ export default async function HalamanDiare({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FilterWilker daftarWilker={daftarWilker} />
-          <FilterZonaSubLokasi />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
           <PanelTrenDiareLingkungan
-            judulMingguan={`Tren ${cfg.metrikUtama.label} vs Faktor Lingkungan — Tahun ${tahun}`}
-            judulBulanan={`Tren ${cfg.metrikUtama.label} vs Faktor Lingkungan — Tahun ${tahun}`}
+            judulMingguan={`Tren Mingguan ${cfg.labelMingguan} ${namaWilkerLengkap ? ` di ${namaWilkerLengkap}` : ''} Tahun ${tahun}`}
+            judulBulanan={`Distribusi ${cfg.metrikUtama.label} ${namaWilkerLengkap ? ` di ${namaWilkerLengkap}` : ''} Tahun ${tahun}`}
             dataMingguan={dataMingguan}
             dataBulanan={dataBulanan}
             metrikUtama={cfg.metrikUtama}
@@ -164,15 +164,15 @@ export default async function HalamanDiare({
         <div className="rounded-xl bg-white p-4 shadow-sm">
           <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">
             {isModeBulanan
-              ? `Hasil Pengamatan Bulanan ${namaWilkerLengkap ? `(${namaWilkerLengkap})` : ''}`
-              : `Hasil Pengamatan Mingguan ${namaWilkerLengkap ? `(${namaWilkerLengkap})` : ''}`}
+              ? `Hasil Pengamatan Bulanan ${namaWilkerLengkap ? `${namaWilkerLengkap}` : ''}`
+              : `Tren Pengamatan Mingguan ${namaWilkerLengkap ? `${namaWilkerLengkap}` : ''}`}
           </h2>
           <GrafikHasilPengamatanWilker data={hasilPerWilker} isBulanan={isModeBulanan} />
         </div>
 
         <div className="rounded-xl bg-white p-4 shadow-sm">
           <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">
-            Jumlah Insektisida vs Luas Area
+            Jumlah Insektisida & Luas Area
           </h2>
           <GrafikInsektisidaVsLuas
             data={isModeBulanan ? dataBulanan : dataMingguan}

@@ -100,6 +100,8 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'cop-negara-asal',
   'cop-negara-tren',        
   'cop-per-wilker', 
+  'cop-mingguan',    // <-- tambah
+  'cop-bulanan',     // <-- tambah
   'phqc-daerah-asal',
   'phqc-daerah-tujuan',
   'phqc-rba-mingguan',

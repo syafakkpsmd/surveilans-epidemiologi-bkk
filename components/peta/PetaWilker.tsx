@@ -10,8 +10,8 @@ import SubPelabuhanSelector from "./SubPelabuhanSelector";
 import GaleriFoto from "./GaleriFoto";
 import FormFasilitas from "./FormFasilitas";
 
-// Metadata cluster wilker (bukan data fasilitas — cuma titik pusat + level zoom)
 const WILKER_META: Record<string, { nama: string; pusat: { lat: number; lng: number }; zoomDetail: number }> = {
+  INDUK: { nama: "Kantor Induk BKK Kelas I Samarinda", pusat: { lat: -0.524379, lng: 117.171117 }, zoomDetail: 16 },
   WK01: { nama: "Samarinda", pusat: { lat: -0.5022, lng: 117.1536 }, zoomDetail: 13 },
   WK02: { nama: "Tanjung Santan", pusat: { lat: -0.08, lng: 117.45 }, zoomDetail: 14 },
   WK03: { nama: "Tanjung Laut", pusat: { lat: 0.35, lng: 117.55 }, zoomDetail: 13 },
@@ -72,7 +72,12 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
 
   function handlePilihWilker(kode: string | null) {
     setSelectedWilker(kode);
-    setActiveFasilitas(null);
+    if (kode) {
+      const kantor = fasilitasList.find((f) => f.kode_wilker === kode && f.tipe === "kantor");
+      setActiveFasilitas(kantor ?? null);
+    } else {
+      setActiveFasilitas(null);
+    }
   }
 
   function handlePilihFasilitas(f: Fasilitas) {
@@ -98,7 +103,8 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
     ? fasilitasList.filter((f) => f.kode_wilker === selectedWilker)
     : [];
 
-  // Tentukan target flyTo saat ini
+  const fasilitasNonKantor = fasilitasWilkerAktif.filter((f) => f.tipe !== "kantor");
+
   let flyTarget: { lat: number; lng: number; zoom: number };
   if (activeFasilitas) {
     flyTarget = { lat: activeFasilitas.lat, lng: activeFasilitas.lng, zoom: 16 };
@@ -118,14 +124,14 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
             onClick={handleTambah}
             className="px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700"
           >
-            + Tambah Pelabuhan
+            + Tambah Fasilitas
           </button>
         )}
       </div>
 
       {selectedWilker && (
         <SubPelabuhanSelector
-          fasilitas={fasilitasWilkerAktif}
+          fasilitas={fasilitasNonKantor}
           activeId={activeFasilitas?.id ?? null}
           onSelect={handlePilihFasilitas}
         />
@@ -163,21 +169,25 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
           <FlyToTarget lat={flyTarget.lat} lng={flyTarget.lng} zoom={flyTarget.zoom} />
 
           {!selectedWilker &&
-            Object.entries(WILKER_META).map(([kode, meta]) => (
-              <Marker
-                key={kode}
-                position={[meta.pusat.lat, meta.pusat.lng]}
-                icon={iconWilker}
-                eventHandlers={{ click: () => handlePilihWilker(kode) }}
-              >
-                <Popup>
-                  <div className="font-medium">{meta.nama}</div>
-                  <div className="text-xs text-gray-500">
-                    {kode} · {fasilitasList.filter((f) => f.kode_wilker === kode).length} fasilitas
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+            Object.entries(WILKER_META).map(([kode, meta]) => {
+              const kantor = fasilitasList.find((f) => f.kode_wilker === kode && f.tipe === "kantor");
+              const posisi = kantor ? { lat: kantor.lat, lng: kantor.lng } : meta.pusat;
+              return (
+                <Marker
+                  key={kode}
+                  position={[posisi.lat, posisi.lng]}
+                  icon={iconWilker}
+                  eventHandlers={{ click: () => handlePilihWilker(kode) }}
+                >
+                  <Popup>
+                    <div className="font-medium">{meta.nama}</div>
+                    <div className="text-xs text-gray-500">
+                      {kode} · {fasilitasList.filter((f) => f.kode_wilker === kode).length} fasilitas
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
 
           {selectedWilker &&
             fasilitasWilkerAktif.map((f) => (
@@ -195,7 +205,7 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
                         onClick={() => handleEdit(f)}
                         className="text-xs font-medium text-blue-600 hover:underline"
                       >
-                        Edit Pelabuhan
+                        Edit Fasilitas
                       </button>
                     )}
                   </div>

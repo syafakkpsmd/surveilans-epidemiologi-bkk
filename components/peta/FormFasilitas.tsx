@@ -20,11 +20,14 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
   const [lat, setLat] = useState(fasilitasEdit?.lat?.toString() ?? "");
   const [lng, setLng] = useState(fasilitasEdit?.lng?.toString() ?? "");
   const [deskripsi, setDeskripsi] = useState(fasilitasEdit?.deskripsi ?? "");
-  const [fotoPelabuhan, setFotoPelabuhan] = useState<FileList | null>(null);
+  const [fotoUtama, setFotoUtama] = useState<FileList | null>(null);
   const [fotoKegiatan, setFotoKegiatan] = useState<FileList | null>(null);
   const [saving, setSaving] = useState(false);
 
-  async function uploadFotos(fasilitasId: string, files: FileList | null, kategori: "pelabuhan" | "kegiatan") {
+  const kategoriUtama = tipe === "kantor" ? "kantor" : "pelabuhan";
+  const labelFotoUtama = tipe === "kantor" ? "Foto Kantor" : "Foto Pelabuhan";
+
+  async function uploadFotos(fasilitasId: string, files: FileList | null, kategori: "pelabuhan" | "kegiatan" | "kantor") {
     if (!files || files.length === 0) return;
     const supabase = createClient();
 
@@ -63,7 +66,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
       }
 
       if (fasilitasId) {
-        await uploadFotos(fasilitasId, fotoPelabuhan, "pelabuhan");
+        await uploadFotos(fasilitasId, fotoUtama, kategoriUtama);
         await uploadFotos(fasilitasId, fotoKegiatan, "kegiatan");
       }
 
@@ -80,12 +83,13 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
   return (
     <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-semibold">{fasilitasEdit ? "Edit Pelabuhan" : "Tambah Pelabuhan Baru"}</h2>
+        <h2 className="text-lg font-semibold">{fasilitasEdit ? "Edit Fasilitas" : "Tambah Fasilitas Baru"}</h2>
 
         {!kodeWilkerAktif && (
           <div>
             <label className="text-xs font-medium text-gray-500">Wilayah Kerja</label>
             <select value={kodeWilker} onChange={(e) => setKodeWilker(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm">
+              <option value="INDUK">INDUK - Kantor BKK Kelas I Samarinda</option>
               <option value="WK01">WK01 - Samarinda</option>
               <option value="WK02">WK02 - Tanjung Santan</option>
               <option value="WK03">WK03 - Tanjung Laut</option>
@@ -98,7 +102,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
         )}
 
         <div>
-          <label className="text-xs font-medium text-gray-500">Nama Pelabuhan/Bandara</label>
+          <label className="text-xs font-medium text-gray-500">Nama Pelabuhan/Bandara/Kantor</label>
           <input value={nama} onChange={(e) => setNama(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm" />
         </div>
 
@@ -107,6 +111,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
           <select value={tipe} onChange={(e) => setTipe(e.target.value as any)} className="w-full border rounded-md px-3 py-2 text-sm">
             <option value="pelabuhan">Pelabuhan</option>
             <option value="bandara">Bandara</option>
+            <option value="kantor">Kantor</option>
           </select>
         </div>
 
@@ -130,8 +135,8 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
         </div>
 
         <div>
-          <label className="text-xs font-medium text-gray-500">Foto Pelabuhan</label>
-          <input type="file" accept="image/*" multiple onChange={(e) => setFotoPelabuhan(e.target.files)} className="w-full text-sm" />
+          <label className="text-xs font-medium text-gray-500">{labelFotoUtama}</label>
+          <input type="file" accept="image/*" multiple onChange={(e) => setFotoUtama(e.target.files)} className="w-full text-sm" />
         </div>
 
         <div>

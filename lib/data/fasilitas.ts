@@ -4,7 +4,7 @@ export interface Fasilitas {
   id: string;
   kode_wilker: string;
   nama: string;
-  tipe: "pelabuhan" | "bandara";
+  tipe: "pelabuhan" | "bandara" | "kantor";
   lat: number;
   lng: number;
   deskripsi: string | null;
@@ -13,7 +13,7 @@ export interface Fasilitas {
 export interface FasilitasFoto {
   id: string;
   fasilitas_id: string;
-  kategori: "pelabuhan" | "kegiatan";
+  kategori: "pelabuhan" | "kegiatan" | "kantor";
   url: string;
   caption: string | null;
 }
@@ -25,7 +25,7 @@ export async function getFasilitas(): Promise<Fasilitas[]> {
     console.error("Gagal memuat fasilitas:", JSON.stringify(error, null, 2));
     throw error;
   }
-  return (data ?? []) as Fasilitas[];  // 👈 tambahkan `as Fasilitas[]`
+  return (data ?? []) as Fasilitas[];
 }
 
 export async function getFotoByFasilitas(fasilitasId: string): Promise<FasilitasFoto[]> {
@@ -35,8 +35,9 @@ export async function getFotoByFasilitas(fasilitasId: string): Promise<Fasilitas
     .select("*")
     .eq("fasilitas_id", fasilitasId);
   if (error) throw error;
-  return (data ?? []) as FasilitasFoto[];  // 👈 tambahkan `as FasilitasFoto[]`
+  return (data ?? []) as FasilitasFoto[];
 }
+
 export async function hapusFasilitas(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("fasilitas_pelabuhan").delete().eq("id", id);

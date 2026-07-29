@@ -479,13 +479,14 @@ export default async function PhqcPage({
           {/* TREN UTAMA */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-              Distribusi Pengawasan Keberangkatan Kapal {mode === "mingguan" ? "Mingguan" : "Bulanan"} Tahun {tahun}
+              Distribusi Pengawasan Keberangkatan Kapal di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
             </h2>
             {trenData.length === 0 ? (
               <p className="text-sm text-muted">Belum ada data untuk ditampilkan.</p>
             ) : (
               <TrenChart
                 data={trenData}
+                variant={mode === "mingguan" ? "line" : "bar"}
                 seri={[
                   { dataKey: "jumlah_kapal", nama: "Jumlah Kapal", warna: "#0F4C5C" },
                   { dataKey: "total_abk", nama: "Total ABK", warna: "#D97706" },
@@ -549,8 +550,8 @@ export default async function PhqcPage({
           {/* BENDERA KAPAL */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Bendera Kapal — Indonesia vs Luar Negeri
+              <h3 className="mb-4 text-sm font-bold text-center tracking-wide text-muted">
+                DISTRIBUSI BERDASARKAN BENDERA KAPAL <br /> Indonesia vs Luar Negeri
               </h3>
               <DonutBreakdown data={donutBenderaAsalNegara} />
             </div>
@@ -575,13 +576,14 @@ export default async function PhqcPage({
 
           {/* TREN RBA */}
           <div className="rounded-card bg-surface p-6 space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
-              Tren RBA {mode === "mingguan" ? "Mingguan" : "Bulanan"} — Tahun {tahun}
+            <h3 className="text-sm text-center font-bold uppercase tracking-wide text-muted">
+              Tren Risk Based Assessment (RBA) di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
             </h3>
             <TrenChecklistMingguan 
               data={trenRbaPeriodik} 
               seriesList={seriesRba} 
               maxAktifDefault={seriesRba.length} 
+              variant={mode === "mingguan" ? "line" : "bar"}
             />
             <BoxAnalisisAI
               sudahLogin={sudahLogin}
@@ -615,13 +617,14 @@ export default async function PhqcPage({
 
           {/* TREN PELABUHAN */}
           <div className="rounded-card bg-surface p-6 space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
-              Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} Pelabuhan Kedatangan & Tujuan — Tahun {tahun}
+            <h3 className="text-sm text-center font-bold tracking-wide text-muted">
+              Distribusi Hasil Pemeriksaan Kapal Berdasarkan Pelabuhan Kedatangan & Tujuan di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
             </h3>
             <TrenChecklistMingguan
               data={trenPelabuhanPeriodik}
               seriesList={seriesPelabuhan}
               tampilan="dropdown"
+              variant={mode === "mingguan" ? "line" : "bar"}
             />
             <BoxAnalisisAI
               sudahLogin={sudahLogin}
@@ -641,11 +644,12 @@ export default async function PhqcPage({
 
           {/* CREW & PENUMPANG TREN */}
           <div className="rounded-card bg-surface p-6 space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
-              Tren {mode === "mingguan" ? "Mingguan" : "Bulanan"} ABK & Penumpang Keberangkatan — Tahun {tahun}
+            <h3 className="text-sm text-center font-bold uppercase tracking-wide text-muted">
+              Distribusi ABK dan Penumpang Berangkat di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
             </h3>
             <TrenChart
               data={trenData}
+              variant={mode === "mingguan" ? "line" : "bar"}
               seri={[
                 { dataKey: "total_abk_wna", nama: "ABK WNA", warna: "#2F9E44" },
                 { dataKey: "total_abk_wni", nama: "ABK WNI", warna: "#0F4C5C" },

@@ -1,6 +1,7 @@
 "use client";
 
 const WILKER_LIST = [
+  { kode: "INDUK", nama: "🏢 Kantor Induk BKK Kelas I Samarinda" },
   { kode: "WK01", nama: "Samarinda" },
   { kode: "WK02", nama: "Tanjung Santan" },
   { kode: "WK03", nama: "Tanjung Laut" },

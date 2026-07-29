@@ -2,7 +2,7 @@ import { getStatistikKunjungan } from '@/lib/analytics/get-stats';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Eye, UserCheck, Crown, LogIn } from 'lucide-react';
+import { ArrowLeft, Eye, UserCheck, Crown, LogIn, Users } from 'lucide-react';
 import TopDaerahChart from './TopDaerahChart';
 import AktivitasTrendChart from './AktivitasTrendChart';
 import AktivitasTerakhirList from './AktivitasTerakhirList';
@@ -36,14 +36,24 @@ export default async function StatistikPage() {
         </Link>
       </div>
 
+
       {/* 4 Cards Ringkasan Stat */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Page Load */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">   {/* ganti lg:grid-cols-4 -> 5 */}
+        {/* Card 1: Total Page Load — tetap */}
         <div className="bg-white rounded-[10px] border border-black/5 p-4 text-center shadow-xs">
           <p className="text-3xl font-bold text-[#1E2B58] mb-1">{stats.totalPageload}</p>
           <div className="flex items-center justify-center gap-1.5 text-xs text-[#0F2A38]/60">
             <Eye size={14} className="text-[#1E2B58]" />
             <span>Total Page Load</span>
+          </div>
+        </div>
+
+        {/* Card BARU: Tamu */}
+        <div className="bg-white rounded-[10px] border border-black/5 p-4 text-center shadow-xs">
+          <p className="text-3xl font-bold text-slate-500 mb-1">{stats.pageloadTamu}</p>
+          <div className="flex items-center justify-center gap-1.5 text-xs text-[#0F2A38]/60">
+            <Users size={14} className="text-slate-500" />
+            <span>Kunjungan Tamu</span>
           </div>
         </div>
 

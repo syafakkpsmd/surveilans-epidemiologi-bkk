@@ -1,5 +1,5 @@
 // lib/analytics/get-stats.ts
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
 
 export interface TrendItem {
   label: string;
@@ -9,7 +9,7 @@ export interface TrendItem {
 export type PeriodeType = 'harian' | 'mingguan' | 'bulanan' | 'tahunan';
 
 export async function getStatistikKunjungan() {
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
 
   // Ambil data 1 tahun terakhir agar mencakup statistik bulanan & harian
   const satuTahunLalu = new Date();
@@ -19,7 +19,8 @@ export async function getStatistikKunjungan() {
     .from('statistik_kunjungan')
     .select('created_at, tipe, role, kota, wilayah, negara')
     .gte('created_at', satuTahunLalu.toISOString())
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(50000);
 
   if (error || !rows) {
     return { ok: false as const, error: error?.message };
@@ -27,6 +28,9 @@ export async function getStatistikKunjungan() {
 
   // Gunakan .toLowerCase() untuk menghindari kendala case-sensitivity
   const totalPageload = rows.filter((r) => r.tipe?.toLowerCase() === 'pageload').length;
+  const pageloadTamu = rows.filter(
+    (r) => r.tipe?.toLowerCase() === 'pageload' && r.role?.toLowerCase() === 'tamu'
+  ).length;   // <-- TAMBAH
   const loginAdmin = rows.filter(
     (r) => r.tipe?.toLowerCase() === 'login' && r.role?.toLowerCase() === 'admin'
   ).length;
@@ -122,6 +126,7 @@ export async function getStatistikKunjungan() {
   return {
     ok: true as const,
     totalPageload,
+    pageloadTamu,
     loginAdmin,
     loginPetugas,
     totalLogin: loginAdmin + loginPetugas,

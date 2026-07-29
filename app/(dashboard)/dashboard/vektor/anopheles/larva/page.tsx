@@ -17,6 +17,7 @@ import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
 
 export default async function LarvaPage({
   searchParams,
@@ -32,6 +33,18 @@ export default async function LarvaPage({
   const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
   const periodeKey = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
 
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- hanya 1 pasang (analisis + prediksi) di
+  // halaman ini, tapi tetap dipanggil sedini mungkin & di-await
+  // belakangan bareng query chart, supaya jalan PARALEL -- pola
+  // sama persis dengan PHQC/Vektor Aedes.
+  // ============================================================
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'analisis' },
+    { konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'prediksi' },
+  ];
+  const hasilAIPromise = getBanyakHasilAI(permintaanAI);
+
   const [role, daftarWilker, dataMingguan, dataBulanan, macamTempat, keadaanTempat] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
@@ -40,6 +53,11 @@ export default async function LarvaPage({
     getMacamTempatPerindukan(tahun, wilker),
     getKeadaanTempatPerindukan(tahun, wilker),
   ]);
+
+  // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
+  const hasilAI = await hasilAIPromise;
+  const hasilAnalisis = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'analisis' })];
+  const hasilPrediksi = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'prediksi' })];
 
   return (
     <div className="space-y-6">
@@ -65,7 +83,7 @@ export default async function LarvaPage({
         seriesListMingguan={[
           { key: 'cidukan', label: 'Cidukan Positif', warna: '#558B2F' },
           { key: 'larva', label: 'Jumlah Larva', warna: '#2E7D32' },
-          { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100' },
+          { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100', axis: 'kanan' },
         ]}
         seriesListBulanan={[
           { key: 'cidukan', label: 'Cidukan Positif', warna: '#558B2F' },
@@ -81,6 +99,7 @@ export default async function LarvaPage({
           wilayahKerja={wilker}
           sudahLogin={!!role}
           role={role === 'tamu' ? null : role}
+          hasilAwal={hasilAnalisis}
         />
         <BoxPrediksiAI
           konteks={konteksAI}
@@ -88,6 +107,7 @@ export default async function LarvaPage({
           wilayahKerja={wilker}
           sudahLogin={!!role}
           role={role === 'tamu' ? null : role}
+          hasilAwal={hasilPrediksi}
         />
       </div>
 

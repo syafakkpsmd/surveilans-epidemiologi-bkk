@@ -16,6 +16,7 @@ import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import type { Wilayah, KategoriPhqc, KegiatanPhqcEnriched } from "@/types/database.types";
 import { DonutBreakdown } from "@/components/phqc/DonutBreakdown";
 import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI, type HasilAIStruktur } from "@/lib/ai/getBanyakHasilAI";
 
 // ============================================================
 // 1. MAPPING WILAYAH SUPABASE & HELPER MODULE-LEVEL
@@ -187,6 +188,36 @@ export default async function PhqcPage({
     ? `${tahunEpidSaatIni}-W${mingguAkhir}`
     : `${tahunTampilanBulanan}-${bulanAkhir}`;
 
+  const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
+
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- menggantikan pola lama di mana setiap
+  // <BoxAnalisisAI>/<BoxPrediksiAI> di halaman ini fetch GET sendiri
+  // saat mount (11 request client-side terpisah). Sekarang diambil
+  // sekaligus lewat 1 Promise.all di server (getBanyakHasilAI),
+  // dikirim sebagai props (hasilAwal) ke tiap box. Semua kombinasi
+  // di sini pakai wilayahKerjaAi (nilai `wilayah` versi tampilan,
+  // BUKAN targetWilayahDb) -- disamakan persis dengan wilayahKerja
+  // yang selama ini dioper ke tiap Box di JSX di bawah.
+  // ============================================================
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: `phqc-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: "phqc-daerah-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: "phqc-daerah-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+    { konteks: "phqc-daerah-tujuan", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: "phqc-daerah-tujuan", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+    { konteks: `phqc-rba-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: `phqc-rba-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+    { konteks: `phqc-pelabuhan-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: `phqc-pelabuhan-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+    { konteks: `penumpang-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: `penumpang-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+  ];
+  // Dijalankan di background sedini mungkin, di-await belakangan bareng
+  // hasil query data chart (lihat `await hasilAIPromise` di bawah) --
+  // supaya jalan PARALEL dengan query utama, bukan menambah waktu tunggu.
+  const hasilAIPromise = getBanyakHasilAI(permintaanAI);
+
   let errorMuat: string | null = null;
   let trenData: TitikTrenPhqc[] = [];
   const kategoriData: Record<KategoriPhqc, { nilai: string; jumlah: number }[]> = {
@@ -210,6 +241,7 @@ export default async function PhqcPage({
   let trenPelabuhanPeriodik: Array<Record<string, string | number>> = [];
   let seriesPelabuhan: SeriesChecklist[] = [];
   let donutAbkPenumpang: { nilai: string; jumlah: number }[] = [];
+  let hasilAI: Record<string, HasilAIStruktur | null> = {};
 
   try {
     let ringkasan;
@@ -417,9 +449,34 @@ export default async function PhqcPage({
       { nilai: "Penumpang WNI", jumlah: trenData.reduce((a, r) => a + r.total_penumpang_wni, 0) },
     ];
 
+    // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
+    hasilAI = await hasilAIPromise;
   } catch (err) {
     errorMuat = err instanceof Error ? err.message : "Gagal mengambil data PHQC.";
   }
+
+  // ============================================================
+  // LOOKUP HASIL AI -- 1 pasang variabel per kombinasi yang dipakai
+  // di JSX di bawah. Kalau kombinasinya tidak ada di hasilAI (mis.
+  // errorMuat terjadi sebelum sempat await hasilAIPromise di atas),
+  // nilainya undefined -- Box otomatis fallback ke fetch sendiri.
+  // ============================================================
+  const hasilAnalisisTrenUtama = hasilAI[kunciAI({ konteks: `phqc-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+
+  const hasilAnalisisDaerahAsal = hasilAI[kunciAI({ konteks: "phqc-daerah-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiDaerahAsal = hasilAI[kunciAI({ konteks: "phqc-daerah-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
+
+  const hasilAnalisisDaerahTujuan = hasilAI[kunciAI({ konteks: "phqc-daerah-tujuan", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiDaerahTujuan = hasilAI[kunciAI({ konteks: "phqc-daerah-tujuan", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
+
+  const hasilAnalisisRba = hasilAI[kunciAI({ konteks: `phqc-rba-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiRba = hasilAI[kunciAI({ konteks: `phqc-rba-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
+
+  const hasilAnalisisPelabuhan = hasilAI[kunciAI({ konteks: `phqc-pelabuhan-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiPelabuhan = hasilAI[kunciAI({ konteks: `phqc-pelabuhan-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
+
+  const hasilAnalisisPenumpang = hasilAI[kunciAI({ konteks: `penumpang-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiPenumpang = hasilAI[kunciAI({ konteks: `penumpang-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
 
   // ============================================================
   // 3. RENDER TAMPILAN
@@ -500,6 +557,7 @@ export default async function PhqcPage({
               konteks={`phqc-${mode}`}
               periodeKey={periodeKey}
               wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              hasilAwal={hasilAnalisisTrenUtama}
             />
           </div>
 
@@ -516,6 +574,7 @@ export default async function PhqcPage({
                 konteks="phqc-daerah-asal"
                 periodeKey={periodeKey}
                 wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+                hasilAwal={hasilAnalisisDaerahAsal}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -523,6 +582,7 @@ export default async function PhqcPage({
                 konteks="phqc-daerah-asal"
                 periodeKey={periodeKey}
                 wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+                hasilAwal={hasilPrediksiDaerahAsal}
               />
             </div>
             <div className="space-y-3">
@@ -536,6 +596,7 @@ export default async function PhqcPage({
                 konteks="phqc-daerah-tujuan"
                 periodeKey={periodeKey}
                 wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+                hasilAwal={hasilAnalisisDaerahTujuan}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -543,6 +604,7 @@ export default async function PhqcPage({
                 konteks="phqc-daerah-tujuan"
                 periodeKey={periodeKey}
                 wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+                hasilAwal={hasilPrediksiDaerahTujuan}
               />
             </div>
           </div>
@@ -591,6 +653,7 @@ export default async function PhqcPage({
               konteks={`phqc-rba-${mode}`}
               periodeKey={periodeKey}
               wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              hasilAwal={hasilAnalisisRba}
             />
             <BoxPrediksiAI
               sudahLogin={sudahLogin}
@@ -598,6 +661,7 @@ export default async function PhqcPage({
               konteks={`phqc-rba-${mode}`}
               periodeKey={periodeKey}
               wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              hasilAwal={hasilPrediksiRba}
             />
           </div>
 
@@ -625,6 +689,7 @@ export default async function PhqcPage({
               seriesList={seriesPelabuhan}
               tampilan="dropdown"
               variant={mode === "mingguan" ? "line" : "bar"}
+              labelItem="pelabuhan kedatangan/tujuan" 
             />
             <BoxAnalisisAI
               sudahLogin={sudahLogin}
@@ -632,6 +697,7 @@ export default async function PhqcPage({
               konteks={`phqc-pelabuhan-${mode}`}
               periodeKey={periodeKey}
               wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              hasilAwal={hasilAnalisisPelabuhan}
             />
             <BoxPrediksiAI
               sudahLogin={sudahLogin}
@@ -639,6 +705,7 @@ export default async function PhqcPage({
               konteks={`phqc-pelabuhan-${mode}`}
               periodeKey={periodeKey}
               wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              hasilAwal={hasilPrediksiPelabuhan}
             />
           </div>
 
@@ -663,6 +730,7 @@ export default async function PhqcPage({
               konteks={`penumpang-${mode}`}
               periodeKey={periodeKey}
               wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              hasilAwal={hasilAnalisisPenumpang}
             />
             <BoxPrediksiAI
               sudahLogin={sudahLogin}
@@ -670,6 +738,7 @@ export default async function PhqcPage({
               konteks={`penumpang-${mode}`}
               periodeKey={periodeKey}
               wilayahKerja={wilayah === "Semua" ? undefined : wilayah}
+              hasilAwal={hasilPrediksiPenumpang}
             />
           </div>
         </div>

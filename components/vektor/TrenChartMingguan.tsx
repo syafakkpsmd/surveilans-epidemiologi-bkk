@@ -6,6 +6,16 @@
 // series. Pakai ComposedChart supaya tiap series bisa punya tipe
 // render sendiri (Line atau Bar) -- misal Curah Hujan digambar
 // sebagai Bar sementara HI/CI/BI/ABJ tetap Line.
+//
+// MULTI-AXIS KANAN: tiap series dengan axis:'kanan' dapat sumbu Y
+// KANAN SENDIRI (yAxisId unik per key), bukan berbagi satu sumbu
+// kanan yang sama. Jadi kalau user mengaktifkan suhu + kelembaban +
+// curah hujan sekaligus, ketiganya masing-masing dapat skala sendiri
+// -- tidak saling menenggelamkan, dan metrik utama di sumbu kiri
+// tetap terbaca. Warna tick tiap sumbu kanan mengikuti warna garis
+// series-nya supaya gampang dikenali. Tidak ada perubahan API di
+// pemanggil (tetap axis: 'kanan' seperti biasa) -- semua halaman yang
+// sudah pakai komponen ini otomatis dapat perilaku baru ini.
 // ================================================================
 
 import { useState } from 'react';
@@ -28,6 +38,11 @@ export interface SeriesTren {
   axis?: 'kiri' | 'kanan';
   /** Default 'line'. Set 'bar' untuk series yang mau digambar sebagai batang (mis. Curah Hujan). */
   tipe?: 'line' | 'bar';
+}
+
+/** yAxisId unik untuk tiap series yang minta sumbu kanan sendiri. */
+function idSumbuKanan(key: string) {
+  return `kanan-${key}`;
 }
 
 export default function TrenChartMingguan({
@@ -65,6 +80,9 @@ export default function TrenChartMingguan({
     );
   }
 
+  const seriesTerlihat = seriesList.filter((s) => seriesAktif.has(s.key));
+  const seriesKanan = seriesTerlihat.filter((s) => s.axis === 'kanan');
+
   return (
     <div>
       {judul && (
@@ -73,7 +91,6 @@ export default function TrenChartMingguan({
 
       <ResponsiveContainer width="100%" height={280}>
         <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
-          ...
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             dataKey={labelSumbuX}
@@ -81,34 +98,43 @@ export default function TrenChartMingguan({
             tickFormatter={(v) => `Mg-${v}`}
           />
           <YAxis yAxisId="kiri" tick={{ fontSize: 11 }} />
-          <YAxis yAxisId="kanan" orientation="right" tick={{ fontSize: 11 }} />
+          {seriesKanan.map((s) => (
+            <YAxis
+              key={idSumbuKanan(s.key)}
+              yAxisId={idSumbuKanan(s.key)}
+              orientation="right"
+              tick={{ fontSize: 11, fill: s.warna }}
+              stroke={s.warna}
+              tickLine={{ stroke: s.warna }}
+              axisLine={{ stroke: s.warna }}
+            />
+          ))}
           <Tooltip labelFormatter={(v) => `Minggu Epid ke-${v}`} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          {seriesList
-            .filter((s) => seriesAktif.has(s.key))
-            .map((s) =>
-              s.tipe === 'bar' ? (
-                <Bar
-                  key={s.key}
-                  dataKey={s.key}
-                  name={s.label}
-                  fill={s.warna}
-                  yAxisId={s.axis === 'kanan' ? 'kanan' : 'kiri'}
-                />
-              ) : (
-                <Line
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.label}
-                  stroke={s.warna}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  yAxisId={s.axis === 'kanan' ? 'kanan' : 'kiri'}
-                  connectNulls
-                />
-              )
-            )}
+          {seriesTerlihat.map((s) => {
+            const yAxisId = s.axis === 'kanan' ? idSumbuKanan(s.key) : 'kiri';
+            return s.tipe === 'bar' ? (
+              <Bar
+                key={s.key}
+                dataKey={s.key}
+                name={s.label}
+                fill={s.warna}
+                yAxisId={yAxisId}
+              />
+            ) : (
+              <Line
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                name={s.label}
+                stroke={s.warna}
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                yAxisId={yAxisId}
+                connectNulls
+              />
+            );
+          })}
         </ComposedChart>
       </ResponsiveContainer>
 

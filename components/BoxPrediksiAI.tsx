@@ -13,6 +13,12 @@ interface BoxPrediksiAIProps {
   metrik?: string;
   /** Default true. Set false untuk konteks yang memang tidak pakai wilayah kerja (mis. global-emerging, berbasis negara/metrik). */
   wajibWilayahKerja?: boolean;
+  /**
+   * BARU: hasil yang SUDAH diambil di server (lib/ai/getBanyakHasilAI.ts).
+   * Lihat komentar lengkap di BoxAnalisisAI.tsx -- pola sama persis,
+   * cuma tipe="prediksi".
+   */
+  hasilAwal?: HasilPrediksi | null;
 }
 
 type HasilPrediksi = {
@@ -37,10 +43,13 @@ export function BoxPrediksiAI({
   wilayahKerja,
   metrik,
   wajibWilayahKerja = true,
+  hasilAwal,
 }: BoxPrediksiAIProps) {
-  const [memuat, setMemuat] = useState(true);
+  const sudahDikasihServer = hasilAwal !== undefined;
+
+  const [memuat, setMemuat] = useState(!sudahDikasihServer);
   const [error, setError] = useState<string | null>(null);
-  const [hasil, setHasil] = useState<HasilPrediksi | null>(null);
+  const [hasil, setHasil] = useState<HasilPrediksi | null>(hasilAwal ?? null);
 
   function bangunQuery() {
     const params = new URLSearchParams({ konteks, periode_key: periodeKey, tipe: "prediksi" });
@@ -91,9 +100,10 @@ export function BoxPrediksiAI({
   }
 
   useEffect(() => {
+    if (sudahDikasihServer) return;
     void muatHasil();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [konteks, periodeKey, wilayahKerja, metrik]);
+  }, [konteks, periodeKey, wilayahKerja, metrik, sudahDikasihServer]);
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-xs">

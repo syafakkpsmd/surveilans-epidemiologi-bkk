@@ -8,6 +8,14 @@ export type SeriKonfig = {
   label: string;
   warna: string;
   default?: boolean;
+  /**
+   * BARU: tanpa field ini, axis series yang diteruskan ke
+   * TrenChartMingguan/GrafikBarBulanan selalu undefined -> jatuh ke
+   * default 'kiri', walaupun caller (SERI_LINGKUNGAN di HalamanDiare)
+   * sudah mengisi axis: 'kanan'. Field ini WAJIB ada di tipe supaya
+   * nilainya ikut lolos lewat seriAktif di bawah.
+   */
+  axis?: 'kiri' | 'kanan';
 };
 
 interface PanelTrenDiareLingkunganProps {

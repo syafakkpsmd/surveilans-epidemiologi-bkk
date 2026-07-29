@@ -6,6 +6,7 @@ import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/T
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
+import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 
 const NAMA_BULAN = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -33,6 +34,7 @@ type TppClientProps = {
   tahunEpidBerjalan: number;   // <-- TAMBAH
   mingguEpidBerjalan: number;  // <-- TAMBAH
   wilayahParam?: string;
+  hasilAI?: Record<string, HasilAIStruktur | null>; // <-- TAMBAH (batch AI)
 };
 
 // 1. Helper untuk mengecek apakah data bernilai MS / Memenuhi Syarat
@@ -78,6 +80,7 @@ export default function TppClient({
   tahunEpidBerjalan,   // <-- FIX: sebelumnya tidak di-destructure, menyebabkan
   mingguEpidBerjalan,  // <-- FIX: ReferenceError saat dipakai di periodeKey
   wilayahParam,
+  hasilAI = {},        // <-- TAMBAH (batch AI, default objek kosong)
 }: TppClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("mingguan");
@@ -363,6 +366,18 @@ export default function TppClient({
     appliedMingguAkhir,
   ]);
 
+  // ==========================================
+  // LOOKUP HASIL AI (TAMBAH)
+  // Kalau kombinasi konteks/periode/wilayah saat ini persis sama
+  // dengan yang di-prefetch server (state landing awal), Box langsung
+  // dapat hasilnya tanpa fetch GET. Kalau user sudah ganti
+  // granularitas/wilayah/rentang, kunci ini tidak ketemu di hasilAI
+  // -> undefined -> Box fallback fetch sendiri seperti biasa.
+  // ==========================================
+  const wilayahKerjaAktif = selectedWilayah !== "semua" ? selectedWilayah : undefined;
+  const hasilAwalAnalisis = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilayahKerjaAktif, tipe: "analisis" })];
+  const hasilAwalPrediksi = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilayahKerjaAktif, tipe: "prediksi" })];
+
   return (
     <div className="space-y-6">
       {/* HEADER & FILTERS */}
@@ -575,20 +590,22 @@ export default function TppClient({
             )}
           </div>
 
-          {/* ANALISIS & PREDIKSI AI (FIXED DISINI) */}
+          {/* ANALISIS & PREDIKSI AI */}
           <BoxAnalisisAI
             sudahLogin={true}
             role={role as PeranUser}
             konteks={konteksAI}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahKerjaAktif}
+            hasilAwal={hasilAwalAnalisis}
           />
           <BoxPrediksiAI
             sudahLogin={true}
             role={role as PeranUser}
             konteks={konteksAI}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahKerjaAktif}
+            hasilAwal={hasilAwalPrediksi}
           />
 
           {/* TABEL TMS DETAIL */}

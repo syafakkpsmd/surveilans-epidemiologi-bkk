@@ -13,6 +13,20 @@ interface BoxAnalisisAIProps {
   metrik?: string;
   /** Default true. Set false untuk konteks yang memang tidak pakai wilayah kerja (mis. global-emerging, berbasis negara/metrik). */
   wajibWilayahKerja?: boolean;
+  /**
+   * BARU: hasil yang SUDAH diambil di server (lib/ai/getBanyakHasilAI.ts,
+   * dipanggil dari page.tsx bareng query data chart lain lewat
+   * Promise.all). Kalau prop ini diisi (termasuk `null` -- artinya
+   * server sudah cek dan memang belum ada hasil), Box TIDAK melakukan
+   * fetch GET saat mount sama sekali.
+   *
+   * Kalau prop ini TIDAK dioper sama sekali (undefined, halaman lama
+   * yang belum dimigrasi), Box otomatis balik ke perilaku lama:
+   * fetch GET /api/analisis-ai sendiri saat mount. Jadi aman dipasang
+   * bertahap, halaman yang belum sempat diubah tetap jalan seperti
+   * biasa.
+   */
+  hasilAwal?: HasilAnalisis | null;
 }
 
 type HasilAnalisis = {
@@ -37,10 +51,16 @@ export function BoxAnalisisAI({
   wilayahKerja,
   metrik,
   wajibWilayahKerja = true,
+  hasilAwal,
 }: BoxAnalisisAIProps) {
-  const [memuat, setMemuat] = useState(true);
+  // sudahDikasihServer: true kalau halaman ini SUDAH dimigrasi ke pola
+  // batch-fetch (page.tsx mengoper hasilAwal, walaupun isinya null).
+  // undefined = prop tidak dioper sama sekali = halaman lama.
+  const sudahDikasihServer = hasilAwal !== undefined;
+
+  const [memuat, setMemuat] = useState(!sudahDikasihServer);
   const [error, setError] = useState<string | null>(null);
-  const [hasil, setHasil] = useState<HasilAnalisis | null>(null);
+  const [hasil, setHasil] = useState<HasilAnalisis | null>(hasilAwal ?? null);
 
   function bangunQuery() {
     const params = new URLSearchParams({ konteks, periode_key: periodeKey, tipe: "analisis" });
@@ -90,9 +110,12 @@ export function BoxAnalisisAI({
   }
 
   useEffect(() => {
+    // Kalau server SUDAH kasih hasilnya lewat props, jangan fetch lagi --
+    // ini yang menghilangkan request GET client-side per box.
+    if (sudahDikasihServer) return;
     void muatHasil();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [konteks, periodeKey, wilayahKerja, metrik]);
+  }, [konteks, periodeKey, wilayahKerja, metrik, sudahDikasihServer]);
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-xs">

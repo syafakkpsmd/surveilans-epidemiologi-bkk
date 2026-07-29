@@ -106,6 +106,8 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'phqc-daerah-tujuan',
   'phqc-rba-mingguan',
   'phqc-rba-bulanan',
+  'phqc-pelabuhan-mingguan',   // <-- TAMBAH
+  'phqc-pelabuhan-bulanan',    // <-- TAMBAH
   'penumpang-mingguan',
   'penumpang-bulanan',
   'pesawat-mingguan',

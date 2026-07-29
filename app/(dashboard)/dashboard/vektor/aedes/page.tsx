@@ -21,6 +21,7 @@ import BreakdownList from '@/components/vektor/BreakdownList';
 import DonutChart from '@/components/vektor/DonutChart';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
 
 export default async function VektorAedesPage({
   searchParams,
@@ -39,6 +40,58 @@ export default async function VektorAedesPage({
   const { wilker, tahun: tahunParam, zona, subLokasi, mgDari, mgSampai, bulanDari, bulanSampai } = await searchParams;
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
 
+  // Dipindah ke sini (murni sinkron, tidak butuh await) supaya periodeKey
+  // & permintaan batch AI di bawah bisa disiapkan SEDINI MUNGKIN -- sebelum
+  // Promise.all data chart pertama pun mulai, bukan setelahnya.
+  const epiSaatIni = getMingguEpidSaatIni();
+  const tahunBerjalan = epiSaatIni.tahunEpid;
+  const mingguBerjalan = Math.max(1, epiSaatIni.mingguEpid - 1); // minggu epid di kurangi 1
+  const bulanBerjalan = new Date().getMonth() + 1;
+
+  const konteksMingguan = 'vektor-dbd-mingguan';
+  const konteksBulanan = 'vektor-dbd-bulanan';
+  const wilayahKerjaAi = wilker ?? undefined;
+
+  // Rentang minggu yang dipilih user (fallback: minggu berjalan saja kalau belum pilih apa-apa)
+  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
+  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
+  const periodeKeyMingguan = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
+
+  // Rentang bulan yang dipilih user (fallback: bulan berjalan saja kalau belum pilih apa-apa)
+  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari, 10) : bulanBerjalan;
+  const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai, 10) : bulanBerjalan;
+  const periodeKeyBulanan = `${tahun}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
+
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- menggantikan pola lama di mana setiap
+  // <BoxAnalisisAI>/<BoxPrediksiAI> di halaman ini fetch GET sendiri
+  // saat mount (12 request client-side terpisah: 4 metrik mingguan +
+  // 6 metrik bulanan, ditambah prediksi khusus metrik hi-ci-abj di
+  // masing-masing granularitas). Sekarang diambil sekaligus lewat 1
+  // Promise.all di server (getBanyakHasilAI), dikirim sebagai props
+  // (hasilAwal) ke tiap box. Dipanggil sedini mungkin supaya jalan
+  // PARALEL dengan Promise.all data chart di bawah, bukan menambah
+  // waktu tunggu -- persis pola di PHQC.
+  // ============================================================
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'analisis' },
+    { konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'prediksi' },
+    { konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-diperiksa', tipe: 'analisis' },
+    { konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'container-diperiksa', tipe: 'analisis' },
+    { konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-container-positif', tipe: 'analisis' },
+    { konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'analisis' },
+    { konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'prediksi' },
+    { konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-diperiksa', tipe: 'analisis' },
+    { konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'container-diperiksa', tipe: 'analisis' },
+    { konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-container-positif', tipe: 'analisis' },
+    { konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'larvasida', tipe: 'analisis' },
+    { konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'luas-insektisida', tipe: 'analisis' },
+  ];
+  // Dijalankan di background sedini mungkin, di-await belakangan bareng
+  // hasil query data chart (lihat `await hasilAIPromise` di bawah) --
+  // supaya jalan PARALEL dengan query utama, bukan menambah waktu tunggu.
+  const hasilAIPromise = getBanyakHasilAI(permintaanAI);
+
   const [role, daftarWilker, ringkasanMingguan] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
@@ -52,10 +105,6 @@ export default async function VektorAedesPage({
     }),
   ]);
 
-  const epiSaatIni = getMingguEpidSaatIni();
-  const tahunBerjalan = epiSaatIni.tahunEpid;
-  const mingguBerjalan = Math.max(1, epiSaatIni.mingguEpid - 1); // minggu epid di kurangi 1
-  const bulanBerjalan = new Date().getMonth() + 1;
   const { mulai, selesai } = getRentangMingguEpid(tahunBerjalan, mingguBerjalan);
 
   const periodeMinggu1Lalu = periodeMingguanSebelumnya({
@@ -127,17 +176,23 @@ export default async function VektorAedesPage({
 
   const sudahLogin = !!role;
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
-  const konteksMingguan = 'vektor-dbd-mingguan';
-  const konteksBulanan = 'vektor-dbd-bulanan';
-  // Rentang minggu yang dipilih user (fallback: minggu berjalan saja kalau belum pilih apa-apa)
-  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
-  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
-  const periodeKeyMingguan = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
 
-  // Rentang bulan yang dipilih user (fallback: bulan berjalan saja kalau belum pilih apa-apa)
-  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari, 10) : bulanBerjalan;
-  const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai, 10) : bulanBerjalan;
-  const periodeKeyBulanan = `${tahun}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
+  // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
+  const hasilAI = await hasilAIPromise;
+
+  const hasilAnalisisMingguanHiCiAbj = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'analisis' })];
+  const hasilPrediksiMingguanHiCiAbj = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'prediksi' })];
+  const hasilAnalisisMingguanRumahDiperiksa = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-diperiksa', tipe: 'analisis' })];
+  const hasilAnalisisMingguanContainerDiperiksa = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'container-diperiksa', tipe: 'analisis' })];
+  const hasilAnalisisMingguanRumahContainerPositif = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-container-positif', tipe: 'analisis' })];
+
+  const hasilAnalisisBulananHiCiAbj = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'analisis' })];
+  const hasilPrediksiBulananHiCiAbj = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'prediksi' })];
+  const hasilAnalisisBulananRumahDiperiksa = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-diperiksa', tipe: 'analisis' })];
+  const hasilAnalisisBulananContainerDiperiksa = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'container-diperiksa', tipe: 'analisis' })];
+  const hasilAnalisisBulananRumahContainerPositif = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'rumah-container-positif', tipe: 'analisis' })];
+  const hasilAnalisisBulananLarvasida = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'larvasida', tipe: 'analisis' })];
+  const hasilAnalisisBulananLuasInsektisida = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'luas-insektisida', tipe: 'analisis' })];
 
   return (
     <div className="space-y-6">
@@ -185,6 +240,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyMingguan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="hi-ci-abj"
+                hasilAwal={hasilAnalisisMingguanHiCiAbj}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -193,6 +249,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyMingguan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="hi-ci-abj"
+                hasilAwal={hasilPrediksiMingguanHiCiAbj}
               />
             </div>
           </div>
@@ -211,6 +268,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyMingguan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="rumah-diperiksa"
+                hasilAwal={hasilAnalisisMingguanRumahDiperiksa}
               />
             </div>
           </div>
@@ -229,6 +287,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyMingguan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="container-diperiksa"
+                hasilAwal={hasilAnalisisMingguanContainerDiperiksa}
               />
             </div>
           </div>
@@ -252,6 +311,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyMingguan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="rumah-container-positif"
+                hasilAwal={hasilAnalisisMingguanRumahContainerPositif}
               />
             </div>
           </div>
@@ -282,6 +342,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyBulanan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="hi-ci-abj"
+                hasilAwal={hasilAnalisisBulananHiCiAbj}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -290,6 +351,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyBulanan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="hi-ci-abj"
+                hasilAwal={hasilPrediksiBulananHiCiAbj}
               />
             </div>
           </div>
@@ -308,6 +370,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyBulanan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="rumah-diperiksa"
+                hasilAwal={hasilAnalisisBulananRumahDiperiksa}
               />
             </div>
 
@@ -324,6 +387,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyBulanan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="container-diperiksa"
+                hasilAwal={hasilAnalisisBulananContainerDiperiksa}
               />
             </div>
 
@@ -343,6 +407,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyBulanan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="rumah-container-positif"
+                hasilAwal={hasilAnalisisBulananRumahContainerPositif}
               />
             </div>
 
@@ -359,6 +424,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyBulanan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="larvasida"
+                hasilAwal={hasilAnalisisBulananLarvasida}
               />
             </div>
 
@@ -378,6 +444,7 @@ export default async function VektorAedesPage({
                 periodeKey={periodeKeyBulanan}
                 wilayahKerja={wilker ?? undefined}
                 metrik="luas-insektisida"
+                hasilAwal={hasilAnalisisBulananLuasInsektisida}
               />
             </div>
           </div>

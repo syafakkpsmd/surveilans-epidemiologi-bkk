@@ -14,6 +14,7 @@ import { DAFTAR_NEGARA, type FilterGlobalEmerging, type JenisPeriode, type Penya
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import GlobalEmergingNegaraMap from '@/components/global-emerging/GlobalEmergingNegaraMapClient';
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
 
 interface GlobalEmergingPageProps {
   searchParams: Promise<{
@@ -73,6 +74,36 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
       ? `${tahunAktif}-W${mgAwal}_W${mgAkhir}`
       : `${tahunAktif}-M${bulanAwal}_M${bulanAkhir}`; // Menghasilkan "2026-M1_M7"
 
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- sama seperti pola di halaman PHQC.
+  // Bedanya di sini: box Analisis/Prediksi AI cuma dirender kalau
+  // filter.penyakit ATAU filter.negara dipilih (lihat JSX di bawah),
+  // jadi permintaanAI disusun KONDISIONAL supaya tidak query
+  // kombinasi yang memang tidak akan ditampilkan. konteks selalu
+  // `global-emerging-${jenis}`, yang membedakan cuma `metrik`
+  // (isinya filter.penyakit atau filter.negara), wilayahKerja selalu
+  // undefined karena wajibWilayahKerja={false} untuk konteks ini.
+  // ============================================================
+  const permintaanAI: PermintaanHasilAI[] = [];
+  if (filter.penyakit) {
+    permintaanAI.push(
+      { konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.penyakit, tipe: 'analisis' },
+      { konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.penyakit, tipe: 'prediksi' },
+    );
+  }
+  if (filter.negara) {
+    permintaanAI.push(
+      { konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.negara, tipe: 'analisis' },
+      { konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.negara, tipe: 'prediksi' },
+    );
+  }
+  // Dijalankan sedini mungkin di background, di-await belakangan bareng
+  // Promise.all data chart di bawah -- jalan paralel, bukan menambah
+  // waktu tunggu. getBanyakHasilAI sudah handle array kosong (langsung
+  // balikin {} tanpa menyentuh Supabase) kalau penyakit & negara
+  // sama-sama belum dipilih.
+  const hasilAIPromise = getBanyakHasilAI(permintaanAI);
+
   const [ringkasan, dataMentah, ringkasanNegaraChart] = await Promise.all([
     getRingkasanPenyakitEmerging(supabase, filter),
     getDataMentahPenyakitEmerging(supabase, filter),
@@ -82,6 +113,23 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
       negara: negaraChartAktif as Negara,
     }),
   ]);
+
+  // Ambil hasil batch AI yang sudah jalan paralel sejak awal fungsi ini.
+  const hasilAI = await hasilAIPromise;
+
+  const hasilAnalisisPenyakit = filter.penyakit
+    ? hasilAI[kunciAI({ konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.penyakit, tipe: 'analisis' })]
+    : undefined;
+  const hasilPrediksiPenyakit = filter.penyakit
+    ? hasilAI[kunciAI({ konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.penyakit, tipe: 'prediksi' })]
+    : undefined;
+
+  const hasilAnalisisNegara = filter.negara
+    ? hasilAI[kunciAI({ konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.negara, tipe: 'analisis' })]
+    : undefined;
+  const hasilPrediksiNegara = filter.negara
+    ? hasilAI[kunciAI({ konteks: `global-emerging-${jenis}`, periodeKey, wilayahKerja: undefined, metrik: filter.negara, tipe: 'prediksi' })]
+    : undefined;
 
   const ringkasanTerfilter = ringkasan.filter((r) => {
     const urutan = jenis === 'mingguan' ? (r.minggu_epid ?? 0) : (r.bulan ?? 0);
@@ -153,6 +201,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
                 wilayahKerja={undefined}
                 metrik={filter.penyakit}
                 wajibWilayahKerja={false}
+                hasilAwal={hasilAnalisisPenyakit}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -162,6 +211,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
                 wilayahKerja={undefined}
                 metrik={filter.penyakit}
                 wajibWilayahKerja={false}
+                hasilAwal={hasilPrediksiPenyakit}
               />
             </div>
           </div>
@@ -193,6 +243,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
                 wilayahKerja={undefined}
                 metrik={filter.negara}
                 wajibWilayahKerja={false}
+                hasilAwal={hasilAnalisisNegara}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -202,6 +253,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
                 wilayahKerja={undefined}
                 metrik={filter.negara}
                 wajibWilayahKerja={false}
+                hasilAwal={hasilPrediksiNegara}
               />
             </div>
           </div>

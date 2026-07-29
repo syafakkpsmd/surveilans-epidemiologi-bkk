@@ -8,6 +8,8 @@ import {
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { getMingguEpidSaatIni } from "@/lib/epi-week";
 import VektorTikusClient from "./VektorTikusClient";
+import { getBanyakHasilAI } from "@/lib/ai/getBanyakHasilAI";
+import type { PermintaanHasilAI } from "@/lib/ai/hasilAiTypes";
 
 export default async function VektorTikusPage({
   searchParams,
@@ -20,17 +22,46 @@ export default async function VektorTikusPage({
   // sudahLogin & role dari sumber yang sama dipakai di seluruh project (bukan getUserRole terpisah)
   const { sudahLogin, role } = await getStatusAkses();
 
-  const [daftarWilker, ringkasanMingguan, ringkasanBulanan, ujiLabMingguan, ujiLabBulanan] =
+  const { tahunEpid, mingguEpid } = getMingguEpidSaatIni();
+  const mingguBerjalan = Math.max(1, mingguEpid - 1);
+  const bulanBerjalan = new Date().getMonth() + 1; // untuk periodeKey Analisis/Prediksi AI mode Bulanan
+
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- beda dengan TPP, periodeKey default di
+  // sini murni fungsi tanggal berjalan (tahunEpid/mingguEpid/bulan),
+  // TIDAK bergantung pada data hasil query -- jadi bisa digabung ke
+  // Promise.all utama di bawah (jalan paralel, tidak menambah waktu
+  // tunggu), sama seperti pola di halaman pesawat.
+  //
+  // Hanya cover state landing awal: toggle periodeType default
+  // "mingguan" -- konteks "vektor-tikus-bulanan" TIDAK di-prefetch di
+  // sini karena baru kepakai setelah user klik toggle Bulanan (Box
+  // akan fallback fetch sendiri saat itu terjadi). Kedua boks lab
+  // (tikus-lab-mingguan & tikus-lab-bulanan) SELALU tampil bersamaan
+  // apa pun toggle-nya, jadi keduanya di-prefetch penuh.
+  // ============================================================
+  const wilayahKerjaAI = wilker && wilker !== "semua" ? wilker : undefined;
+  const periodeKeyMingguanDefault = `${tahunEpid}-W1_W${mingguBerjalan}`;
+  const periodeKeyBulananDefault = `${tahunEpid}-M1_M${bulanBerjalan}`;
+
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: "vektor-tikus-mingguan", periodeKey: periodeKeyMingguanDefault, wilayahKerja: wilayahKerjaAI, tipe: "analisis" },
+    { konteks: "vektor-tikus-mingguan", periodeKey: periodeKeyMingguanDefault, wilayahKerja: wilayahKerjaAI, tipe: "prediksi" },
+    { konteks: "tikus-lab-mingguan", periodeKey: periodeKeyMingguanDefault, wilayahKerja: wilayahKerjaAI, tipe: "analisis" },
+    { konteks: "tikus-lab-mingguan", periodeKey: periodeKeyMingguanDefault, wilayahKerja: wilayahKerjaAI, tipe: "prediksi" },
+    { konteks: "tikus-lab-bulanan", periodeKey: periodeKeyBulananDefault, wilayahKerja: wilayahKerjaAI, tipe: "analisis" },
+    { konteks: "tikus-lab-bulanan", periodeKey: periodeKeyBulananDefault, wilayahKerja: wilayahKerjaAI, tipe: "prediksi" },
+  ];
+
+  const [daftarWilker, ringkasanMingguan, ringkasanBulanan, ujiLabMingguan, ujiLabBulanan, hasilAI] =
     await Promise.all([
       getWilkerRef(),
       getRingkasanVektorTikus(tahun, wilker),
       getRingkasanVektorTikusBulanan(tahun, wilker),
       getUjiLabVektorTikusMingguan(tahun, wilker),
       getUjiLabVektorTikusBulanan(tahun, wilker),
+      getBanyakHasilAI(permintaanAI),
     ]);
-
-  const { tahunEpid, mingguEpid } = getMingguEpidSaatIni();
-  const bulanBerjalan = new Date().getMonth() + 1; // untuk periodeKey Analisis/Prediksi AI mode Bulanan
 
   const dataMingguan = ringkasanMingguan.map((r: any) => ({
     minggu_epid: r.minggu_epid || 0,
@@ -102,9 +133,10 @@ export default async function VektorTikusPage({
       sudahLogin={sudahLogin}
       role={role ?? ""}
       tahunBerjalan={tahunEpid}
-      mingguBerjalan={Math.max(1, mingguEpid - 1)}
+      mingguBerjalan={mingguBerjalan}
       bulanBerjalan={bulanBerjalan}
       wilkerParam={wilker}
+      hasilAI={hasilAI}
     />
   );
 }

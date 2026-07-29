@@ -5,6 +5,7 @@ import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
+import type { HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -29,6 +30,19 @@ const KOMPONEN_TTU = [
   { id: "pemeliharaan_jamban_kamar_mandi", label: "Jamban & Kamar Mandi", warnaMs: "#004D40", warnaTms: "#37474F" },
 ] as const;
 
+interface HasilAwalInisial {
+  // Kunci kombinasi (konteks|periodeKey|wilayahKerja) yang DI-PREFETCH
+  // server di page.tsx, format SAMA PERSIS seperti bangunComboKeyDasar()
+  // di bawah. Cuma valid untuk kombinasi filter DEFAULT (granularitas
+  // "bulanan", rentangBulan default {awal:1, akhir: bulanBerjalan},
+  // wilayah dari wilayahParam). Begitu user ganti granularitas/rentang/
+  // wilayah, comboKeyAktif tidak akan cocok lagi dan Box otomatis balik
+  // fetch sendiri.
+  comboKeyDasar: string;
+  analisis: HasilAIStruktur | null;
+  prediksi: HasilAIStruktur | null;
+}
+
 type TtuClientProps = {
   daftarWilayah: string[];
   dataBulanan: any[];
@@ -40,6 +54,8 @@ type TtuClientProps = {
   tahunEpidBerjalan: number;   // <-- FIX: sebelumnya hilang dari tipe
   mingguEpidBerjalan: number;  // <-- FIX: sebelumnya hilang dari tipe
   wilayahParam?: string;
+  /** Opsional: kalau tidak dioper, kedua Box otomatis fetch sendiri seperti biasa. */
+  hasilAwalInisial?: HasilAwalInisial | null;
 };
 
 // Helper untuk mengecek status TMS
@@ -52,6 +68,10 @@ const isTmsVal = (val: any): boolean => {
   return Number(val) > 0;
 };
 
+function bangunComboKeyDasar(konteks: string, periodeKey: string, wilayahKerja?: string): string {
+  return `${konteks}|${periodeKey}|${wilayahKerja ?? ""}`;
+}
+
 export default function TtuClient({
   daftarWilayah,
   dataBulanan,
@@ -61,6 +81,7 @@ export default function TtuClient({
   tahunBerjalan,
   bulanBerjalan,
   wilayahParam,
+  hasilAwalInisial,
 }: TtuClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
@@ -159,6 +180,18 @@ export default function TtuClient({
   const periodeKey = granularitas === "bulanan"
   ? `${tahunBerjalan}-${rentangBulan.akhir}`
   : `${tahunBerjalan}-W${rentangMinggu.akhir}`;
+
+  const konteksAI = granularitas === "bulanan" ? "ttu-bulanan" : "ttu-mingguan";
+  const wilayahKerjaAktif = selectedWilayah !== "semua" ? selectedWilayah : undefined;
+
+  // Kombinasi filter AKTIF di client, format sama seperti comboKeyDasar
+  // dari server. Cocok -> boleh pakai hasil prefetch. Tidak cocok (user
+  // sudah ganti granularitas/rentang/wilayah) -> hasilAwal jadi undefined,
+  // Box otomatis fetch sendiri.
+  const comboKeyAktif = bangunComboKeyDasar(konteksAI, periodeKey, wilayahKerjaAktif);
+  const cocokDenganPrefetch = hasilAwalInisial?.comboKeyDasar === comboKeyAktif;
+  const hasilAwalAnalisis = cocokDenganPrefetch ? hasilAwalInisial!.analisis : undefined;
+  const hasilAwalPrediksi = cocokDenganPrefetch ? hasilAwalInisial!.prediksi : undefined;
 
   // 2. FILTER DATA DETAIL UNTUK TABEL TMS
   // FIX: dibungkus useMemo supaya tidak dihitung ulang setiap render
@@ -342,16 +375,18 @@ export default function TtuClient({
           <BoxAnalisisAI
             sudahLogin={true}
             role={role as PeranUser}
-            konteks={granularitas === "bulanan" ? "ttu-bulanan" : "ttu-mingguan"}
+            konteks={konteksAI}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahKerjaAktif}
+            hasilAwal={hasilAwalAnalisis}
           />
           <BoxPrediksiAI
             sudahLogin={true}
             role={role as PeranUser}
-            konteks={granularitas === "bulanan" ? "ttu-bulanan" : "ttu-mingguan"}
+            konteks={konteksAI}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahKerjaAktif}
+            hasilAwal={hasilAwalPrediksi}
           />
 
           {/* TABEL DETAIL FASILITAS TTU TIDAK MEMENUHI SYARAT (TMS) */}

@@ -30,6 +30,7 @@ import {
   susunPromptPhqcDaerahTujuan,        // <-- tambah
   susunPromptPrediksiPhqcDaerahTujuan, // <-- tambah
   susunPromptPelabuhanPhqc,
+  susunPromptPrediksiPelabuhanPhqc,
   susunPromptPenumpang,
   susunPromptPrediksiPenumpang,
   susunPromptPesawatTren,
@@ -388,7 +389,7 @@ export async function POST(request: Request) {
       } else if (konteks === 'phqc-rba-mingguan' || konteks === 'phqc-rba-bulanan') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRba(data) : susunPromptRba(data);
       } else if (konteks === 'phqc-pelabuhan-mingguan' || konteks === 'phqc-pelabuhan-bulanan') {
-        promptTeks = susunPromptPelabuhanPhqc(data);
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPelabuhanPhqc(data) : susunPromptPelabuhanPhqc(data);
       } else if (konteks === 'cop-per-wilker') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPerWilker(data) : susunPromptPerWilker(data);
       } else if (konteks === 'cop-faktor-risiko') {

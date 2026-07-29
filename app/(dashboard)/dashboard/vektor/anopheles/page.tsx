@@ -16,6 +16,7 @@ import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
 
 export default async function AnophelesDewasaPage({
   searchParams,
@@ -53,6 +54,24 @@ export default async function AnophelesDewasaPage({
   const konteksMingguan = 'anopheles-dewasa-mingguan';
   const konteksBulanan = 'anopheles-dewasa-bulanan';
 
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- Box AI di halaman ini mengikuti tab
+  // (Mingguan/Bulanan) yang lagi aktif, jadi cuma SATU pasang
+  // (analisis + prediksi) yang benar-benar dirender & dibutuhkan
+  // per render server -- bukan 4 kombinasi sekaligus (beda dari
+  // PHQC/Vektor Aedes yang semua boxnya tampil bersamaan). Konteks
+  // & periodeKey dipilih sesuai modeAktif, lalu getBanyakHasilAI
+  // dipanggil sedini mungkin & di-await belakangan bareng query
+  // chart, supaya jalan PARALEL.
+  // ============================================================
+  const konteksAktif = modeAktif === 'mingguan' ? konteksMingguan : konteksBulanan;
+  const periodeKeyAktif = modeAktif === 'mingguan' ? periodeKeyMingguan : periodeKeyBulanan;
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'analisis' },
+    { konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'prediksi' },
+  ];
+  const hasilAIPromise = getBanyakHasilAI(permintaanAI);
+
   const [role, daftarWilker, dataMingguan, dataBulanan, metodeTangkap] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
@@ -60,6 +79,11 @@ export default async function AnophelesDewasaPage({
     getTrenAnophelesDewasa(tahun, wilker, 'bulanan'),
     getMetodeTangkap(tahun, wilker),
   ]);
+
+  // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
+  const hasilAI = await hasilAIPromise;
+  const hasilAnalisisAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'analisis' })];
+  const hasilPrediksiAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'prediksi' })];
 
   return (
     <div className="space-y-6">
@@ -84,8 +108,8 @@ export default async function AnophelesDewasaPage({
         seriesListMingguan={[
           { key: 'mhd', label: 'MHD', warna: '#0F2A38' },
           { key: 'mbr', label: 'MBR (per jam)', warna: '#1B5E20' },
-          { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100' },
-          { key: 'kelembaban', label: 'Kelembaban (%)', warna: '#1565C0' },
+          { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100', axis: 'kanan' },
+          { key: 'kelembaban', label: 'Kelembaban (%)', warna: '#1565C0', axis: 'kanan' },
         ]}
         seriesListBulanan={[
           { key: 'mhd', label: 'MHD', warna: '#0F2A38' },
@@ -105,6 +129,7 @@ export default async function AnophelesDewasaPage({
             wilayahKerja={wilker}
             sudahLogin={!!role}
             role={role === 'tamu' ? null : role}
+            hasilAwal={hasilAnalisisAktif}
           />
           <BoxPrediksiAI
             konteks={konteksMingguan}
@@ -112,6 +137,7 @@ export default async function AnophelesDewasaPage({
             wilayahKerja={wilker}
             sudahLogin={!!role}
             role={role === 'tamu' ? null : role}
+            hasilAwal={hasilPrediksiAktif}
           />
         </div>
       ) : (
@@ -122,6 +148,7 @@ export default async function AnophelesDewasaPage({
             wilayahKerja={wilker}
             sudahLogin={!!role}
             role={role === 'tamu' ? null : role}
+            hasilAwal={hasilAnalisisAktif}
           />
           <BoxPrediksiAI
             konteks={konteksBulanan}
@@ -129,6 +156,7 @@ export default async function AnophelesDewasaPage({
             wilayahKerja={wilker}
             sudahLogin={!!role}
             role={role === 'tamu' ? null : role}
+            hasilAwal={hasilPrediksiAktif}
           />
         </div>
       )}

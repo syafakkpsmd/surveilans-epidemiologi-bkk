@@ -7,6 +7,8 @@ import {
 import { getUserRole } from "@/lib/auth/get-user-role";
 import TppClient from "./TppClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
+import { getBanyakHasilAI } from "@/lib/ai/getBanyakHasilAI";
+import type { PermintaanHasilAI } from "@/lib/ai/hasilAiTypes";
 
 type TppPageProps = {
   searchParams: Promise<{
@@ -51,6 +53,51 @@ export default async function TppPage({ searchParams }: TppPageProps) {
   const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalan } =
     hitungMingguEpidemiologi(tanggalMundurSatuMinggu);
 
+  // ============================================================
+  // BATCH-FETCH HASIL AI (state AWAL saja) -- meniru pola halaman
+  // pesawat, TAPI granularitas/wilayah di TPP adalah state CLIENT
+  // (toggle mingguan/bulanan, dropdown wilayah), bukan searchParams.
+  // Server tidak tahu kombinasi apa yang akan dipilih user setelah
+  // halaman dimuat -- jadi di sini kita hanya prefetch untuk state
+  // default saat landing pertama kali (granularitas "mingguan",
+  // wilayah = dari URL atau "semua", periode = minggu/bulan terakhir
+  // yang tersedia di data -- SAMA seperti default appliedMingguAkhir/
+  // appliedBulanAkhir di TppClient).
+  //
+  // Begitu user ganti granularitas/wilayah/rentang di client, kunci
+  // yang dicari TppClient tidak lagi cocok dengan yang di-prefetch
+  // di sini -- Box otomatis fallback fetch sendiri (perilaku bawaan
+  // BoxAnalisisAI/BoxPrediksiAI lewat hasilAwal undefined). Ini
+  // trade-off yang disengaja: request pertama page load selalu cepat,
+  // interaksi berikutnya tetap seperti sebelumnya (fetch GET biasa).
+  //
+  // Karena periode default bergantung pada dataMingguan/dataBulanan,
+  // pemanggilan ini HARUS setelah Promise.all data utama di atas --
+  // tidak bisa digabung sekaligus seperti di halaman pesawat.
+  // ============================================================
+  const mingguTersediaDefault = (() => {
+    const set = new Set<number>();
+    dataMingguan.forEach((item: any) => {
+      const mg = item.minggu ?? null;
+      if (mg !== null && mg !== undefined) set.add(Number(mg));
+    });
+    if (set.size === 0) return 52;
+    return Math.max(...Array.from(set));
+  })();
+
+  const wilayahKerjaAI = wilayah && wilayah !== "semua" ? wilayah : undefined;
+  const periodeKeyMingguanDefault = `${tahun}-W${mingguTersediaDefault}`;
+  const periodeKeyBulananDefault = `${tahun}-${bulanBerjalan}`;
+
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: "tpp-mingguan", periodeKey: periodeKeyMingguanDefault, wilayahKerja: wilayahKerjaAI, tipe: "analisis" },
+    { konteks: "tpp-mingguan", periodeKey: periodeKeyMingguanDefault, wilayahKerja: wilayahKerjaAI, tipe: "prediksi" },
+    { konteks: "tpp-bulanan", periodeKey: periodeKeyBulananDefault, wilayahKerja: wilayahKerjaAI, tipe: "analisis" },
+    { konteks: "tpp-bulanan", periodeKey: periodeKeyBulananDefault, wilayahKerja: wilayahKerjaAI, tipe: "prediksi" },
+  ];
+
+  const hasilAI = await getBanyakHasilAI(permintaanAI);
+
   return (
     <TppClient
       daftarWilayah={daftarWilayah ?? []}
@@ -63,6 +110,7 @@ export default async function TppPage({ searchParams }: TppPageProps) {
       tahunEpidBerjalan={tahunEpidBerjalan}
       mingguEpidBerjalan={mingguEpidBerjalan}
       wilayahParam={wilayah}
+      hasilAI={hasilAI}
     />
   );
 }

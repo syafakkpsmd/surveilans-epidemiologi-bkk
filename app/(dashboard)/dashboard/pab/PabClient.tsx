@@ -6,6 +6,7 @@ import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/T
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
+import type { HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
@@ -36,6 +37,19 @@ const isMsText = (val: any): boolean => {
   return str === "ms" || str === "memenuhi syarat";
 };
 
+interface HasilAwalInisial {
+  // Kunci kombinasi (konteks|periodeKey|wilayahKerja) yang DI-PREFETCH
+  // server di page.tsx, dibangun dengan format SAMA PERSIS seperti
+  // bangunComboKeyDasar() di bawah. Cuma valid untuk kombinasi filter
+  // DEFAULT (granularitas="bulanan", appliedBulanAkhir=12, wilayah dari
+  // wilayahParam). Begitu user ganti granularitas/rentang/wilayah,
+  // comboKeyAktif tidak akan cocok lagi dan Box otomatis balik fetch
+  // sendiri.
+  comboKeyDasar: string;
+  analisis: HasilAIStruktur | null;
+  prediksi: HasilAIStruktur | null;
+}
+
 type PabClientProps = {
   daftarWilayah: string[];
   dataBulanan: any[];
@@ -47,7 +61,13 @@ type PabClientProps = {
   tahunEpidBerjalan: number;   // <-- TAMBAH: dipakai saat granularitas mingguan
   mingguEpidBerjalan: number;  // <-- TAMBAH: dipakai saat granularitas mingguan
   wilayahParam?: string;
+  /** Opsional: kalau tidak dioper, kedua Box otomatis fetch sendiri seperti biasa. */
+  hasilAwalInisial?: HasilAwalInisial | null;
 };
+
+function bangunComboKeyDasar(konteks: string, periodeKey: string, wilayahKerja?: string): string {
+  return `${konteks}|${periodeKey}|${wilayahKerja ?? ""}`;
+}
 
 export default function PabClient({
   daftarWilayah,
@@ -60,10 +80,10 @@ export default function PabClient({
   tahunEpidBerjalan,
   mingguEpidBerjalan,
   wilayahParam,
+  hasilAwalInisial,
 }: PabClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
-  const [bulanAnalisis, setBulanAnalisis] = useState<number>(bulanBerjalan);
 
   // State Filter Rentang Minggu & Bulan
   const [mingguAwal, setMingguAwal] = useState<number>(1);
@@ -184,6 +204,17 @@ export default function PabClient({
 
   const tipeChartAktif = granularitas === "bulanan" ? "bar" : "line";
 
+  const wilayahKerjaAktif = selectedWilayah !== "semua" ? selectedWilayah : undefined;
+
+  // Kombinasi filter AKTIF di client, format sama seperti comboKeyDasar
+  // dari server. Cocok -> boleh pakai hasil prefetch. Tidak cocok (user
+  // sudah ganti granularitas/rentang/wilayah) -> hasilAwal jadi undefined,
+  // Box otomatis fetch sendiri.
+  const comboKeyAktif = bangunComboKeyDasar(konteksAI, periodeKey, wilayahKerjaAktif);
+  const cocokDenganPrefetch = hasilAwalInisial?.comboKeyDasar === comboKeyAktif;
+  const hasilAwalAnalisis = cocokDenganPrefetch ? hasilAwalInisial!.analisis : undefined;
+  const hasilAwalPrediksi = cocokDenganPrefetch ? hasilAwalInisial!.prediksi : undefined;
+
   return (
     <div className="space-y-6">
       {/* HEADER & FILTER */}
@@ -281,22 +312,6 @@ export default function PabClient({
               </option>
             ))}
           </select>
-
-          {/* Select Bulan AI - hanya relevan saat granularitas bulanan */}
-          {granularitas === "bulanan" && (
-            <select
-              value={bulanAnalisis}
-              onChange={(e) => setBulanAnalisis(parseInt(e.target.value, 10))}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-hidden"
-              title="Bulan untuk Analisis/Prediksi AI"
-            >
-              {NAMA_BULAN.map((nama, idx) => (
-                <option key={nama} value={idx + 1}>
-                  {nama}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
       </div>
 
@@ -359,14 +374,16 @@ export default function PabClient({
             role={role as PeranUser}
             konteks={konteksAI}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahKerjaAktif}
+            hasilAwal={hasilAwalAnalisis}
           />
           <BoxPrediksiAI
             sudahLogin={true}
             role={role as PeranUser}
             konteks={konteksAI}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahKerjaAktif}
+            hasilAwal={hasilAwalPrediksi}
           />
           {/* TABEL DETAIL PAB TMS */}
           <div className="rounded-xl bg-white p-5 shadow-xs border border-red-100 lg:col-span-2">

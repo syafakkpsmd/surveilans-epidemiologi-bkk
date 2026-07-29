@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import type { PeranUser } from '@/types/database.types';
+import type { HasilAIStruktur } from '@/lib/ai/hasilAiTypes';
 import { DAFTAR_PENYAKIT_NASIONAL } from '@/lib/ai/konstanta-penyakit';
 
 const NasionalEmergingPeta = dynamic(
@@ -65,12 +66,30 @@ type Baris = {
   jumlah_kematian: number;
 };
 
+interface HasilAwalInisial {
+  // Kunci kombinasi (konteks|periodeKey|metrik) yang DI-PREFETCH server,
+  // dibangun di page.tsx dengan format yang SAMA PERSIS seperti
+  // bangunComboKeyDasar() di bawah. Cuma valid untuk kombinasi filter
+  // DEFAULT (nilai awal useState) -- begitu user ganti penyakit/tahun/
+  // rentang, comboKeyDasar hasil hitungan client tidak akan cocok lagi
+  // dan Box otomatis balik fetch sendiri (lihat pemakaian di JSX).
+  comboKeyDasar: string;
+  analisis: HasilAIStruktur | null;
+  prediksi: HasilAIStruktur | null;
+}
+
 interface Props {
   sudahLogin: boolean;
   role: PeranUser | null;
+  /** Opsional: kalau tidak dioper, kedua Box otomatis fetch sendiri seperti biasa. */
+  hasilAwalInisial?: HasilAwalInisial | null;
 }
 
-export default function DashboardNasionalEmerging({ sudahLogin, role }: Props) {
+function bangunComboKeyDasar(konteks: string, periodeKey: string, metrik: string): string {
+  return `${konteks}|${periodeKey}|${metrik}`;
+}
+
+export default function DashboardNasionalEmerging({ sudahLogin, role, hasilAwalInisial }: Props) {
   const [penyakit, setPenyakit] = useState<string>(DAFTAR_PENYAKIT[0]);
   const [tahun, setTahun] = useState(DAFTAR_TAHUN[0]);
   const [penyakitPeta, setPenyakitPeta] = useState<string>('Semua Penyakit');
@@ -98,6 +117,18 @@ export default function DashboardNasionalEmerging({ sudahLogin, role }: Props) {
       ? `${tahun}-W${mgDari}_W${mgSampai}`
       : `${tahun}-M${bulanDari + 1}_M${bulanSampai + 1}`;
   }, [modeRentang, tahun, mgDari, mgSampai, bulanDari, bulanSampai]);
+
+  const konteksAI = `nasional-emerging-${modeRentang}`;
+
+  // Kombinasi filter yang SEDANG AKTIF di client, dibangun dengan format
+  // sama seperti comboKeyDasar dari server. Kalau ini cocok dengan
+  // hasilAwalInisial.comboKeyDasar, berarti user belum ganti apa pun
+  // dari kondisi awal -- boleh pakai hasil prefetch server. Begitu user
+  // ganti filter apa pun, ini otomatis tidak cocok lagi.
+  const comboKeyAktif = bangunComboKeyDasar(konteksAI, periodeKey, penyakit);
+  const cocokDenganPrefetch = hasilAwalInisial?.comboKeyDasar === comboKeyAktif;
+  const hasilAwalAnalisis = cocokDenganPrefetch ? hasilAwalInisial!.analisis : undefined;
+  const hasilAwalPrediksi = cocokDenganPrefetch ? hasilAwalInisial!.prediksi : undefined;
 
   // 1. INI YANG ASLI — untuk chart tren (WAJIB ADA, jangan sampai hilang)
 useEffect(() => {
@@ -304,20 +335,22 @@ const dataRentang = useMemo(
           <BoxAnalisisAI
             sudahLogin={sudahLogin}
             role={role}
-            konteks={`nasional-emerging-${modeRentang}`}
+            konteks={konteksAI}
             periodeKey={periodeKey}
             wilayahKerja={undefined}
             metrik={penyakit}
             wajibWilayahKerja={false}
+            hasilAwal={hasilAwalAnalisis}
           />
           <BoxPrediksiAI
             sudahLogin={sudahLogin}
             role={role}
-            konteks={`nasional-emerging-${modeRentang}`}
+            konteks={konteksAI}
             periodeKey={periodeKey}
             wilayahKerja={undefined}
             metrik={penyakit}
             wajibWilayahKerja={false}
+            hasilAwal={hasilAwalPrediksi}
           />
         </div>
       </div>

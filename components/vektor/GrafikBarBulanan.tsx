@@ -32,6 +32,12 @@ const LABEL_KONTRAS = {
   strokeWidth: 3,
 };
 
+/** yAxisId unik untuk tiap series yang minta sumbu kanan sendiri --
+ * lihat komentar lengkap di TrenChartMingguan.tsx (pola sama persis). */
+function idSumbuKanan(key: string) {
+  return `kanan-${key}`;
+}
+
 export default function GrafikBarBulanan({
   judul,
   data,
@@ -54,7 +60,7 @@ export default function GrafikBarBulanan({
   }
 
   const seriesAktif = seriesList.filter((s) => seriesTerpilih.includes(s.key));
-  const pakaiDuaSumbu = seriesAktif.some((s) => s.axis === 'kanan');
+  const seriesKanan = seriesAktif.filter((s) => s.axis === 'kanan');
 
   if (!data.length) {
     return (
@@ -81,11 +87,22 @@ export default function GrafikBarBulanan({
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey={labelSumbuX} tick={{ fontSize: 11 }} />
             <YAxis yAxisId="kiri" tick={{ fontSize: 11 }} />
-            {pakaiDuaSumbu && <YAxis yAxisId="kanan" orientation="right" tick={{ fontSize: 11 }} />}
+            {seriesKanan.map((s) => (
+              <YAxis
+                key={idSumbuKanan(s.key)}
+                yAxisId={idSumbuKanan(s.key)}
+                orientation="right"
+                tick={{ fontSize: 11, fill: s.warna }}
+                stroke={s.warna}
+                tickLine={{ stroke: s.warna }}
+                axisLine={{ stroke: s.warna }}
+              />
+            ))}
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            {seriesAktif.map((s) =>
-              s.tipe === 'line' ? (
+            {seriesAktif.map((s) => {
+              const yAxisId = s.axis === 'kanan' ? idSumbuKanan(s.key) : 'kiri';
+              return s.tipe === 'line' ? (
                 <Line
                   key={s.key}
                   type="monotone"
@@ -94,7 +111,7 @@ export default function GrafikBarBulanan({
                   stroke={s.warna}
                   strokeWidth={2}
                   dot={{ r: 3 }}
-                  yAxisId={s.axis === 'kanan' ? 'kanan' : 'kiri'}
+                  yAxisId={yAxisId}
                   connectNulls
                 >
                   <LabelList
@@ -112,7 +129,7 @@ export default function GrafikBarBulanan({
                   dataKey={s.key}
                   name={s.label}
                   fill={s.warna}
-                  yAxisId={s.axis === 'kanan' ? 'kanan' : 'kiri'}
+                  yAxisId={yAxisId}
                 >
                   <LabelList
                     dataKey={s.key}
@@ -123,8 +140,8 @@ export default function GrafikBarBulanan({
                     }
                   />
                 </Bar>
-              )
-            )}
+              );
+            })}
           </ComposedChart>
         </ResponsiveContainer>
       )}

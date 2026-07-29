@@ -6,6 +6,7 @@ import {
 import { getUserRole } from "@/lib/auth/get-user-role";
 import TtuClient from "./TtuClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
+import { getBanyakHasilAI, kunciAI } from "@/lib/ai/getBanyakHasilAI";
 
 type TtuPageProps = {
   searchParams: Promise<{
@@ -28,14 +29,33 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
   const tahunParsed = tahunParam ? parseInt(tahunParam, 10) : NaN;
   const tahun = Number.isFinite(tahunParsed) ? tahunParsed : new Date().getFullYear();
 
-  const [role, daftarWilayah, dataBulanan, dataMingguan] = await Promise.all([
+  const bulanBerjalan = new Date().getMonth() + 1;
+
+  // ============================================================
+  // PENTING: kombinasi ini HARUS PERSIS SAMA dengan default state di
+  // TtuClient.tsx -- granularitas default "bulanan", rentangBulan
+  // default { awal: 1, akhir: bulanBerjalan } (BUKAN akhir=12 seperti
+  // PAB -- TTU defaultnya ikut bulan berjalan). wilayahKerja default
+  // BISA dihitung server karena selectedWilayah awal client =
+  // wilayahParam || "semua". Kalau default di TtuClient.tsx berubah
+  // nanti, sesuaikan juga di sini -- kalau lupa, tidak fatal (fallback
+  // fetch client tetap jalan), cuma prefetch jadi mubazir.
+  // ============================================================
+  const konteksAiDefault = "ttu-bulanan";
+  const periodeKeyDefault = `${tahun}-${bulanBerjalan}`;
+  const wilayahKerjaDefault = wilayah || undefined;
+  const comboKeyDasar = `${konteksAiDefault}|${periodeKeyDefault}|${wilayahKerjaDefault ?? ""}`;
+
+  const [role, daftarWilayah, dataBulanan, dataMingguan, hasilAI] = await Promise.all([
     getUserRole(),
     getDaftarWilayahKerjaSanitasi(),
     getRingkasanTtuBulanan(tahun, wilayah),
     getRingkasanTtuMingguan(tahun, wilayah),
+    getBanyakHasilAI([
+      { konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "analisis" },
+      { konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "prediksi" },
+    ]),
   ]);
-
-  const bulanBerjalan = new Date().getMonth() + 1;
 
   // Sama seperti di page.tsx TPP: minggu epid dimundurkan 1 minggu
   // khusus untuk tampilan, tanpa mengubah lib/epi-week.ts yang harus
@@ -56,6 +76,11 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
       tahunEpidBerjalan={tahunEpidBerjalan}
       mingguEpidBerjalan={mingguEpidBerjalan}
       wilayahParam={wilayah}
+      hasilAwalInisial={{
+        comboKeyDasar,
+        analisis: hasilAI[kunciAI({ konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "analisis" })] ?? null,
+        prediksi: hasilAI[kunciAI({ konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "prediksi" })] ?? null,
+      }}
     />
   );
 }

@@ -28,6 +28,7 @@ import GrafikTrenKotaPesawat from '@/components/pesawat/GrafikTrenKotaPesawat';
 import GrafikTotalMaskapaiPesawat from '@/components/pesawat/GrafikTotalMaskapaiPesawat';
 import GrafikTrenMaskapaiPesawat from '@/components/pesawat/GrafikTrenMaskapaiPesawat';
 import GrafikSertifikatGenderBulanan from '@/components/pesawat/GrafikSertifikatGenderBulanan';
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
 
 
 export const dynamic = 'force-dynamic';
@@ -73,6 +74,46 @@ export default async function AlatAngkutPesawatPage({
   const formatBulanDari = bulanDari ? (bulanDari.includes('-') ? bulanDari : `${tahun}-${bulanDari.padStart(2, '0')}`) : undefined;
   const formatBulanSampai = bulanSampai ? (bulanSampai.includes('-') ? bulanSampai : `${tahun}-${bulanSampai.padStart(2, '0')}`) : undefined;
 
+  // periodeKey dihitung SEBELUM Promise.all data chart di bawah, karena
+  // dibutuhkan juga untuk batch-fetch hasil AI (permintaanAI) yang
+  // dijalankan paralel di Promise.all yang sama.
+  const { mingguEpid: mingguEpidSekarangAwal } = getMingguEpidSaatIni();
+  const mingguBerjalanAwal = mingguEpidSekarangAwal - 1;
+  const bulanBerjalanAwal = new Date().getMonth() + 1;
+
+  let mgDariNum = mgDari ? parseInt(mgDari, 10) : 1;
+  let mgSampaiNum = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalanAwal;
+  if (mgDariNum > mgSampaiNum) [mgDariNum, mgSampaiNum] = [mgSampaiNum, mgDariNum];
+
+  let bulanDariNum = formatBulanDari ? parseInt(formatBulanDari.split('-')[1], 10) : 1;
+  let bulanSampaiNum = formatBulanSampai ? parseInt(formatBulanSampai.split('-')[1], 10) : bulanBerjalanAwal;
+  if (bulanDariNum > bulanSampaiNum) [bulanDariNum, bulanSampaiNum] = [bulanSampaiNum, bulanDariNum];
+
+  const periodeKeyMingguan = `${tahun}-W${mgDariNum}_W${mgSampaiNum}`;
+  const periodeKeyBulanan = `${tahun}-${bulanDariNum}_${bulanSampaiNum}`;
+
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- menggantikan pola lama di mana setiap
+  // <BoxAnalisisAI>/<BoxPrediksiAI> di halaman ini fetch GET sendiri
+  // saat mount (11 request client-side terpisah). Diambil sekaligus
+  // lewat 1 Promise.all di server (getBanyakHasilAI), digabung ke
+  // Promise.all utama di bawah supaya jalan paralel dengan query
+  // data chart, tidak menambah waktu tunggu.
+  // ============================================================
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: 'pesawat-mingguan', periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'analisis' },
+    { konteks: 'pesawat-mingguan', periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'prediksi' },
+    { konteks: 'pesawat-mingguan', periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'sertifikat', tipe: 'analisis' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'analisis' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'prediksi' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'sertifikat', tipe: 'analisis' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'crew', tipe: 'analisis' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'kota-asal', tipe: 'analisis' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'kota-asal', tipe: 'prediksi' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'maskapai-kedatangan', tipe: 'analisis' },
+    { konteks: 'pesawat-bulanan', periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'maskapai-kedatangan', tipe: 'prediksi' },
+  ];
+
   const [
     role,
     daftarWilkerSemua,
@@ -83,6 +124,7 @@ export default async function AlatAngkutPesawatPage({
     dataMaskapaiKedatangan,
     dataMaskapaiKeberangkatan,
     dataGenderBulanan,
+    hasilAI,
   ] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
@@ -108,6 +150,7 @@ export default async function AlatAngkutPesawatPage({
       bulanDari: formatBulanDari,
       bulanSampai: formatBulanSampai,
     }),
+    getBanyakHasilAI(permintaanAI),
   ]);
 
   const daftarWilker = daftarWilkerSemua ? daftarWilkerSemua.filter((w) => w.jenis === 'Bandara') : [];
@@ -127,23 +170,6 @@ export default async function AlatAngkutPesawatPage({
   const konteksMingguan = 'pesawat-mingguan';
   const konteksBulanan = 'pesawat-bulanan';
 
-  // periodeKey sekarang ikut rentang filter FilterRentangMinggu/
-  // FilterRentangBulan (bukan cuma "minggu/bulan berjalan" lagi) --
-  // format "TAHUN-WawaL_Wakhir" / "TAHUN-awal_akhir", diparse oleh
-  // ambilDataAnalisisPesawat() di lib/ai/dataPesawat.ts. Default kalau
-  // user belum menerapkan filter: minggu 1 s.d. minggu berjalan /
-  // Januari s.d. bulan berjalan.
-  let mgDariNum = mgDari ? parseInt(mgDari, 10) : 1;
-  let mgSampaiNum = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
-  if (mgDariNum > mgSampaiNum) [mgDariNum, mgSampaiNum] = [mgSampaiNum, mgDariNum];
-
-  let bulanDariNum = formatBulanDari ? parseInt(formatBulanDari.split('-')[1], 10) : 1;
-  let bulanSampaiNum = formatBulanSampai ? parseInt(formatBulanSampai.split('-')[1], 10) : bulanBerjalan;
-  if (bulanDariNum > bulanSampaiNum) [bulanDariNum, bulanSampaiNum] = [bulanSampaiNum, bulanDariNum];
-
-  const periodeKeyMingguan = `${tahun}-W${mgDariNum}_W${mgSampaiNum}`;
-  const periodeKeyBulanan = `${tahun}-${bulanDariNum}_${bulanSampaiNum}`;
-
   const ringkasanBulananBerlabel = tambahLabelBulan(ringkasanBulanan);
   const dataGenderBulananBerlabel = tambahLabelBulan(dataGenderBulanan);
   const totalPenumpangTiba = ringkasanMingguan.reduce((a, r) => a + r.penumpang_datang, 0);
@@ -152,6 +178,24 @@ export default async function AlatAngkutPesawatPage({
   const totalCrewBerangkat = ringkasanMingguan.reduce((a, r) => a + r.crew_berangkat, 0);
   const totalPesawatTiba = ringkasanMingguan.reduce((a, r) => a + r.pesawat_tiba, 0);
   const totalPesawatBerangkat = ringkasanMingguan.reduce((a, r) => a + r.pesawat_berangkat, 0);
+
+  // ============================================================
+  // LOOKUP HASIL AI -- 1 pasang variabel per kombinasi yang dipakai
+  // di JSX di bawah. Kalau kombinasinya tidak ada di hasilAI,
+  // nilainya undefined -- Box otomatis fallback ke fetch sendiri.
+  // ============================================================
+  const hasilAnalisisMingguanCrewPenumpang = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'analisis' })];
+  const hasilPrediksiMingguanCrewPenumpang = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'prediksi' })];
+  const hasilAnalisisMingguanSertifikat = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'sertifikat', tipe: 'analisis' })];
+
+  const hasilAnalisisBulananCrewPenumpang = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'analisis' })];
+  const hasilPrediksiBulananCrewPenumpang = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'prediksi' })];
+  const hasilAnalisisBulananSertifikat = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'sertifikat', tipe: 'analisis' })];
+  const hasilAnalisisBulananCrew = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'crew', tipe: 'analisis' })];
+  const hasilAnalisisKotaAsal = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'kota-asal', tipe: 'analisis' })];
+  const hasilPrediksiKotaAsal = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'kota-asal', tipe: 'prediksi' })];
+  const hasilAnalisisMaskapaiKedatangan = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'maskapai-kedatangan', tipe: 'analisis' })];
+  const hasilPrediksiMaskapaiKedatangan = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilker, metrik: 'maskapai-kedatangan', tipe: 'prediksi' })];
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -236,8 +280,8 @@ export default async function AlatAngkutPesawatPage({
             <p className="text-sm text-gray-400 py-4 text-center">Data tren mingguan kosong.</p>
           )}
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
-            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" hasilAwal={hasilAnalisisMingguanCrewPenumpang} />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" hasilAwal={hasilPrediksiMingguanCrewPenumpang} />
           </div>
         </div>
 
@@ -258,7 +302,7 @@ export default async function AlatAngkutPesawatPage({
             <p className="text-sm text-gray-400 py-4 text-center">Data sertifikat mingguan kosong.</p>
           )}
           <div className="mt-3">
-            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" hasilAwal={hasilAnalisisMingguanSertifikat} />
           </div>
         </div>
 
@@ -292,8 +336,8 @@ export default async function AlatAngkutPesawatPage({
             ]}
           />
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
-            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" hasilAwal={hasilAnalisisBulananCrewPenumpang} />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" hasilAwal={hasilPrediksiBulananCrewPenumpang} />
           </div>
         </div>
 
@@ -309,7 +353,7 @@ export default async function AlatAngkutPesawatPage({
                 { key: 'kier_total', label: 'KIER', warna: '#0D9488' },
               ]}
             />
-            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" hasilAwal={hasilAnalisisBulananSertifikat} />
           </div>
 
           <div className="space-y-2">
@@ -321,7 +365,7 @@ export default async function AlatAngkutPesawatPage({
                 { key: 'crew_datang', label: 'Crew Datang', warna: '#EA580C' },
               ]}
             />
-            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew" />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="crew" hasilAwal={hasilAnalisisBulananCrew} />
           </div>
         </div>
 
@@ -349,8 +393,8 @@ export default async function AlatAngkutPesawatPage({
         <div className="space-y-2">
           <GrafikTrenKotaPesawat data={tambahLabelBulan(dataKedatangan)} judul={`Tren Bulanan Berdasarkan Kota Asal selama Tahun ${tahun}`} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="kota-asal" />
-            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="kota-asal" />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="kota-asal" hasilAwal={hasilAnalisisKotaAsal} />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="kota-asal" hasilAwal={hasilPrediksiKotaAsal} />
           </div>
         </div>
         <GrafikTotalKotaPesawat data={tambahLabelBulan(dataKeberangkatan)} judul={`Total Keberangkatan Penumpang per Kota Tujuan selama Tahun ${tahun}`} />
@@ -361,8 +405,8 @@ export default async function AlatAngkutPesawatPage({
         <div className="space-y-2">
           <GrafikTrenMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKedatangan)} judul={`Tren Kedatangan Penumpang Bulanan per Maskapai Tahun ${tahun}`} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" />
-            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" />
+            <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" hasilAwal={hasilAnalisisMaskapaiKedatangan} />
+            <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" hasilAwal={hasilPrediksiMaskapaiKedatangan} />
           </div>
         </div>
         <GrafikTotalMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKeberangkatan)} judul={`Total Keberangkatan Penumpang per Maskapai Tahun ${tahun}`} />

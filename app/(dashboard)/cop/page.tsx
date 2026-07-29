@@ -22,6 +22,7 @@ import {
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import type { Wilayah, KategoriCop, KegiatanCopEnriched, RingkasanMingguanCop, RingkasanBulananCop } from "@/types/database.types";
 import PetaNegaraKedatangan from "@/components/cop/PetaNegaraKedatanganClient";
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI, type HasilAIStruktur } from "@/lib/ai/getBanyakHasilAI";
 
 /**
  * resolveWarnaRba
@@ -234,6 +235,30 @@ const periodeKeyMingguanSelalu = `${tahunEpidSaatIni}-W${mingguEpidSaatIni}`;
 
 const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- menggantikan pola lama di mana setiap
+  // <BoxAnalisisAI>/<BoxPrediksiAI> di halaman ini fetch GET sendiri
+  // saat mount (12 request client-side terpisah, tembak bersamaan
+  // begitu halaman selesai render). Sekarang diambil sekaligus lewat
+  // 1 Promise.all di server (getBanyakHasilAI), hasilnya dikirim
+  // sebagai props (hasilAwal) ke tiap box -- lihat komentar hasilAwal
+  // di BoxAnalisisAI.tsx untuk perilaku fallback-nya.
+  // ============================================================
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "analisis" },
+    { konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "prediksi" },
+    { konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "analisis" },
+    { konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "prediksi" },
+    { konteks: "cop-negara-tren", periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-negara-kedatangan", tipe: "analisis" },
+    { konteks: "cop-negara-tren", periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-negara-kedatangan", tipe: "prediksi" },
+    { konteks: "cop-rba", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: "cop-rba", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+    { konteks: "cop-negara-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: "cop-negara-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+    { konteks: "cop-faktor-risiko", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" },
+    { konteks: "cop-faktor-risiko", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" },
+  ];
+
   let errorMuat: string | null = null;
   let trenData: TitikTrenCop[] = [];
   const kategoriData: Record<KategoriCop, { nilai: string; jumlah: number }[]> = {
@@ -250,6 +275,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   let dataRbaBulanan: DataRbaBulanan[] = [];
   let trenNegaraData: Array<Record<string, string | number>> = [];
   let seriesNegara: SeriesNegara[] = [];
+  let hasilAI: Record<string, HasilAIStruktur | null> = {};
 
   /**
    * ringkasanMingguanSemuaWilker
@@ -269,9 +295,12 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
     // Ambil sumber data section 3 & 4 di awal, sebelum cabang mode di bawah.
     // Dijalankan PARALEL (Promise.all) karena dua query ini independen satu
     // sama lain -- sebelumnya berurutan, menambah waktu tunggu tanpa perlu.
-    [ringkasanMingguanSemuaWilker, ringkasanBulananSemuaWilker] = await Promise.all([
+    // hasilAI (batch AI) ikut dijadikan bagian dari Promise.all yang sama --
+    // sudah independen dari 2 query lain, jadi tidak menambah waktu tunggu.
+    [ringkasanMingguanSemuaWilker, ringkasanBulananSemuaWilker, hasilAI] = await Promise.all([
       getRingkasanMingguan("cop", tahunEpidSaatIni),
       getRingkasanBulanan("cop", sekarang.getFullYear()),
+      getBanyakHasilAI(permintaanAI),
     ]);
 
     // ============================================================
@@ -558,6 +587,31 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
     (a, b) => (a.urutan as number) - (b.urutan as number)
   );
 
+  // ============================================================
+  // LOOKUP HASIL AI (dari batch fetch di atas) -- 1 pasang variabel
+  // per kombinasi konteks+periodeKey+wilayahKerja+metrik yang
+  // dipakai di JSX di bawah. Kalau kombinasinya tidak ada di
+  // hasilAI (mis. errorMuat terjadi sebelum sempat fetch), nilainya
+  // undefined -- Box otomatis fallback ke fetch sendiri.
+  // ============================================================
+  const hasilAnalisisPerWilker = hasilAI[kunciAI({ konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "analisis" })];
+  const hasilPrediksiPerWilker = hasilAI[kunciAI({ konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "prediksi" })];
+
+  const hasilAnalisisTren = hasilAI[kunciAI({ konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "analisis" })];
+  const hasilPrediksiTren = hasilAI[kunciAI({ konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "prediksi" })];
+
+  const hasilAnalisisNegaraTren = hasilAI[kunciAI({ konteks: "cop-negara-tren", periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-negara-kedatangan", tipe: "analisis" })];
+  const hasilPrediksiNegaraTren = hasilAI[kunciAI({ konteks: "cop-negara-tren", periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-negara-kedatangan", tipe: "prediksi" })];
+
+  const hasilAnalisisRba = hasilAI[kunciAI({ konteks: "cop-rba", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiRba = hasilAI[kunciAI({ konteks: "cop-rba", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
+
+  const hasilAnalisisNegaraAsal = hasilAI[kunciAI({ konteks: "cop-negara-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiNegaraAsal = hasilAI[kunciAI({ konteks: "cop-negara-asal", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
+
+  const hasilAnalisisFaktorRisiko = hasilAI[kunciAI({ konteks: "cop-faktor-risiko", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "analisis" })];
+  const hasilPrediksiFaktorRisiko = hasilAI[kunciAI({ konteks: "cop-faktor-risiko", periodeKey, wilayahKerja: wilayahKerjaAi, tipe: "prediksi" })];
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -703,6 +757,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 periodeKey={periodeKeyMingguanSelalu}
                 wilayahKerja={wilayahKerjaAi}
                 metrik="perbandingan-kapal-per-wilayah"
+                hasilAwal={hasilAnalisisPerWilker}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -711,6 +766,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 periodeKey={periodeKeyMingguanSelalu}
                 wilayahKerja={wilayahKerjaAi}
                 metrik="perbandingan-kapal-per-wilayah"
+                hasilAwal={hasilPrediksiPerWilker}
               />
             </div>
           </div>
@@ -785,6 +841,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 periodeKey={periodeKey}
                 wilayahKerja={wilayahKerjaAi}
                 metrik="tren-abk-kapal"
+                hasilAwal={hasilAnalisisTren}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -793,6 +850,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 periodeKey={periodeKey}
                 wilayahKerja={wilayahKerjaAi}
                 metrik="tren-abk-kapal"
+                hasilAwal={hasilPrediksiTren}
               />
             </div>
           </div>
@@ -826,6 +884,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 periodeKey={periodeKey}
                 wilayahKerja={wilayahKerjaAi}
                 metrik="tren-negara-kedatangan"
+                hasilAwal={hasilAnalisisNegaraTren}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -834,6 +893,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 periodeKey={periodeKey}
                 wilayahKerja={wilayahKerjaAi}
                 metrik="tren-negara-kedatangan"
+                hasilAwal={hasilPrediksiNegaraTren}
               />
             </div>
           </div>
@@ -866,6 +926,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                     konteks="cop-rba"
                     periodeKey={periodeKey}
                     wilayahKerja={wilayahKerjaAi}
+                    hasilAwal={hasilAnalisisRba}
                   />
                   <BoxPrediksiAI
                     sudahLogin={sudahLogin}
@@ -873,6 +934,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                     konteks="cop-rba"
                     periodeKey={periodeKey}
                     wilayahKerja={wilayahKerjaAi}
+                    hasilAwal={hasilPrediksiRba}
                   />
                 </div>
               </div>
@@ -890,6 +952,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   konteks="cop-rba"
                   periodeKey={periodeKey}
                   wilayahKerja={wilayahKerjaAi}
+                  hasilAwal={hasilAnalisisRba}
                 />
                 <BoxPrediksiAI
                   sudahLogin={sudahLogin}
@@ -897,6 +960,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   konteks="cop-rba"
                   periodeKey={periodeKey}
                   wilayahKerja={wilayahKerjaAi}
+                  hasilAwal={hasilPrediksiRba}
                 />
               </div>
             </div>
@@ -916,6 +980,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   konteks="cop-negara-asal"
                   periodeKey={periodeKey}
                   wilayahKerja={wilayahKerjaAi}
+                  hasilAwal={hasilAnalisisNegaraAsal}
                 />
                 <BoxPrediksiAI
                   sudahLogin={sudahLogin}
@@ -923,6 +988,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   konteks="cop-negara-asal"
                   periodeKey={periodeKey}
                   wilayahKerja={wilayahKerjaAi}
+                  hasilAwal={hasilPrediksiNegaraAsal}
                 />
               </div>
             </div>
@@ -961,6 +1027,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   konteks="cop-faktor-risiko"
                   periodeKey={periodeKey}
                   wilayahKerja={wilayahKerjaAi}
+                  hasilAwal={hasilAnalisisFaktorRisiko}
                 />
                 <BoxPrediksiAI
                   sudahLogin={sudahLogin}
@@ -968,6 +1035,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   konteks="cop-faktor-risiko"
                   periodeKey={periodeKey}
                   wilayahKerja={wilayahKerjaAi}
+                  hasilAwal={hasilPrediksiFaktorRisiko}
                 />
               </div>
             </div>

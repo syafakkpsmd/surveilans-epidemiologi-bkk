@@ -5,6 +5,9 @@ import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
+import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -23,6 +26,13 @@ type RatGuardClientProps = {
   tahunEpidBerjalan: number;
   mingguEpidBerjalan: number;
   wilayahParam?: string;
+  /**
+   * Peta hasil Analisis/Prediksi AI yang sudah diambil di server
+   * (lib/ai/getBanyakHasilAI.ts, dipanggil dari page.tsx). Dicari
+   * lagi di sini pakai kunciAI() sesuai kombinasi granularitas +
+   * rentang + wilayah yang sedang aktif di client.
+   */
+  hasilAI: Record<string, HasilAIStruktur | null>;
 };
 
 export default function RatGuardClient({
@@ -35,6 +45,7 @@ export default function RatGuardClient({
   tahunEpidBerjalan,
   mingguEpidBerjalan,
   wilayahParam,
+  hasilAI,
 }: RatGuardClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
@@ -121,8 +132,39 @@ export default function RatGuardClient({
     ? `${tahunBerjalan}-${rentangBulan.akhir}`
     : `${tahunBerjalan}-W${rentangMinggu.akhir}`;
 
+  const konteksAktif = granularitas === "bulanan" ? "rat-guard-bulanan" : "rat-guard-mingguan";
+  const wilayahAi = selectedWilayah !== "semua" ? selectedWilayah : undefined;
+
+  // Cari hasil AI yang sudah diprefetch server untuk kombinasi
+  // granularitas+rentang+wilayah yang sedang aktif SEKARANG. Kalau
+  // kombinasi ini bukan salah satu dari 2 default yang diprefetch
+  // page.tsx (mis. user sudah ganti rentang tanggal), key ini tidak
+  // ada di peta -> nilainya undefined -> BoxAnalisisAI/BoxPrediksiAI
+  // otomatis fetch sendiri untuk kombinasi baru itu.
+  const hasilAnalisis = hasilAI[
+    kunciAI({ konteks: konteksAktif, periodeKey, tipe: "analisis", wilayahKerja: wilayahAi })
+  ];
+  const hasilPrediksi = hasilAI[
+    kunciAI({ konteks: konteksAktif, periodeKey, tipe: "prediksi", wilayahKerja: wilayahAi })
+  ];
+
+  // sudahLogin ditentukan dari ada/tidaknya role (sebelumnya di-hardcode
+  // true, yang bikin guest yang belum login malah dikasih pesan "hanya
+  // Petugas/Admin" alih-alih ajakan login).
+  const sudahLogin = !!role;
+
   return (
     <div className="space-y-6">
+          {/* TOMBOL KEMBALI */}
+    <div className="flex justify-end">
+      <Link
+        href="/dashboard/alat-angkut/"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Dashboard Alat Angkut Kapal
+      </Link>
+    </div>
       {/* HEADER & FILTERS */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-sm border border-gray-100">
         <div>
@@ -263,18 +305,20 @@ export default function RatGuardClient({
           </div>
 
           <BoxAnalisisAI
-            sudahLogin={true}
+            sudahLogin={sudahLogin}
             role={role as PeranUser}
-            konteks={granularitas === "bulanan" ? "rat-guard-bulanan" : "rat-guard-mingguan"}
+            konteks={konteksAktif}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahAi}
+            hasilAwal={hasilAnalisis}
           />
           <BoxPrediksiAI
-            sudahLogin={true}
+            sudahLogin={sudahLogin}
             role={role as PeranUser}
-            konteks={granularitas === "bulanan" ? "rat-guard-bulanan" : "rat-guard-mingguan"}
+            konteks={konteksAktif}
             periodeKey={periodeKey}
-            wilayahKerja={selectedWilayah !== "semua" ? selectedWilayah : undefined}
+            wilayahKerja={wilayahAi}
+            hasilAwal={hasilPrediksi}
           />
         </div>
       )}

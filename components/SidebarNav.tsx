@@ -38,11 +38,20 @@ import { useSidebar } from "@/components/SidebarContext";
 // KONFIGURASI NAVIGASI
 // Path disinkronkan dengan KartuKategoriHub di app/(dashboard)/dashboard/page.tsx
 // Tambah/ubah item di sini saja -- tidak perlu sentuh logika render di bawah.
+//
+// prefetch: false diterapkan ke SEMUA link menuju halaman dynamic/berat
+// (Server Component yang query banyak data + banyak BoxAnalisisAI/
+// BoxPrediksiAI). Ini mencegah Next.js diam-diam merender halaman itu
+// di background begitu link masuk viewport sidebar, yang sebelumnya
+// membebani Supabase connection pool tanpa user benar-benar membuka
+// halamannya. Link ringan/statis (Beranda, Peta, link eksternal)
+// dibiarkan prefetch default (true).
 // ----------------------------------------------------------------------------
 
 type NavChild = {
   label: string;
   href: string;
+  prefetch?: boolean;
 };
 
 type NavItem = {
@@ -50,6 +59,7 @@ type NavItem = {
   href?: string;
   icon: React.ElementType;
   children?: NavChild[];
+  prefetch?: boolean;
 };
 
 type NavGroup = {
@@ -62,29 +72,29 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Alat Angkut",
     items: [
       { label: "Beranda", href: "/dashboard", icon: Compass },
-      { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship },
-      { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff },
+      { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship, prefetch: false },
+      { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff, prefetch: false },
     ],
   },
   {
     title: "Vektor",
     items: [
-      { label: "Vektor Aedes", href: "/dashboard/vektor/aedes", icon: Bug },
-      { label: "Vektor Tikus", href: "/dashboard/vektor/tikus", icon: Rat },
+      { label: "Vektor Aedes", href: "/dashboard/vektor/aedes", icon: Bug, prefetch: false },
+      { label: "Vektor Tikus", href: "/dashboard/vektor/tikus", icon: Rat, prefetch: false },
       {
         label: "Vektor Anopheles",
         icon: Zap,
         children: [
-          { label: "Nyamuk Dewasa", href: "/dashboard/vektor/anopheles?tipe=dewasa" },
-          { label: "Larva", href: "/dashboard/vektor/anopheles/larva?tipe=larva" },
+          { label: "Nyamuk Dewasa", href: "/dashboard/vektor/anopheles?tipe=dewasa", prefetch: false },
+          { label: "Larva", href: "/dashboard/vektor/anopheles/larva?tipe=larva", prefetch: false },
         ],
       },
       {
         label: "Vektor Diare",
         icon: Droplets,
         children: [
-          { label: "Diare Lalat", href: "/dashboard/vektor/diare-lalat" },
-          { label: "Diare Kecoa", href: "/dashboard/vektor/diare-kecoa" },
+          { label: "Diare Lalat", href: "/dashboard/vektor/diare-lalat", prefetch: false },
+          { label: "Diare Kecoa", href: "/dashboard/vektor/diare-kecoa", prefetch: false },
         ],
       },
     ],
@@ -92,21 +102,21 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Surveilans",
     items: [
-      { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane },
-      { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind },
-      { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot },
-      { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2 },
-      { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon },
-      { label: "Surveilans PAB", href: "/dashboard/pab", icon: Pipette },
-      { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert },
-      { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert },
+      { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
+      { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
+      { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
+      { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2, prefetch: false },
+      { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon, prefetch: false },
+      { label: "Surveilans PAB", href: "/dashboard/pab", icon: Pipette, prefetch: false },
+      { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
+      { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
       { label: "KLB", href: "https://script.google.com/macros/s/AKfycbx0LK83R7rZ0UGblcVKqKlwUJ8Jk3EdF9sV_l2JTMXzbAzjyj-ZZJ-WNIfiaHqJ5OMesQ/exec", icon: Siren },
     ],
   },
   {
     title: "Informasi Lainnya",
     items: [
-      { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper },
+      { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper, prefetch: false },
       { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin },
       { label: "Download Peraturan", href: "/peraturan", icon: Book },
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
@@ -121,7 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "TEPHINET", href: "https://www.tephinet.org/", icon: Globe },
       { label: "CDC", href: "https://www.cdc.gov", icon: ShieldAlert },
       { label: "WHO", href: "https://www.who.int/", icon: Globe },
-      { label: "Status Laporan", href: "/dashboard/status-laporan", icon: ClipboardCheck },
+      { label: "Status Laporan", href: "/dashboard/status-laporan", icon: ClipboardCheck, prefetch: false },
     ],
   },
 ];
@@ -130,8 +140,8 @@ const NAV_GROUPS: NavGroup[] = [
 const ADMIN_GROUP: NavGroup = {
   title: "Admin",
   items: [
-    { label: "Verifikasi User", href: "/admin/users", icon: Users },
-    { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3 },
+    { label: "Verifikasi User", href: "/admin/users", icon: Users, prefetch: false },
+    { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3, prefetch: false },
   ],
 };
 
@@ -244,7 +254,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
               const active = isParentActive(item);
               const hasChildren = !!item.children?.length;
               const open = expanded[item.label];
-              
+
               // Deteksi otomatis apakah item ini adalah URL Eksternal (misal: http:// atau https://)
               const isExternal = !!item.href && item.href.startsWith("http");
 
@@ -293,6 +303,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                               onClick={isChildExternal ? undefined : close}
                               target={isChildExternal ? "_blank" : undefined}
                               rel={isChildExternal ? "noopener noreferrer" : undefined}
+                              prefetch={isChildExternal ? undefined : (child.prefetch ?? true)}
                               className={[
                                 "rounded-md px-2 py-1.5 text-sm transition-colors",
                                 isActive(child.href)
@@ -318,7 +329,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                   onClick={isExternal ? undefined : close}
                   target={isExternal ? "_blank" : undefined}
                   rel={isExternal ? "noopener noreferrer" : undefined}
-                  prefetch={item.href === "/dashboard/tpp" ? false : undefined}
+                  prefetch={isExternal ? undefined : (item.prefetch ?? true)}
                   className={rowClasses}
                 >
                   {rowContent}

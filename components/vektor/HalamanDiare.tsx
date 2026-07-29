@@ -18,6 +18,7 @@ import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import PanelTrenDiareLingkungan from '@/components/vektor/PanelTrenDiareLingkungan';
 import DaftarLokasiTidakMemenuhi from '@/components/vektor/DaftarLokasiTidakMemenuhi';
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
 
 const KONFIG = {
   lalat: {
@@ -38,11 +39,20 @@ const KONFIG = {
   },
 };
 
+// axis: 'kanan' di sini WAJIB diisi -- ini yang bikin tiap variabel
+// lingkungan dapat sumbu Y kanan sendiri (bukan numpuk di sumbu kiri
+// bareng metrik utama). Tanpa ini, semua series jatuh ke default
+// 'kiri' dan skala metrik utama akan "tenggelam" saat variabel dengan
+// rentang nilai jauh lebih besar (mis. suhu, curah hujan) diaktifkan.
 const SERI_LINGKUNGAN = [
-  { key: 'suhu_rerata', label: 'Suhu (°C)', warna: '#F59E0B' },
-  { key: 'kelembapan_rerata', label: 'Kelembaban (%)', warna: '#0EA5E9' },
-  { key: 'curah_hujan_rerata', label: 'Curah Hujan (mm)', warna: '#2563EB' },
-  { key: 'cuaca_dominan', label: 'Cuaca', warna: '#64748B' },
+  { key: 'suhu_rerata', label: 'Suhu (°C)', warna: '#F59E0B', axis: 'kanan' as const },
+  { key: 'kelembapan_rerata', label: 'Kelembaban (%)', warna: '#0EA5E9', axis: 'kanan' as const },
+  { key: 'curah_hujan_rerata', label: 'Curah Hujan (mm)', warna: '#2563EB', axis: 'kanan' as const },
+  // Catatan: cuaca_dominan kemungkinan bernilai string kategorikal
+  // (mis. "Cerah"/"Hujan"), bukan angka -- kalau begitu ia tidak akan
+  // tergambar wajar sebagai Line/Bar di sumbu numerik manapun, axis
+  // di sini hanya berjaga-jaga kalau datanya ternyata numerik.
+  { key: 'cuaca_dominan', label: 'Cuaca', warna: '#64748B', axis: 'kanan' as const },
 ];
 
 export default async function HalamanDiare({
@@ -97,6 +107,31 @@ export default async function HalamanDiare({
   // 6. Tentukan Mode Tampilan (Bulanan vs Mingguan)
   const isModeBulanan = mode === 'bulanan';
 
+  // Periode Key & konteks -- dipindah ke sini (murni sinkron, sebelum
+  // Promise.all) supaya permintaan batch AI di bawah bisa disiapkan
+  // sedini mungkin, sama seperti pola di modul Anopheles Dewasa.
+  const periodeKeyMingguan = `${tahunEpid}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
+  const periodeKeyBulanan = `${tahunBulanDipilih}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
+  const konteksMingguan = `${cfg.konteks}`;
+  const konteksBulanan = cfg.konteks.replace('-mingguan', '-bulanan');
+
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- Box AI di halaman ini mengikuti mode
+  // (Mingguan/Bulanan) yang sedang aktif, jadi cuma SATU pasang
+  // (analisis + prediksi) yang benar-benar dirender & dibutuhkan
+  // per render server -- pola sama dengan modul Anopheles Dewasa.
+  // konteks/periodeKey/metrik dipilih sesuai isModeBulanan, lalu
+  // getBanyakHasilAI dipanggil sedini mungkin & di-await belakangan
+  // bareng query chart, supaya jalan PARALEL.
+  // ============================================================
+  const konteksAktif = isModeBulanan ? konteksBulanan : konteksMingguan;
+  const periodeKeyAktif = isModeBulanan ? periodeKeyBulanan : periodeKeyMingguan;
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'analisis' },
+    { konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'prediksi' },
+  ];
+  const hasilAIPromise = getBanyakHasilAI(permintaanAI);
+
   // 7. Fetch Data secara Parallel
   const [role, daftarWilker, dataMingguan, dataBulanan, hasilPerWilker, lokasiTidakMemenuhi] =
     await Promise.all([
@@ -122,11 +157,10 @@ export default async function HalamanDiare({
     filterTambahan: { jenis_kegiatan: jenis },
   });
 
-  // Periode Key
-  const periodeKeyMingguan = `${tahunEpid}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
-  const periodeKeyBulanan = `${tahunBulanDipilih}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
-  const konteksMingguan = `${cfg.konteks}`;
-  const konteksBulanan = cfg.konteks.replace('-mingguan', '-bulanan');
+  // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
+  const hasilAI = await hasilAIPromise;
+  const hasilAnalisisAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'analisis' })];
+  const hasilPrediksiAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'prediksi' })];
 
   // Cari nama wilayah
   const wilkerTerpilih = daftarWilker.find(
@@ -192,6 +226,7 @@ export default async function HalamanDiare({
               periodeKey={periodeKeyBulanan}
               wilayahKerja={wilker}
               metrik={cfg.metrikUtama.key}
+              hasilAwal={hasilAnalisisAktif}
             />
             <BoxPrediksiAI
               sudahLogin={role !== null}
@@ -200,6 +235,7 @@ export default async function HalamanDiare({
               periodeKey={periodeKeyBulanan}
               wilayahKerja={wilker}
               metrik={cfg.metrikUtama.key}
+              hasilAwal={hasilPrediksiAktif}
             />
           </>
         ) : (
@@ -211,6 +247,7 @@ export default async function HalamanDiare({
               periodeKey={periodeKeyMingguan}
               wilayahKerja={wilker}
               metrik={cfg.metrikUtama.key}
+              hasilAwal={hasilAnalisisAktif}
             />
             <BoxPrediksiAI
               sudahLogin={role !== null}
@@ -219,6 +256,7 @@ export default async function HalamanDiare({
               periodeKey={periodeKeyMingguan}
               wilayahKerja={wilker}
               metrik={cfg.metrikUtama.key}
+              hasilAwal={hasilPrediksiAktif}
             />
           </>
         )}

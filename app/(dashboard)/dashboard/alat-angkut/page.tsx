@@ -27,7 +27,7 @@ const WILAYAH_URUTAN = [
  */
 function cocokWilayah(wilayahDb: string | undefined | null, targetWilayah: string): boolean {
   if (!wilayahDb) return false;
-  
+
   // Bersihkan spasi dan ubah ke huruf kecil
   const bersihDb = wilayahDb.toLowerCase().replace(/\s+/g, "");
   const bersihTarget = targetWilayah.toLowerCase().replace(/\s+/g, "");
@@ -47,7 +47,16 @@ function cocokWilayah(wilayahDb: string | undefined | null, targetWilayah: strin
 }
 
 export default async function DashboardPage() {
-  await catatKunjungan("/dashboard/alat-angkut");
+  // PERUBAHAN: catatKunjungan TIDAK di-await lagi. Sebelumnya baris ini
+  // memblokir seluruh halaman menunggu insert log kunjungan selesai
+  // dulu sebelum mulai ambil data COP/PHQC/RBA di bawah -- padahal log
+  // kunjungan tidak perlu ditunggu, sama seperti fix catatPageLoad() di
+  // layout.tsx sebelumnya. .catch() menjaga supaya error logging (kalau
+  // ada) tidak sampai menjatuhkan render halaman.
+  catatKunjungan("/dashboard/alat-angkut").catch((err) => {
+    console.error("Gagal mencatat kunjungan:", err);
+  });
+
   const { sudahLogin, role } = await getStatusAkses();
 
   const JUMLAH_MINGGU_MUNDUR = 1;
@@ -159,20 +168,28 @@ export default async function DashboardPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-3">
+          {/* PERUBAHAN: prefetch={false} di 3 tombol ini -- sebelumnya
+              Next.js diam-diam merender penuh halaman COP/PHQC/Rat Guard
+              di background begitu tombol ini masuk viewport (bukan saat
+              diklik), padahal ketiga halaman itu masing-masing menembak
+              belasan query + belasan BoxAnalisisAI/BoxPrediksiAI. */}
           <Link
             href="/cop"
+            prefetch={false}
             className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
           >
             Dashboard Kapal dari Luar Negeri
           </Link>
           <Link
             href="/phqc"
+            prefetch={false}
             className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
           >
             Dashboard Keberangkatan Kapal
           </Link>
           <Link
             href="/dashboard/alat-angkut/rat-guard"
+            prefetch={false}
             className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
           >
             Dashboard Rat Guard

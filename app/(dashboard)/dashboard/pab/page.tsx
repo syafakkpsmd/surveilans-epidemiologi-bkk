@@ -7,6 +7,7 @@ import {
 import { getUserRole } from "@/lib/auth/get-user-role";
 import PabClient from "./PabClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
+import { getBanyakHasilAI, kunciAI } from "@/lib/ai/getBanyakHasilAI";
 
 type PabPageProps = {
   searchParams: Promise<{
@@ -29,12 +30,33 @@ export default async function PabPage({ searchParams }: PabPageProps) {
   const tahunParsed = tahunParam ? parseInt(tahunParam, 10) : NaN;
   const tahun = Number.isFinite(tahunParsed) ? tahunParsed : new Date().getFullYear();
 
-  const [role, daftarWilayah, dataBulanan, dataMingguan, dataTmsDetail] = await Promise.all([
+  // ============================================================
+  // PENTING: kombinasi ini HARUS PERSIS SAMA dengan default useState
+  // di PabClient.tsx -- granularitas default "bulanan", appliedBulanAwal=1/
+  // appliedBulanAkhir=12 (periodeKey pakai appliedBulanAkhir). wilayahKerja
+  // default MEMANG bisa dihitung server karena selectedWilayah awal client
+  // = wilayahParam || "semua" -- jadi `wilayah` dari searchParams ini valid
+  // dipakai langsung (undefined kalau belum ada filter wilayah, sama seperti
+  // wilayahKerja undefined saat selectedWilayah==="semua" di client).
+  // Kalau default granularitas/rentang di PabClient.tsx berubah nanti,
+  // sesuaikan juga di sini -- kalau lupa, tidak fatal (fallback fetch client
+  // tetap jalan), cuma prefetch jadi mubazir.
+  // ============================================================
+  const konteksAiDefault = "pab-bulanan";
+  const periodeKeyDefault = `${tahun}-12`;
+  const wilayahKerjaDefault = wilayah || undefined;
+  const comboKeyDasar = `${konteksAiDefault}|${periodeKeyDefault}|${wilayahKerjaDefault ?? ""}`;
+
+  const [role, daftarWilayah, dataBulanan, dataMingguan, dataTmsDetail, hasilAI] = await Promise.all([
     getUserRole(),
     getDaftarWilayahKerjaSanitasi(),
     getRingkasanPabBulanan(tahun, wilayah),
     getRingkasanPabMingguan(tahun, wilayah),
     getDaftarPabTmsDetail(tahun, wilayah),
+    getBanyakHasilAI([
+      { konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "analisis" },
+      { konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "prediksi" },
+    ]),
   ]);
 
   const bulanBerjalan = new Date().getMonth() + 1;
@@ -60,6 +82,11 @@ export default async function PabPage({ searchParams }: PabPageProps) {
       tahunEpidBerjalan={tahunEpidBerjalan}
       mingguEpidBerjalan={mingguEpidBerjalan}
       wilayahParam={wilayah}
+      hasilAwalInisial={{
+        comboKeyDasar,
+        analisis: hasilAI[kunciAI({ konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "analisis" })] ?? null,
+        prediksi: hasilAI[kunciAI({ konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "prediksi" })] ?? null,
+      }}
     />
   );
 }

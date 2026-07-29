@@ -6,6 +6,7 @@ import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
+import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 
 type WilkerRef = { kode: string; nama: string };
 type VektorTikusClientProps = {
@@ -20,6 +21,7 @@ type VektorTikusClientProps = {
   mingguBerjalan: number;
   bulanBerjalan: number;
   wilkerParam?: string;
+  hasilAI?: Record<string, HasilAIStruktur | null>; // <-- TAMBAH (batch AI)
 };
 
 export default function VektorTikusClient({
@@ -34,6 +36,7 @@ export default function VektorTikusClient({
   mingguBerjalan,
   bulanBerjalan,
   wilkerParam,
+  hasilAI = {}, // <-- TAMBAH
 }: VektorTikusClientProps) {
   const [selectedWilker, setSelectedWilker] = useState<string>(wilkerParam || "semua");
   const [periodeType, setPeriodeType] = useState<"mingguan" | "bulanan">("mingguan");
@@ -67,6 +70,24 @@ export default function VektorTikusClient({
   const periodeKeyLabBulanan = `${tahunBerjalan}-M${bulanDari}_M${bulanSampai}`;
 
   const wilayahKerjaAktif = selectedWilker !== "semua" ? selectedWilker : undefined;
+
+  // ==========================================
+  // LOOKUP HASIL AI (TAMBAH)
+  // Kalau kombinasi konteks/periode/wilayah saat ini persis sama
+  // dengan yang di-prefetch server (state landing awal), Box langsung
+  // dapat hasilnya tanpa fetch GET. Kalau user sudah ganti toggle
+  // periode/rentang/wilayah, kunci ini tidak ketemu di hasilAI ->
+  // undefined -> Box fallback fetch sendiri seperti biasa.
+  // ==========================================
+  const konteksUtama = `vektor-tikus-${periodeType}`;
+  const hasilAwalUtamaAnalisis = hasilAI[kunciAI({ konteks: konteksUtama, periodeKey: periodeKeyUtama, wilayahKerja: wilayahKerjaAktif, tipe: "analisis" })];
+  const hasilAwalUtamaPrediksi = hasilAI[kunciAI({ konteks: konteksUtama, periodeKey: periodeKeyUtama, wilayahKerja: wilayahKerjaAktif, tipe: "prediksi" })];
+
+  const hasilAwalLabBulananAnalisis = hasilAI[kunciAI({ konteks: "tikus-lab-bulanan", periodeKey: periodeKeyLabBulanan, wilayahKerja: wilayahKerjaAktif, tipe: "analisis" })];
+  const hasilAwalLabBulananPrediksi = hasilAI[kunciAI({ konteks: "tikus-lab-bulanan", periodeKey: periodeKeyLabBulanan, wilayahKerja: wilayahKerjaAktif, tipe: "prediksi" })];
+
+  const hasilAwalLabMingguanAnalisis = hasilAI[kunciAI({ konteks: "tikus-lab-mingguan", periodeKey: periodeKeyLabMingguan, wilayahKerja: wilayahKerjaAktif, tipe: "analisis" })];
+  const hasilAwalLabMingguanPrediksi = hasilAI[kunciAI({ konteks: "tikus-lab-mingguan", periodeKey: periodeKeyLabMingguan, wilayahKerja: wilayahKerjaAktif, tipe: "prediksi" })];
 
   useEffect(() => {
     // 1. Pilih dataset sesuai toggle periode, filter wilayah kerja DAN rentang
@@ -354,16 +375,18 @@ export default function VektorTikusClient({
               <BoxAnalisisAI
                 sudahLogin={sudahLogin}
                 role={role as PeranUser}
-                konteks={`vektor-tikus-${periodeType}`}
+                konteks={konteksUtama}
                 periodeKey={periodeKeyUtama}
                 wilayahKerja={wilayahKerjaAktif}
+                hasilAwal={hasilAwalUtamaAnalisis}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
                 role={role as PeranUser}
-                konteks={`vektor-tikus-${periodeType}`}
+                konteks={konteksUtama}
                 periodeKey={periodeKeyUtama}
                 wilayahKerja={wilayahKerjaAktif}
+                hasilAwal={hasilAwalUtamaPrediksi}
               />
             </div>
           </div>
@@ -387,6 +410,7 @@ export default function VektorTikusClient({
                 konteks="tikus-lab-bulanan"
                 periodeKey={periodeKeyLabBulanan}
                 wilayahKerja={wilayahKerjaAktif}
+                hasilAwal={hasilAwalLabBulananAnalisis}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -394,6 +418,7 @@ export default function VektorTikusClient({
                 konteks="tikus-lab-bulanan"
                 periodeKey={periodeKeyLabBulanan}
                 wilayahKerja={wilayahKerjaAktif}
+                hasilAwal={hasilAwalLabBulananPrediksi}
               />
             </div>
           </div>
@@ -417,6 +442,7 @@ export default function VektorTikusClient({
                 konteks="tikus-lab-mingguan"
                 periodeKey={periodeKeyLabMingguan}
                 wilayahKerja={wilayahKerjaAktif}
+                hasilAwal={hasilAwalLabMingguanAnalisis}
               />
               <BoxPrediksiAI
                 sudahLogin={sudahLogin}
@@ -424,6 +450,7 @@ export default function VektorTikusClient({
                 konteks="tikus-lab-mingguan"
                 periodeKey={periodeKeyLabMingguan}
                 wilayahKerja={wilayahKerjaAktif}
+                hasilAwal={hasilAwalLabMingguanPrediksi}
               />
             </div>
           </div>

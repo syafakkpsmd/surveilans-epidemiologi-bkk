@@ -435,6 +435,23 @@ TUGAS KHUSUS: identifikasi pelabuhan kedatangan TERSIBUK dan pelabuhan tujuan TE
 ${ATURAN_UMUM_BREAKDOWN}`;
 }
 
+export function susunPromptPrediksiPelabuhanPhqc(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI beban kerja dan risiko kekarantinaan kesehatan untuk periode berikutnya, berdasarkan pola lalu lintas pelabuhan kedatangan & tujuan kapal (kegiatan PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN (KEDATANGAN & TUJUAN DIGABUNG, diberi label "Kedatangan: ..." / "Tujuan: ...") (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan" dan "anomali": proyeksikan ke PERIODE BERIKUTNYA apakah pelabuhan kedatangan/tujuan TERSIBUK pada data di atas berpotensi tetap dominan atau bergeser, berdasarkan pola rute domestik vs internasional yang terlihat. Kalau ada pelabuhan luar negeri dengan volume signifikan, proyeksikan implikasi beban pemeriksaan kekarantinaan kesehatan di titik tersebut untuk periode mendatang, TANPA mengarang angka atau wabah spesifik yang tidak berdasar data. Nyatakan proyeksi ini sebagai skenario KUALITATIF berbasis tren volume per pelabuhan, BUKAN prediksi statistik presisi -- karena data yang tersedia hanya jumlah kapal per pelabuhan pada satu periode, bukan deret waktu panjang.
+TUGAS KHUSUS untuk field "rekomendasi": langkah kesiapsiagaan konkret yang perlu disiapkan di pelabuhan-pelabuhan dengan volume tinggi/berpotensi naik untuk periode berikutnya.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
 /* =========================================================================
  * MODUL JUMLAH PENUMPANG KEBERANGKATAN (PHQC)
  * CATATAN: data phqc yang ada HANYA mencatat penumpang KEBERANGKATAN

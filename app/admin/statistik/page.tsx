@@ -1,16 +1,23 @@
 import { getStatistikKunjungan } from '@/lib/analytics/get-stats';
 import { getUserRole } from '@/lib/auth/get-user-role';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Eye, UserCheck, Crown, LogIn, Users } from 'lucide-react';
 import TopDaerahChart from './TopDaerahChart';
 import AktivitasTrendChart from './AktivitasTrendChart';
 import AktivitasTerakhirList from './AktivitasTerakhirList';
 
-export const dynamic = 'force-dynamic';   // <-- tambahkan baris ini
+export const dynamic = 'force-dynamic';
 
 export default async function StatistikPage() {
-  const role = await getUserRole();
+  // 1. Dapatkan role user secara aman (jika belum login/tamu, role = null)
+  let role = null;
+  try {
+    role = await getUserRole();
+  } catch (e) {
+    role = null; // Abaikan error jika user belum login
+  }
+
+  // 2. Ambil data statistik dari database
   const stats = await getStatistikKunjungan();
   if (!stats.ok) {
     return (
@@ -20,24 +27,27 @@ export default async function StatistikPage() {
     );
   }
 
+  // 3. Tentukan tujuan tombol Kembali
+  const backHref = role ? '/dashboard' : '/';
+  const backLabel = role ? 'Kembali ke Dashboard' : 'Kembali ke Beranda';
+
   return (
     <main className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-[#0F2A38]">Statistik Kunjungan</h1>
         <Link
-          href="/dashboard"
+          href={backHref}
           className="flex items-center gap-1.5 text-sm text-[#0F4C5C] hover:underline font-medium"
         >
           <ArrowLeft size={16} />
-          Kembali ke Dashboard
+          {backLabel}
         </Link>
       </div>
 
-
-      {/* 4 Cards Ringkasan Stat */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">   {/* ganti lg:grid-cols-4 -> 5 */}
-        {/* Card 1: Total Page Load — tetap */}
+      {/* 5 Cards Ringkasan Stat */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Card 1: Total Page Load */}
         <div className="bg-white rounded-[10px] border border-black/5 p-4 text-center shadow-xs">
           <p className="text-3xl font-bold text-[#1E2B58] mb-1">{stats.totalPageload}</p>
           <div className="flex items-center justify-center gap-1.5 text-xs text-[#0F2A38]/60">
@@ -46,7 +56,7 @@ export default async function StatistikPage() {
           </div>
         </div>
 
-        {/* Card BARU: Tamu */}
+        {/* Card 2: Tamu */}
         <div className="bg-white rounded-[10px] border border-black/5 p-4 text-center shadow-xs">
           <p className="text-3xl font-bold text-slate-500 mb-1">{stats.pageloadTamu}</p>
           <div className="flex items-center justify-center gap-1.5 text-xs text-[#0F2A38]/60">
@@ -55,7 +65,7 @@ export default async function StatistikPage() {
           </div>
         </div>
 
-        {/* Card 2: Login Petugas */}
+        {/* Card 3: Login Petugas */}
         <div className="bg-white rounded-[10px] border border-black/5 p-4 text-center shadow-xs">
           <p className="text-3xl font-bold text-emerald-600 mb-1">{stats.loginPetugas}</p>
           <div className="flex items-center justify-center gap-1.5 text-xs text-[#0F2A38]/60">
@@ -64,7 +74,7 @@ export default async function StatistikPage() {
           </div>
         </div>
 
-        {/* Card 3: Login Admin */}
+        {/* Card 4: Login Admin */}
         <div className="bg-white rounded-[10px] border border-black/5 p-4 text-center shadow-xs">
           <p className="text-3xl font-bold text-amber-500 mb-1">{stats.loginAdmin}</p>
           <div className="flex items-center justify-center gap-1.5 text-xs text-[#0F2A38]/60">
@@ -73,7 +83,7 @@ export default async function StatistikPage() {
           </div>
         </div>
 
-        {/* Card 4: Total Login */}
+        {/* Card 5: Total Login */}
         <div className="bg-white rounded-[10px] border border-black/5 p-4 text-center shadow-xs">
           <p className="text-3xl font-bold text-blue-600 mb-1">{stats.totalLogin}</p>
           <div className="flex items-center justify-center gap-1.5 text-xs text-[#0F2A38]/60">
@@ -83,7 +93,7 @@ export default async function StatistikPage() {
         </div>
       </div>
 
-      {/* Grid 2 Kolom: Grafik Trend (Harian/Mingguan/Bulanan/Tahunan) & 10 Aktivitas Terakhir */}
+      {/* Grid 2 Kolom: Grafik Trend & 10 Aktivitas Terakhir */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AktivitasTrendChart data={stats.tren} />
         <AktivitasTerakhirList logs={stats.recent} />

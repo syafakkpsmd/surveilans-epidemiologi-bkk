@@ -141,14 +141,14 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
         {(selectedWilker || activeFasilitas) && (
           <button
             onClick={handleKembali}
-            className="absolute z-[1000] top-4 left-4 bg-white px-3 py-2 rounded-lg shadow font-medium text-sm hover:bg-gray-50"
+            className="absolute z-1000 top-4 left-4 bg-white px-3 py-2 rounded-lg shadow font-medium text-sm hover:bg-gray-50"
           >
             ← Kembali ke Peta Keseluruhan
           </button>
         )}
 
         {loading && (
-          <div className="absolute z-[1000] top-4 right-16 bg-white/90 px-3 py-1.5 rounded-lg shadow text-xs text-gray-500">
+          <div className="absolute z-1000 top-4 right-16 bg-white/90 px-3 py-1.5 rounded-lg shadow text-xs text-gray-500">
             Memuat data fasilitas...
           </div>
         )}

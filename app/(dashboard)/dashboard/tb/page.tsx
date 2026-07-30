@@ -67,7 +67,7 @@ export default async function TbPage({
         <div>
           <h1 className="text-xl font-bold text-[#0F2A38]">🫁 Surveilans TB</h1>
           <p className="text-sm text-gray-500">
-            Deteksi & penelusuran kontak Tuberkulosis pada ABK dan pekerja.
+            Deteksi & penelusuran kontak Tuberkulosis pada ABK dan pekerja. (Data yang ada masiih Data DUMMY)
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

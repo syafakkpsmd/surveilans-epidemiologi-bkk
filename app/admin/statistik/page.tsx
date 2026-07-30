@@ -11,8 +11,6 @@ export const dynamic = 'force-dynamic';   // <-- tambahkan baris ini
 
 export default async function StatistikPage() {
   const role = await getUserRole();
-  if (role !== 'admin') redirect('/dashboard');
-
   const stats = await getStatistikKunjungan();
   if (!stats.ok) {
     return (

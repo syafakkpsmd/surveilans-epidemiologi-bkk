@@ -25,7 +25,7 @@ export default function GaleriFoto({ fasilitasId }: { fasilitasId: string }) {
           <p className="text-xs font-medium text-gray-500 mb-1">Foto Kantor</p>
           <div className="flex gap-2 overflow-x-auto">
             {kantor.map((f) => (
-              <img key={f.id} src={f.url} alt={f.caption ?? ""} className="h-20 w-28 object-cover rounded-md flex-shrink-0" />
+              <img key={f.id} src={f.url} alt={f.caption ?? ""} className="h-20 w-28 object-cover rounded-md shrink-0" />
             ))}
           </div>
         </div>
@@ -35,7 +35,7 @@ export default function GaleriFoto({ fasilitasId }: { fasilitasId: string }) {
           <p className="text-xs font-medium text-gray-500 mb-1">Foto Pelabuhan</p>
           <div className="flex gap-2 overflow-x-auto">
             {pelabuhan.map((f) => (
-              <img key={f.id} src={f.url} alt={f.caption ?? ""} className="h-20 w-28 object-cover rounded-md flex-shrink-0" />
+              <img key={f.id} src={f.url} alt={f.caption ?? ""} className="h-20 w-28 object-cover rounded-md shrink-0" />
             ))}
           </div>
         </div>
@@ -45,7 +45,7 @@ export default function GaleriFoto({ fasilitasId }: { fasilitasId: string }) {
           <p className="text-xs font-medium text-gray-500 mb-1">Foto Kegiatan</p>
           <div className="flex gap-2 overflow-x-auto">
             {kegiatan.map((f) => (
-              <img key={f.id} src={f.url} alt={f.caption ?? ""} className="h-20 w-28 object-cover rounded-md flex-shrink-0" />
+              <img key={f.id} src={f.url} alt={f.caption ?? ""} className="h-20 w-28 object-cover rounded-md shrink-0" />
             ))}
           </div>
         </div>

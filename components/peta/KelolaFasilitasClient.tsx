@@ -103,7 +103,7 @@ export default function KelolaFasilitasClient() {
                       <td className="px-4 py-2">{f.nama}</td>
                       <td className="px-4 py-2 capitalize">{f.tipe}</td>
                       <td className="px-4 py-2 text-gray-500">{f.lat.toFixed(5)}, {f.lng.toFixed(5)}</td>
-                      <td className="px-4 py-2 text-gray-500 max-w-[200px] truncate">{f.deskripsi ?? "-"}</td>
+                      <td className="px-4 py-2 text-gray-500 max-w-50 truncate">{f.deskripsi ?? "-"}</td>
                       <td className="px-4 py-2 text-right space-x-2">
                         <button onClick={() => handleEdit(f)} className="text-blue-600 hover:underline font-medium">
                           Edit
@@ -131,7 +131,7 @@ export default function KelolaFasilitasClient() {
       )}
 
       {hapusId && (
-        <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-2000 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
             <h3 className="font-semibold">Hapus fasilitas ini?</h3>
             <p className="text-sm text-gray-500">

@@ -81,7 +81,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
   }
 
   return (
-    <div className="fixed inset-0 z-[2000] bg-black/40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-2000 bg-black/40 flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-semibold">{fasilitasEdit ? "Edit Fasilitas" : "Tambah Fasilitas Baru"}</h2>
 

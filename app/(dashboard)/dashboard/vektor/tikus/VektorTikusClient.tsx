@@ -355,13 +355,13 @@ export default function VektorTikusClient({
           </div>
 
           <div className="rounded-xl bg-white p-4 shadow-xs">
-            <h3 className="mb-4 text-sm text-center font-semibold text-gray-700">Distribusi Tikus Tertangkap, TSI  & Indeks Pinjal</h3>
+            <h3 className="mb-4 text-sm text-center font-semibold text-gray-700">Distribusi Tikus Tertangkap, Success Trap  & Indeks Pinjal</h3>
             <TrenChartLine
               data={chartData}
               tipeChart={periodeType === "bulanan" ? "bar" : "line"}
               seriesList={[
                 { key: "tertangkap", label: "Tertangkap", warna: "#B71C1C" },
-                { key: "tsi", label: "TSI (%)", warna: "#E65100" },
+                { key: "tsi", label: "Success Trap (%)", warna: "#E65100" },
                 { key: "index_pinjal", label: "Index Pinjal", warna: "#1B5E20" },
               ]}
             />

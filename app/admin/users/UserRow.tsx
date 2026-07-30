@@ -32,12 +32,12 @@ export default function UserRow({ id, namaAwal, role, status }: Props) {
               value={nama}
               onChange={(e) => setNama(e.target.value)}
               autoFocus
-              className="w-full rounded-[6px] border border-black/10 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
+              className="w-full rounded-md border border-black/10 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
             />
             <button
               onClick={simpanNama}
               disabled={isPending}
-              className="p-1.5 rounded-[6px] bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+              className="p-1.5 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
               title="Simpan"
             >
               <Check size={14} />
@@ -47,7 +47,7 @@ export default function UserRow({ id, namaAwal, role, status }: Props) {
                 setNama(namaAwal);
                 setEditing(false);
               }}
-              className="p-1.5 rounded-[6px] bg-gray-200 text-[#0F2A38] hover:bg-gray-300"
+              className="p-1.5 rounded-md bg-gray-200 text-[#0F2A38] hover:bg-gray-300"
               title="Batal"
             >
               <X size={14} />
@@ -89,7 +89,7 @@ export default function UserRow({ id, namaAwal, role, status }: Props) {
             <button
               disabled={isPending}
               onClick={() => startTransition(() => approveUser(id))}
-              className="text-xs px-3 py-1.5 rounded-[6px] bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
             >
               Setujui
             </button>
@@ -97,7 +97,7 @@ export default function UserRow({ id, namaAwal, role, status }: Props) {
             <button
               disabled={isPending}
               onClick={() => startTransition(() => suspendUser(id))}
-              className="text-xs px-3 py-1.5 rounded-[6px] bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-md bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
             >
               Suspend
             </button>
@@ -109,7 +109,7 @@ export default function UserRow({ id, namaAwal, role, status }: Props) {
                 startTransition(() => deleteUser(id));
               }
             }}
-            className="text-xs px-3 py-1.5 rounded-[6px] bg-[#D62839] text-white hover:bg-[#B01F30] disabled:opacity-50"
+            className="text-xs px-3 py-1.5 rounded-md bg-[#D62839] text-white hover:bg-[#B01F30] disabled:opacity-50"
           >
             Hapus
           </button>

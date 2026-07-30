@@ -17,6 +17,7 @@ import {
   ambilDataAnalisisRatGuard,
   ambilDataAnalisisGlobalEmerging,
   ambilDataAnalisisNasionalEmerging,
+  ambilDataAnalisisAbkCrewPenumpang,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -62,6 +63,8 @@ import {
   susunPromptPrediksiGlobalEmerging,
   susunPromptNasionalEmerging,          // <-- tambah
   susunPromptPrediksiNasionalEmerging,  // <-- tambah
+  susunPromptAbkCrewPenumpang,
+  susunPromptPrediksiAbkCrewPenumpang,
 } from '@/lib/ai/prompt';
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
@@ -212,6 +215,7 @@ export async function POST(request: Request) {
   const konteksSanitasi = isKonteksSanitasi(konteks);
   const konteksGlobalEmerging = konteks.startsWith('global-emerging-');
   const konteksNasionalEmerging = konteks.startsWith('nasional-emerging-'); // <-- tambah
+  const konteksAbkCrewPenumpang = konteks.startsWith('abk-crew-penumpang-');
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
   const metrikUntukCache: string | null = konteksVektor
@@ -291,6 +295,8 @@ export async function POST(request: Request) {
   } else if (konteksGlobalEmerging) {
   wilayahKerja = undefined;
   } else if (konteksNasionalEmerging) {   // <-- tambah
+    wilayahKerja = undefined;
+  } else if (konteksAbkCrewPenumpang) {
     wilayahKerja = undefined;
   } else {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
@@ -409,6 +415,17 @@ export async function POST(request: Request) {
     promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNasionalEmerging(data) : susunPromptNasionalEmerging(data);
     labelPeriodeSaatIni = data.labelPeriodeSaatIni;
     labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (
+      konteks === 'abk-crew-penumpang-kedatangan-mingguan' ||
+      konteks === 'abk-crew-penumpang-kedatangan-bulanan' ||
+      konteks === 'abk-crew-penumpang-keberangkatan-mingguan' ||
+      konteks === 'abk-crew-penumpang-keberangkatan-bulanan'
+    ) {
+      const data = await ambilDataAnalisisAbkCrewPenumpang(konteks, periodeKey, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiAbkCrewPenumpang(data) : susunPromptAbkCrewPenumpang(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
 
     } else if (konteks === 'cop-negara-tren') {
     const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);

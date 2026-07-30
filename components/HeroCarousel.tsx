@@ -77,9 +77,9 @@ export function HeroCarousel({
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         {items.map((item, i) => (
-          <div key={i} className="relative min-w-full aspect-[21/7]">
+          <div key={i} className="relative min-w-full aspect-21/7">
             <SlideImage src={item.image} alt={item.title} priority={i === 0} />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
             <div className="absolute bottom-0 left-0 p-5 text-white">
               <h2 className="text-lg font-bold">{item.title}</h2>
               {item.deskripsi && (

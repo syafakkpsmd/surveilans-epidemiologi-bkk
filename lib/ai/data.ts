@@ -40,6 +40,7 @@ import { getRingkasanPenyakitEmerging } from '@/lib/supabase/global-emerging-que
 import type { RingkasanPenyakitEmerging, Penyakit, Negara } from '@/types/global-emerging.types';
 import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
 import { createClient } from '@/lib/supabase/server';
+import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/supabase/queriesPesawat';
 
 
 export const KONTEKS_TREN = [
@@ -80,6 +81,10 @@ export const KONTEKS_TREN = [
   'global-emerging-bulanan',    // <-- tambah
   'nasional-emerging-mingguan',   // <-- tambah
   'nasional-emerging-bulanan',    // <-- tambah
+  'abk-crew-penumpang-kedatangan-mingguan',
+  'abk-crew-penumpang-kedatangan-bulanan',
+  'abk-crew-penumpang-keberangkatan-mingguan',
+  'abk-crew-penumpang-keberangkatan-bulanan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -136,6 +141,10 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'global-emerging-bulanan',    // <-- tambah
   'nasional-emerging-mingguan',   // <-- tambah
   'nasional-emerging-bulanan',    // <-- tambah
+  'abk-crew-penumpang-kedatangan-mingguan',
+  'abk-crew-penumpang-kedatangan-bulanan',
+  'abk-crew-penumpang-keberangkatan-mingguan',
+  'abk-crew-penumpang-keberangkatan-bulanan',
 ] as const;
 
 
@@ -174,7 +183,9 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
     konteks === 'vektor-diare-lalat-bulanan' ||
     konteks === 'vektor-diare-kecoa-bulanan' ||
     konteks.startsWith('anopheles-') ||
-    konteks.startsWith('global-emerging-')
+    konteks.startsWith('global-emerging-') ||
+    konteks.startsWith('global-emerging-') ||
+    konteks.startsWith('abk-crew-penumpang-')
   );
 }
 
@@ -1647,6 +1658,181 @@ export async function ambilDataAnalisisNasionalEmerging(
       : 'Tidak ada data sebelum bulan pertama',
     ringkasanSaatIni: saatIni.ringkasan, ringkasanSebelumnya: sebelumnya.ringkasan,
     topKategori: saatIni.topKategori,
+  };
+}
+
+async function ambilAbkKapalRentang(
+  arah: 'kedatangan' | 'keberangkatan',
+  granularitas: 'mingguan' | 'bulanan',
+  tahun: number,
+  awal: number,
+  akhir: number
+): Promise<Record<string, number>> {
+  const baris =
+    arah === 'kedatangan'
+      ? granularitas === 'mingguan'
+        ? await getRingkasanMingguan('cop', tahun)
+        : await getRingkasanBulanan('cop', tahun)
+      : granularitas === 'mingguan'
+        ? await getRingkasanMingguan('phqc', tahun)
+        : await getRingkasanBulanan('phqc', tahun);
+
+  const kolomPeriode = granularitas === 'mingguan' ? 'minggu_epid' : 'bulan';
+  const terfilter = (baris as any[]).filter((b) => b[kolomPeriode] >= awal && b[kolomPeriode] <= akhir);
+
+  if (arah === 'kedatangan') {
+    // COP (kedatangan) tidak punya kolom penumpang -- kapal dari luar
+    // negeri yang diawasi hanya membawa ABK, bukan penumpang.
+    const jumlah = jumlahkanRentang(terfilter, undefined, ['total_abk'] as any);
+    return { abk_kapal: jumlah.total_abk ?? 0, penumpang_kapal: 0 };
+  }
+  const jumlah = jumlahkanRentang(terfilter, undefined, ['total_abk', 'total_penumpang'] as any);
+  return { abk_kapal: jumlah.total_abk ?? 0, penumpang_kapal: jumlah.total_penumpang ?? 0 };
+}
+
+async function ambilPesawatCrewPenumpangRentang(
+  arah: 'kedatangan' | 'keberangkatan',
+  granularitas: 'mingguan' | 'bulanan',
+  tahun: number,
+  awal: number,
+  akhir: number
+): Promise<Record<string, number>> {
+  // ASUMSI: getRingkasanPesawatMingguan/Bulanan tanpa kodeWilker
+  // mengembalikan gabungan SEMUA bandara (bukan error/kosong). Kalau
+  // ternyata wajib isi kodeWilker, kabari saya -- perlu ditambah
+  // agregasi manual per-wilker seperti fungsi lain di file ini.
+  const baris = granularitas === 'mingguan'
+    ? await getRingkasanPesawatMingguan({ tahun, mgDari: awal, mgSampai: akhir })
+    : await getRingkasanPesawatBulanan({
+        tahun,
+        bulanDari: `${tahun}-${String(awal).padStart(2, '0')}`,
+        bulanSampai: `${tahun}-${String(akhir).padStart(2, '0')}`,
+      });
+
+  const kolomCrew = arah === 'kedatangan' ? 'crew_datang' : 'crew_berangkat';
+  const kolomPenumpang = arah === 'kedatangan' ? 'penumpang_datang' : 'penumpang_berangkat';
+  const jumlah = jumlahkanRentang(baris as any[], undefined, [kolomCrew, kolomPenumpang] as any);
+  return { crew_pesawat: jumlah[kolomCrew] ?? 0, penumpang_pesawat: jumlah[kolomPenumpang] ?? 0 };
+}
+
+async function ambilAbkCrewPenumpangRentang(
+  granularitas: 'mingguan' | 'bulanan',
+  tahun: number,
+  awal: number,
+  akhir: number,
+  arah: 'kedatangan' | 'keberangkatan'
+): Promise<Record<string, number>> {
+  const [kapal, pesawat] = await Promise.all([
+    ambilAbkKapalRentang(arah, granularitas, tahun, awal, akhir),
+    ambilPesawatCrewPenumpangRentang(arah, granularitas, tahun, awal, akhir),
+  ]);
+  return { ...kapal, ...pesawat };
+}
+
+/**
+ * Titik masuk KHUSUS untuk abk-crew-penumpang-kedatangan/keberangkatan
+ * -mingguan/bulanan. Sama persis pola ambilDataAnalisisNasionalEmerging,
+ * TAPI tanpa parameter `metrik` (modul ini tidak butuh pilih kategori
+ * apa pun -- selalu gabungan total 4 komponen) dan tanpa wilayahKerja
+ * (modul ini rekap seluruh BKK, bukan per wilayah kerja tunggal).
+ */
+export async function ambilDataAnalisisAbkCrewPenumpang(
+  konteks:
+    | 'abk-crew-penumpang-kedatangan-mingguan'
+    | 'abk-crew-penumpang-kedatangan-bulanan'
+    | 'abk-crew-penumpang-keberangkatan-mingguan'
+    | 'abk-crew-penumpang-keberangkatan-bulanan',
+  periodeKey: string,
+  tipe: 'analisis' | 'prediksi'
+): Promise<DataAnalisis> {
+  const arah: 'kedatangan' | 'keberangkatan' = konteks.includes('kedatangan') ? 'kedatangan' : 'keberangkatan';
+  const isMingguan = konteks.endsWith('-mingguan');
+  const labelWilayah = 'Seluruh wilayah kerja BKK Kelas I Samarinda (gabungan kapal & pesawat)';
+  const labelKonteks =
+    arah === 'kedatangan'
+      ? 'ABK Kapal, Crew Pesawat & Penumpang Pesawat — Kedatangan'
+      : 'ABK Kapal, Penumpang Kapal, Crew Pesawat & Penumpang Pesawat — Keberangkatan';
+
+  if (isMingguan) {
+    const r = isPeriodeRentangMingguan(periodeKey)
+      ? parseRentangMingguan(periodeKey)
+      : (() => {
+          const p = parsePeriodeMingguan(periodeKey);
+          return { tahun: p.tahun, mingguAwal: p.minggu, mingguAkhir: p.minggu };
+        })();
+
+    if (tipe === 'prediksi') {
+      const periodeSaatIni: PeriodeMingguan = { jenis: 'mingguan', tahun: r.tahun, minggu: r.mingguAkhir };
+      const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+      const [saatIni, sebelumnya] = await Promise.all([
+        ambilAbkCrewPenumpangRentang('mingguan', periodeSaatIni.tahun, periodeSaatIni.minggu, periodeSaatIni.minggu, arah),
+        ambilAbkCrewPenumpangRentang('mingguan', periodeSebelumnya.tahun, periodeSebelumnya.minggu, periodeSebelumnya.minggu, arah),
+      ]);
+      return {
+        labelKonteks, labelWilayah,
+        labelPeriodeSaatIni: labelPeriodeMingguan(periodeSaatIni),
+        labelPeriodeSebelumnya: labelPeriodeMingguan(periodeSebelumnya),
+        ringkasanSaatIni: saatIni, ringkasanSebelumnya: sebelumnya,
+        topKategori: [],
+      };
+    }
+
+    const adaSebelumnya = r.mingguAwal > 1;
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilAbkCrewPenumpangRentang('mingguan', r.tahun, r.mingguAwal, r.mingguAkhir, arah),
+      adaSebelumnya
+        ? ambilAbkCrewPenumpangRentang('mingguan', r.tahun, 1, r.mingguAwal - 1, arah)
+        : Promise.resolve({ abk_kapal: 0, penumpang_kapal: 0, crew_pesawat: 0, penumpang_pesawat: 0 }),
+    ]);
+    return {
+      labelKonteks, labelWilayah,
+      labelPeriodeSaatIni: labelRentangMingguan(r),
+      labelPeriodeSebelumnya: adaSebelumnya
+        ? `minggu epidemiologi ke-1 s.d. ke-${r.mingguAwal - 1} tahun ${r.tahun} (sebelum rentang ini)`
+        : 'Tidak ada data sebelum minggu ke-1',
+      ringkasanSaatIni: saatIni, ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  const r = isPeriodeRentangBulanan(periodeKey)
+    ? parseRentangBulanan(periodeKey)
+    : (() => {
+        const p = parsePeriodeBulanan(periodeKey);
+        return { tahun: p.tahun, bulanAwal: p.bulan, bulanAkhir: p.bulan };
+      })();
+
+  if (tipe === 'prediksi') {
+    const periodeSaatIni: PeriodeBulanan = { jenis: 'bulanan', tahun: r.tahun, bulan: r.bulanAkhir };
+    const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
+    const [saatIni, sebelumnya] = await Promise.all([
+      ambilAbkCrewPenumpangRentang('bulanan', periodeSaatIni.tahun, periodeSaatIni.bulan, periodeSaatIni.bulan, arah),
+      ambilAbkCrewPenumpangRentang('bulanan', periodeSebelumnya.tahun, periodeSebelumnya.bulan, periodeSebelumnya.bulan, arah),
+    ]);
+    return {
+      labelKonteks, labelWilayah,
+      labelPeriodeSaatIni: labelPeriodeBulanan(periodeSaatIni),
+      labelPeriodeSebelumnya: labelPeriodeBulanan(periodeSebelumnya),
+      ringkasanSaatIni: saatIni, ringkasanSebelumnya: sebelumnya,
+      topKategori: [],
+    };
+  }
+
+  const adaSebelumnya = r.bulanAwal > 1;
+  const [saatIni, sebelumnya] = await Promise.all([
+    ambilAbkCrewPenumpangRentang('bulanan', r.tahun, r.bulanAwal, r.bulanAkhir, arah),
+    adaSebelumnya
+      ? ambilAbkCrewPenumpangRentang('bulanan', r.tahun, 1, r.bulanAwal - 1, arah)
+      : Promise.resolve({ abk_kapal: 0, penumpang_kapal: 0, crew_pesawat: 0, penumpang_pesawat: 0 }),
+  ]);
+  return {
+    labelKonteks, labelWilayah,
+    labelPeriodeSaatIni: labelRentangBulanan(r),
+    labelPeriodeSebelumnya: adaSebelumnya
+      ? `Januari s.d. bulan sebelum rentang ini, tahun ${r.tahun}`
+      : 'Tidak ada data sebelum bulan pertama',
+    ringkasanSaatIni: saatIni, ringkasanSebelumnya: sebelumnya,
+    topKategori: [],
   };
 }
 

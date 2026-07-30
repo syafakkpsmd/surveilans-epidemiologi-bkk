@@ -12,7 +12,7 @@ import BadgeStatus from './BadgeStatus';
 export default function TabelBulanan({ data }: { data: BarisMatriksBulanan[] }) {
   return (
     <div className="overflow-x-auto rounded-xl bg-white shadow-sm">
-      <table className="w-full min-w-[880px] text-sm">
+      <table className="w-full min-w-220 text-sm">
         <thead>
           <tr className="bg-[#0F2A38] text-left text-white">
             <th className="px-4 py-3 font-medium">Wilayah Kerja</th>

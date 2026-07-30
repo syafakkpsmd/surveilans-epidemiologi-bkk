@@ -16,6 +16,11 @@
 // series-nya supaya gampang dikenali. Tidak ada perubahan API di
 // pemanggil (tetap axis: 'kanan' seperti biasa) -- semua halaman yang
 // sudah pakai komponen ini otomatis dapat perilaku baru ini.
+//
+// BARU -- ambangBatas: garis horizontal referensi (ReferenceLine) di
+// sumbu KIRI, dipakai mis. untuk menandai batas waspada HI/CI/BI > 1.
+// Opsional -- kalau tidak dioper, tidak ada garis sama sekali (tidak
+// mengubah tampilan halaman yang belum butuh ini).
 // ================================================================
 
 import { useState } from 'react';
@@ -29,6 +34,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts';
 
 export interface SeriesTren {
@@ -38,6 +44,15 @@ export interface SeriesTren {
   axis?: 'kiri' | 'kanan';
   /** Default 'line'. Set 'bar' untuk series yang mau digambar sebagai batang (mis. Curah Hujan). */
   tipe?: 'line' | 'bar';
+}
+
+export interface AmbangBatasTren {
+  /** Nilai Y tempat garis digambar, mis. 1 untuk Ambang Bahaya HI/CI/BI. */
+  nilai: number;
+  /** Default: `Ambang Bahaya (>{nilai})`. Ditampilkan sebagai badge DI ATAS chart, bukan menempel di garis. */
+  label?: string;
+  /** Default amber gelap (#DC2626) -- lebih profesional daripada kuning terang, tetap beda dari warna series lain. */
+  warna?: string;
 }
 
 /** yAxisId unik untuk tiap series yang minta sumbu kanan sendiri. */
@@ -50,11 +65,14 @@ export default function TrenChartMingguan({
   data,
   seriesList,
   labelSumbuX = 'minggu_epid',
+  ambangBatas,
 }: {
   judul?: string;
   data: Record<string, unknown>[];
   seriesList: SeriesTren[];
   labelSumbuX?: string;
+  /** Garis referensi horizontal di sumbu kiri (mis. Ambang Bahaya HI/CI/BI > 1). Opsional. */
+  ambangBatas?: AmbangBatasTren;
 }) {
   const [seriesAktif, setSeriesAktif] = useState<Set<string>>(
     new Set(seriesList.map((s) => s.key))
@@ -109,8 +127,24 @@ export default function TrenChartMingguan({
               axisLine={{ stroke: s.warna }}
             />
           ))}
-          <Tooltip labelFormatter={(v) => `Minggu Epid ke-${v}`} />
+          <Tooltip
+            labelFormatter={(v) => `Minggu Epid ke-${v}`}
+            formatter={(value: any, name: any) => [
+              typeof value === 'number' ? value.toFixed(2) : (value ?? ''),
+              name,
+            ]}
+          />
           <Legend wrapperStyle={{ fontSize: 12 }} />
+          {ambangBatas && (
+            <ReferenceLine
+              yAxisId="kiri"
+              y={ambangBatas.nilai}
+              stroke={ambangBatas.warna ?? '#DC2626'}
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              ifOverflow="extendDomain"
+            />
+          )}
           {seriesTerlihat.map((s) => {
             const yAxisId = s.axis === 'kanan' ? idSumbuKanan(s.key) : 'kiri';
             return s.tipe === 'bar' ? (
@@ -137,6 +171,20 @@ export default function TrenChartMingguan({
           })}
         </ComposedChart>
       </ResponsiveContainer>
+
+      {ambangBatas && (
+        <div className="mb-2 flex justify-center">
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold"
+            style={{
+              color: ambangBatas.warna ?? '#DC2626',
+              backgroundColor: `${ambangBatas.warna ?? '#DC2626'}1A`,
+            }}
+          >
+            {ambangBatas.label ?? `Ambang Bahaya (>${ambangBatas.nilai})`}
+          </span>
+        </div>
+      )}
 
       {/* Checkbox toggle per series */}
       <div className="mt-2 flex flex-wrap gap-3">

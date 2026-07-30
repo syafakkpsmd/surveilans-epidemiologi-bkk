@@ -686,6 +686,66 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
 }`;
 }
 
+export function susunPromptAbkCrewPenumpang(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis volume gabungan ABK Kapal, Crew Pesawat, dan Penumpang (kapal & pesawat) untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN PENTING TENTANG DATA:
+- abk_kapal = ABK dari kegiatan pengawasan kapal (COP untuk kedatangan, PHQC untuk keberangkatan).
+- penumpang_kapal = penumpang kapal. UNTUK KEDATANGAN NILAINYA SELALU 0 karena kapal yang datang dari luar negeri yang diawasi hanya membawa ABK, bukan penumpang -- ini BUKAN data hilang/error, jangan tandai sebagai anomali.
+- crew_pesawat & penumpang_pesawat = data pengawasan Alat Angkut Pesawat (Bandara APT Pranoto), crew & penumpang tiba/berangkat.
+- Data ini GABUNGAN dari 2 moda transportasi berbeda (laut & udara) -- jangan campur adukkan seolah satu moda saja.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif per komponen (abk_kapal, penumpang_kapal, crew_pesawat, penumpang_pesawat), termasuk totalnya.
+- Kalau salah satu komponen bernilai 0 karena memang tidak ada datanya (lihat catatan di atas), jangan sebut sebagai anomali/masalah.
+- Tulis dalam Bahasa Indonesia, istilah kesehatan masyarakat baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren volume gabungan periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya per komponen, atau nyatakan aman",
+  "rekomendasi": "rekomendasi tindak lanjut singkat berbasis data ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiAbkCrewPenumpang(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: proyeksi/prediksi volume gabungan ABK Kapal, Crew Pesawat, dan Penumpang untuk periode BERIKUTNYA, berdasarkan data historis, untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN PENTING TENTANG DATA:
+- abk_kapal = ABK dari COP (kedatangan) atau PHQC (keberangkatan).
+- penumpang_kapal = SELALU 0 untuk kedatangan (kapal tidak bawa penumpang) -- bukan anomali.
+- crew_pesawat & penumpang_pesawat = data Alat Angkut Pesawat (tiba/berangkat).
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas sebagai dasar proyeksi. JANGAN mengarang angka.
+- Proyeksi berbasis tren dua periode ini per komponen (naik/turun/stabil) -- gunakan bahasa probabilistik ("kemungkinan", "berpotensi"), bukan kepastian.
+- Tulis dalam Bahasa Indonesia.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "kondisi saat ini berdasarkan data, 2-3 kalimat",
+  "anomali": "proyeksi kondisi periode berikutnya jika tren berlanjut, 2-3 kalimat",
+  "rekomendasi": "tindakan yang perlu disiapkan, 1-3 poin"
+}`;
+}
+
 export function susunPromptNasionalEmerging(data: DataAnalisis): string {
   const topKategoriTeks = data.topKategori
     .map((k) => `- ${k.nilai}: ${k.jumlah} kasus`)

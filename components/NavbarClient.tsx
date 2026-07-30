@@ -17,7 +17,7 @@ export function NavbarClient({ sudahLogin, role }: NavbarClientProps) {
 
   return (
     // sticky top-0 + z-50 -- navbar tetap terlihat saat halaman di-scroll ke bawah
-    <header className="sticky top-0 z-[60] bg-gradient-to-r from-blue-950 via-violet-900 to-emerald-700 text-white shadow-md">
+    <header className="sticky top-0 z-60 bg-linear-to-r from-blue-950 via-violet-900 to-emerald-700 text-white shadow-md">
       <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:py-4">
         {/* KIRI: logo Kemenkes */}
         <Link href="/dashboard" className="col-start-1 flex shrink-0 items-center gap-3">

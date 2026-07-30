@@ -228,9 +228,10 @@ export default async function VektorAedesPage({
                 { key: 'hi', label: 'HI (%)', warna: '#B71C1C' },
                 { key: 'ci', label: 'CI (%)', warna: '#EF6C00' },
                 { key: 'bi', label: 'BI', warna: '#7C3AED' },
-                { key: 'abj', label: 'ABJ (%)', warna: '#2F9E44' },
+                { key: 'abj', label: 'ABJ (%)', warna: '#2F9E44', axis: 'kanan' },
                 { key: 'curah_hujan_mm', label: 'Curah Hujan (mm)', warna: '#0F4C5C', axis: 'kanan', tipe: 'bar' },
               ]}
+              ambangBatas={{ nilai: 1, label: '⚠ Threshold (>1)' }}
             />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <BoxAnalisisAI

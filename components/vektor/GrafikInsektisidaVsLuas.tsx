@@ -34,7 +34,7 @@ export default function GrafikInsektisidaVsLuas({
 }: GrafikInsektisidaVsLuasProps) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex h-[300px] w-full items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">
+      <div className="flex h-75 w-full items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 text-xs text-gray-400">
         Data insektisida & luas area tidak tersedia
       </div>
     );

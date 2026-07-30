@@ -58,7 +58,7 @@ export default async function HivPage({
         <div>
           <h1 className="text-xl font-bold text-[#0F2A38]">🔴 Surveilans HIV</h1>
           <p className="text-sm text-gray-500">
-            Skrining HIV pada ABK dan kelompok risiko.
+            Skrining HIV pada ABK dan kelompok risiko. (Data yang ada masih data DUMMY)
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

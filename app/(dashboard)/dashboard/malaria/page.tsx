@@ -67,7 +67,7 @@ export default async function MalariaPage({
         <div>
           <h1 className="text-xl font-bold text-[#0F2A38]">🔬 Surveilans Migrasi Malaria</h1>
           <p className="text-sm text-gray-500">
-            Deteksi kasus malaria impor pada penumpang/ABK yang baru tiba.
+            Deteksi kasus malaria impor pada penumpang/ABK yang baru tiba. (Data yang ada masih data Dummy)
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

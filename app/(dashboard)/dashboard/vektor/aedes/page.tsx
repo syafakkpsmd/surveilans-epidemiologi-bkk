@@ -141,21 +141,14 @@ export default async function VektorAedesPage({
     ]);
   }
 
+// Rentang tanggal minggu berjalan
   const { mulai, selesai } = getRentangMingguEpid(tahunBerjalan, mingguBerjalan);
-
-  const periodeMinggu1Lalu = periodeMingguanSebelumnya({
-    jenis: 'mingguan',
-    tahun: tahunBerjalan,
-    minggu: mingguBerjalan,
-  });
-  const periodeMinggu2Lalu = periodeMingguanSebelumnya(periodeMinggu1Lalu);
-  const rentangMinggu2Lalu = getRentangMingguEpid(periodeMinggu2Lalu.tahun, periodeMinggu2Lalu.minggu);
 
   const filterTambahanBreakdown: Record<string, string> = {};
   if (zona) filterTambahanBreakdown.zona = zona;
   if (subLokasi) filterTambahanBreakdown.sub_lokasi = subLokasi;
 
-  const [breakdownZona, breakdownTindakanMinggu2Lalu, breakdownTindakanTotal] = await Promise.all([
+  const [breakdownZona, breakdownTindakanMingguIni, breakdownTindakanTotal] = await Promise.all([
     getBreakdownKategori({
       tabel: 'vektor_dbd',
       kolomTanggal: 'tgl_survei',
@@ -168,8 +161,8 @@ export default async function VektorAedesPage({
       tabel: 'vektor_dbd',
       kolomTanggal: 'tgl_survei',
       kolomKategori: 'tindakan_pengendalian',
-      tglMulai: rentangMinggu2Lalu.mulai,
-      tglSelesai: rentangMinggu2Lalu.selesai,
+      tglMulai: mulai, // <-- Menggunakan 'mulai' minggu berjalan
+      tglSelesai: selesai, // <-- Menggunakan 'selesai' minggu berjalan
       kodeWilker: wilker,
       filterTambahan: filterTambahanBreakdown,
     }),
@@ -192,7 +185,6 @@ export default async function VektorAedesPage({
     bi: r.bi_rerata ?? 0,
     curah_hujan_mm: r.curah_hujan_rerata ?? null,
   }));
-
   const sudahLogin = !!role;
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
 
@@ -483,11 +475,11 @@ export default async function VektorAedesPage({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <DonutChart
-              judul={`Tindakan Pengendalian — Minggu Epid ke-${periodeMinggu1Lalu.minggu} (data berjalan)`}
-              data={breakdownTindakanMinggu2Lalu}
+              judul={`Tindakan Pengendalian (Minggu Epid ke-${mingguBerjalan})`}
+              data={breakdownTindakanMingguIni}
             />
             <DonutChart
-              judul="Tindakan Pengendalian — Total Keseluruhan Data"
+              judul="Tindakan Pengendalian (Keseluruhan Data)"
               data={breakdownTindakanTotal}
             />
           </div>

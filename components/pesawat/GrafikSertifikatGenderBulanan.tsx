@@ -35,7 +35,7 @@ export default function GrafikSertifikatGenderBulanan({
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm">
-      <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Penerbitan Sertifikat by Sex dalam Bulanan</h3>
+      <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">DITRIBUSI PENERBITAN DOKUMEN KEKARANTINAAN KESEHATAN BERDASARKAN JENIS KELAMIN</h3>
       {seriesList.length === 0 ? (
         <div className="flex h-56 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
           Pilih minimal 1 kategori untuk ditampilkan.

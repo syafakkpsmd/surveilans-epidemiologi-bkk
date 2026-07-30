@@ -107,6 +107,7 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'cop-per-wilker', 
   'cop-mingguan',    // <-- tambah
   'cop-bulanan',     // <-- tambah
+  'cop-faktor-risiko',
   'phqc-daerah-asal',
   'phqc-daerah-tujuan',
   'phqc-rba-mingguan',
@@ -2826,12 +2827,17 @@ export async function ambilDataBreakdownAnalisis(
   }
 
   const labelWilayah = wilayahKerja
-  ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-  : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
   const kategori = KATEGORI_PER_KONTEKS_BREAKDOWN[konteks];
   const tabel = TABEL_PER_KONTEKS_BREAKDOWN[konteks];
   const wilayahUntukQuery = tabel === 'phqc' ? resolveWilayahPhqcDb(wilayahKerja) : wilayahKerja;
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
+
+  // cop-per-wilker SENGAJA dikecualikan dari kumulatif -- itu memang
+  // didesain selalu snapshot 1 minggu terkini, tidak ikut filter
+  // rentang (lihat dokumentasi Section 4 di app/cop/page.tsx).
+  const pakaiKumulatif = tipe === 'analisis' && konteks !== 'cop-per-wilker';
 
   let labelPeriode: string;
   let baris: { kategori: string; nilai: string; jumlah: number }[];
@@ -2839,28 +2845,60 @@ export async function ambilDataBreakdownAnalisis(
 
   if (isMingguan) {
     const p = parsePeriodeMingguan(periodeKey);
-    labelPeriode = labelPeriodeMingguan(p);
-    baris = await (getKategoriBreakdown as any)(tabel, 'mingguan', {
-      tahun_epid: p.tahun,
-      minggu_epid: p.minggu,
-      kategori,
-      ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
-    });
-    const ringkasan =
-      tabel === 'cop' ? await ambilCopMingguan(p, wilayahKerja) : await ambilPhqcMingguan(p, wilayahKerja);
-    totalKapal = ringkasan.jumlah_kapal ?? 0;
+
+    if (pakaiKumulatif) {
+      const semua: any[] = await (getKategoriBreakdown as any)(tabel, 'mingguan', {
+        tahun_epid: p.tahun,
+        kategori,
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
+      });
+      baris = semua.filter((b) => b.minggu_epid >= 1 && b.minggu_epid <= p.minggu);
+      labelPeriode = `Minggu epidemiologi 1 s.d. ${p.minggu} tahun ${p.tahun} (kumulatif)`;
+      const ringkasan =
+        tabel === 'cop'
+          ? await ambilCopKumulatifMingguan(p.tahun, p.minggu, wilayahKerja)
+          : await ambilPhqcKumulatifMingguan(p.tahun, p.minggu, wilayahKerja);
+      totalKapal = ringkasan.jumlah_kapal ?? 0;
+    } else {
+      labelPeriode = labelPeriodeMingguan(p);
+      baris = await (getKategoriBreakdown as any)(tabel, 'mingguan', {
+        tahun_epid: p.tahun,
+        minggu_epid: p.minggu,
+        kategori,
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
+      });
+      const ringkasan =
+        tabel === 'cop' ? await ambilCopMingguan(p, wilayahKerja) : await ambilPhqcMingguan(p, wilayahKerja);
+      totalKapal = ringkasan.jumlah_kapal ?? 0;
+    }
   } else {
     const p = parsePeriodeBulanan(periodeKey);
-    labelPeriode = labelPeriodeBulanan(p);
-    baris = await (getKategoriBreakdown as any)(tabel, 'bulanan', {
-      tahun: p.tahun,
-      bulan: p.bulan,
-      kategori,
-      ...(wilayahKerja ? { wilayah_kerja: wilayahKerja } : {}),
-    });
-    const ringkasan =
-      tabel === 'cop' ? await ambilCopBulanan(p, wilayahKerja) : await ambilPhqcBulanan(p, wilayahKerja);
-    totalKapal = ringkasan.jumlah_kapal ?? 0;
+
+    if (pakaiKumulatif) {
+      const semua: any[] = await (getKategoriBreakdown as any)(tabel, 'bulanan', {
+        tahun: p.tahun,
+        kategori,
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
+      });
+      baris = semua.filter((b) => b.bulan >= 1 && b.bulan <= p.bulan);
+      labelPeriode = `Januari s.d. ${labelPeriodeBulanan(p)} (kumulatif)`;
+      const ringkasan =
+        tabel === 'cop'
+          ? await ambilCopKumulatifBulanan(p.tahun, p.bulan, wilayahKerja)
+          : await ambilPhqcKumulatifBulanan(p.tahun, p.bulan, wilayahKerja);
+      totalKapal = ringkasan.jumlah_kapal ?? 0;
+    } else {
+      labelPeriode = labelPeriodeBulanan(p);
+      baris = await (getKategoriBreakdown as any)(tabel, 'bulanan', {
+        tahun: p.tahun,
+        bulan: p.bulan,
+        kategori,
+        ...(wilayahUntukQuery ? { wilayah_kerja: wilayahUntukQuery } : {}),
+      });
+      const ringkasan =
+        tabel === 'cop' ? await ambilCopBulanan(p, wilayahKerja) : await ambilPhqcBulanan(p, wilayahKerja);
+      totalKapal = ringkasan.jumlah_kapal ?? 0;
+    }
   }
 
   const peta = new Map<string, number>();

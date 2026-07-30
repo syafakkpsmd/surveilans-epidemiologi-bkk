@@ -220,7 +220,7 @@ export default async function AlatAngkutPesawatPage({
       </Link>
 
       {/* 3. Baris Filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+      <div className="flex flex-wrap items-center justify-between uppercase gap-3 border-t border-gray-100 pt-4">
         <div className="text-sm font-medium text-gray-500">
           Distribusi Pengasawan Alat Angkut Pesawat dalam Mingguan Tahun {tahun}
         </div>
@@ -236,7 +236,7 @@ export default async function AlatAngkutPesawatPage({
           <p className="text-xs font-medium text-gray-500">Penumpang Tiba</p>
           <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPenumpangTiba.toLocaleString('id-ID')}</p>
         </div>
-        <div className="rounded-xl bg-white p-4 shadow-sm">
+        <div className="rounded-xl bg-white p-3 shadow-sm">
           <p className="text-xs font-medium text-gray-500">Penumpang Berangkat</p>
           <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPenumpangBerangkat.toLocaleString('id-ID')}</p>
         </div>
@@ -249,11 +249,11 @@ export default async function AlatAngkutPesawatPage({
           <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalCrewBerangkat.toLocaleString('id-ID')}</p>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium text-gray-500">Pswt Tiba</p>
+          <p className="text-xs font-medium text-gray-500">Pesawat Tiba</p>
           <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPesawatTiba.toLocaleString('id-ID')}</p>
         </div>
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium text-gray-500">Pswt Berangkat</p>
+          <p className="text-xs font-medium text-gray-500">Pesawat Berangkat</p>
           <p className="mt-1 text-2xl font-bold text-[#0F2A38]">{totalPesawatBerangkat.toLocaleString('id-ID')}</p>
         </div>
       </div>
@@ -263,7 +263,7 @@ export default async function AlatAngkutPesawatPage({
 
         {/* ================= MINGGUAN ================= */}
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Crew &amp; Penumpang Pesawat
+          <h2 className="mb-2 text-center text-sm uppercase font-semibold text-gray-700">Distribusi Crew &amp; Penumpang Pesawat
             <br />
             dalam Mingguan selama Tahun {tahun}</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
@@ -286,7 +286,7 @@ export default async function AlatAngkutPesawatPage({
         </div>
 
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Penerbitan Sertifikat Kesehatan dalam Mingguan selama Tahun {tahun}</h2>
+          <h2 className="mb-2 text-center uppercase text-sm font-semibold text-gray-700">Distribusi Penerbitan Dokumen Kekarantinaan Kesehatan Tahun {tahun}</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
               data={ringkasanMingguan}
@@ -307,7 +307,7 @@ export default async function AlatAngkutPesawatPage({
         </div>
 
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-center text-sm font-semibold text-gray-700">Distribusi Kedatangan dan Keberangkatan Pesawat dalam Mingguan selama Tahun {tahun}</h2>
+          <h2 className="mb-2 text-center uppercase text-sm font-semibold text-gray-700">Distribusi Kedatangan dan Keberangkatan Pesawat dalam Mingguan Tahun {tahun}</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
               data={ringkasanMingguan}
@@ -323,12 +323,12 @@ export default async function AlatAngkutPesawatPage({
 
         {/* ================= BULANAN ================= */}
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">Distribusi Pengasawan Kegiatan Alat Angkut Pesawat dalam  Bulanan Tahun {tahun}</h2>
+          <h2 className="mb-2 text-sm uppercase font-semibold text-gray-700">Distribusi Pengasawan Kegiatan Alat Angkut Pesawat dalam  Bulanan Tahun {tahun}</h2>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <FilterRentangBulan />
           </div>
           <GrafikBarBulanan
-            judul="Distribusi Kedatangan dan Keberangkatan Penumpang dalam Bulanan"
+            judul="DISTRIBUSI KEDATANGAN DAN KEBERANGKATAN PENUMPANG PESAWAT"
             data={ringkasanBulananBerlabel}
             seriesList={[
               { key: 'penumpang_berangkat', label: 'Penumpang Berangkat', warna: '#0F4C5C' },
@@ -344,7 +344,7 @@ export default async function AlatAngkutPesawatPage({
         <div className="lg:col-span-2 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <GrafikBarBulanan
-              judul="Distribusi Penerbitan Sertifikat dalam Bulanan"
+              judul="Distribusi Penerbitan Dokumen Kekarantinaan Kesehatan"
               data={ringkasanBulananBerlabel}
               seriesList={[
                 { key: 'sklt_total', label: 'SKLT', warna: '#B71C1C' },
@@ -358,7 +358,7 @@ export default async function AlatAngkutPesawatPage({
 
           <div className="space-y-2">
             <GrafikBarBulanan
-              judul="Distribusi Kedatangan dan Keberangkatan Crew Pesawat dalam Bulanan"
+              judul="Distribusi Kedatangan dan Keberangkatan Crew Pesawat"
               data={ringkasanBulananBerlabel}
               seriesList={[
                 { key: 'crew_berangkat', label: 'Crew Berangkat', warna: '#7C3AED' },
@@ -375,7 +375,7 @@ export default async function AlatAngkutPesawatPage({
 
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
           <GrafikBarBulanan
-            judul="Distribusi Kedatangan dan Keberangkatan Pesawat dalam Bulanan"
+            judul="DISTRIBUSI KEDATANGAN & KEBERANGKATAN PESAWAT"
             data={ringkasanBulananBerlabel}
             seriesList={[
               { key: 'pesawat_tiba', label: 'Pesawat Tiba', warna: '#0F4C5C', tipe: 'line' },
@@ -385,11 +385,11 @@ export default async function AlatAngkutPesawatPage({
         </div>
 
         {/* ================= BREAKDOWN ================= */}
-        <BreakdownList judul={`Breakdown Total Penumpang berdasarkan Maskapai Tahun ${tahun}`} data={breakdownMaskapai} warna="#0F4C5C" />
-        <DonutChart judul={`Proporsi Jenis Sertifikat selama Tahun ${tahun}`} data={breakdownSertifikat} />
+        <BreakdownList judul={`Breakdown Penumpang berdasarkan Maskapai Tahun ${tahun}`} data={breakdownMaskapai} warna="#0F4C5C" />
+        <DonutChart judul={`Proporsi Jenis Dokumen Kekarantinaan Kesehatan Tahun ${tahun}`} data={breakdownSertifikat} />
 
         {/* ================= ASAL & TUJUAN KOTA ================= */}
-        <GrafikTotalKotaPesawat data={tambahLabelBulan(dataKedatangan)} judul={`Total Kedatangan Penumpang pesawat per Kota Asal Tahun ${tahun}`} />
+        <GrafikTotalKotaPesawat data={tambahLabelBulan(dataKedatangan)} judul={`Kedatangan Penumpang pesawat per Kota Asal Tahun ${tahun}`} />
         <div className="space-y-2">
           <GrafikTrenKotaPesawat data={tambahLabelBulan(dataKedatangan)} judul={`Tren Bulanan Berdasarkan Kota Asal selama Tahun ${tahun}`} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -397,20 +397,20 @@ export default async function AlatAngkutPesawatPage({
             <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="kota-asal" hasilAwal={hasilPrediksiKotaAsal} />
           </div>
         </div>
-        <GrafikTotalKotaPesawat data={tambahLabelBulan(dataKeberangkatan)} judul={`Total Keberangkatan Penumpang per Kota Tujuan selama Tahun ${tahun}`} />
+        <GrafikTotalKotaPesawat data={tambahLabelBulan(dataKeberangkatan)} judul={`Keberangkatan Penumpang per Kota Tujuan Tahun ${tahun}`} />
         <GrafikTrenKotaPesawat data={tambahLabelBulan(dataKeberangkatan)} judul={`Tren Bulanan Berdasarkan Kota Tujuan Tahun ${tahun}`} />
 
         {/* ================= MASKAPAI ================= */}
-        <GrafikTotalMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKedatangan)} judul={`Total Kedatangan Penumpang per Maskapai Tahun ${tahun}`} />
+        <GrafikTotalMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKedatangan)} judul={`Kedatangan Penumpang per Maskapai Tahun ${tahun}`} />
         <div className="space-y-2">
-          <GrafikTrenMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKedatangan)} judul={`Tren Kedatangan Penumpang Bulanan per Maskapai Tahun ${tahun}`} />
+          <GrafikTrenMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKedatangan)} judul={`Tren Kedatangan Penumpang per Maskapai Tahun ${tahun}`} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" hasilAwal={hasilAnalisisMaskapaiKedatangan} />
             <BoxPrediksiAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksBulanan} periodeKey={periodeKeyBulanan} wilayahKerja={wilker ?? undefined} metrik="maskapai-kedatangan" hasilAwal={hasilPrediksiMaskapaiKedatangan} />
           </div>
         </div>
-        <GrafikTotalMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKeberangkatan)} judul={`Total Keberangkatan Penumpang per Maskapai Tahun ${tahun}`} />
-        <GrafikTrenMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKeberangkatan)} judul={`Tren Keberangkatan Penumpang Bulanan per Maskapai Tahun ${tahun}`} />
+        <GrafikTotalMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKeberangkatan)} judul={`Keberangkatan Penumpang per Maskapai Tahun ${tahun}`} />
+        <GrafikTrenMaskapaiPesawat data={tambahLabelBulan(dataMaskapaiKeberangkatan)} judul={`Tren Keberangkatan Penumpang per Maskapai Tahun ${tahun}`} />
 
       </div>
     </div>

@@ -39,7 +39,7 @@ export function DonutRba({ data }: DonutRbaProps) {
 
   return (
     <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-around">
-      <div className="relative h-[180px] w-[180px] shrink-0">
+      <div className="relative h-45 w-45 shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -66,7 +66,7 @@ export function DonutRba({ data }: DonutRbaProps) {
         </div>
       </div>
 
-      <div className="w-full space-y-2 sm:max-w-[240px]">
+      <div className="w-full space-y-2 sm:max-w-60">
         {terurut.map((d) => {
           const r = resolveRba(d.nilai);
           return (

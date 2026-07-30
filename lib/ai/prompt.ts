@@ -159,6 +159,22 @@ TUGAS KHUSUS untuk field "rekomendasi": KALAU ada kapal dengan faktor risiko DIT
 ${ATURAN_UMUM_BREAKDOWN}`;
 }
 
+export function susunPromptPrediksiFaktorRisiko(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI/proyeksi risiko kekarantinaan kesehatan untuk periode BERIKUTNYA, berdasarkan temuan faktor risiko pada kapal periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+JUMLAH KAPAL PER STATUS FAKTOR RISIKO (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": ringkas kondisi faktor risiko periode ini secara kuantitatif (jumlah/persentase kapal dengan faktor risiko ditemukan vs tidak ditemukan).
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF untuk periode berikutnya JIKA pola temuan faktor risiko ini berlanjut atau kalau pengawasan tidak diperketat -- gunakan bahasa probabilistik ("berpotensi", "kemungkinan"), BUKAN klaim kepastian statistik, karena data yang tersedia hanya snapshot 1 periode (tidak ada data historis untuk dibandingkan tren-nya).
+TUGAS KHUSUS untuk field "rekomendasi": langkah antisipatif konkret yang perlu disiapkan untuk periode berikutnya berdasarkan kondisi ini (mis. perketat pemeriksaan pada jenis faktor risiko yang paling sering ditemukan, koordinasi dengan wilayah kerja terkait, kesiapan APD/SDM).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
 export function susunPromptPrediksiNegaraAsal(data: DataBreakdownAnalisis): string {
   return `${PERSONA_EPIDEMIOLOG}
 

@@ -59,6 +59,14 @@ const WARNA_RBA: Record<string, string> = {
   Merah: "var(--color-risiko-merah)",
 };
 
+function labelRba(nilai: string): string {
+  const n = nilai.toLowerCase();
+  if (n.includes("tinggi") || n === "merah") return "Risiko Tinggi";
+  if (n.includes("sedang") || n === "kuning") return "Risiko Sedang";
+  if (n.includes("rendah") || n === "hijau") return "Risiko Rendah";
+  return "Tidak Diisi";
+}
+
 const PALET_PELABUHAN = [
   "#0F4C5C", "#2F9E44", "#F0A202", "#D62839",
   "#7C3AED", "#EA580C", "#5B7083", "#0891B2",
@@ -419,8 +427,8 @@ export default async function PhqcPage({
     trenRbaPeriodik = pivotRba.data;
     seriesRba = pivotRba.totals.map(([nilai]) => ({
       key: nilai,
-      label: nilai,
-      warna: WARNA_RBA[nilai] ?? "var(--color-teal)",
+      label: labelRba(nilai),   // <-- diterjemahkan, key tetap nilai asli
+      warna: WARNA_RBA[nilai] ?? "var(--color-muted)",
     }));
 
     // Pelabuhan Kedatangan & Tujuan
@@ -536,7 +544,7 @@ export default async function PhqcPage({
           {/* TREN UTAMA */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-              Distribusi Pengawasan Keberangkatan Kapal di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
+              Distribusi Pengawasan Keberangkatan Kapal di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />({mode === "mingguan" ? "Mingguan" : "Bulanan"})
             </h2>
             {trenData.length === 0 ? (
               <p className="text-sm text-muted">Belum ada data untuk ditampilkan.</p>
@@ -613,33 +621,33 @@ export default async function PhqcPage({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-sm font-bold text-center tracking-wide text-muted">
-                DISTRIBUSI BERDASARKAN BENDERA KAPAL <br /> Indonesia vs Luar Negeri
+                DISTRIBUSI BERDASARKAN BENDERA KAPAL <br /> (Indonesia & Luar Negeri)
               </h3>
               <DonutBreakdown data={donutBenderaAsalNegara} />
             </div>
-            <BreakdownCard judul="Bendera Kapal — Rincian Luar Negeri" data={benderaLuarNegeri} />
+            <BreakdownCard judul="Bendera Kapal — (Rincian Kapal Luar Negeri)" data={benderaLuarNegeri} />
           </div>
 
           {/* RBA */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                RBA — Total Tahun {tahun}
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                Proporsi RBA Tahun {tahun}
               </h3>
-              <DonutBreakdown data={kategoriData.rba} />
+              <DonutBreakdown data={kategoriData.rba} skema="rba" />
             </div>
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                RBA — {mode === "mingguan" ? `Minggu Epidemiologi ke-${mingguEpidTampilan}` : `Bulan ${NAMA_BULAN[bulanTampilan - 1] ?? ""} ${tahun}`}
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                Proporsi RBA pada {mode === "mingguan" ? `Minggu Epidemiologi ke-${mingguEpidTampilan}` : `Bulan ${NAMA_BULAN[bulanTampilan - 1] ?? ""} ${tahun}`}
               </h3>
-              <DonutBreakdown data={kategoriRbaPeriodeIni} />
+              <DonutBreakdown data={kategoriRbaPeriodeIni} skema="rba" />
             </div>
           </div>
 
           {/* TREN RBA */}
           <div className="rounded-card bg-surface p-6 space-y-4">
             <h3 className="text-sm text-center font-bold uppercase tracking-wide text-muted">
-              Tren Risk Based Assessment (RBA) di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
+              Tren Risk Based Assessment (RBA) di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />({mode === "mingguan" ? "Mingguan" : "Bulanan"})
             </h3>
             <TrenChecklistMingguan 
               data={trenRbaPeriodik} 
@@ -668,12 +676,12 @@ export default async function PhqcPage({
           {/* TUJUAN BERLAYAR & CREW */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">Tujuan Berlayar</h3>
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">Proporsi Tujuan Berlayar Kapal</h3>
               <DonutBreakdown data={kategoriData.tujuan_berlayar} />
             </div>
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                Total ABK & Penumpang — Tahun {tahun}
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                Proporsi ABK dan Penumpang Tahun {tahun}
               </h3>
               <DonutBreakdown data={donutAbkPenumpang} />
             </div>
@@ -682,7 +690,7 @@ export default async function PhqcPage({
           {/* TREN PELABUHAN */}
           <div className="rounded-card bg-surface p-6 space-y-4">
             <h3 className="text-sm text-center font-bold tracking-wide text-muted">
-              Distribusi Hasil Pemeriksaan Kapal Berdasarkan Pelabuhan Kedatangan & Tujuan di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
+              Distribusi Hasil Pemeriksaan Kapal Berdasarkan Pelabuhan Kedatangan & Tujuan di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />({mode === "mingguan" ? "Mingguan" : "Bulanan"})
             </h3>
             <TrenChecklistMingguan
               data={trenPelabuhanPeriodik}
@@ -712,7 +720,7 @@ export default async function PhqcPage({
           {/* CREW & PENUMPANG TREN */}
           <div className="rounded-card bg-surface p-6 space-y-4">
             <h3 className="text-sm text-center font-bold uppercase tracking-wide text-muted">
-              Distribusi ABK dan Penumpang Berangkat di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />{mode === "mingguan" ? "Mingguan" : "Bulanan"} 
+              Distribusi ABK dan Penumpang Berangkat di {wilayah === "Semua" ? "Seluruh Wilayah Kerja" : wilayah} Tahun {tahun} <br />({mode === "mingguan" ? "Mingguan" : "Bulanan"})
             </h3>
             <TrenChart
               data={trenData}

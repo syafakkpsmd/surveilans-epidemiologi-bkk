@@ -43,6 +43,7 @@ export default function FilterWilker({
       // Sesudah
       <option value="">Semua Wilayah Kerja</option>
       {daftarWilker
+        .filter((w) => !/kantor induk/i.test(w.nama))
         .filter((w) => !sembunyikanNonAktif || !/bontang|tanjung bara/i.test(w.nama))
         .map((w) => (
           <option key={w.kode} value={w.kode}>

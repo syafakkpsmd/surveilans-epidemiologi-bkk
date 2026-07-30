@@ -26,6 +26,7 @@ import {
   susunPromptNegaraAsal,
   susunPromptPrediksiNegaraAsal,
   susunPromptFaktorRisiko,
+  susunPromptPrediksiFaktorRisiko,
   susunPromptPhqcDaerahAsal,
   susunPromptPrediksiPhqcDaerahAsal,
   susunPromptPhqcDaerahTujuan,        // <-- tambah
@@ -382,7 +383,7 @@ export async function POST(request: Request) {
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else if (isKonteksBreakdown(konteks)) {
-      const data = await ambilDataBreakdownAnalisis(konteks, periodeKey, wilayahKerja);
+      const data = await ambilDataBreakdownAnalisis(konteks, periodeKey, wilayahKerja, tipe);
       labelPeriodeSaatIni = data.labelPeriode;
       if (konteks === 'cop-rba') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRba(data) : susunPromptRba(data);
@@ -399,7 +400,7 @@ export async function POST(request: Request) {
       } else if (konteks === 'cop-per-wilker') {
         promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPerWilker(data) : susunPromptPerWilker(data);
       } else if (konteks === 'cop-faktor-risiko') {
-        promptTeks = susunPromptFaktorRisiko(data);
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiFaktorRisiko(data) : susunPromptFaktorRisiko(data);
       } else {
         throw new Error(`Konteks breakdown "${konteks}" belum punya fungsi susunPrompt yang dipasang di route.ts.`);
       }

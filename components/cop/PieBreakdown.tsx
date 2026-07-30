@@ -1,6 +1,7 @@
 "use client";
 
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, type PieLabelRenderProps } from "recharts";
+
 
 const PALET_WARNA = [
   "#0F4C5C", "#2F9E44", "#F0A202", "#D62839", "#7C3AED", "#0EA5E9", "#DB2777", "#B45309",
@@ -33,6 +34,15 @@ function warnaUntukSkema(skema: SkemaWarnaPie, nilai: string, index: number): st
   }
 }
 
+function labelUntukSkema(skema: SkemaWarnaPie, nilai: string): string {
+  const n = nilai.toLowerCase();
+  if (skema === "terjangkit") {
+    if (n === "ya") return "Negara Terjangkit";
+    if (n === "tidak") return "Negara Sehat";
+  }
+  return nilai; // skema lain tetap pakai label asli
+}
+
 interface EntriLabel {
   name?: string;
   percent?: number;
@@ -44,23 +54,56 @@ interface PieBreakdownProps {
   tinggi?: number;
 }
 
+// Tambahkan fungsi ini di luar komponen, dekat labelUntukSkema/warnaUntukSkema
+interface PropsLabelPie {
+  x: number;
+  y: number;
+  textAnchor: "start" | "end" | "middle";
+  fill: string;
+  name?: string;
+  percent?: number;
+}
+
+function renderLabelPie(props: PieLabelRenderProps) {
+  const { x, y, textAnchor, fill, name, percent } = props;
+  return (
+    <text
+      x={x}
+      y={y}
+      textAnchor={textAnchor === "inherit" ? "middle" : textAnchor}
+      fill={fill}
+      dominantBaseline="central"
+      fontSize={11}
+    >
+      {`${name ?? ""} (${((Number(percent) || 0) * 100).toFixed(0)}%)`}
+    </text>
+  );
+}
+
 export function PieBreakdown({ data, skema = "default", tinggi = 220 }: PieBreakdownProps) {
   if (data.length === 0) {
     return <p className="text-sm text-muted">Tidak ada data untuk periode ini.</p>;
   }
 
+  // Data untuk dirender: nilai asli dipakai buat warna, namaTampil dipakai buat label/legend/tooltip
+  const dataTampil = data.map((d) => ({
+    ...d,
+    namaTampil: labelUntukSkema(skema, d.nilai),
+  }));
+
   return (
     <ResponsiveContainer width="100%" height={tinggi}>
-      <PieChart>
+      <PieChart margin={{ top: 10, right: 24, bottom: 10, left: 24 }}>
         <Pie
-          data={data}
+          data={dataTampil}
           dataKey="jumlah"
-          nameKey="nilai"
-          outerRadius={78}
-          label={(entri: EntriLabel) => `${entri.name ?? ""} (${((entri.percent ?? 0) * 100).toFixed(0)}%)`}
+          nameKey="namaTampil"
+          innerRadius={30}
+          outerRadius={70} // sedikit dikecilkan juga, kasih ruang lebih buat label
+          label={renderLabelPie}
           labelLine={{ strokeWidth: 1 }}
         >
-          {data.map((d, i) => (
+          {dataTampil.map((d, i) => (
             <Cell key={d.nilai} fill={warnaUntukSkema(skema, d.nilai, i)} />
           ))}
         </Pie>

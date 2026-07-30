@@ -683,7 +683,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold tracking-wide text-muted">
-                Distribusi Kedatangan Kapal per Wilayah Kerja selama Tahun {tahunEpidSaatIni}
+                Distribusi Kedatangan Kapal dari Luar Negeri Tahun {tahunEpidSaatIni}
               </h2>
               <div className="space-y-3">
                 {kapalPerWilayah.map((w) => (
@@ -708,7 +708,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
             <div className="rounded-card bg-surface p-6">
               <h2 className="mb-4 text-sm font-bold tracking-wide text-muted">
-                Distribusi Kedatangan ABK per Wilayah Kerja selama Tahun {tahunEpidSaatIni}
+                Distribusi Kedatangan ABK dari Luar Negeri Tahun {tahunEpidSaatIni}
               </h2>
               <div className="space-y-3">
                 {abkPerWilayah.map((w) => (
@@ -740,7 +740,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
-              Distribusi Kedatangan Kapal dari Luar Negeri {mode === "mingguan" ? "Mingguan" : "Bulanan"}
+              Distribusi Kedatangan Kapal dari Luar Negeri dalam {mode === "mingguan" ? "Mingguan" : "Bulanan"}
               <br />
               di BKK Kelas I Samarinda
             </h2>
@@ -798,7 +798,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
             <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-              Distribusi Kedatangan ABK dan Kapal dalam Tren {mode === "mingguan"
+              Distribusi Kedatangan ABK dan Kapal dalam {mode === "mingguan"
                 ? `Mingguan (Mg ${mingguAwal}–${mingguAkhir})`
                 : `Bulanan (${NAMA_BULAN[bulanAwal - 1]}–${NAMA_BULAN[bulanAkhir - 1]})`} Tahun {tahun}
             </h2>
@@ -901,9 +901,10 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           {/* ============================================================
               SECTION 6 -- RBA: 2 donut kalau mingguan, 1 bar chart
               kalau bulanan.
-             ============================================================ */}
+            ============================================================ */}
           {mode === "mingguan" ? (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* KARTU KIRI: MINGGUAN */}
               <div className="rounded-card bg-surface p-6">
                 <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
                   Risk Based Assessment (RBA) 
@@ -911,15 +912,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   Minggu Epidemiologi ke-{mingguEpidSaatIni}
                 </h3>
                 <DonutRba data={kategoriRbaMingguIni} />
-              </div>
-              <div className="rounded-card bg-surface p-6">
-                <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-                  Risk Based Assessment (RBA)
-                  <br />
-                   Tahun {tahun}
-                </h3>
-                <DonutRba data={kategoriData.rba} />
-                <div className="mt-4 space-y-3">
+                <div className="mt-4">
                   <BoxAnalisisAI
                     sudahLogin={sudahLogin}
                     role={roleAI}
@@ -928,6 +921,18 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                     wilayahKerja={wilayahKerjaAi}
                     hasilAwal={hasilAnalisisRba}
                   />
+                </div>
+              </div>
+
+              {/* KARTU KANAN: TAHUNAN */}
+              <div className="rounded-card bg-surface p-6">
+                <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                  Risk Based Assessment (RBA)
+                  <br />
+                  Tahun {tahun}
+                </h3>
+                <DonutRba data={kategoriData.rba} />
+                <div className="mt-4">
                   <BoxPrediksiAI
                     sudahLogin={sudahLogin}
                     role={roleAI}
@@ -940,12 +945,15 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               </div>
             </div>
           ) : (
+            /* MODE BULANAN */
             <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
-                RBA — Tren Bulanan Tahun {tahun} (Jan–Des)
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                Distribusi Risk Based Assessment (RBA) Bulanan Tahun {tahun}
               </h3>
               <RbaBarBulanan data={dataRbaBulanan} />
-              <div className="mt-4 space-y-3">
+              
+              {/* Disandingkan 2 Kolom: Analisis di Kiri, Prediksi di Kanan */}
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <BoxAnalisisAI
                   sudahLogin={sudahLogin}
                   role={roleAI}
@@ -968,11 +976,18 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
           {/* SECTION 7 & 10: Disandingkan */}
           <div className="grid gap-4 md:grid-cols-2">
+            
+            {/* KOLOM KIRI */}
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
                 Negara Kedatangan
               </h3>
-              <DaftarNegaraKedatangan data={kategoriData.negara_kedatangan} />
+              
+              {/* Wrapper pt-3.5 ini menurunkan grafik kiri agar persis sejajar dengan kanan */}
+              <div className="pt-1">
+                <DaftarNegaraKedatangan data={kategoriData.negara_kedatangan} />
+              </div>
+
               <div className="mt-4 space-y-3">
                 <BoxAnalisisAI
                   sudahLogin={sudahLogin}
@@ -982,6 +997,20 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   wilayahKerja={wilayahKerjaAi}
                   hasilAwal={hasilAnalisisNegaraAsal}
                 />
+              </div>
+            </div>
+
+            {/* KOLOM KANAN */}
+            <div className="rounded-card bg-surface p-6">
+              {/* Negative margin (-mt-2) ini akan menaikkan posisi JUDUL kanan agar sejajar dengan judul kiri */}
+              <div className="-mt-6">
+                <BreakdownCard 
+                  judul="Bendera Kapal" 
+                  data={kategoriData.bendera_kapal} 
+                />
+              </div>
+              
+              <div className="mt-4 space-y-3">
                 <BoxPrediksiAI
                   sudahLogin={sudahLogin}
                   role={roleAI}
@@ -992,22 +1021,20 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 />
               </div>
             </div>
-            <div className="rounded-card bg-surface p-6">
-              <BreakdownCard judul="Bendera Kapal" data={kategoriData.bendera_kapal} />
-            </div>
+
           </div>
 
           {/* SECTION 8 */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-center  text-sm font-bold uppercase tracking-wide text-muted">
-                Daerah Terjangkit
+                Status Negara Kedatangan
               </h3>
               <PieBreakdown data={kategoriData.daerah_terjangkit} skema="terjangkit" />
             </div>
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-                Keberadaan Vektor
+                Hasil Pemeriksaan Vektor
               </h3>
               <PieBreakdown data={kategoriData.keberadaan_vektor} skema="vektor" />
             </div>
@@ -1017,7 +1044,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-                Faktor Risiko
+                Hasil Pemeriksaan Faktor Risiko di Kapal
               </h3>
               <PieBreakdown data={kategoriData.faktor_risiko} skema="faktor-risiko" />
               <div className="mt-4 space-y-3">
@@ -1029,6 +1056,14 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   wilayahKerja={wilayahKerjaAi}
                   hasilAwal={hasilAnalisisFaktorRisiko}
                 />
+              </div>
+            </div>
+            <div className="rounded-card bg-surface p-6">
+              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+                Kelengkapan Dokumen
+              </h3>
+              <PieBreakdown data={kategoriData.kelengkapan_dokumen} skema="kelengkapan" />
+              <div className="mt-4 space-y-3">
                 <BoxPrediksiAI
                   sudahLogin={sudahLogin}
                   role={roleAI}
@@ -1038,12 +1073,6 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   hasilAwal={hasilPrediksiFaktorRisiko}
                 />
               </div>
-            </div>
-            <div className="rounded-card bg-surface p-6">
-              <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-                Kelengkapan Dokumen
-              </h3>
-              <PieBreakdown data={kategoriData.kelengkapan_dokumen} skema="kelengkapan" />
             </div>
           </div>
 

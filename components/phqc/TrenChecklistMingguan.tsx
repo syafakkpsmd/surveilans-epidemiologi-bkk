@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   LineChart,
   Line,
-  BarChart, // <-- Ditambahkan untuk mendukung grafik batang
-  Bar,      // <-- Ditambahkan untuk mendukung grafik batang
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -20,13 +20,12 @@ export interface SeriesChecklist {
   warna: string;
 }
 
-// 1. Tambahkan opsi variant ke interface Props tanpa mengubah properti asli Anda
 interface TrenChecklistMingguanProps {
   data: Array<Record<string, string | number>>;
   seriesList: SeriesChecklist[];
   maxAktifDefault?: number;
   tampilan?: "inline" | "dropdown";
-  variant?: "line" | "bar"; // <-- Properti baru (opsional)
+  variant?: "line" | "bar";
   labelItem?: string;
 }
 
@@ -35,7 +34,7 @@ export function TrenChecklistMingguan({
   seriesList,
   maxAktifDefault = 5,
   tampilan = "inline",
-  variant = "line", // Default diatur ke "line" jika halaman utama tidak mengirimkannya
+  variant = "line",
   labelItem = "uji lab",
 }: TrenChecklistMingguanProps) {
   const [aktif, setAktif] = useState<Set<string>>(
@@ -86,27 +85,8 @@ export function TrenChecklistMingguan({
 
   return (
     <div>
-      {tampilan === "inline" ? (
-        <div className="mb-4 flex flex-wrap gap-3">{daftarCheckbox}</div>
-      ) : (
-        <div className="relative mb-4 inline-block" ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setTerbuka((v) => !v)}
-            className="rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-ink"
-          >
-            {aktif.size} dari {seriesList.length} {labelItem} dipilih ▾
-          </button>
-          {terbuka && (
-            <div className="absolute z-10 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-border bg-white shadow-lg">
-              {daftarCheckbox}
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* 1. GRAFIK / CHART DIPINDAHKAN KE ATAS */}
       <ResponsiveContainer width="100%" height={320}>
-        {/* 2. OPERATOR KONDISI: Pilih rendering BarChart atau LineChart berdasarkan properti variant */}
         {variant === "bar" ? (
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
@@ -122,7 +102,6 @@ export function TrenChecklistMingguan({
                   dataKey={s.key}
                   name={s.label}
                   fill={s.warna}
-                  //stackId="a" // Menumpuk batang ke atas agar visualisasi tetap rapi dan mudah dibandingkan
                   radius={[2, 2, 0, 0]}
                 />
               ))}
@@ -151,6 +130,26 @@ export function TrenChecklistMingguan({
           </LineChart>
         )}
       </ResponsiveContainer>
+
+      {/* 2. CHECKLIST (FILTER) DIPINDAHKAN KE BAWAH GRAFIK */}
+      {tampilan === "inline" ? (
+        <div className="mt-4 flex flex-wrap gap-3">{daftarCheckbox}</div>
+      ) : (
+        <div className="relative mt-4 inline-block" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setTerbuka((v) => !v)}
+            className="rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-ink"
+          >
+            {aktif.size} dari {seriesList.length} {labelItem} dipilih ▾
+          </button>
+          {terbuka && (
+            <div className="absolute z-10 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-border bg-white shadow-lg">
+              {daftarCheckbox}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

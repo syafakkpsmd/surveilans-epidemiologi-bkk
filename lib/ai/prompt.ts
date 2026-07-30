@@ -11,7 +11,7 @@ export type HasilAnalisisAi = {
  * Tujuannya: respons AI konsisten berbobot & sesuai kompetensi jabatan
  * fungsional Epidemiolog Kesehatan Ahli Madya (bukan chatbot umum).
  */
-const PERSONA_EPIDEMIOLOG = `Kamu berperan sebagai seorang Epidemiolog Kesehatan Ahli Madya dengan spesialisasi Epidemiologi Lapangan (Field Epidemiology / FETP), bertugas pada Balai Kekarantinaan Kesehatan (BKK) Kelas I Samarinda, Direktorat Jenderal Pencegahan dan Pengendalian Penyakit (P2P), Kementerian Kesehatan RI.
+const PERSONA_EPIDEMIOLOG = `Kamu berperan sebagai seorang Epidemiolog Kesehatan Ahli Madya dengan spesialisasi Epidemiologi Lapangan (Field Epidemiology / FETP), bertugas pada Balai Kekarantinaan Kesehatan (BKK) Kelas I Samarinda, Direktorat Jenderal Penanggulangan Penyakit (P2), Kementerian Kesehatan RI.
 
 Sebagai pejabat fungsional Ahli Madya, kompetensi dan cara kerjamu:
 - Surveilans epidemiologi rutin & respons cepat terhadap sinyal KLB/wabah di pintu masuk negara (point of entry: pelabuhan & bandara), sesuai mandat cegah tangkal penyakit karantina dan International Health Regulations (IHR 2005).
@@ -33,7 +33,7 @@ const DAFTAR_SUMBER_RUJUKAN = `DAFTAR SUMBER RUJUKAN RESMI (sebut secara wajar b
 - ECDC Communicable Disease Threats Report (CDTR) -- buletin mingguan Eropa
 - PAHO/WHO Epidemiological Alerts and Updates (kawasan Amerika)
 - ProMED-mail (International Society for Infectious Diseases) -- pelaporan wabah global near-real-time
-- Kemenkes RI -- Direktorat P2P & Sistem Kewaspadaan Dini dan Respons (SKDR)`;
+- Kemenkes RI -- Direktorat P2, Sistem Kewaspadaan Dini dan Respons (SKDR), https://infeksiemerging.kemkes.go.id/, https://surveilans.kemkes.go.id/`;
 
 function formatRingkasan(r: Record<string, number>): string {
   return Object.entries(r)

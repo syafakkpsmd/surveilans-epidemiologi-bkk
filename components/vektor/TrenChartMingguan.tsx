@@ -181,7 +181,7 @@ export default function TrenChartMingguan({
               backgroundColor: `${ambangBatas.warna ?? '#DC2626'}1A`,
             }}
           >
-            {ambangBatas.label ?? `Ambang Bahaya (>${ambangBatas.nilai})`}
+            {ambangBatas.label ?? `Threshold (>${ambangBatas.nilai})`}
           </span>
         </div>
       )}

@@ -59,7 +59,7 @@ export interface AmbangBatasBulanan {
 
 export default function TrenChartBulanan({
   data,
-  ambangBatas = { nilai: 1, label: 'Ambang Bahaya (>1)' },
+  ambangBatas = { nilai: 1, label: 'Threshold (>1)' },
 }: {
   data: DataBulanan[];
   /** Garis referensi horizontal di sumbu kiri untuk HI/CI/BI. Default: nilai 1 (Ambang Bahaya). Oper `undefined`/`null` untuk mematikan. */
@@ -168,7 +168,7 @@ export default function TrenChartBulanan({
               backgroundColor: `${ambangBatas.warna ?? '#DC2626'}1A`,
             }}
           >
-            ⚠ {ambangBatas.label ?? `Ambang Bahaya (>${ambangBatas.nilai})`}
+            ⚠ {ambangBatas.label ?? `Threshold (>${ambangBatas.nilai})`}
           </span>
         </div>
       )}

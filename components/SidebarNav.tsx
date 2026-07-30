@@ -69,7 +69,7 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: "Alat Angkut",
+    title: "Faktor Risiko",
     items: [
       { label: "Beranda", href: "/dashboard", icon: Compass },
       { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship, prefetch: false },

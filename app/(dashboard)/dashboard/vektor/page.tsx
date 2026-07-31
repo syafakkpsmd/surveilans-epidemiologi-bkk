@@ -59,6 +59,7 @@ export default function HubVektorPage() {
           <Link
             key={k.href}
             href={k.href}
+            prefetch={false}
             className="rounded-xl border-t-4 bg-white p-5 shadow-sm transition hover:shadow-md"
             style={{ borderTopColor: k.warna }}
           >

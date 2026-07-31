@@ -125,6 +125,8 @@ export default async function AlatAngkutPesawatPage({
     dataMaskapaiKeberangkatan,
     dataGenderBulanan,
     hasilAI,
+    breakdownMaskapai,
+    breakdownSertifikat,
   ] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
@@ -151,14 +153,11 @@ export default async function AlatAngkutPesawatPage({
       bulanSampai: formatBulanSampai,
     }),
     getBanyakHasilAI(permintaanAI),
-  ]);
-
-  const daftarWilker = daftarWilkerSemua ? daftarWilkerSemua.filter((w) => w.jenis === 'Bandara') : [];
-
-  const [breakdownMaskapai, breakdownSertifikat] = await Promise.all([
     getBreakdownMaskapai({ tahun, kodeWilker: wilker }),
     getBreakdownSertifikat({ tahun, kodeWilker: wilker }),
   ]);
+
+  const daftarWilker = daftarWilkerSemua ? daftarWilkerSemua.filter((w) => w.jenis === 'Bandara') : [];
 
   const { mingguEpid: mingguEpidSekarang } = getMingguEpidSaatIni();
   const mingguBerjalan = mingguEpidSekarang - 1; // Mengurangi 1 minggu yang di tampilkan

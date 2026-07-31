@@ -36,7 +36,7 @@ export default async function LoginPage({
           className="bg-white rounded-[10px] shadow-sm border border-black/5 p-6 space-y-4"
         >
           {error ? (
-            <div className="rounded-[8px] bg-[#D62839]/10 border border-[#D62839]/30 px-3 py-2 text-sm text-[#D62839]">
+            <div className="rounded-lg bg-[#D62839]/10 border border-[#D62839]/30 px-3 py-2 text-sm text-[#D62839]">
               {error}
             </div>
           ) : null}
@@ -51,7 +51,7 @@ export default async function LoginPage({
               type="email"
               required
               autoComplete="email"
-              className="w-full rounded-[8px] border border-black/10 px-3 py-2 text-sm text-[#0F2A38] focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
+              className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-[#0F2A38] focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
               placeholder="nama@contoh.go.id"
             />
           </div>
@@ -71,14 +71,14 @@ export default async function LoginPage({
               type="password"
               required
               autoComplete="current-password"
-              className="w-full rounded-[8px] border border-black/10 px-3 py-2 text-sm text-[#0F2A38] focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
+              className="w-full rounded-lg border border-black/10 px-3 py-2 text-sm text-[#0F2A38] focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
               placeholder="••••••••"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-[8px] bg-[#0F2A38] px-3 py-2 text-sm font-medium text-white hover:bg-[#0F4C5C] transition-colors"
+            className="w-full rounded-lg bg-[#0F2A38] px-3 py-2 text-sm font-medium text-white hover:bg-[#0F4C5C] transition-colors"
           >
             Masuk
           </button>

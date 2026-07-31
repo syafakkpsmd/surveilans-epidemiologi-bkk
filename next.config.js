@@ -4,6 +4,14 @@ const nextConfig = {
   env: {
     TZ: 'Asia/Makassar',
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+    ],
+  },
 };
 
 module.exports = nextConfig;

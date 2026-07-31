@@ -59,29 +59,30 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const role = await getUserRole();
   if (role !== 'admin' && role !== 'petugas') {
-    return NextResponse.json({ error: 'Tidak diizinkan mengedit foto.' }, { status: 403 });
+    return NextResponse.json({ error: 'Tidak diizinkan mengedit jenis kegiatan.' }, { status: 403 });
   }
 
-  const { id, judul, deskripsi, jenisKegiatanId } = await req.json();
-  if (!id || !judul) {
-    return NextResponse.json({ error: 'id dan judul wajib diisi.' }, { status: 400 });
+  const { id, nama } = await req.json();
+  const namaBersih = String(nama ?? '').trim();
+  if (!id || !namaBersih) {
+    return NextResponse.json({ error: 'id dan nama wajib diisi.' }, { status: 400 });
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from('foto_kegiatan')
-    .update({
-      judul,
-      deskripsi: deskripsi || null,
-      jenis_kegiatan_id: jenisKegiatanId ?? null,
-    })
-    .eq('id', id);
+  const { data, error } = await supabase
+    .from('jenis_kegiatan_foto')
+    .update({ nama: namaBersih })
+    .eq('id', id)
+    .select('id, nama');
 
   if (error) {
-    return NextResponse.json({ error: `Gagal update foto: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Gagal update jenis kegiatan: ${error.message}` }, { status: 500 });
+  }
+  if (!data || data.length === 0) {
+    return NextResponse.json({ error: 'Tidak ada jenis kegiatan yang diupdate.' }, { status: 403 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, data: data[0] });
 }
 
 export async function DELETE(req: NextRequest) {

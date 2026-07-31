@@ -54,3 +54,15 @@ export async function tambahJenisKegiatan(nama: string) {
   if (!res.ok) throw new Error(hasil.error ?? 'Gagal tambah jenis kegiatan.');
   return hasil.data as { id: number; nama: string };
 }
+
+export async function editJenisKegiatan(id: number, nama: string) {
+  const res = await fetch('/api/jenis-kegiatan', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, nama }),
+  });
+  const hasil = await res.json();
+
+  if (!res.ok) throw new Error(hasil.error ?? 'Gagal edit jenis kegiatan.');
+  return hasil.data as { id: number; nama: string };
+}

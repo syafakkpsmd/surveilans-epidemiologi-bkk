@@ -13,9 +13,14 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file') as File | null;
   const judul = formData.get('judul') as string | null;
   const deskripsi = formData.get('deskripsi') as string | null;
+  const jenisKegiatanIdRaw = formData.get('jenisKegiatanId') as string | null;
+  const jenisKegiatanId = jenisKegiatanIdRaw ? Number(jenisKegiatanIdRaw) : null;
 
-  if (!file || !judul) {
-    return NextResponse.json({ error: 'File dan judul wajib diisi.' }, { status: 400 });
+  if (!file || !judul || !jenisKegiatanId) {
+    return NextResponse.json(
+      { error: 'File, judul, dan jenis kegiatan wajib diisi.' },
+      { status: 400 }
+    );
   }
 
   const bytes = await file.arrayBuffer();
@@ -41,10 +46,39 @@ export async function POST(req: NextRequest) {
     url_gambar: hasilUpload.secure_url,
     public_id: hasilUpload.public_id,
     diupload_oleh: user?.id ?? null,
+    jenis_kegiatan_id: jenisKegiatanId,
   });
 
   if (errorInsert) {
     return NextResponse.json({ error: `Gagal simpan metadata: ${errorInsert.message}` }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
+
+export async function PATCH(req: NextRequest) {
+  const role = await getUserRole();
+  if (role !== 'admin' && role !== 'petugas') {
+    return NextResponse.json({ error: 'Tidak diizinkan mengedit foto.' }, { status: 403 });
+  }
+
+  const { id, judul, deskripsi, jenisKegiatanId } = await req.json();
+  if (!id || !judul) {
+    return NextResponse.json({ error: 'id dan judul wajib diisi.' }, { status: 400 });
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('foto_kegiatan')
+    .update({
+      judul,
+      deskripsi: deskripsi || null,
+      jenis_kegiatan_id: jenisKegiatanId ?? null,
+    })
+    .eq('id', id);
+
+  if (error) {
+    return NextResponse.json({ error: `Gagal update foto: ${error.message}` }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

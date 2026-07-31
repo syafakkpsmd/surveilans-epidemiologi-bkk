@@ -4,7 +4,6 @@ import SidebarNav from "@/components/SidebarNav";
 import { SidebarProvider } from "@/components/SidebarContext";
 import { catatPageLoad } from "@/lib/analytics/log";
 import { getUserRole } from "@/lib/auth/get-user-role";
-import { InactivityLogout } from "@/components/InactivityLogout";   // <-- TAMBAH
 
 export default async function DashboardLayout({
   children,
@@ -18,7 +17,6 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider>
-      {role !== "tamu" && <InactivityLogout />}   {/* <-- TAMBAH */}
       <div className="flex min-h-screen flex-col">
         <Navbar />
 

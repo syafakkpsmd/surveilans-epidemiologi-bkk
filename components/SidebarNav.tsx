@@ -39,13 +39,17 @@ import { useSidebar } from "@/components/SidebarContext";
 // Path disinkronkan dengan KartuKategoriHub di app/(dashboard)/dashboard/page.tsx
 // Tambah/ubah item di sini saja -- tidak perlu sentuh logika render di bawah.
 //
-// prefetch: false diterapkan ke SEMUA link menuju halaman dynamic/berat
-// (Server Component yang query banyak data + banyak BoxAnalisisAI/
-// BoxPrediksiAI). Ini mencegah Next.js diam-diam merender halaman itu
-// di background begitu link masuk viewport sidebar, yang sebelumnya
-// membebani Supabase connection pool tanpa user benar-benar membuka
-// halamannya. Link ringan/statis (Beranda, Peta, link eksternal)
-// dibiarkan prefetch default (true).
+// KEBIJAKAN PREFETCH -- default AMAN adalah FALSE.
+// Sidebar ini dirender di SETIAP halaman dashboard (lewat layout), jadi
+// tiap link yang prefetch-nya true akan diam-diam dirender di background
+// setiap kali sidebar muncul -- bukan hanya saat user benar-benar
+// mengklik link itu. Untuk halaman Server Component yang query banyak
+// data (hampir semua modul di sini), ini membebani Supabase connection
+// pool dan bikin SEMUA halaman terasa lambat, bukan cuma satu.
+//
+// Karena itu: JANGAN set prefetch: true kecuali halaman tujuannya benar-
+// benar ringan/statis (tidak ada query database berat). Kalau ragu,
+// biarkan tanpa field prefetch sama sekali -- default-nya sudah false.
 // ----------------------------------------------------------------------------
 
 type NavChild = {
@@ -71,10 +75,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Faktor Risiko",
     items: [
-      { label: "Beranda", href: "/dashboard", icon: Compass },
+      { label: "Beranda", href: "/dashboard", icon: Compass, prefetch: false },
       { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship, prefetch: false },
       { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff, prefetch: false },
-      { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang/", icon: Users },
+      { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang/", icon: Users, prefetch: false },
     ],
   },
   {
@@ -118,8 +122,8 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Informasi Lainnya",
     items: [
       { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper, prefetch: false },
-      { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin },
-      { label: "Download Peraturan", href: "/peraturan", icon: Book },
+      { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin, prefetch: false },
+      { label: "Download Peraturan", href: "/peraturan", icon: Book, prefetch: false },
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
       { label: "LMS Kemenkes", href: "https://lms.kemkes.go.id/", icon: Building2 },
       { label: "e-Office Kemenkes", href: "https://auth-eoffice.kemkes.go.id/", icon: Building2 },
@@ -256,7 +260,6 @@ export default function SidebarNav({ role }: SidebarNavProps) {
               const hasChildren = !!item.children?.length;
               const open = expanded[item.label];
 
-              // Deteksi otomatis apakah item ini adalah URL Eksternal (misal: http:// atau https://)
               const isExternal = !!item.href && item.href.startsWith("http");
 
               const rowClasses = [
@@ -282,7 +285,6 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                 </>
               );
 
-              // Render Sub-menu (Children)
               if (hasChildren) {
                 return (
                   <div key={item.label}>
@@ -304,7 +306,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                               onClick={isChildExternal ? undefined : close}
                               target={isChildExternal ? "_blank" : undefined}
                               rel={isChildExternal ? "noopener noreferrer" : undefined}
-                              prefetch={isChildExternal ? undefined : (child.prefetch ?? true)}
+                              prefetch={isChildExternal ? undefined : (child.prefetch ?? false)}
                               className={[
                                 "rounded-md px-2 py-1.5 text-sm transition-colors",
                                 isActive(child.href)
@@ -322,7 +324,6 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                 );
               }
 
-              // Render Menu Biasa (Internal/External Link)
               return (
                 <Link
                   key={item.label}
@@ -330,7 +331,7 @@ export default function SidebarNav({ role }: SidebarNavProps) {
                   onClick={isExternal ? undefined : close}
                   target={isExternal ? "_blank" : undefined}
                   rel={isExternal ? "noopener noreferrer" : undefined}
-                  prefetch={isExternal ? undefined : (item.prefetch ?? true)}
+                  prefetch={isExternal ? undefined : (item.prefetch ?? false)}
                   className={rowClasses}
                 >
                   {rowContent}

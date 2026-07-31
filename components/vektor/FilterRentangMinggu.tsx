@@ -1,15 +1,13 @@
 'use client';
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect, useTransition } from 'react'; // 1. Import useTransition
 
 function hitungMingguEpidSaatIni(): { tahunEpid: number; mingguEpid: number } {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
 
   let yr = d.getFullYear();
-  let jan1 = new Date(yr, 0, 1);
-  let jan1Dow = jan1.getDay(); // 0 = Minggu, ..., 6 = Sabtu (sama seperti EXTRACT(DOW) Postgres)
 
   function hitungAwalMinggu1(tahun: number) {
     const j1 = new Date(tahun, 0, 1);
@@ -41,13 +39,23 @@ export default function FilterRentangMinggu() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // 2. Tambahkan hook useTransition
+  const [isPending, startTransition] = useTransition();
+
   const { mingguEpid: mingguSaatIni } = hitungMingguEpidSaatIni();
-  const defaultDari = 1;
+  const defaultDari = '1';
+  const defaultSampai = String(mingguSaatIni);
 
-  const [mgDari, setMgDari] = useState(searchParams.get('mgDari') || String(defaultDari));
-  const [mgSampai, setMgSampai] = useState(searchParams.get('mgSampai') || String(mingguSaatIni));
+  const urlDari = searchParams.get('mgDari') || defaultDari;
+  const urlSampai = searchParams.get('mgSampai') || defaultSampai;
 
-  // ... sisanya sama persis seperti sebelumnya, gak ada yang berubah
+  const [mgDari, setMgDari] = useState(urlDari);
+  const [mgSampai, setMgSampai] = useState(urlSampai);
+
+  useEffect(() => {
+    setMgDari(urlDari);
+    setMgSampai(urlSampai);
+  }, [urlDari, urlSampai]);
 
   const daftarMinggu = Array.from({ length: 52 }, (_, i) => i + 1);
 
@@ -56,7 +64,10 @@ export default function FilterRentangMinggu() {
     params.set('mgDari', mgDari);
     params.set('mgSampai', mgSampai);
 
-    router.push(`${pathname}?${params.toString()}`);
+    // 3. Bungkus router.push di dalam startTransition
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   };
 
   return (
@@ -66,7 +77,8 @@ export default function FilterRentangMinggu() {
       <select
         value={mgDari}
         onChange={(e) => setMgDari(e.target.value)}
-        className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
+        disabled={isPending}
+        className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none disabled:opacity-50"
       >
         {daftarMinggu.map((m) => (
           <option key={`awal-${m}`} value={m}>
@@ -80,7 +92,8 @@ export default function FilterRentangMinggu() {
       <select
         value={mgSampai}
         onChange={(e) => setMgSampai(e.target.value)}
-        className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none"
+        disabled={isPending}
+        className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-700 focus:outline-none disabled:opacity-50"
       >
         {daftarMinggu.map((m) => (
           <option key={`akhir-${m}`} value={m}>
@@ -89,11 +102,14 @@ export default function FilterRentangMinggu() {
         ))}
       </select>
 
+      {/* 4. Tampilkan status loading saat isPending === true */}
       <button
+        type="button"
         onClick={handleTerapkan}
-        className="rounded bg-[#063940] px-3 py-1 font-medium text-white hover:bg-[#04282d] transition-colors"
+        disabled={isPending}
+        className="rounded bg-[#063940] px-3 py-1 font-medium text-white hover:bg-[#04282d] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Terapkan
+        {isPending ? 'Memuat...' : 'Terapkan'}
       </button>
     </div>
   );

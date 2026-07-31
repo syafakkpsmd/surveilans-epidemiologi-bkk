@@ -8,13 +8,6 @@ export type SeriKonfig = {
   label: string;
   warna: string;
   default?: boolean;
-  /**
-   * BARU: tanpa field ini, axis series yang diteruskan ke
-   * TrenChartMingguan/GrafikBarBulanan selalu undefined -> jatuh ke
-   * default 'kiri', walaupun caller (SERI_LINGKUNGAN di HalamanDiare)
-   * sudah mengisi axis: 'kanan'. Field ini WAJIB ada di tipe supaya
-   * nilainya ikut lolos lewat seriAktif di bawah.
-   */
   axis?: 'kiri' | 'kanan';
 };
 
@@ -64,7 +57,7 @@ export default function PanelTrenDiareLingkungan({
         seriesListBulanan={seriAktif}
       />
 
-      {/* Checkbox Seri Tambahan — dipindah ke bawah grafik */}
+      {/* Checkbox Seri Tambahan */}
       <div className="flex flex-wrap gap-4 text-xs">
         {seriTambahan.map((s) => (
           <label key={s.key} className="flex cursor-pointer items-center gap-1.5 select-none">

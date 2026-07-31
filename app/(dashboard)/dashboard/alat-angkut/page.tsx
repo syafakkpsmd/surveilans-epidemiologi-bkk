@@ -12,6 +12,16 @@ import type {
   KategoriBreakdownMingguanCop,
 } from "@/types/database.types";
 
+// Palette warna-warni yang konsisten per wilayah
+const PALET_WARNA_WILAYAH: Record<string, string> = {
+  Samarinda: "bg-[#D97706]",
+  TanjungSantan: "bg-amber-500",
+  TanjungLaut: "bg-blue-500",
+  Lhoktuan: "bg-rose-500",
+  Sangatta: "bg-[#6b21a8]",
+  Sangkulirang: "bg-emerald-500",
+};
+
 const WILAYAH_URUTAN = [
   "Samarinda",
   "TanjungSantan",
@@ -40,6 +50,7 @@ function cocokWilayah(wilayahDb: string | undefined | null, targetWilayah: strin
 }
 
 export default async function DashboardPage() {
+  // Catat kunjungan non-blocking
   catatKunjungan("/dashboard/alat-angkut").catch((err) => {
     console.error("Gagal mencatat kunjungan:", err);
   });
@@ -66,22 +77,25 @@ export default async function DashboardPage() {
 
   let ringkasanCopTahun: RingkasanMingguanCop[] = [];
   let ringkasanPhqcTahun: RingkasanMingguanPhqc[] = [];
-  let kategoriRba: KategoriBreakdownMingguanCop[] = [];
-  let kategoriRbaTotalTahun: KategoriBreakdownMingguanCop[] = [];
+  let kategoriRbaCop: KategoriBreakdownMingguanCop[] = [];
+  let kategoriRbaPhqc: KategoriBreakdownMingguanCop[] = [];
   let kategoriDaerahTerjangkit: KategoriBreakdownMingguanCop[] = [];
   let kategoriRatGuardMinggu: KategoriBreakdownMingguanCop[] = [];
   let errorMuat: string | null = null;
 
   try {
+    // Parallel Fetching tanpa duplikasi query
     const hasil = await Promise.all([
       getRingkasanMingguan("cop", tahunEpid),
       getRingkasanMingguan("phqc", tahunEpid),
+      // 1. RBA COP (Kedatangan Luar Negeri)
       getKategoriBreakdown("cop", "mingguan", {
         tahun_epid: tahunEpid,
         minggu_epid: mingguEpid,
         kategori: "rba",
       }),
-      getKategoriBreakdown("cop", "mingguan", {
+      // 2. RBA PHQC (Keberangkatan Kapal) - DISETIAPKAN KE PHQC
+      getKategoriBreakdown("phqc", "mingguan", {
         tahun_epid: tahunEpid,
         minggu_epid: mingguEpid,
         kategori: "rba",
@@ -91,7 +105,6 @@ export default async function DashboardPage() {
         minggu_epid: mingguEpid,
         kategori: "daerah_terjangkit",
       }),
-      // Menggunakan type cast (as any) khusus pemanggilan rat_guard agar aman dari TypeScript error
       (getKategoriBreakdown as any)("cop", "mingguan", {
         tahun_epid: tahunEpid,
         minggu_epid: mingguEpid,
@@ -101,8 +114,8 @@ export default async function DashboardPage() {
 
     ringkasanCopTahun = hasil[0] as RingkasanMingguanCop[];
     ringkasanPhqcTahun = hasil[1] as RingkasanMingguanPhqc[];
-    kategoriRba = hasil[2] as KategoriBreakdownMingguanCop[];
-    kategoriRbaTotalTahun = hasil[3] as KategoriBreakdownMingguanCop[];
+    kategoriRbaCop = hasil[2] as KategoriBreakdownMingguanCop[];
+    kategoriRbaPhqc = hasil[3] as KategoriBreakdownMingguanCop[];
     kategoriDaerahTerjangkit = hasil[4] as KategoriBreakdownMingguanCop[];
     kategoriRatGuardMinggu = (hasil[5] ?? []) as KategoriBreakdownMingguanCop[];
   } catch (err) {
@@ -123,8 +136,8 @@ export default async function DashboardPage() {
       .sort((a, b) => b.jumlah - a.jumlah);
   }
 
-  const kategoriRbaTerjumlah = jumlahkanPerNilai(kategoriRba);
-  const kategoriRbaTotalTahunTerjumlah = jumlahkanPerNilai(kategoriRbaTotalTahun);
+  const kategoriRbaCopTerjumlah = jumlahkanPerNilai(kategoriRbaCop);
+  const kategoriRbaPhqcTerjumlah = jumlahkanPerNilai(kategoriRbaPhqc);
   const kategoriDaerahTerjangkitTerjumlah = jumlahkanPerNilai(kategoriDaerahTerjangkit);
   const kategoriRatGuardMingguTerjumlah = jumlahkanPerNilai(kategoriRatGuardMinggu);
 
@@ -135,7 +148,6 @@ export default async function DashboardPage() {
     ringkasanCopMinggu.reduce((a, r) => a + r.total_abk, 0) +
     ringkasanPhqcMinggu.reduce((a, r) => a + r.total_abk, 0);
 
-  // Penumpang HANYA bersumber dari PHQC
   const totalPenumpang = ringkasanPhqcMinggu.reduce(
     (a, r) => a + (r.total_penumpang ?? (r as any).jumlah_penumpang ?? 0),
     0
@@ -143,11 +155,11 @@ export default async function DashboardPage() {
 
   const adaData = totalKapalCop > 0 || totalKapalPhqc > 0;
 
-  // === DATA GRAFIK PER WILAYAH ===
+  // === DATA GRAFIK PER WILAYAH (WARNA-WARNI) ===
   const wilayahBarCop = WILAYAH_URUTAN.map((w) => {
     const ditemuka = ringkasanCopMinggu.filter((r) => cocokWilayah(r.wilayah_kerja, w));
     const totalJml = ditemuka.reduce((acc, curr) => acc + curr.jumlah_kapal, 0);
-    return { wilayah: w, jumlah: totalJml };
+    return { wilayah: w, jumlah: totalJml, warna: PALET_WARNA_WILAYAH[w] || "bg-teal-500" };
   }).sort((a, b) => b.jumlah - a.jumlah);
 
   const maxWilayahCop = Math.max(1, ...wilayahBarCop.map((w) => w.jumlah));
@@ -155,7 +167,7 @@ export default async function DashboardPage() {
   const wilayahBarPhqc = WILAYAH_URUTAN.map((w) => {
     const ditemuka = ringkasanPhqcMinggu.filter((r) => cocokWilayah(r.wilayah_kerja, w));
     const totalJml = ditemuka.reduce((acc, curr) => acc + curr.jumlah_kapal, 0);
-    return { wilayah: w, jumlah: totalJml };
+    return { wilayah: w, jumlah: totalJml, warna: PALET_WARNA_WILAYAH[w] || "bg-teal-500" };
   }).sort((a, b) => b.jumlah - a.jumlah);
 
   const maxWilayahPhqc = Math.max(1, ...wilayahBarPhqc.map((w) => w.jumlah));
@@ -165,10 +177,10 @@ export default async function DashboardPage() {
       {/* HEADER PAGE */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-green-600">
-            Alat Angkut Kapal (Kapal datang dari Luar Negeri &amp; Keberangkatan Kapal)
+          <h1 className="text-2xl font-bold text-[#0F2A38]">
+            Alat Angkut Kapal (Kedatangan Luar Negeri &amp; Keberangkatan)
           </h1>
-          <p className="text-sm text-muted">
+          <p className="text-sm text-gray-500">
             Minggu Epidemiologi ke-{mingguEpid} Tahun {tahunEpid}
           </p>
         </div>
@@ -180,21 +192,21 @@ export default async function DashboardPage() {
           <Link
             href="/cop"
             prefetch={false}
-            className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
+            className="rounded-lg bg-[#0F2A38] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
           >
             Dashboard Kapal dari Luar Negeri
           </Link>
           <Link
             href="/phqc"
             prefetch={false}
-            className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
+            className="rounded-lg bg-[#0F2A38] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
           >
             Dashboard Keberangkatan Kapal
           </Link>
           <Link
             href="/dashboard/alat-angkut/rat-guard"
             prefetch={false}
-            className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal"
+            className="rounded-lg bg-[#0F2A38] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-700"
           >
             Dashboard Rat Guard
           </Link>
@@ -203,16 +215,15 @@ export default async function DashboardPage() {
 
       {/* ERROR HANDLING */}
       {errorMuat && (
-        <div className="rounded-card border border-risiko-merah/30 bg-surface p-6 text-sm text-risiko-merah">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-600">
           Gagal memuat data: {errorMuat}
         </div>
       )}
 
       {/* STATE JIKA DATA KOSONG */}
       {!errorMuat && !adaData && (
-        <div className="rounded-card border border-dashed border-border bg-surface p-6 text-sm text-muted">
-          Belum ada kegiatan tercatat untuk Minggu Epidemiologi ke-{mingguEpid} Tahun{" "}
-          {tahunEpid}.
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500 text-center">
+          Belum ada kegiatan tercatat untuk Minggu Epidemiologi ke-{mingguEpid} Tahun {tahunEpid}.
         </div>
       )}
 
@@ -227,43 +238,46 @@ export default async function DashboardPage() {
             <KartuKpi label="Jumlah Penumpang" nilai={totalPenumpang} />
           </div>
 
-          {/* SECTION GRAFIK RBA */}
+          {/* SECTION GRAFIK RBA (COP vs PHQC) */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-                Risk Based Assessment (RBA)
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
+              <h2 className="mb-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">
+                Risk Based Assessment (RBA) Kedatangan Kapal Luar Negeri
                 <br />
                 Minggu Epidemiologi ke-{mingguEpid}
               </h2>
-              <DonutRba data={kategoriRbaTerjumlah} />
+              <DonutRba data={kategoriRbaCopTerjumlah} />
             </div>
 
-            <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-                Risk Based Assessment (RBA) selama Tahun {tahunEpid}
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
+              <h2 className="mb-4 text-center text-xs font-bold uppercase tracking-wider text-gray-500">
+                Risk Based Assessment (RBA) Keberangkatan Kapal
+                <br />
+                Minggu Epidemiologi ke-{mingguEpid}
               </h2>
-              <DonutRba data={kategoriRbaTotalTahunTerjumlah} />
+              <DonutRba data={kategoriRbaPhqcTerjumlah} />
             </div>
           </div>
 
-          {/* SECTION BAR PER WILAYAH KERJA */}
+          {/* SECTION BAR PER WILAYAH KERJA (WARNA WARNI) */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+            {/* KEDATANGAN LUAR NEGERI */}
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
+              <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-gray-500">
                 Pengawasan Kedatangan Kapal dari Luar Negeri
               </h2>
               <div className="space-y-3">
                 {wilayahBarCop.map((w) => (
                   <div key={w.wilayah}>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <span className="text-ink">{w.wilayah}</span>
-                      <span className="font-semibold text-ink">
+                    <div className="mb-1 flex justify-between text-sm font-medium">
+                      <span className="text-gray-700">{w.wilayah}</span>
+                      <span className="font-semibold text-gray-900">
                         {w.jumlah.toLocaleString("id-ID")}
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-bg">
+                    <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
                       <div
-                        className="h-2 rounded-full bg-teal"
+                        className={`h-full rounded-full transition-all duration-500 ${w.warna}`}
                         style={{ width: `${(w.jumlah / maxWilayahCop) * 100}%` }}
                       />
                     </div>
@@ -272,22 +286,23 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted">
+            {/* KEBERANGKATAN KAPAL */}
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
+              <h2 className="mb-4 text-xs font-bold uppercase tracking-wider text-gray-500">
                 Pengawasan Keberangkatan Kapal
               </h2>
               <div className="space-y-3">
                 {wilayahBarPhqc.map((w) => (
                   <div key={w.wilayah}>
-                    <div className="mb-1 flex justify-between text-sm">
-                      <span className="text-ink">{w.wilayah}</span>
-                      <span className="font-semibold text-ink">
+                    <div className="mb-1 flex justify-between text-sm font-medium">
+                      <span className="text-gray-700">{w.wilayah}</span>
+                      <span className="font-semibold text-gray-900">
                         {w.jumlah.toLocaleString("id-ID")}
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-bg">
+                    <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
                       <div
-                        className="h-2 rounded-full bg-teal"
+                        className={`h-full rounded-full transition-all duration-500 ${w.warna}`}
                         style={{ width: `${(w.jumlah / maxWilayahPhqc) * 100}%` }}
                       />
                     </div>
@@ -297,17 +312,17 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* SECTION STATUS NEGARA & RAT GUARD MINGGU INI (BERDAMPINGAN 2 KOLOM) */}
+          {/* SECTION STATUS NEGARA & RAT GUARD MINGGU INI */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-2 text-center text-sm font-bold uppercase tracking-wide text-muted">
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
+              <h2 className="mb-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500">
                 Proporsi Kedatangan Kapal dari Luar Negeri <br /> Minggu Epidemiologi ke-{mingguEpid}
               </h2>
               <PieBreakdown data={kategoriDaerahTerjangkitTerjumlah} skema="terjangkit" />
             </div>
 
-            <div className="rounded-card bg-surface p-6">
-              <h2 className="mb-2 text-center text-sm font-bold uppercase tracking-wide text-muted">
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
+              <h2 className="mb-2 text-center text-xs font-bold uppercase tracking-wider text-gray-500">
                 Pengawasan Rat Guard <br /> Minggu Epidemiologi ke-{mingguEpid}
               </h2>
               <DonutRba data={kategoriRatGuardMingguTerjumlah} />
@@ -322,9 +337,9 @@ export default async function DashboardPage() {
 {/* KOMPONEN KARTU KPI TERUNIFIKASI */}
 function KartuKpi({ label, nilai }: { label: string; nilai: number }) {
   return (
-    <div className="rounded-card bg-surface p-4 text-center">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-ink">
+    <div className="rounded-xl bg-white p-4 text-center shadow-sm border border-gray-100">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-gray-900">
         {nilai.toLocaleString("id-ID")}
       </p>
     </div>

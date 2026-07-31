@@ -14,12 +14,15 @@ export default async function DashboardHubPage() {
 
   const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(new Date());
 
-  const [role, fotoAwal, daftarJenis] = await Promise.all([
+  const [role, fotoUntukSlide, daftarJenis] = await Promise.all([
       getUserRole(),
-      getGaleriFoto(8),
+      getGaleriFoto(10),
       getJenisKegiatanFoto(),
   ]);
-  const slides = fotoAwal.map((foto) => ({
+
+  const fotoAwal = fotoUntukSlide.slice(0, 4); // widget galeri cuma 6 foto terbaru
+
+  const slides = fotoUntukSlide.map((foto) => ({
     title: foto.judul,
     image: foto.url,
     deskripsi: foto.deskripsi ?? undefined,
@@ -55,11 +58,11 @@ export default async function DashboardHubPage() {
         </div>
 
         <TombolAnalisisAI 
-  sudahLogin={!!role} 
-  role={role === 'admin' || role === 'petugas' ? role : null} 
-  konteks="surveilans-hub" 
-  periodeKey={`${tahunEpid}-W${mingguEpid}`} 
-/>
+          sudahLogin={!!role} 
+          role={role === 'admin' || role === 'petugas' ? role : null} 
+          konteks="surveilans-hub" 
+          periodeKey={`${tahunEpid}-W${mingguEpid}`} 
+        />
       </div>
 
       <HeroCarousel items={slides} />

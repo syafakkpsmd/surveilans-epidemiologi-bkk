@@ -126,6 +126,7 @@ export type Database = {
           dibuat_pada: string
           diupload_oleh: string | null
           id: number
+          jenis_kegiatan_id: number | null
           judul: string
           public_id: string
           url_gambar: string
@@ -135,6 +136,7 @@ export type Database = {
           dibuat_pada?: string
           diupload_oleh?: string | null
           id?: never
+          jenis_kegiatan_id?: number | null
           judul: string
           public_id: string
           url_gambar: string
@@ -144,12 +146,41 @@ export type Database = {
           dibuat_pada?: string
           diupload_oleh?: string | null
           id?: never
+          jenis_kegiatan_id?: number | null
           judul?: string
           public_id?: string
           url_gambar?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "foto_kegiatan_jenis_kegiatan_id_fkey"
+            columns: ["jenis_kegiatan_id"]
+            isOneToOne: false
+            referencedRelation: "jenis_kegiatan_foto"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      
+      jenis_kegiatan_foto: {
+        Row: {
+          dibuat_pada: string
+          id: number
+          nama: string
+        }
+        Insert: {
+          dibuat_pada?: string
+          id?: never
+          nama: string
+        }
+        Update: {
+          dibuat_pada?: string
+          id?: never
+          nama?: string
+        }
         Relationships: []
       }
+
       hiv_data: {
         Row: {
           dibuat_pada: string

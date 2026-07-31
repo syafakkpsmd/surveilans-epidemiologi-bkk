@@ -3,7 +3,7 @@ import { getRingkasanMingguan } from "@/lib/supabase/queries";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { KartuKategoriHub } from "@/components/KartuKategoriHub";
 import { HeroCarousel } from "@/components/HeroCarousel";
-import { getGaleriFoto } from '@/lib/supabase/queriesFoto';
+import { getGaleriFoto, getJenisKegiatanFoto } from '@/lib/supabase/queriesFoto';
 import GaleriFotoKegiatan from '@/components/GaleriFotoKegiatan';
 import { getUserRole } from "@/lib/auth/get-user-role";
 import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
@@ -46,11 +46,12 @@ export default async function DashboardHubPage() {
 
   const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(new Date());
 
-  const [role, fotoAwal] = await Promise.all([
-    getUserRole(),
-    getGaleriFoto(8),
+  const [role, fotoAwal, daftarJenis] = await Promise.all([
+      getUserRole(),
+      getGaleriFoto(8),
+      getJenisKegiatanFoto(),
   ]);
-
+  
   let statistikAlatAngkut: string | undefined;
   try {
     const [ringkasanCop, ringkasanPhqc] = await Promise.all([
@@ -99,7 +100,9 @@ export default async function DashboardHubPage() {
         </div>
         <GaleriFotoKegiatan
           fotoAwal={fotoAwal}
+          daftarJenis={daftarJenis}
           bisaKelola={role === 'admin' || role === 'petugas'}
+          tampilan="ringkas"
         />
       </div>
 

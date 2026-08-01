@@ -5,16 +5,15 @@ import { redirect } from 'next/navigation';
 import { catatLogin } from '@/lib/analytics/log';
 
 /**
- * Dipanggil dari <form action={login}> di app/login/page.tsx.
- * Redirect ke /dashboard (URL YANG SAMA dengan yang diakses Tamu)
- * setelah berhasil -- bukan ke halaman "dashboard versi login".
+ * Dipanggil dari <form action={formAction}> di app/login/page.tsx.
+ * Redirect ke /dashboard setelah berhasil.
  */
-export async function login(formData: FormData): Promise<void> {
+export async function login(prevState: any, formData: FormData): Promise<{ error?: string } | void> {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
 
   if (!email || !password) {
-    redirect('/login?error=' + encodeURIComponent('Email dan kata sandi wajib diisi.'));
+    return { error: 'Email dan kata sandi wajib diisi.' };
   }
 
   const supabase = await createClient();
@@ -23,10 +22,10 @@ export async function login(formData: FormData): Promise<void> {
   const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !authData.user) {
-    redirect('/login?error=' + encodeURIComponent('Email atau kata sandi salah.'));
+    return { error: 'Email atau kata sandi salah.' };
   }
 
-  // 2. Ambil data profil dari database (asumsi Anda memiliki tabel 'profiles')
+  // 2. Ambil data profil dari database (asumsi tabel 'profiles')
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role, status')
@@ -34,16 +33,17 @@ export async function login(formData: FormData): Promise<void> {
     .single();
 
   if (profileError || profile?.status !== 'approved') {
-    // Jika tidak approved atau error, arahkan kembali atau beri notifikasi
-    redirect('/login?error=' + encodeURIComponent('Akun Anda belum disetujui.'));
+    return { error: 'Akun Anda belum disetujui.' };
   }
 
   if (profile.role !== 'petugas' && profile.role !== 'admin') {
-    redirect('/login?error=' + encodeURIComponent('Role akun tidak dikenali.'));
+    return { error: 'Role akun tidak dikenali.' };
   }
 
-  // 3. Tambahkan di sini setelah cek profile.status === 'approved'
-  await catatLogin(profile.role, authData.user.id);
+  // 3. Catat login secara non-blocking (jalan di background tanpa bikin gantung)
+  catatLogin(profile.role, authData.user.id).catch((err) => {
+    console.error('[catatLogin Error]:', err);
+  });
 
   // 4. Redirect ke dashboard
   redirect('/dashboard');
@@ -84,9 +84,8 @@ export async function registerPetugas(formData: FormData) {
 }
 
 /**
- * Dipanggil dari tombol Logout (mis. <form action={logout}><button>Logout</button></form>
- * di navbar). Setelah logout, kembali ke /dashboard sebagai Tamu --
- * BUKAN dikunci atau diarahkan ke /login, sesuai KONTEKS PROYEK.
+ * Dipanggil dari tombol Logout di navbar.
+ * Kembali ke /dashboard sebagai Tamu.
  */
 export async function logout(): Promise<void> {
   const supabase = await createClient();
@@ -95,7 +94,6 @@ export async function logout(): Promise<void> {
 }
 
 /**
- * Dipanggil dari <form action={requestPasswordReset}> di app/forgot-password/page.tsx.
  * Mengirim email reset password lewat Supabase Auth.
  */
 export async function requestPasswordReset(formData: FormData) {
@@ -113,8 +111,7 @@ export async function requestPasswordReset(formData: FormData) {
 }
 
 /**
- * Dipanggil dari <form action={updatePassword}> di app/reset-password/page.tsx,
- * setelah user klik link reset dari email.
+ * Memperbarui kata sandi user setelah klik link reset.
  */
 export async function updatePassword(formData: FormData) {
   const password = String(formData.get('password') ?? '');

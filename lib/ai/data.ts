@@ -18,7 +18,7 @@
   getRingkasanRatGuardBulanan,
 } from '@/lib/supabase/queries';
 import { getTrenDiareMultiVariabel, getTrenDiareBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
-import type { KategoriCop } from '@/types/database.types';
+import type { Wilayah, KategoriCop } from "@/types/domain.types";
 import {
   parsePeriodeMingguan,
   parsePeriodeBulanan,
@@ -148,11 +148,16 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'abk-crew-penumpang-keberangkatan-bulanan',
 ] as const;
 
+export const KONTEKS_EVENT = [
+  'simulasi-wabah-kapal',
+  'simulasi-wabah-pesawat',
+] as const;
 
-export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN] as const;
+export const KONTEKS_VALID = [...KONTEKS_TREN, ...KONTEKS_BREAKDOWN, ...KONTEKS_EVENT] as const;
 
 export type KonteksTren = (typeof KONTEKS_TREN)[number];
 export type KonteksBreakdown = (typeof KONTEKS_BREAKDOWN)[number];
+export type KonteksEvent = (typeof KONTEKS_EVENT)[number];
 export type KonteksAnalisis = (typeof KONTEKS_VALID)[number];
 
 export function isKonteksValid(nilai: string): nilai is KonteksAnalisis {
@@ -165,6 +170,10 @@ export function isKonteksTren(konteks: KonteksAnalisis): konteks is KonteksTren 
 
 export function isKonteksBreakdown(konteks: KonteksAnalisis): konteks is KonteksBreakdown {
   return (KONTEKS_BREAKDOWN as readonly string[]).includes(konteks);
+}
+
+export function isKonteksEvent(konteks: KonteksAnalisis): konteks is KonteksEvent {
+  return (KONTEKS_EVENT as readonly string[]).includes(konteks);
 }
 
 export function isKonteksVektor(konteks: KonteksAnalisis): boolean {
@@ -1834,6 +1843,58 @@ export async function ambilDataAnalisisAbkCrewPenumpang(
       : 'Tidak ada data sebelum bulan pertama',
     ringkasanSaatIni: saatIni, ringkasanSebelumnya: sebelumnya,
     topKategori: [],
+  };
+}
+
+export interface DataSimulasiWabah {
+  labelKonteks: string;
+  labelWilayah: string;
+  namaEntitas: string; // nama kapal / nomor penerbangan
+  kategoriPenyakit: string;
+  rEfektif: number;
+  estimasiKontakBerisikoTerinfeksi: number;
+  rekomendasiRulesBased: string;
+}
+
+export async function ambilDataSimulasiWabahKapal(simulasiId: string): Promise<DataSimulasiWabah> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("simulasi_wabah_kapal")
+    .select("*, referensi_parameter_penyakit(kategori)")
+    .eq("id", simulasiId)
+    .single();
+
+  if (error || !data) throw new Error("Data simulasi kapal tidak ditemukan");
+
+  return {
+    labelKonteks: "Simulasi Wabah Kapal",
+    labelWilayah: data.wilayah_kerja,
+    namaEntitas: data.nama_kapal,
+    kategoriPenyakit: (data.referensi_parameter_penyakit as any)?.kategori ?? "Tidak diketahui",
+    rEfektif: data.r_efektif_kapal ?? 0,
+    estimasiKontakBerisikoTerinfeksi: data.estimasi_kasus_impor_kota ?? 0,
+    rekomendasiRulesBased: data.rekomendasi_kebijakan ?? "",
+  };
+}
+
+export async function ambilDataSimulasiWabahPesawat(simulasiId: string): Promise<DataSimulasiWabah> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("simulasi_wabah_pesawat")
+    .select("*, referensi_parameter_penyakit(kategori)")
+    .eq("id", simulasiId)
+    .single();
+
+  if (error || !data) throw new Error("Data simulasi pesawat tidak ditemukan");
+
+  return {
+    labelKonteks: "Simulasi Wabah Pesawat",
+    labelWilayah: data.kode_wilker,
+    namaEntitas: data.nomor_penerbangan ?? "Tanpa nomor",
+    kategoriPenyakit: (data.referensi_parameter_penyakit as any)?.kategori ?? "Tidak diketahui",
+    rEfektif: 0, // pesawat tidak pakai R efektif, bisa dikosongkan atau diisi field lain
+    estimasiKontakBerisikoTerinfeksi: data.estimasi_kontak_erat ?? 0,
+    rekomendasiRulesBased: data.rekomendasi_kebijakan ?? "",
   };
 }
 

@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -158,29 +158,9 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "jenis_kegiatan_foto"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
-      
-      jenis_kegiatan_foto: {
-        Row: {
-          dibuat_pada: string
-          id: number
-          nama: string
-        }
-        Insert: {
-          dibuat_pada?: string
-          id?: never
-          nama: string
-        }
-        Update: {
-          dibuat_pada?: string
-          id?: never
-          nama?: string
-        }
-        Relationships: []
-      }
-
       hiv_data: {
         Row: {
           dibuat_pada: string
@@ -239,6 +219,24 @@ export type Database = {
             referencedColumns: ["kode"]
           },
         ]
+      }
+      jenis_kegiatan_foto: {
+        Row: {
+          dibuat_pada: string
+          id: number
+          nama: string
+        }
+        Insert: {
+          dibuat_pada?: string
+          id?: number
+          nama: string
+        }
+        Update: {
+          dibuat_pada?: string
+          id?: number
+          nama?: string
+        }
+        Relationships: []
       }
       kegiatan_cop: {
         Row: {
@@ -673,33 +671,48 @@ export type Database = {
         }
         Relationships: []
       }
-      penyakit_emerging: {
+      peraturan: {
         Row: {
           created_at: string | null
+          deskripsi: string | null
+          diunggah_oleh: string | null
+          file_type: string
+          file_url: string
           id: string
-          jumlah_kasus: number | null
-          jumlah_meninggal: number | null
-          minggu_epidemiologi: number
-          nama_penyakit: string
-          tahun: number
+          judul: string
+          kategori: string
+          nama_file_asli: string
+          nomor_peraturan: string | null
+          tahun: number | null
+          updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          deskripsi?: string | null
+          diunggah_oleh?: string | null
+          file_type: string
+          file_url: string
           id?: string
-          jumlah_kasus?: number | null
-          jumlah_meninggal?: number | null
-          minggu_epidemiologi: number
-          nama_penyakit: string
-          tahun: number
+          judul: string
+          kategori: string
+          nama_file_asli: string
+          nomor_peraturan?: string | null
+          tahun?: number | null
+          updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          deskripsi?: string | null
+          diunggah_oleh?: string | null
+          file_type?: string
+          file_url?: string
           id?: string
-          jumlah_kasus?: number | null
-          jumlah_meninggal?: number | null
-          minggu_epidemiologi?: number
-          nama_penyakit?: string
-          tahun?: number
+          judul?: string
+          kategori?: string
+          nama_file_asli?: string
+          nomor_peraturan?: string | null
+          tahun?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -754,6 +767,87 @@ export type Database = {
         }
         Relationships: []
       }
+      referensi_parameter_penyakit: {
+        Row: {
+          cara_penularan: string | null
+          catatan: string | null
+          id: number
+          kategori: string
+          masa_inkubasi_hari: number | null
+          r0_default: number
+          r0_max: number | null
+          r0_min: number | null
+          serial_interval_hari: number
+          sumber_referensi: string | null
+        }
+        Insert: {
+          cara_penularan?: string | null
+          catatan?: string | null
+          id?: number
+          kategori: string
+          masa_inkubasi_hari?: number | null
+          r0_default: number
+          r0_max?: number | null
+          r0_min?: number | null
+          serial_interval_hari: number
+          sumber_referensi?: string | null
+        }
+        Update: {
+          cara_penularan?: string | null
+          catatan?: string | null
+          id?: number
+          kategori?: string
+          masa_inkubasi_hari?: number | null
+          r0_default?: number
+          r0_max?: number | null
+          r0_min?: number | null
+          serial_interval_hari?: number
+          sumber_referensi?: string | null
+        }
+        Relationships: []
+      }
+      referensi_populasi_wilker: {
+        Row: {
+          id: number
+          jenis_wilker: string
+          jumlah_ground_crew_terdaftar: number | null
+          jumlah_petugas_kesehatan: number | null
+          jumlah_petugas_non_kesehatan: number | null
+          jumlah_tkbm_terdaftar: number | null
+          kode_wilker: string | null
+          populasi_kota_sekitar: number | null
+          sumber_data: string | null
+          updated_at: string | null
+          wilayah_kerja: string | null
+        }
+        Insert: {
+          id?: number
+          jenis_wilker: string
+          jumlah_ground_crew_terdaftar?: number | null
+          jumlah_petugas_kesehatan?: number | null
+          jumlah_petugas_non_kesehatan?: number | null
+          jumlah_tkbm_terdaftar?: number | null
+          kode_wilker?: string | null
+          populasi_kota_sekitar?: number | null
+          sumber_data?: string | null
+          updated_at?: string | null
+          wilayah_kerja?: string | null
+        }
+        Update: {
+          id?: number
+          jenis_wilker?: string
+          jumlah_ground_crew_terdaftar?: number | null
+          jumlah_petugas_kesehatan?: number | null
+          jumlah_petugas_non_kesehatan?: number | null
+          jumlah_tkbm_terdaftar?: number | null
+          kode_wilker?: string | null
+          populasi_kota_sekitar?: number | null
+          sumber_data?: string | null
+          updated_at?: string | null
+          wilayah_kerja?: string | null
+        }
+        Relationships: []
+      }
       riwayat_analisis_ai: {
         Row: {
           anomali: string | null
@@ -798,6 +892,200 @@ export type Database = {
           wilayah_kerja?: string | null
         }
         Relationships: []
+      }
+      simulasi_wabah_kapal: {
+        Row: {
+          abk_bergejala: number
+          created_at: string | null
+          dibuat_oleh: string | null
+          durasi_kontak_jam: number | null
+          efektivitas_isolasi_persen: number | null
+          estimasi_kasus_impor_kota: number | null
+          hasil_kurva_kapal: Json | null
+          hasil_kurva_tkbm: Json | null
+          id: string
+          jumlah_petugas_kesehatan: number | null
+          jumlah_petugas_non_kesehatan: number | null
+          jumlah_tkbm: number | null
+          kategori_penyakit_id: number | null
+          kegiatan_cop_id: string | null
+          nama_kapal: string
+          penggunaan_apd_persen: number | null
+          r_efektif_kapal: number | null
+          r_efektif_tanpa_isolasi: number | null
+          r_efektif_tkbm: number | null
+          r0_override: number | null
+          rekomendasi_kebijakan: string | null
+          risiko_petugas: Json | null
+          tanggal_kejadian: string
+          total_abk: number
+          wilayah_kerja: string
+        }
+        Insert: {
+          abk_bergejala: number
+          created_at?: string | null
+          dibuat_oleh?: string | null
+          durasi_kontak_jam?: number | null
+          efektivitas_isolasi_persen?: number | null
+          estimasi_kasus_impor_kota?: number | null
+          hasil_kurva_kapal?: Json | null
+          hasil_kurva_tkbm?: Json | null
+          id?: string
+          jumlah_petugas_kesehatan?: number | null
+          jumlah_petugas_non_kesehatan?: number | null
+          jumlah_tkbm?: number | null
+          kategori_penyakit_id?: number | null
+          kegiatan_cop_id?: string | null
+          nama_kapal: string
+          penggunaan_apd_persen?: number | null
+          r_efektif_kapal?: number | null
+          r_efektif_tanpa_isolasi?: number | null
+          r_efektif_tkbm?: number | null
+          r0_override?: number | null
+          rekomendasi_kebijakan?: string | null
+          risiko_petugas?: Json | null
+          tanggal_kejadian: string
+          total_abk: number
+          wilayah_kerja: string
+        }
+        Update: {
+          abk_bergejala?: number
+          created_at?: string | null
+          dibuat_oleh?: string | null
+          durasi_kontak_jam?: number | null
+          efektivitas_isolasi_persen?: number | null
+          estimasi_kasus_impor_kota?: number | null
+          hasil_kurva_kapal?: Json | null
+          hasil_kurva_tkbm?: Json | null
+          id?: string
+          jumlah_petugas_kesehatan?: number | null
+          jumlah_petugas_non_kesehatan?: number | null
+          jumlah_tkbm?: number | null
+          kategori_penyakit_id?: number | null
+          kegiatan_cop_id?: string | null
+          nama_kapal?: string
+          penggunaan_apd_persen?: number | null
+          r_efektif_kapal?: number | null
+          r_efektif_tanpa_isolasi?: number | null
+          r_efektif_tkbm?: number | null
+          r0_override?: number | null
+          rekomendasi_kebijakan?: string | null
+          risiko_petugas?: Json | null
+          tanggal_kejadian?: string
+          total_abk?: number
+          wilayah_kerja?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulasi_wabah_kapal_kategori_penyakit_id_fkey"
+            columns: ["kategori_penyakit_id"]
+            isOneToOne: false
+            referencedRelation: "referensi_parameter_penyakit"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulasi_wabah_kapal_kegiatan_cop_id_fkey"
+            columns: ["kegiatan_cop_id"]
+            isOneToOne: false
+            referencedRelation: "kegiatan_cop"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulasi_wabah_kapal_kegiatan_cop_id_fkey"
+            columns: ["kegiatan_cop_id"]
+            isOneToOne: false
+            referencedRelation: "view_kegiatan_cop_enriched"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      simulasi_wabah_pesawat: {
+        Row: {
+          created_at: string | null
+          daftar_kota_tujuan_lanjutan: Json | null
+          dibuat_oleh: string | null
+          durasi_penerbangan_jam: number | null
+          estimasi_kontak_erat: number | null
+          id: string
+          jumlah_bergejala: number
+          jumlah_ground_crew: number | null
+          kategori_penyakit_id: number | null
+          kegiatan_pesawat_id: string | null
+          kode_wilker: string
+          nomor_penerbangan: string | null
+          penggunaan_apd_persen: number | null
+          radius_kontak_baris: number | null
+          rekomendasi_kebijakan: string | null
+          risiko_ground_crew: Json | null
+          tanggal_kejadian: string
+          total_kru: number
+          total_penumpang: number
+        }
+        Insert: {
+          created_at?: string | null
+          daftar_kota_tujuan_lanjutan?: Json | null
+          dibuat_oleh?: string | null
+          durasi_penerbangan_jam?: number | null
+          estimasi_kontak_erat?: number | null
+          id?: string
+          jumlah_bergejala: number
+          jumlah_ground_crew?: number | null
+          kategori_penyakit_id?: number | null
+          kegiatan_pesawat_id?: string | null
+          kode_wilker: string
+          nomor_penerbangan?: string | null
+          penggunaan_apd_persen?: number | null
+          radius_kontak_baris?: number | null
+          rekomendasi_kebijakan?: string | null
+          risiko_ground_crew?: Json | null
+          tanggal_kejadian: string
+          total_kru: number
+          total_penumpang: number
+        }
+        Update: {
+          created_at?: string | null
+          daftar_kota_tujuan_lanjutan?: Json | null
+          dibuat_oleh?: string | null
+          durasi_penerbangan_jam?: number | null
+          estimasi_kontak_erat?: number | null
+          id?: string
+          jumlah_bergejala?: number
+          jumlah_ground_crew?: number | null
+          kategori_penyakit_id?: number | null
+          kegiatan_pesawat_id?: string | null
+          kode_wilker?: string
+          nomor_penerbangan?: string | null
+          penggunaan_apd_persen?: number | null
+          radius_kontak_baris?: number | null
+          rekomendasi_kebijakan?: string | null
+          risiko_ground_crew?: Json | null
+          tanggal_kejadian?: string
+          total_kru?: number
+          total_penumpang?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulasi_wabah_pesawat_kategori_penyakit_id_fkey"
+            columns: ["kategori_penyakit_id"]
+            isOneToOne: false
+            referencedRelation: "referensi_parameter_penyakit"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulasi_wabah_pesawat_kegiatan_pesawat_id_fkey"
+            columns: ["kegiatan_pesawat_id"]
+            isOneToOne: false
+            referencedRelation: "kegiatan_pesawat"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulasi_wabah_pesawat_kegiatan_pesawat_id_fkey"
+            columns: ["kegiatan_pesawat_id"]
+            isOneToOne: false
+            referencedRelation: "v_kegiatan_pesawat_rekap"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       statistik_kunjungan: {
         Row: {
@@ -1017,7 +1305,6 @@ export type Database = {
           dibuat_pada: string
           fase_bulan: string | null
           id: number
-          input_oleh: string | null
           jml_jam_tangkap: number | null
           jml_nyamuk: number | null
           jumlah_cidukan: number | null
@@ -1026,6 +1313,7 @@ export type Database = {
           keadaan_tempat_perindukan: string | null
           kelembapan_pct: number | null
           kode_wilker: string
+          macam_tempat_perindukan: string | null
           mbr: number | null
           metode_tangkap: string | null
           mhd: number | null
@@ -1041,7 +1329,6 @@ export type Database = {
           dibuat_pada?: string
           fase_bulan?: string | null
           id?: never
-          input_oleh?: string | null
           jml_jam_tangkap?: number | null
           jml_nyamuk?: number | null
           jumlah_cidukan?: number | null
@@ -1050,6 +1337,7 @@ export type Database = {
           keadaan_tempat_perindukan?: string | null
           kelembapan_pct?: number | null
           kode_wilker: string
+          macam_tempat_perindukan?: string | null
           mbr?: number | null
           metode_tangkap?: string | null
           mhd?: number | null
@@ -1065,7 +1353,6 @@ export type Database = {
           dibuat_pada?: string
           fase_bulan?: string | null
           id?: never
-          input_oleh?: string | null
           jml_jam_tangkap?: number | null
           jml_nyamuk?: number | null
           jumlah_cidukan?: number | null
@@ -1074,6 +1361,7 @@ export type Database = {
           keadaan_tempat_perindukan?: string | null
           kelembapan_pct?: number | null
           kode_wilker?: string
+          macam_tempat_perindukan?: string | null
           mbr?: number | null
           metode_tangkap?: string | null
           mhd?: number | null

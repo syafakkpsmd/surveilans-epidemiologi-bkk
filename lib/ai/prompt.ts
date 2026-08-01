@@ -1,4 +1,5 @@
 ﻿import type { DataAnalisis } from './data';
+import type { DataSimulasiWabah } from "@/lib/ai/data";
 
 export type HasilAnalisisAi = {
   ringkasan: string;
@@ -1371,4 +1372,37 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
   "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
   "rekomendasi": "rekomendasi kesiapan pengawasan kekarantinaan berbasis proyeksi tren ini, 1-3 poin"
 }`;
+}
+
+export function susunPromptSimulasiWabahKapal(data: DataSimulasiWabah): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+Kamu diminta memberi INTERPRETASI TAMBAHAN atas hasil simulasi model epidemiologi (SIR) untuk kejadian kapal berikut. Rekomendasi rules-based SUDAH dibuat sistem — tugasmu BUKAN mengulang angka itu, tapi memberi konteks epidemiologis yang tidak tertangkap model matematis sederhana ini.
+
+Data kejadian:
+- Kapal: ${data.namaEntitas}
+- Wilayah kerja: ${data.labelWilayah}
+- Kategori penyakit terduga: ${data.kategoriPenyakit}
+- R efektif (dengan isolasi): ${data.rEfektif.toFixed(2)}
+- Estimasi TKBM/kontak berisiko: ${data.estimasiKontakBerisikoTerinfeksi.toFixed(1)}
+- Rekomendasi rules-based yang sudah ada: "${data.rekomendasiRulesBased}"
+
+ATURAN PENTING:
+- JANGAN mengarang angka baru atau mengubah angka yang sudah diberikan.
+- JANGAN mengulang isi rekomendasi rules-based di atas.
+- Fokus pada: faktor konteks yang model SIR sederhana ini TIDAK tangkap (misal: kondisi ventilasi kapal, kepadatan ruang ABK, riwayat wabah serupa di kapal sejenis, pertimbangan choke point notifikasi internasional/IHR kalau relevan).
+- Bahasa Indonesia, ringkas, untuk pembaca petugas kekarantinaan kesehatan (bukan awam).
+
+Berikan output HANYA dalam format JSON dengan 3 field:
+{
+  "ringkasan": "...",
+  "anomali": "...",
+  "rekomendasi": "..."
+}`;
+}
+
+export function susunPromptSimulasiWabahPesawat(data: DataSimulasiWabah): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+[struktur sama, ganti konteks "kapal/TKBM" jadi "pesawat/kontak erat radius kursi/ground crew", tambahkan pertimbangan penumpang connecting flight ke kota lain]`;
 }

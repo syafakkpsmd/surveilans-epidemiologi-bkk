@@ -80,7 +80,7 @@ export async function updateSession(request: NextRequest) {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
-      maxAge: BATAS_INAKTIVITAS_MS / 1000,
+      maxAge: 60 * 60 * 24, // 1 hari -- umur cookie di browser, SENGAJA jauh lebih lebih panjang dari batas inactivitas supaya cookies tidak hilang duluan sebelum logic memngecek inaktifitas
     });
   }
 

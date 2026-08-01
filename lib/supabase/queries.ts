@@ -1213,3 +1213,25 @@ export async function getDaftarWilayahKerjaRatGuard() {
   if (error) throw new Error(`Gagal ambil daftar wilayah kerja Rat Guard: ${error.message}`);
   return (data ?? []).map((d: any) => d.wilayah_kerja) as string[];
 }
+
+export async function getReferensiPopulasiKapal(wilayahKerja: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("referensi_populasi_wilker")
+    .select("*")
+    .eq("jenis_wilker", "Pelabuhan")
+    .eq("wilayah_kerja", wilayahKerja)
+    .maybeSingle();
+  return data;
+}
+
+export async function getReferensiPopulasiPesawat(kodeWilker: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("referensi_populasi_wilker")
+    .select("*")
+    .eq("jenis_wilker", "Bandara")
+    .eq("kode_wilker", kodeWilker)
+    .maybeSingle();
+  return data;
+}

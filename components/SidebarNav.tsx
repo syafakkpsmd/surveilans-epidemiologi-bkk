@@ -31,6 +31,7 @@ import {
   Pipette,
   ExternalLink,
   Book,
+  Activity,
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -139,7 +140,16 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Status Laporan", href: "/dashboard/status-laporan", icon: ClipboardCheck, prefetch: false },
     ],
   },
+  {
+    title: "Simulasi Wabah",
+    items: [
+      { label: "Kapal", href: "/dashboard/simulasi-wabah/kapal", icon: Ship },
+      { label: "Pesawat", href: "/dashboard/simulasi-wabah/pesawat", icon: PlaneTakeoff },
+    ],
+},
 ];
+
+
 
 // Grup khusus Admin -- dirender terpisah, hanya kalau role === 'admin'
 const ADMIN_GROUP: NavGroup = {

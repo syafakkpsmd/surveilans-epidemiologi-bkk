@@ -67,10 +67,12 @@ import {
   susunPromptAbkCrewPenumpang,
   susunPromptPrediksiAbkCrewPenumpang,
 } from '@/lib/ai/prompt';
+import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
+import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
 import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
 import { panggilAI } from '@/lib/ai';
 import { rentangHariIniWita } from '@/lib/ai/periode';
-import type { Wilayah } from '@/types/database.types';
+import type { Wilayah, KategoriCop } from "@/types/domain.types";
 import { type MetrikVektor } from '@/lib/ai/dataVektor';
 
 
@@ -476,7 +478,22 @@ export async function POST(request: Request) {
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRatGuard(data) : susunPromptRatGuard(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
-    
+
+        } else if (konteks === 'simulasi-wabah-kapal' || konteks === 'simulasi-wabah-pesawat') {
+      // periodeKey di sini BUKAN format periode (2026-W27), tapi UUID id simulasi.
+      // Tidak ada "periode sebelumnya" karena ini event tunggal, bukan tren waktu.
+      const data = konteks === 'simulasi-wabah-kapal'
+        ? await ambilDataSimulasiWabahKapal(periodeKey)
+        : await ambilDataSimulasiWabahPesawat(periodeKey);
+
+      promptTeks = konteks === 'simulasi-wabah-kapal'
+        ? susunPromptSimulasiWabahKapal(data)
+        : susunPromptSimulasiWabahPesawat(data);
+
+      // tipe "prediksi" tidak berlaku untuk konteks ini — kalau tetap dikirim, treat sebagai analisis
+      labelPeriodeSaatIni = data.namaEntitas; // dipakai sebagai label tampilan pengganti periode
+      labelPeriodeSebelumnya = undefined;
+
     } else if (
       konteks === 'vektor-diare-lalat-mingguan' ||
       konteks === 'vektor-diare-kecoa-mingguan' ||

@@ -20,7 +20,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 // ================================================================
-// Tipe kartu dashboard
+// Tipe kartu dashboard & Data
 // ================================================================
 interface KartuDashboard {
   href: string;
@@ -92,7 +92,7 @@ export default async function DashboardHubPage() {
   // Galeri & carousel
   // ================================================================
   const fotoAwal = fotoUntukSlide.slice(0, 4);
-  const slides = fotoUntukSlide.map((foto) => ({
+  const slides = fotoUntukSlide.map((foto: Record<string, any>) => ({
     title: foto.judul,
     image: foto.url,
     deskripsi: foto.deskripsi ?? undefined,
@@ -104,29 +104,33 @@ export default async function DashboardHubPage() {
   // di atas.
   // ================================================================
   const totalKapalMingguIni =
-    ringkasanCopMingguan.filter((r) => r.minggu_epid === mingguEpid).reduce((a, r) => a + r.jumlah_kapal, 0) +
-    ringkasanPhqcMingguan.filter((r) => r.minggu_epid === mingguEpid).reduce((a, r) => a + r.jumlah_kapal, 0);
+    ringkasanCopMingguan
+      .filter((r: Record<string, any>) => r.minggu_epid === mingguEpid)
+      .reduce((a: number, r: Record<string, any>) => a + r.jumlah_kapal, 0) +
+    ringkasanPhqcMingguan
+      .filter((r: Record<string, any>) => r.minggu_epid === mingguEpid)
+      .reduce((a: number, r: Record<string, any>) => a + r.jumlah_kapal, 0);
 
   const totalPenerbanganBulanIni = [...pesawatKedatanganBulanan, ...pesawatKeberangkatanBulanan]
-    .filter((r) => r.bulan === bulanSekarang)
-    .reduce((a, r) => a + r.jumlah_penerbangan, 0);
+    .filter((r: Record<string, any>) => r.bulan === bulanSekarang)
+    .reduce((a: number, r: Record<string, any>) => a + r.jumlah_penerbangan, 0);
 
   const totalOrangBulanIni = (() => {
     const totalAbkCop = ringkasanCopBulanan
-      .filter((r) => r.bulan === bulanSekarang)
-      .reduce((a, r) => a + r.total_abk, 0);
+      .filter((r: Record<string, any>) => r.bulan === bulanSekarang)
+      .reduce((a: number, r: Record<string, any>) => a + r.total_abk, 0);
 
     const totalAbkPhqc = ringkasanPhqcBulanan
-      .filter((r) => r.bulan === bulanSekarang)
-      .reduce((a, r: any) => a + r.total_abk + (r.total_penumpang ?? 0), 0);
+      .filter((r: Record<string, any>) => r.bulan === bulanSekarang)
+      .reduce((a: number, r: Record<string, any>) => a + (r.total_abk ?? 0) + (r.total_penumpang ?? 0), 0);
 
     const totalPesawatOrang = ringkasanPesawatBulanan
-      .filter((r: any) => {
+      .filter((r: Record<string, any>) => {
         const b = typeof r.bulan === "number" ? r.bulan : parseInt(String(r.bulan), 10);
         return b === bulanSekarang;
       })
       .reduce(
-        (a: number, r: any) =>
+        (a: number, r: Record<string, any>) =>
           a + (r.crew_datang ?? 0) + (r.penumpang_datang ?? 0) + (r.crew_berangkat ?? 0) + (r.penumpang_berangkat ?? 0),
         0
       );
@@ -135,20 +139,20 @@ export default async function DashboardHubPage() {
   })();
 
   const totalSurveiDbdMingguIni = dataDbdMingguan
-    .filter((r: any) => r.minggu_epid === mingguEpid)
-    .reduce((a: number, r: any) => a + (r.jml_survei ?? 0), 0);
+    .filter((r: Record<string, any>) => r.minggu_epid === mingguEpid)
+    .reduce((a: number, r: Record<string, any>) => a + (r.jml_survei ?? 0), 0);
 
   const totalTppDiperiksaBulanIni = dataTppBulanan
-    .filter((r: any) => r.bulan === bulanSekarang)
-    .reduce((a: number, r: any) => a + (r.jumlah_tpp_diperiksa ?? 0), 0);
+    .filter((r: Record<string, any>) => r.bulan === bulanSekarang)
+    .reduce((a: number, r: Record<string, any>) => a + (r.jumlah_tpp_diperiksa ?? 0), 0);
 
   const totalTtuDiperiksaBulanIni = dataTtuBulanan
-    .filter((r: any) => r.bulan === bulanSekarang)
-    .reduce((a: number, r: any) => a + (r.jumlah_diperiksa ?? 0), 0);
+    .filter((r: Record<string, any>) => r.bulan === bulanSekarang)
+    .reduce((a: number, r: Record<string, any>) => a + (r.jumlah_diperiksa ?? 0), 0);
 
   const totalPabDiperiksaBulanIni = dataPabBulanan
-    .filter((r: any) => r.bulan === bulanSekarang)
-    .reduce((a: number, r: any) => a + (r.total_pab_diperiksa ?? 0), 0);
+    .filter((r: Record<string, any>) => r.bulan === bulanSekarang)
+    .reduce((a: number, r: Record<string, any>) => a + (r.total_pab_diperiksa ?? 0), 0);
 
   // ================================================================
   // Data kartu dashboard
@@ -308,7 +312,7 @@ export default async function DashboardHubPage() {
             className="rounded-xl border-t-4 bg-white p-5 shadow-sm transition hover:shadow-md"
             style={{ borderTopColor: kartu.warna }}
           >
-            <div className="mb-2 text-3xl">{kartu.ikon}</div>
+            <div className="mb-2 text-[#0F2A38]">{kartu.ikon}</div>
             <h2 className="font-semibold text-[#0F2A38]">{kartu.judul}</h2>
             <p className="mt-1 text-xs text-gray-500">{kartu.deskripsi}</p>
             {kartu.statistik && (

@@ -73,7 +73,7 @@ export default async function DashboardHubPage() {
     dataPabBulanan,
   ] = await Promise.all([
     getUserRole(),
-    amankan(getGaleriFoto(10), []),
+    amankan(getGaleriFoto(20), []),
     amankan(getJenisKegiatanFoto(), []),
     amankan(getRingkasanMingguan("cop", tahunEpid), []),
     amankan(getRingkasanMingguan("phqc", tahunEpid), []),
@@ -126,8 +126,8 @@ export default async function DashboardHubPage() {
 
     const totalPesawatOrang = ringkasanPesawatBulanan
       .filter((r: Record<string, any>) => {
-        const b = typeof r.bulan === "number" ? r.bulan : parseInt(String(r.bulan), 10);
-        return b === bulanSekarang;
+        const bulanAngka = parseInt(String(r.bulan).split("-")[1], 10);
+        return bulanAngka === bulanSekarang;
       })
       .reduce(
         (a: number, r: Record<string, any>) =>

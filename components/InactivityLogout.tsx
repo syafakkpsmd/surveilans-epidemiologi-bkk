@@ -3,10 +3,10 @@
 import { useEffect, useRef } from "react";
 import { logout } from "@/lib/auth/actions";
 
-const BATAS_WAKTU_MS = 20 * 60 * 1000; // 20 menit
+const BATAS_WAKTU_MS = 10 * 60 * 1000;
 const EVENT_AKTIVITAS = ["mousemove", "keydown", "click", "scroll", "touchstart"];
 const STORAGE_KEY = "lastActivityAt";
-const THROTTLE_TULIS_MS = 5000; // jangan tulis ke localStorage lebih sering dari ini
+const THROTTLE_TULIS_MS = 5000;
 
 export function InactivityLogout() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -23,32 +23,34 @@ export function InactivityLogout() {
       localStorage.setItem(STORAGE_KEY, String(ts));
     }
 
-    function lakukanLogout() {
-      if (sudahLogoutRef.current) return; // cegah panggil logout() dobel
+    // === GANTI FUNGSI INI (tambah `async`) ===
+    async function lakukanLogout() {
+      if (sudahLogoutRef.current) return;
       sudahLogoutRef.current = true;
       if (timerRef.current) clearTimeout(timerRef.current);
       localStorage.removeItem(STORAGE_KEY);
-      logout();
+      try {
+        await logout();
+      } catch {
+        // redirect() dari server action memang throw secara internal, ini normal
+      } finally {
+        window.location.href = "/login";
+      }
     }
+    // === SAMPAI SINI ===
 
-    // Jadwalkan timer logout berdasarkan sisa waktu dari last activity yang tersimpan,
-    // bukan selalu mulai dari 20 menit penuh -- supaya idle yang sudah berjalan
-    // (mis. tab background lama) langsung dihitung, bukan direset ulang.
     function jadwalkanTimer() {
       if (timerRef.current) clearTimeout(timerRef.current);
-
       const lastActivity = ambilLastActivity();
       const sisaWaktu = BATAS_WAKTU_MS - (Date.now() - lastActivity);
 
       if (sisaWaktu <= 0) {
-        lakukanLogout();
+        lakukanLogout(); // tetap boleh dipanggil tanpa await di sini
         return;
       }
-
-      timerRef.current = setTimeout(lakukanLogout, sisaWaktu);
+      timerRef.current = setTimeout(lakukanLogout, sisaWaktu); // setTimeout terima callback async, tidak masalah
     }
 
-    // Dipanggil tiap ada aktivitas: update localStorage (throttled) + reset timer.
     function tandaiAktivitas() {
       const now = Date.now();
       if (now - lastWriteRef.current >= THROTTLE_TULIS_MS) {
@@ -58,17 +60,12 @@ export function InactivityLogout() {
       jadwalkanTimer();
     }
 
-    // Saat tab kembali terlihat (mis. user balik dari tab/app lain, atau buka
-    // ulang browser dengan sesi lama) -- cek ulang, karena setTimeout bisa
-    // di-throttle/berhenti total selagi tab tersembunyi.
     function saatTabTerlihatLagi() {
       if (document.visibilityState === "visible") {
         jadwalkanTimer();
       }
     }
 
-    // Inisialisasi: pastikan ada timestamp awal, lalu cek langsung -- ini yang
-    // menangani kasus "buka tab baru setelah lama idle di tab lain / browser sempat ditutup".
     if (!localStorage.getItem(STORAGE_KEY)) {
       tulisLastActivity(Date.now());
     }

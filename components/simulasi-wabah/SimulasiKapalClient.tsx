@@ -17,6 +17,12 @@ interface Props {
   riwayatSimulasi: any[];
 }
 
+// [BARU] tipe untuk baris kota tujuan lanjutan (ABK/TKBM yang lanjut perjalanan ke wilayah lain)
+interface KotaTujuan {
+  kota: string;
+  jumlahAbk: string;
+}
+
 const FORM_AWAL = {
   wilayahKerja: "",
   namaKapal: "",
@@ -37,6 +43,7 @@ export function SimulasiKapalClient({ sudahLogin, role, daftarPenyakit, daftarWi
   const bisaGenerate = sudahLogin && (role === "admin" || role === "petugas");
 
   const [form, setForm] = useState(FORM_AWAL);
+  const [kotaTujuan, setKotaTujuan] = useState<KotaTujuan[]>([]); // [BARU]
   const [hasil, setHasil] = useState<any>(riwayatSimulasi[0] ?? null);
   const [loading, setLoading] = useState(false);
   const [memuatPrefill, setMemuatPrefill] = useState(false);
@@ -44,6 +51,21 @@ export function SimulasiKapalClient({ sudahLogin, role, daftarPenyakit, daftarWi
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // [BARU] handler kota tujuan — sama pola dengan SimulasiPesawatClient
+  const tambahKotaTujuan = () => {
+    setKotaTujuan((prev) => [...prev, { kota: "", jumlahAbk: "" }]);
+  };
+
+  const hapusKotaTujuan = (index: number) => {
+    setKotaTujuan((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const ubahKotaTujuan = (index: number, field: keyof KotaTujuan, value: string) => {
+    setKotaTujuan((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
   };
 
   const handleWilayahChange = async (value: string) => {
@@ -86,6 +108,10 @@ export function SimulasiKapalClient({ sudahLogin, role, daftarPenyakit, daftarWi
         jumlahPetugasKesehatan: Number(form.jumlahPetugasKesehatan) || 0,
         jumlahPetugasNonKesehatan: Number(form.jumlahPetugasNonKesehatan) || 0,
         durasiKontakPetugasJam: Number(form.durasiKontakPetugasJam) || 1,
+        // [BARU] kirim daftar kota tujuan lanjutan, hanya baris yang terisi lengkap
+        daftarKotaTujuanLanjutan: kotaTujuan
+          .filter((k) => k.kota && k.jumlahAbk)
+          .map((k) => ({ kota: k.kota, jumlahAbk: Number(k.jumlahAbk) })),
       });
       setHasil(hasilBaru);
     } catch (e: any) {
@@ -241,6 +267,44 @@ export function SimulasiKapalClient({ sudahLogin, role, daftarPenyakit, daftarWi
             </div>
           </div>
 
+          {/* [BARU] blok kota tujuan lanjutan — ABK/TKBM yang lanjut perjalanan ke wilayah/kota lain setelah kontak */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm text-gray-600">Kota tujuan lanjutan (ABK/TKBM yang lanjut perjalanan)</label>
+              <button
+                type="button"
+                onClick={tambahKotaTujuan}
+                className="text-sm text-teal-700 hover:underline"
+              >
+                + Tambah kota
+              </button>
+            </div>
+            {kotaTujuan.map((item, i) => (
+              <div key={i} className="flex gap-2 mb-2">
+                <input
+                  placeholder="Nama kota"
+                  className="flex-1 border rounded px-2 py-1"
+                  value={item.kota}
+                  onChange={(e) => ubahKotaTujuan(i, "kota", e.target.value)}
+                />
+                <input
+                  type="number"
+                  placeholder="Jumlah ABK/TKBM"
+                  className="w-40 border rounded px-2 py-1"
+                  value={item.jumlahAbk}
+                  onChange={(e) => ubahKotaTujuan(i, "jumlahAbk", e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => hapusKotaTujuan(i)}
+                  className="text-red-600 text-sm px-2"
+                >
+                  Hapus
+                </button>
+              </div>
+            ))}
+          </div>
+
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <button
@@ -283,6 +347,31 @@ export function SimulasiKapalClient({ sudahLogin, role, daftarPenyakit, daftarWi
               <Line type="monotone" dataKey="I dengan isolasi" stroke="#0f766e" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
+
+          {/* [BARU] rincian kota tujuan lanjutan di hasil — sama pola dengan halaman pesawat */}
+          {hasil.daftar_kota_tujuan_lanjutan?.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                Rincian kota tujuan lanjutan ({hasil.daftar_kota_tujuan_lanjutan.length} kota)
+              </p>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="py-1">Kota</th>
+                    <th>Jumlah ABK/TKBM</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hasil.daftar_kota_tujuan_lanjutan.map((k: any, i: number) => (
+                    <tr key={i} className="border-b">
+                      <td className="py-1">{k.kota}</td>
+                      <td>{k.jumlahAbk}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="bg-amber-50 border border-amber-200 rounded p-3">
             <p className="text-sm font-medium text-amber-900 mb-1">Rekomendasi kebijakan</p>

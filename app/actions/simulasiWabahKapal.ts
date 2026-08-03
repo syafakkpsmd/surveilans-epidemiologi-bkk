@@ -25,6 +25,8 @@ export async function jalankanSimulasiWabahKapal(input: {
   jumlahPetugasKesehatan: number;
   jumlahPetugasNonKesehatan: number;
   durasiKontakPetugasJam: number;
+  // [BARU]
+  daftarKotaTujuanLanjutan?: { kota: string; jumlahAbk: number }[];
 }) {
   const supabase = await createClient();
 
@@ -133,6 +135,8 @@ export async function jalankanSimulasiWabahKapal(input: {
       r_efektif_tkbm: null,
       estimasi_kasus_impor_kota: risikoTkbm.estimasiTkbmTerinfeksi,
       rekomendasi_kebijakan: rekomendasi,
+      // [BARU] simpan daftar kota tujuan lanjutan sebagai JSONB, default array kosong
+      daftar_kota_tujuan_lanjutan: input.daftarKotaTujuanLanjutan ?? [],
       dibuat_oleh: user.id,
     })
     .select()

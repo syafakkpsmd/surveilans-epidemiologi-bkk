@@ -162,6 +162,35 @@ export async function getStatistikKunjungan() {
     daerah: r.kota !== '-' ? `${r.kota}, ${r.wilayah}, ${r.negara}` : '-',
   }));
 
+  // ============================================================
+  // Rekap Daerah Asal PER PERIODE (Harian = hari ini WITA, Mingguan
+  // = 7 hari terakhir) — untuk chart vertikal baru, terpisah dari
+  // daerahAsal di atas yang cakupannya 1 tahun penuh.
+  // ============================================================
+  function rekapDaerahAsal(rowsFiltered: NonNullable<typeof rows>): { label: string; jumlah: number }[] {
+    const map: Record<string, number> = {};
+    rowsFiltered.forEach((r) => {
+      const label = r.kota && r.kota !== '-' ? `${r.kota}, ${r.wilayah}` : 'Tidak diketahui';
+      map[label] = (map[label] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([label, jumlah]) => ({ label, jumlah }));
+  }
+
+  const hariIniStr = tglWita(new Date());
+  const rowsHariIni = rows.filter((r) => tglWita(new Date(r.created_at)) === hariIniStr);
+
+  const tujuhHariLalu = new Date();
+  tujuhHariLalu.setDate(tujuhHariLalu.getDate() - 6);
+  const rowsMingguIni = rows.filter((r) => new Date(r.created_at) >= tujuhHariLalu);
+
+  const daerahAsalPeriode = {
+    harian: rekapDaerahAsal(rowsHariIni),
+    mingguan: rekapDaerahAsal(rowsMingguIni),
+  };
+
   return {
     ok: true as const,
     totalPageload,
@@ -176,6 +205,7 @@ export async function getStatistikKunjungan() {
       tahunan: trenTahunan,
     },
     daerahAsal,
+    daerahAsalPeriode,
     recent,
   };
 }

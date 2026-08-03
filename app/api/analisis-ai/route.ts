@@ -190,7 +190,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-  'Prediksi AI belum tersedia untuk konteks ini. Saat ini Prediksi AI mendukung: data vektor (HI/CI/BI/ABJ/Curah Hujan), cop-rba, cop-negara-asal, cop-negara-tren, cop-per-wilker, phqc-daerah-asal, phqc-rba-mingguan, phqc-rba-bulanan, penumpang-mingguan, penumpang-bulanan, pesawat-mingguan, pesawat-bulanan, tikus-lab-mingguan, tikus-lab-bulanan, vektor-tikus-mingguan, vektor-tikus-bulanan, anopheles-dewasa-mingguan, anopheles-dewasa-bulanan, anopheles-larva-mingguan, anopheles-larva-bulanan, tpp-bulanan, ttu-bulanan, pab-bulanan.',
+  "Konteks tidak dikenal.",
       },
       { status: 400 }
     );
@@ -529,11 +529,11 @@ export async function POST(request: Request) {
       const data = await ambilDataAnalisisCop(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = susunPrompt(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else if (konteks === 'phqc-mingguan' || konteks === 'phqc-bulanan') {
       const data = await ambilDataAnalisisPhqc(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = susunPrompt(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
-      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else {
       const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);

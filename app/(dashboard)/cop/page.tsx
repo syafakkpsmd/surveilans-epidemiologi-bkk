@@ -230,8 +230,8 @@ const periodeKey =
     ? `${tahunEpidSaatIni}-W${mingguAkhir}`
     : `${sekarang.getFullYear()}-${bulanAkhir}`;
 
-// periodeKey khusus section 3 & 4, yang SELALU mingguan tahun epid berjalan
-const periodeKeyMingguanSelalu = `${tahunEpidSaatIni}-W${mingguEpidSaatIni}`;
+// periodeKey khusus section 3 & 4, yang SELALU mingguan tahun epid dipilih
+const periodeKeyMingguanSelalu = `${tahunEpidSaatIni}-W${mingguAkhir}`;
 
 const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 
@@ -431,6 +431,11 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
       const rows = hasilSemuaKategori[idx];
       const peta = new Map<string, number>();
       rows.forEach((r) => {
+        const urutan = mode === "mingguan"
+          ? (r as { minggu_epid: number }).minggu_epid
+          : (r as { bulan: number }).bulan;
+        if (urutan < batasAwal || urutan > batasAkhir) return;
+
         const nilaiNormal = normalisasiNilaiKategori(r.nilai);
         peta.set(nilaiNormal, (peta.get(nilaiNormal) ?? 0) + r.jumlah);
       });
@@ -485,22 +490,27 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   // ============================================================
   // KARTU RINGKASAN TOTAL (section 3) -- dihitung dari
   // ringkasanMingguanSemuaWilker (SELALU mingguan tahun epid
-  // berjalan, tidak ikut filter wilayah/mode di atas).
+  // dipilih, ikut total wilayah/mode di atas).
   // ============================================================
-  const totalKapalKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.jumlah_kapal, 0);
-  const totalAbkKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.total_abk, 0);
-  const totalAbkWnaKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.total_abk_wna, 0);
-  const totalAbkWniKeseluruhan = ringkasanMingguanSemuaWilker.reduce((a, r) => a + r.total_abk_wni, 0);
+  const ringkasanUntukTotal =
+    mode === "mingguan"
+      ? ringkasanMingguanSemuaWilker.filter((r) => r.minggu_epid <= mingguAkhir)
+      : ringkasanBulananSemuaWilker.filter((r) => r.bulan <= bulanAkhir);
+
+  const totalKapalKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.jumlah_kapal, 0);
+  const totalAbkKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.total_abk, 0);
+  const totalAbkWnaKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.total_abk_wna, 0);
+  const totalAbkWniKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.total_abk_wni, 0);
 
   const kapalPerWilayah = WILAYAH_URUTAN.map((w) => ({
     wilayah: w,
-    jumlah: ringkasanMingguanSemuaWilker
+    jumlah: ringkasanUntukTotal
       .filter((r) => r.wilayah_kerja === w)
       .reduce((a, r) => a + r.jumlah_kapal, 0),
-  })).sort((a, b) => b.jumlah - a.jumlah); // <-- urut tertinggi ke terendah
+  })).sort((a, b) => b.jumlah - a.jumlah);
   const abkPerWilayah = WILAYAH_URUTAN.map((w) => ({
     wilayah: w,
-    jumlah: ringkasanMingguanSemuaWilker
+    jumlah: ringkasanUntukTotal
       .filter((r) => r.wilayah_kerja === w)
       .reduce((a, r) => a + r.total_abk, 0),
   })).sort((a, b) => b.jumlah - a.jumlah); // <-- urut tertinggi ke terendah
@@ -656,13 +666,13 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-card bg-surface p-4">
               <p className="text-xs font-semibold tracking-wide text-muted">
-                Total Kapal Tahun {tahunEpidSaatIni}
+                Total Kapal Mg 1–{mingguAkhir} Thn {tahunEpidSaatIni}
               </p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalKapalKeseluruhan.toLocaleString('id-ID')}</p>
             </div>
             <div className="rounded-card bg-surface p-4">
               <p className="text-xs font-semibold tracking-wide text-muted">
-                Total ABK Tahun {tahunEpidSaatIni}
+                Total ABK {mode === "mingguan" ? `Mg 1–${mingguAkhir}` : `${NAMA_BULAN[0]}–${NAMA_BULAN[bulanAkhir - 1]}`} Tahun {tahun}
               </p>
               <p className="mt-1 text-2xl font-bold text-ink">{totalAbkKeseluruhan.toLocaleString('id-ID')}</p>
             </div>

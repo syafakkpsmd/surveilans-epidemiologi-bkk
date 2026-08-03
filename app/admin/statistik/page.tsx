@@ -3,6 +3,7 @@ import { getUserRole } from '@/lib/auth/get-user-role';
 import Link from 'next/link';
 import { ArrowLeft, Eye, UserCheck, Crown, LogIn, Users } from 'lucide-react';
 import TopDaerahChart from './TopDaerahChart';
+import TopDaerahChartVertikal from './TopDaerahChartVertikal';   // <-- tambah
 import AktivitasTrendChart from './AktivitasTrendChart';
 import AktivitasTerakhirList from './AktivitasTerakhirList';
 
@@ -34,11 +35,12 @@ export default async function StatistikPage() {
   return (
     <main className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-[#0F2A38]">Statistik Kunjungan</h1>
+      <div className="grid grid-cols-3 items-center">
+        <div />
+        <h1 className="text-xl text-center font-semibold text-[#0F2A38]">Statistik Kunjungan</h1>
         <Link
           href={backHref}
-          className="flex items-center gap-1.5 text-sm text-[#0F4C5C] hover:underline font-medium"
+          className="flex items-center gap-1.5 text-sm text-[#0F4C5C] hover:underline font-medium justify-self-end"
         >
           <ArrowLeft size={16} />
           {backLabel}
@@ -101,6 +103,12 @@ export default async function StatistikPage() {
 
       {/* Grafik Top Daerah Asal Login */}
       <TopDaerahChart data={stats.daerahAsal} />
+
+      {/* Grafik Top Daerah Asal Login — Vertikal, Harian/Mingguan */}
+      <TopDaerahChartVertikal
+        dataHarian={stats.daerahAsalPeriode.harian}
+        dataMingguan={stats.daerahAsalPeriode.mingguan}
+      />
     </main>
   );
 }

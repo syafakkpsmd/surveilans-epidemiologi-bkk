@@ -194,7 +194,6 @@ export function isKonteksKodeWilkerOpsional(konteks: KonteksAnalisis): boolean {
     konteks === 'vektor-diare-kecoa-bulanan' ||
     konteks.startsWith('anopheles-') ||
     konteks.startsWith('global-emerging-') ||
-    konteks.startsWith('global-emerging-') ||
     konteks.startsWith('abk-crew-penumpang-')
   );
 }

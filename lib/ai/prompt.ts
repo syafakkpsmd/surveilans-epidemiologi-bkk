@@ -61,6 +61,7 @@ ATURAN WAJIB:
 - Kalau data periode berjalan kosong/nol, katakan itu apa adanya (mis. "tidak ada kegiatan tercatat"), jangan dikarang seolah ada aktivitas.
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau berapa unit) untuk bagian anomali.
 - Tulis dalam Bahasa Indonesia, istilah kesehatan masyarakat baku (KLB, RBA, minggu epidemiologi) bila relevan.
+- WAJIB sebutkan rentang periode secara EKSPLISIT dan PERSIS sesuai teks "${data.labelPeriodeSaatIni}" di bagian pembuka field "ringkasan" (contoh gaya: "Pada rentang ${data.labelPeriodeSaatIni}, terdapat..."). JANGAN menyingkat rentang jadi cuma menyebut 1 angka minggu/bulan terakhir saja (mis. jangan tulis "pada minggu ke-20" kalau labelnya adalah rentang minggu 1 s.d. 20).
 - rekomendasi harus singkat, actionable, dan berbasis angka di atas -- semangat seperti bagian "Rekomendasi" pada poster SIGAP SKDR, TAPI jangan mengarang rekomendasi yang tidak nyambung dengan data yang diberikan.
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar JSON) dengan PERSIS 3 field berikut:

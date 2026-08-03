@@ -337,10 +337,10 @@ export default function VektorTikusClient({
               data={chartData}
               tipeChart={periodeType === "bulanan" ? "bar" : "line"}
               seriesList={[
-                { key: "RT", label: "Rattus tanezumi (RT)", warna: "#4E342E" },
-                { key: "RN", label: "Rattus norvegicus (RN)", warna: "#8D6E63" },
-                { key: "MM", label: "Mus musculus (MM)", warna: "#602712" },
-                { key: "Lainnya", label: "Lainnya", warna: "#f7a0a0" },
+                { key: "RT", label: "Rattus tanezumi (RT)", warna: "#1D4ED8" },
+                { key: "RN", label: "Rattus norvegicus (RN)", warna: "#EA580C" },
+                { key: "MM", label: "Mus musculus (MM)", warna: "#15803D" },
+                { key: "Lainnya", label: "Lainnya", warna: "#BE185D" },
               ]}
             />
           </div>

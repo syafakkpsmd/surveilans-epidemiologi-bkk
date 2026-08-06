@@ -41,7 +41,7 @@ export function NavbarClient({ sudahLogin, role }: NavbarClientProps) {
             Welcome to
           </span>
           <span className="text-lg font-bold text-yellow-300 md:text-2xl">
-            EPIC-AI Samarinda Quarantine Office
+            EPIC-AI BKK Kelas I Samarinda
           </span>
           <span className="text-[14px] font-normal tracking-widest text-white">
             Epidemiological Predictive Intelligence Center - Artificial Intelligence Analysis

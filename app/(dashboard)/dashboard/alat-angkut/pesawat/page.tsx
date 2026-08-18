@@ -262,11 +262,9 @@ export default async function AlatAngkutPesawatPage({
 
         {/* ================= MINGGUAN ================= */}
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-center text-sm uppercase font-semibold text-gray-700">Distribusi Crew &amp; Penumpang Pesawat
-            <br />
-            dalam Mingguan selama Tahun {tahun}</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
+              judul={`Distribusi Crew & Penumpang Pesawat dalam Mingguan selama Tahun ${tahun}`}
               data={ringkasanMingguan}
               seriesList={[
                 { key: 'penumpang_berangkat', label: 'Penumpang Berangkat', warna: '#0F4C5C' },
@@ -276,7 +274,10 @@ export default async function AlatAngkutPesawatPage({
               ]}
             />
           ) : (
-            <p className="text-sm text-gray-400 py-4 text-center">Data tren mingguan kosong.</p>
+            <>
+              <h2 className="mb-2 text-center text-sm uppercase font-semibold text-gray-700">Distribusi Crew &amp; Penumpang Pesawat<br />dalam Mingguan selama Tahun {tahun}</h2>
+              <p className="text-sm text-gray-400 py-4 text-center">Data tren mingguan kosong.</p>
+            </>
           )}
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
             <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="crew-penumpang" hasilAwal={hasilAnalisisMingguanCrewPenumpang} />
@@ -285,9 +286,9 @@ export default async function AlatAngkutPesawatPage({
         </div>
 
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-center uppercase text-sm font-semibold text-gray-700">Distribusi Penerbitan Dokumen Kekarantinaan Kesehatan Tahun {tahun}</h2>
           {ringkasanMingguan && ringkasanMingguan.length > 0 ? (
             <TrenChartMingguan
+              judul={`Distribusi Penerbitan Dokumen Kekarantinaan Kesehatan Tahun ${tahun}`}
               data={ringkasanMingguan}
               seriesList={[
                 { key: 'sklt_total', label: 'SKLT', warna: '#B71C1C' },
@@ -298,7 +299,10 @@ export default async function AlatAngkutPesawatPage({
               ]}
             />
           ) : (
-            <p className="text-sm text-gray-400 py-4 text-center">Data sertifikat mingguan kosong.</p>
+            <>
+              <h2 className="mb-2 text-center uppercase text-sm font-semibold text-gray-700">Distribusi Penerbitan Dokumen Kekarantinaan Kesehatan Tahun {tahun}</h2>
+              <p className="text-sm text-gray-400 py-4 text-center">Data sertifikat mingguan kosong.</p>
+            </>
           )}
           <div className="mt-3">
             <BoxAnalisisAI sudahLogin={sudahLogin} role={roleAI} konteks={konteksMingguan} periodeKey={periodeKeyMingguan} wilayahKerja={wilker ?? undefined} metrik="sertifikat" hasilAwal={hasilAnalisisMingguanSertifikat} />

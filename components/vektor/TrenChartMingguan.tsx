@@ -90,21 +90,34 @@ export default function TrenChartMingguan({
     });
   }
 
+  // BARU -- dipindah ke atas supaya bisa dipakai untuk title dinamis
+  const seriesTerlihatAwal = seriesList.filter((s) => seriesAktif.has(s.key));
+  const semuaAktif = seriesTerlihatAwal.length === seriesList.length;
+  const judulTampil =
+    semuaAktif || seriesTerlihatAwal.length === 0
+      ? judul
+      : `Distribusi ${seriesTerlihatAwal.map((s) => s.label).join(' & ')}`;
+
   if (!data.length) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-        Belum ada data untuk rentang ini.
+      <div>
+        {judulTampil && (
+          <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judulTampil}</h3>
+        )}
+        <div className="flex h-64 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+          Belum ada data untuk rentang ini.
+        </div>
       </div>
     );
   }
 
-  const seriesTerlihat = seriesList.filter((s) => seriesAktif.has(s.key));
+  const seriesTerlihat = seriesTerlihatAwal;
   const seriesKanan = seriesTerlihat.filter((s) => s.axis === 'kanan');
 
   return (
     <div>
-      {judul && (
-        <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judul}</h3>
+      {judulTampil && (
+        <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judulTampil}</h3>
       )}
 
       <ResponsiveContainer width="100%" height={280}>

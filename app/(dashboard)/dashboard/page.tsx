@@ -50,6 +50,11 @@ export default async function DashboardHubPage() {
   const bulanSekarang = new Date().getMonth() + 1;
   const tahunSekarang = new Date().getFullYear();
 
+  // BARU -- khusus untuk teks tampilan di header, minggu epid dikurangi 1
+  // (mingguEpid asli TETAP dipakai untuk filter statistik kartu & periodeKey AI di bawah)
+  const mingguEpidTampil = mingguEpid > 1 ? mingguEpid - 1 : mingguEpid;
+  
+
   // ================================================================
   // SATU Promise.all untuk SEMUA data yang dibutuhkan halaman ini.
   // Setiap entri dibungkus amankan() supaya satu query yang gagal
@@ -274,7 +279,7 @@ export default async function DashboardHubPage() {
           </p>
           <h1 className="text-3xl font-extrabold text-slate-900">Dashboard Surveilans</h1>
           <p className="text-sm text-slate-500">
-            Minggu Epidemiologi ke-{mingguEpid} Tahun {tahunEpid}
+            Minggu Epidemiologi ke-{mingguEpidTampil} Tahun {tahunEpid}
           </p>
         </div>
 

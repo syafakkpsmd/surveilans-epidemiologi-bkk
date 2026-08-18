@@ -62,10 +62,17 @@ export default function GrafikBarBulanan({
   const seriesAktif = seriesList.filter((s) => seriesTerpilih.includes(s.key));
   const seriesKanan = seriesAktif.filter((s) => s.axis === 'kanan');
 
+  // BARU -- title dinamis, pola sama seperti TrenChartMingguan
+  const semuaAktif = seriesAktif.length === seriesList.length;
+  const judulTampil =
+    semuaAktif || seriesAktif.length === 0
+      ? judul
+      : `Distribusi ${seriesAktif.map((s) => s.label).join(' & ')}`;
+
   if (!data.length) {
     return (
       <div className="rounded-xl bg-white p-4 shadow-sm">
-        <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judul}</h3>
+        <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judulTampil}</h3>
         <div className="flex h-56 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
           Belum ada data untuk periode ini.
         </div>
@@ -75,7 +82,7 @@ export default function GrafikBarBulanan({
 
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm">
-      <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judul}</h3>
+      <h3 className="mb-2 text-center text-sm font-semibold text-gray-700">{judulTampil}</h3>
 
       {seriesAktif.length === 0 ? (
         <div className="flex h-70 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-400">

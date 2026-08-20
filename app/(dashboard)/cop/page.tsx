@@ -351,7 +351,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
       mode === "mingguan"
         ? getKategoriBreakdown("cop", "mingguan", {
             tahun_epid: tahun,
-            minggu_epid: mingguEpidSaatIni,
+            minggu_epid: mingguAkhir,
             wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
             kategori: "rba",
           })
@@ -919,7 +919,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
                   Risk Based Assessment (RBA) 
                   <br />
-                  Minggu Epidemiologi ke-{mingguEpidSaatIni}
+                  Minggu Epidemiologi ke-{mingguAkhir}
                 </h3>
                 <DonutRba data={kategoriRbaMingguIni} />
                 <div className="mt-4">

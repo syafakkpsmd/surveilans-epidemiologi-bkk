@@ -2,16 +2,15 @@
 
 /**
  * components/status-laporan/KontrolPeriode.tsx
- * Toggle tab Mingguan/Bulanan + picker tahun+minggu (mingguan) atau
- * tahun+bulan (bulanan). Update lewat URL search params.
+ * Picker periode untuk 1 varian (Mingguan ATAU Bulanan) -- TIDAK ADA
+ * toggle switch lagi, karena sejak status-laporan/page.tsx digabung
+ * jadi 1 halaman (Mingguan di atas, Bulanan di bawah, tampil
+ * bersamaan), toggle antar-tab sudah tidak relevan.
  *
- * PERUBAHAN: input Tahun & Minggu/Bulan tidak lagi masing-masing
- * memicu router.push() sendiri lewat onBlur terpisah (itu penyebab
- * 2 request RSC dobel kalau user pindah fokus antar field). Sekarang
- * nilainya disimpan di state lokal dulu, baru di-"commit" ke URL
- * lewat SATU titik (tombol Terapkan / onBlur di field terakhir),
- * dan pakai router.replace + startTransition supaya tidak menumpuk
- * history dan tidak terasa nge-freeze saat data baru dimuat.
+ * Dipanggil 2x terpisah di page.tsx: 1x dengan varian="mingguan"
+ * (pakai param URL tahun_mg + minggu), 1x dengan varian="bulanan"
+ * (pakai param URL tahun_bl + bulan) -- param dipisah supaya picker
+ * tahun di 2 blok tidak saling menimpa di URL yang sama.
  */
 
 import { useEffect, useState, useTransition } from 'react';
@@ -22,43 +21,39 @@ const BULAN_LABEL = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
-type Props = {
-  tab: 'mingguan' | 'bulanan';
-  tahun: number;
-  minggu: number;
-  bulan: number;
-};
+type Props =
+  | { varian: 'mingguan'; tahun: number; minggu: number }
+  | { varian: 'bulanan'; tahun: number; bulan: number };
 
-export default function KontrolPeriode({ tab, tahun, minggu, bulan }: Props) {
+export default function KontrolPeriode(props: Props) {
+  const { varian, tahun } = props;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // State lokal untuk input -- tidak langsung navigasi tiap perubahan.
+  const paramTahun = varian === 'mingguan' ? 'tahun_mg' : 'tahun_bl';
+
   const [tahunInput, setTahunInput] = useState(String(tahun));
-  const [mingguInput, setMingguInput] = useState(String(minggu));
-  const [bulanInput, setBulanInput] = useState(String(bulan));
+  const [mingguInput, setMingguInput] = useState(
+    varian === 'mingguan' ? String(props.minggu) : '',
+  );
+  const [bulanInput, setBulanInput] = useState(
+    varian === 'bulanan' ? String(props.bulan) : '',
+  );
 
   // Sinkronkan ulang state lokal kalau prop dari server berubah
   // (misalnya user navigasi lewat tombol back/forward browser).
   useEffect(() => {
     setTahunInput(String(tahun));
-    setMingguInput(String(minggu));
-    setBulanInput(String(bulan));
-  }, [tahun, minggu, bulan]);
-
-  function pindahTab(tabBaru: 'mingguan' | 'bulanan') {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', tabBaru);
-    startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    });
-  }
+    if (varian === 'mingguan') setMingguInput(String(props.minggu));
+    if (varian === 'bulanan') setBulanInput(String(props.bulan));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tahun, varian === 'mingguan' ? props.minggu : undefined, varian === 'bulanan' ? props.bulan : undefined]);
 
   function terapkanMingguan() {
     const params = new URLSearchParams(searchParams.toString());
-    params.set('tahun', tahunInput);
+    params.set(paramTahun, tahunInput);
     params.set('minggu', mingguInput);
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -67,7 +62,7 @@ export default function KontrolPeriode({ tab, tahun, minggu, bulan }: Props) {
 
   function terapkanBulanan(bulanBaru?: string) {
     const params = new URLSearchParams(searchParams.toString());
-    params.set('tahun', tahunInput);
+    params.set(paramTahun, tahunInput);
     params.set('bulan', bulanBaru ?? bulanInput);
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -76,28 +71,7 @@ export default function KontrolPeriode({ tab, tahun, minggu, bulan }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="flex overflow-hidden rounded-full border border-gray-200">
-        <button
-          type="button"
-          onClick={() => pindahTab('mingguan')}
-          className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-            tab === 'mingguan' ? 'bg-[#0F2A38] text-white' : 'bg-white text-gray-600'
-          }`}
-        >
-          Mingguan
-        </button>
-        <button
-          type="button"
-          onClick={() => pindahTab('bulanan')}
-          className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-            tab === 'bulanan' ? 'bg-[#0F2A38] text-white' : 'bg-white text-gray-600'
-          }`}
-        >
-          Bulanan
-        </button>
-      </div>
-
-      {tab === 'mingguan' ? (
+      {varian === 'mingguan' ? (
         <div className="flex items-center gap-2 text-sm">
           <label className="text-gray-500">Tahun</label>
           <input

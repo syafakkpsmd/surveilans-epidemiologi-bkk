@@ -10,7 +10,7 @@
  *   status_lapor_mingguan(p_tahun int, p_minggu int)
  *     -> { kode_wilker: string, kegiatan: 'COP'|'PHQC'|'Pesawat', jumlah: number }[]
  *   status_lapor_bulanan(p_tahun int, p_bulan int)
- *     -> { kode_wilker: string, kegiatan: 'DBD'|'Tikus'|'Anoph'|'Malaria'|'TB'|'HIV'|'Diare', jumlah: number }[]
+ *     -> { kode_wilker: string, kegiatan: 'DBD'|'Tikus'|'Anoph'|'Lalat'|'Kecoa'|'TPP'|'TTU'|'PAB', jumlah: number }[]
  */
 
 export type StatusLaporRow = {
@@ -35,15 +35,21 @@ export const DAFTAR_WILKER = [
 
 export type KodeWilker = (typeof DAFTAR_WILKER)[number]['kode'];
 
-/** Kegiatan bulanan, urutan ini juga dipakai sebagai urutan kolom tabel. */
+/** Kegiatan bulanan, urutan ini juga dipakai sebagai urutan kolom tabel.
+ * Malaria/TB/HIV di-skip sementara (lihat catatan project). Diare lama
+ * dipecah jadi 2 kegiatan terpisah: Lalat & Kecoa. Ditambah TPP, TTU, PAB.
+ * PENTING: nilai-nilai ini harus PERSIS SAMA dengan string `kegiatan`
+ * yang dikembalikan fungsi SQL status_lapor_bulanan() -- fungsi itu
+ * wajib diupdate juga di Supabase, tidak otomatis ikut berubah dari sini. */
 export const KEGIATAN_BULANAN = [
   'DBD',
   'Tikus',
   'Anoph',
-  'Malaria',
-  'TB',
-  'HIV',
-  'Diare',
+  'Lalat',
+  'Kecoa',
+  'TPP',
+  'TTU',
+  'PAB',
 ] as const;
 export type KegiatanBulanan = (typeof KEGIATAN_BULANAN)[number];
 

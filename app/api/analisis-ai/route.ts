@@ -18,6 +18,9 @@ import {
   ambilDataAnalisisGlobalEmerging,
   ambilDataAnalisisNasionalEmerging,
   ambilDataAnalisisAbkCrewPenumpang,
+  ambilDataAnalisisSkdr,
+  ambilDataAnalisisSkdrTren,
+  isKonteksSkdrTren,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -66,6 +69,10 @@ import {
   susunPromptPrediksiNasionalEmerging,  // <-- tambah
   susunPromptAbkCrewPenumpang,
   susunPromptPrediksiAbkCrewPenumpang,
+  susunPromptSkdr,
+  susunPromptPrediksiSkdr,
+  susunPromptSkdrTren,
+  susunPromptPrediksiSkdrTren,
 } from '@/lib/ai/prompt';
 import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
 import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
@@ -218,6 +225,8 @@ export async function POST(request: Request) {
   const konteksSanitasi = isKonteksSanitasi(konteks);
   const konteksGlobalEmerging = konteks.startsWith('global-emerging-');
   const konteksNasionalEmerging = konteks.startsWith('nasional-emerging-'); // <-- tambah
+  const konteksSkdr = konteks === 'skdr-mingguan';
+  const konteksSkdrTren = isKonteksSkdrTren(konteks);
   const konteksAbkCrewPenumpang = konteks.startsWith('abk-crew-penumpang-');
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
@@ -235,6 +244,13 @@ export async function POST(request: Request) {
         error:
           'Prediksi AI belum tersedia untuk konteks ini. Saat ini Prediksi AI mendukung: data vektor (HI/CI/BI/ABJ/Curah Hujan), cop-rba, cop-negara-asal, phqc-daerah-asal, phqc-rba-mingguan, phqc-rba-bulanan, penumpang-mingguan, penumpang-bulanan, pesawat-mingguan, pesawat-bulanan.',
       },
+      { status: 400 }
+    );
+  }
+
+  if (konteksSkdrTren && (typeof metrikMentah !== 'string' || metrikMentah.trim() === '')) {
+    return NextResponse.json(
+      { error: 'Pilih jenis penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI tren SKDR.' },
       { status: 400 }
     );
   }
@@ -295,6 +311,18 @@ export async function POST(request: Request) {
       typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
         ? wilayah_kerja
         : undefined;
+  } else if (konteksSkdr) {
+    wilayahKerja =
+      typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
+        ? wilayah_kerja
+        : undefined;
+  
+  } else if (konteksSkdrTren) {
+    wilayahKerja =
+      typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
+        ? wilayah_kerja
+        : undefined;
+
   } else if (konteksGlobalEmerging) {
   wilayahKerja = undefined;
   } else if (konteksNasionalEmerging) {   // <-- tambah
@@ -478,8 +506,20 @@ export async function POST(request: Request) {
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRatGuard(data) : susunPromptRatGuard(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (konteks === 'skdr-mingguan') {
+      const data = await ambilDataAnalisisSkdr(periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiSkdr(data) : susunPromptSkdr(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (konteks === 'skdr-tren-mingguan' || konteks === 'skdr-tren-bulanan') {
+      const data = await ambilDataAnalisisSkdrTren(konteks, periodeKey, wilayahKerja, Number(metrikMentah));
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiSkdrTren(data) : susunPromptSkdrTren(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
 
-        } else if (konteks === 'simulasi-wabah-kapal' || konteks === 'simulasi-wabah-pesawat') {
+    } else if (konteks === 'simulasi-wabah-kapal' || konteks === 'simulasi-wabah-pesawat') {
       // periodeKey di sini BUKAN format periode (2026-W27), tapi UUID id simulasi.
       // Tidak ada "periode sebelumnya" karena ini event tunggal, bukan tren waktu.
       const data = konteks === 'simulasi-wabah-kapal'

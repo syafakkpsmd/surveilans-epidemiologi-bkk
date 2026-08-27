@@ -1407,3 +1407,53 @@ export function susunPromptSimulasiWabahPesawat(data: DataSimulasiWabah): string
 
 [struktur sama, ganti konteks "kapal/TKBM" jadi "pesawat/kontak erat radius kursi/ground crew", tambahkan pertimbangan penumpang connecting flight ke kota lain]`;
 }
+
+export function susunPromptSkdr(data: DataAnalisis) {
+  const daftarAlert = data.topKategori.length > 0
+    ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} kasus`).join('\n')
+    : 'Tidak ada penyakit yang melewati ambang batas (tidak ada alert).';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Data SKDR (Sistem Kewaspadaan Dini dan Respon) — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Ringkasan: total penyakit dipantau ${data.ringkasanSaatIni.total_penyakit_dipantau}, jumlah alert ${data.ringkasanSaatIni.jumlah_alert}, total kasus ${data.ringkasanSaatIni.total_kasus}.
+Daftar penyakit berstatus ALERT (melebihi ambang rata-rata 4 minggu + 2SD):
+${daftarAlert}
+Jangan mengarang angka di luar yang diberikan. Jika ada alert, jelaskan implikasi kesehatan masyarakat dan rekomendasikan langkah Penyelidikan Epidemiologi (PE) sesuai pedoman SKDR Kemenkes. Jika tidak ada alert, sampaikan situasi terkendali.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiSkdr(data: DataAnalisis) {
+  const daftarAlert = data.topKategori.length > 0
+    ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} kasus`).join('\n')
+    : '(tidak ada)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren SKDR — ${data.labelWilayah}, dari ${data.labelPeriodeSebelumnya} ke ${data.labelPeriodeSaatIni}.
+Minggu sebelumnya: total kasus ${data.ringkasanSebelumnya.total_kasus}, jumlah alert ${data.ringkasanSebelumnya.jumlah_alert}.
+Minggu ini: total kasus ${data.ringkasanSaatIni.total_kasus}, jumlah alert ${data.ringkasanSaatIni.jumlah_alert}.
+Penyakit yang saat ini berstatus alert:
+${daftarAlert}
+Ekstrapolasikan risiko kenaikan kasus untuk penyakit yang menunjukkan tren naik, terutama yang sudah alert.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptSkdrTren(data: DataAnalisis) {
+  const rincian = data.topKategori.map((k) => `${k.nilai}: ${k.jumlah}`).join(', ') || '(tidak ada data)';
+  return `${PERSONA_EPIDEMIOLOG}
+${data.labelKonteks} — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Total kasus periode ini: ${data.ringkasanSaatIni.total_kasus} (rata-rata ${data.ringkasanSaatIni.rata_rata_per_minggu}/minggu).
+Periode sebelumnya (${data.labelPeriodeSebelumnya}): total ${data.ringkasanSebelumnya.total_kasus}.
+Rincian per minggu: ${rincian}
+Jangan mengarang angka di luar yang diberikan. Jelaskan tren (naik/turun/stabil) dan apakah ada pola yang perlu diwaspadai.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiSkdrTren(data: DataAnalisis) {
+  const rincian = data.topKategori.map((k) => `${k.nilai}: ${k.jumlah}`).join(', ') || '(tidak ada data)';
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren untuk ${data.labelKonteks} — ${data.labelWilayah}.
+Data periode ${data.labelPeriodeSebelumnya}: total ${data.ringkasanSebelumnya.total_kasus} → periode ${data.labelPeriodeSaatIni}: total ${data.ringkasanSaatIni.total_kasus}.
+Rincian per minggu periode ini: ${rincian}
+Ekstrapolasikan arah tren ke depan berdasarkan pola ini.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}

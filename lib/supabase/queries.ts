@@ -1235,3 +1235,17 @@ export async function getReferensiPopulasiPesawat(kodeWilker: string) {
     .maybeSingle();
   return data;
 }
+
+export async function getDaftarWilayahKerjaSkdr() {
+  const supabase = await createClient();
+  const { data } = await supabase.from('view_wilayah_kerja_skdr').select('wilayah_kerja');
+  return (data ?? []).map(d => d.wilayah_kerja as string);
+}
+
+export async function getRingkasanSkdrMingguan(tahun: number, minggu: number, wilayahKerja?: string) {
+  const supabase = await createClient();
+  let q = supabase.from('view_skdr_alert_mingguan').select('*').eq('tahun_epid', tahun).eq('minggu_epid', minggu).order('jenis_penyakit_id');
+  if (wilayahKerja) q = q.eq('wilayah_kerja', wilayahKerja);
+  const { data } = await q;
+  return data ?? [];
+}

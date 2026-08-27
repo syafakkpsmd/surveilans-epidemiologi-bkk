@@ -85,6 +85,9 @@ export const KONTEKS_TREN = [
   'abk-crew-penumpang-kedatangan-bulanan',
   'abk-crew-penumpang-keberangkatan-mingguan',
   'abk-crew-penumpang-keberangkatan-bulanan',
+  'skdr-mingguan',
+  'skdr-tren-bulanan',
+  'skdr-tren-mingguan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -146,6 +149,9 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'abk-crew-penumpang-kedatangan-bulanan',
   'abk-crew-penumpang-keberangkatan-mingguan',
   'abk-crew-penumpang-keberangkatan-bulanan',
+  'skdr-mingguan',
+  'skdr-tren-mingguan',
+  'skdr-tren-bulanan',
 ] as const;
 
 export const KONTEKS_EVENT = [
@@ -204,6 +210,65 @@ export function isKonteksSanitasi(konteks: KonteksAnalisis): boolean {
     konteks === 'tpp-mingguan' || konteks === 'ttu-mingguan' || konteks === 'pab-mingguan' ||
     konteks === 'rat-guard-bulanan' || konteks === 'rat-guard-mingguan'
   );
+}
+
+export function isKonteksSkdr(konteks: KonteksAnalisis) {
+  return konteks === 'skdr-mingguan';
+}
+
+export async function ambilDataAnalisisSkdr(
+  periodeKey: string,
+  wilayahKerja?: string
+): Promise<DataAnalisis> {
+  const supabase = await createClient();
+  const [tahunStr, mingguStr] = periodeKey.replace('W', '').split('-');
+  const tahun = Number(tahunStr);
+  const minggu = Number(mingguStr);
+
+  const mingguSebelumnya = minggu > 1 ? minggu - 1 : 52;
+  const tahunSebelumnya = minggu > 1 ? tahun : tahun - 1;
+
+  async function ambilBaris(t: number, m: number) {
+    let q = supabase
+      .from('view_skdr_alert_mingguan')
+      .select('*')
+      .eq('tahun_epid', t)
+      .eq('minggu_epid', m);
+    if (wilayahKerja) q = q.eq('wilayah_kerja', wilayahKerja);
+    const { data } = await q;
+    return data ?? [];
+  }
+
+  const [dataSaatIni, dataSebelumnya] = await Promise.all([
+    ambilBaris(tahun, minggu),
+    ambilBaris(tahunSebelumnya, mingguSebelumnya),
+  ]);
+
+  const alertSaatIni = dataSaatIni.filter((d) => d.status_alert);
+  const totalKasusSaatIni = dataSaatIni.reduce((t, d) => t + (d.jumlah_kasus ?? 0), 0);
+  const totalKasusSebelumnya = dataSebelumnya.reduce((t, d) => t + (d.jumlah_kasus ?? 0), 0);
+
+  return {
+    labelKonteks: 'SKDR Mingguan',
+    labelWilayah: wilayahKerja ?? 'Seluruh wilayah kerja',
+    labelPeriodeSaatIni: `Minggu epid ${minggu} tahun ${tahun}`,
+    labelPeriodeSebelumnya: `Minggu epid ${mingguSebelumnya} tahun ${tahunSebelumnya}`,
+    ringkasanSaatIni: {
+      total_penyakit_dipantau: dataSaatIni.length,
+      jumlah_alert: alertSaatIni.length,
+      total_kasus: totalKasusSaatIni,
+    },
+    ringkasanSebelumnya: {
+      total_penyakit_dipantau: dataSebelumnya.length,
+      jumlah_alert: dataSebelumnya.filter((d) => d.status_alert).length,
+      total_kasus: totalKasusSebelumnya,
+    },
+    topKategori: alertSaatIni.map((d) => ({
+      kategori: 'penyakit_alert',
+      nilai: d.jenis_penyakit ?? `Penyakit #${d.jenis_penyakit_id}`,
+      jumlah: d.jumlah_kasus ?? 0,
+    })),
+  };
 }
 
 export function isKonteksPrediksiNonVektorValid(konteks: string): boolean {
@@ -270,6 +335,7 @@ const KOLOM_ANGKA_PHQC = [
   'total_penumpang', 'total_penumpang_wna', 'total_penumpang_wni',
 ] as const;
 const KOLOM_ANGKA_PENUMPANG = ['total_penumpang', 'total_penumpang_wna', 'total_penumpang_wni'] as const;
+
 
 async function ambilCopMingguan(
   p: PeriodeMingguan,
@@ -2973,5 +3039,99 @@ export async function ambilDataBreakdownAnalisis(
     labelPeriode,
     totalKapal,
     breakdown,
+  };
+}
+
+const RENTANG_BULAN_SKDR: { label: string; dari: number; sampai: number }[] = [
+  { label: 'Januari', dari: 1, sampai: 4 }, { label: 'Februari', dari: 5, sampai: 8 },
+  { label: 'Maret', dari: 9, sampai: 13 }, { label: 'April', dari: 14, sampai: 17 },
+  { label: 'Mei', dari: 18, sampai: 21 }, { label: 'Juni', dari: 22, sampai: 26 },
+  { label: 'Juli', dari: 27, sampai: 30 }, { label: 'Agustus', dari: 31, sampai: 35 },
+  { label: 'September', dari: 36, sampai: 39 }, { label: 'Oktober', dari: 40, sampai: 43 },
+  { label: 'November', dari: 44, sampai: 48 }, { label: 'Desember', dari: 49, sampai: 53 },
+];
+
+export function isKonteksSkdrTren(konteks: string) {
+  return konteks === 'skdr-tren-mingguan' || konteks === 'skdr-tren-bulanan';
+}
+
+export async function ambilDataAnalisisSkdrTren(
+  konteks: string,
+  periodeKey: string,
+  wilayahKerja: string | undefined,
+  jenisPenyakitId: number
+): Promise<DataAnalisis> {
+  const supabase = await createClient();
+
+  const { data: penyakitRow } = await supabase
+    .from('skdr_jenis_penyakit')
+    .select('jenis_penyakit')
+    .eq('nomor', jenisPenyakitId)
+    .single();
+  const namaPenyakit = penyakitRow?.jenis_penyakit ?? `Penyakit #${jenisPenyakitId}`;
+
+  const tahunMatch = periodeKey.match(/^(\d+)-/);
+  const tahun = tahunMatch ? Number(tahunMatch[1]) : new Date().getFullYear();
+
+  let mgDari: number, mgSampai: number, labelSaatIni: string;
+  if (konteks === 'skdr-tren-bulanan') {
+    const m = periodeKey.match(/M(\d+)_M(\d+)/);
+    const bulanDariIdx = m ? Number(m[1]) - 1 : 0;
+    const bulanSampaiIdx = m ? Number(m[2]) - 1 : 11;
+    mgDari = RENTANG_BULAN_SKDR[bulanDariIdx].dari;
+    mgSampai = RENTANG_BULAN_SKDR[bulanSampaiIdx].sampai;
+    labelSaatIni = `${RENTANG_BULAN_SKDR[bulanDariIdx].label}-${RENTANG_BULAN_SKDR[bulanSampaiIdx].label} ${tahun}`;
+  } else {
+    const m = periodeKey.match(/W(\d+)_W(\d+)/);
+    mgDari = m ? Number(m[1]) : 1;
+    mgSampai = m ? Number(m[2]) : 53;
+    labelSaatIni = `Minggu ${mgDari}-${mgSampai} tahun ${tahun}`;
+  }
+
+  const panjang = mgSampai - mgDari + 1;
+  const mgDariSebelumnya = Math.max(1, mgDari - panjang);
+  const mgSampaiSebelumnya = mgDari - 1;
+
+  async function ambilRows(dari: number, sampai: number) {
+    if (sampai < dari) return [];
+    let q = supabase
+      .from('skdr_mingguan')
+      .select('minggu_epid, jumlah_kasus')
+      .eq('tahun_epid', tahun)
+      .eq('jenis_penyakit_id', jenisPenyakitId)
+      .gte('minggu_epid', dari)
+      .lte('minggu_epid', sampai);
+    if (wilayahKerja) q = q.eq('wilayah_kerja', wilayahKerja);
+    const { data } = await q;
+    return data ?? [];
+  }
+
+  const [rowsSaatIni, rowsSebelumnya] = await Promise.all([
+    ambilRows(mgDari, mgSampai),
+    ambilRows(mgDariSebelumnya, mgSampaiSebelumnya),
+  ]);
+
+  const totalSaatIni = rowsSaatIni.reduce((t, r) => t + (r.jumlah_kasus ?? 0), 0);
+  const totalSebelumnya = rowsSebelumnya.reduce((t, r) => t + (r.jumlah_kasus ?? 0), 0);
+
+  const perMinggu = new Map<number, number>();
+  rowsSaatIni.forEach((r) => perMinggu.set(r.minggu_epid, (perMinggu.get(r.minggu_epid) ?? 0) + (r.jumlah_kasus ?? 0)));
+
+  return {
+    labelKonteks: `SKDR Tren — ${namaPenyakit}`,
+    labelWilayah: wilayahKerja ?? 'Seluruh wilayah kerja',
+    labelPeriodeSaatIni: labelSaatIni,
+    labelPeriodeSebelumnya: `Minggu ${mgDariSebelumnya}-${mgSampaiSebelumnya} tahun ${tahun}`,
+    ringkasanSaatIni: {
+      total_kasus: totalSaatIni,
+      rata_rata_per_minggu: panjang > 0 ? Math.round((totalSaatIni / panjang) * 100) / 100 : 0,
+    },
+    ringkasanSebelumnya: {
+      total_kasus: totalSebelumnya,
+      rata_rata_per_minggu: panjang > 0 ? Math.round((totalSebelumnya / panjang) * 100) / 100 : 0,
+    },
+    topKategori: Array.from(perMinggu.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([minggu, jumlah]) => ({ kategori: 'minggu', nilai: `Mg ${minggu}`, jumlah })),
   };
 }

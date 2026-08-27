@@ -32,6 +32,8 @@ import {
   ExternalLink,
   Book,
   Activity,
+  AlertTriangle,
+  Flame
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -116,7 +118,9 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Surveilans PAB", href: "/dashboard/pab", icon: Pipette, prefetch: false },
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
-      { label: "KLB", href: "https://script.google.com/macros/s/AKfycbx0LK83R7rZ0UGblcVKqKlwUJ8Jk3EdF9sV_l2JTMXzbAzjyj-ZZJ-WNIfiaHqJ5OMesQ/exec", icon: Siren },
+      { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: AlertTriangle, prefetch: false },
+      { label: "ISPA KARHUTLA", href: "/dashboard/karhutla", icon: Flame , prefetch: false },
+      { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
     ],
   },
   {

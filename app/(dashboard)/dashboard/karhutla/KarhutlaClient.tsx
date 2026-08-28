@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import FormInputIspaHarian from '@/components/karhutla/FormInputIspaHarian';
@@ -54,6 +55,25 @@ export default function KarhutlaClient({
   daftarLokasiUdara: LokasiUdaraRow[];
 }) {
   const isAdmin = role === 'admin';
+  const router = useRouter();
+  const [sinkronBerjalan, setSinkronBerjalan] = useState(false);
+  const [pesanSinkron, setPesanSinkron] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null);
+
+  async function sinkronisasiHotspotSekarang() {
+    setSinkronBerjalan(true);
+    setPesanSinkron(null);
+    try {
+      const res = await fetch('/api/hotspot-karhutla', { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Gagal sinkronisasi.');
+      setPesanSinkron({ tipe: 'sukses', teks: json.pesan ?? `Sinkronisasi berhasil, ${json.jumlah ?? 0} titik diproses.` });
+      router.refresh();
+    } catch (err) {
+      setPesanSinkron({ tipe: 'error', teks: (err as Error).message });
+    } finally {
+      setSinkronBerjalan(false);
+    }
+  }
 
   const [tren, setTren] = useState(trenAwal);
   const [filterWilayahKurva, setFilterWilayahKurva] = useState<string[]>([]);
@@ -144,7 +164,16 @@ export default function KarhutlaClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+        {isAdmin && (
+          <button
+            onClick={sinkronisasiHotspotSekarang}
+            disabled={sinkronBerjalan}
+            className="inline-flex items-center gap-1.5 rounded-md border border-orange-300 bg-orange-50 px-3 py-1.5 text-sm font-medium text-orange-700 hover:bg-orange-100 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {sinkronBerjalan ? '⏳ Menyinkronkan...' : '🔄 Sinkronisasi Hotspot Sekarang'}
+          </button>
+        )}
         <a
           href="/dashboard/karhutla/data"
           className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -152,6 +181,18 @@ export default function KarhutlaClient({
           📋 Lihat Semua Data &amp; Unduh Excel/CSV
         </a>
       </div>
+
+      {pesanSinkron && (
+        <div
+          className={`rounded-md border px-3 py-2 text-sm ${
+            pesanSinkron.tipe === 'sukses'
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-red-50 border-red-200 text-red-700'
+          }`}
+        >
+          {pesanSinkron.teks}
+        </div>
+      )}
 
       <PetaHotspotKarhutla hotspots={hotspotAwal} />
 

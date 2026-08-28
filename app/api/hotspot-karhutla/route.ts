@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ambilHotspotKaltim } from '@/lib/nasa-firms/fetchHotspot';
+import { getUserRole } from '@/lib/auth/get-user-role';
 
 /**
  * GET /api/hotspot-karhutla
@@ -10,8 +11,13 @@ import { ambilHotspotKaltim } from '@/lib/nasa-firms/fetchHotspot';
  *
  * POST /api/hotspot-karhutla
  *   -> trigger fetch baru dari NASA FIRMS + upsert ke cache.
- *      Panggil ini via cron job (mis. Vercel Cron tiap 3 jam),
- *      BUKAN dari client langsung, supaya kuota FIRMS API tidak jebol.
+ *      Dipicu oleh 2 sumber:
+ *      1) Cron (Vercel Cron / cron eksternal) — kirim header
+ *         Authorization: Bearer <CRON_SECRET>
+ *      2) Tombol "Sinkronisasi Sekarang" di dashboard admin —
+ *         cukup butuh sesi login dengan role 'admin' (lihat getUserRole()).
+ *      Selain 2 sumber itu, request ditolak (401/403) supaya kuota
+ *      NASA FIRMS API tidak jebol dipanggil sembarang orang.
  */
 
 export async function GET(request: NextRequest) {
@@ -43,17 +49,23 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Proteksi sederhana: cron secret, supaya endpoint sync tidak bisa
-    // dipicu sembarangan orang (Vercel Cron mengirim header ini otomatis
-    // kalau CRON_SECRET di-set di project settings).
+    // Proteksi endpoint sync: boleh dipicu oleh 2 pihak —
+    // 1) Vercel Cron / cron eksternal, yang mengirim header CRON_SECRET
+    // 2) Admin yang sedang login di dashboard, lewat tombol "Sinkronisasi Sekarang"
+    // Client BUKAN admin tidak boleh memicu endpoint ini supaya kuota FIRMS API tidak jebol.
     const authHeader = request.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const punyaCronSecret = process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`;
+
+    if (!punyaCronSecret) {
+      const role = await getUserRole();
+      if (role !== 'admin') {
+        return NextResponse.json({ error: 'Hanya admin yang boleh memicu sinkronisasi manual.' }, { status: 403 });
+      }
     }
 
     const hotspots = await ambilHotspotKaltim({
       source: 'MODIS_NRT',
-      dayRange: 1,
+      dayRange: 3, // tarik mundur 3 hari terakhir tiap sync — aman krn upsert, menutup celah keterlambatan rilis data NASA
       confidenceMin: 80,
     });
 

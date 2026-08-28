@@ -45,6 +45,17 @@ export async function simpanIspaHarian(input: InputIspaHarian) {
   return data;
 }
 
+/**
+ * Hapus 1 baris kasus ISPA berdasarkan id (primary key).
+ * Butuh RLS policy DELETE khusus admin/petugas di tabel ispa_harian
+ * -- lihat sql/segmen-karhutla-rls-update-delete.sql.
+ */
+export async function hapusIspaHarian(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from('ispa_harian').delete().eq('id', id);
+  if (error) throw new Error(`Gagal menghapus data ISPA: ${error.message}`);
+}
+
 // ------------------------------------------------------------
 // Kualitas Udara — dipakai oleh form dashboard (admin) MAUPUN
 // form publik (/form/lingkungan-harian). Upsert per tanggal+lokasi.
@@ -90,4 +101,15 @@ export async function simpanKualitasUdaraHarian(input: InputKualitasUdaraHarian)
 
   if (error) throw new Error(`Gagal menyimpan data kualitas udara: ${error.message}`);
   return data;
+}
+
+/**
+ * Hapus 1 baris kualitas udara berdasarkan id (primary key).
+ * Butuh RLS policy DELETE khusus admin/petugas di tabel kualitas_udara_harian
+ * -- lihat sql/segmen-karhutla-rls-update-delete.sql.
+ */
+export async function hapusKualitasUdaraHarian(id: string) {
+  const supabase = createClient();
+  const { error } = await supabase.from('kualitas_udara_harian').delete().eq('id', id);
+  if (error) throw new Error(`Gagal menghapus data kualitas udara: ${error.message}`);
 }

@@ -2,6 +2,23 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 
 /**
+ * Membangun filter Supabase .or() dari beberapa wilayahKey ("WK01" atau "WK01::Palaran").
+ * Return null kalau array kosong (artinya tanpa filter = semua wilayah).
+ */
+function bangunFilterOrWilayah(wilayahKeys: string[] | undefined): string | null {
+  if (!wilayahKeys || wilayahKeys.length === 0) return null;
+
+  const klausa = wilayahKeys.map((key) => {
+    const [kodeWilker, zona] = key.split('::');
+    return zona
+      ? `and(kode_wilker.eq.${kodeWilker},zona.eq.${zona})`
+      : `and(kode_wilker.eq.${kodeWilker},zona.is.null)`;
+  });
+
+  return klausa.join(',');
+}
+
+/**
  * HANYA untuk dipanggil dari Server Component / Route Handler / Server Action.
  * Jangan pernah import file ini dari komponen yang ada 'use client'.
  */
@@ -15,8 +32,8 @@ import { createClient } from '@/lib/supabase/server';
  * Karena tidak ada mapping 1:1, PM2.5 ditampilkan sebagai rerata REGIONAL
  * (gabungan semua lokasi) — konsisten dengan pola hotspot yang sudah regional juga.
  */
-export async function ambilTrenIspaPm25(opsi: { wilayahKey?: string; hariTerakhir?: number } = {}) {
-  const { wilayahKey, hariTerakhir = 30 } = opsi;
+export async function ambilTrenIspaPm25(opsi: { wilayahKeys?: string[]; hariTerakhir?: number } = {}) {
+  const { wilayahKeys, hariTerakhir = 30 } = opsi;
   const supabase = await createClient();
 
   const sejakTanggal = new Date();
@@ -29,12 +46,8 @@ export async function ambilTrenIspaPm25(opsi: { wilayahKey?: string; hariTerakhi
     .gte('tanggal', tanggalAwal)
     .order('tanggal', { ascending: true });
 
-  const isFilterSemua = !wilayahKey || wilayahKey === 'Semua';
-  if (!isFilterSemua) {
-    const [kodeWilker, zona] = wilayahKey.split('::');
-    queryIspa = queryIspa.eq('kode_wilker', kodeWilker);
-    queryIspa = zona ? queryIspa.eq('zona', zona) : queryIspa.is('zona', null);
-  }
+  const filterOr = bangunFilterOrWilayah(wilayahKeys);
+  if (filterOr) queryIspa = queryIspa.or(filterOr);
 
   const [{ data: dataIspa, error: errIspa }, { data: dataUdara, error: errUdara }] = await Promise.all([
     queryIspa,
@@ -48,7 +61,6 @@ export async function ambilTrenIspaPm25(opsi: { wilayahKey?: string; hariTerakhi
   if (errIspa) throw new Error(`Gagal mengambil tren ISPA: ${errIspa.message}`);
   if (errUdara) throw new Error(`Gagal mengambil data PM2.5: ${errUdara.message}`);
 
-  // Rerata PM2.5 regional per tanggal (gabungan semua lokasi)
   const mapPm25 = new Map<string, { total: number; jml: number }>();
   for (const baris of dataUdara ?? []) {
     if (baris.pm25 == null) continue;
@@ -64,7 +76,6 @@ export async function ambilTrenIspaPm25(opsi: { wilayahKey?: string; hariTerakhi
 
   if (!dataIspa) return [];
 
-  // Rekap kasus ISPA per tanggal (kalau gabungan banyak wilker, dijumlahkan)
   const mapIspa = new Map<string, { kasus_ispa_anak: number; kasus_ispa_dewasa: number }>();
   for (const baris of dataIspa) {
     const entri = mapIspa.get(baris.tanggal) ?? { kasus_ispa_anak: 0, kasus_ispa_dewasa: 0 };
@@ -162,39 +173,16 @@ export interface OpsiPerbandinganIspaHotspot {
   tahun: number;
   periodeAwal: number;
   periodeAkhir: number;
-  /** 'Semua' | 'WK0X' | 'WK0X::zona' - biarkan kosong/'Semua' untuk gabungan semua wilayah */
-  wilayahKey?: string;
+  wilayahKeys?: string[];
 }
 
-/**
- * CATATAN PENTING: filter wilayahKey HANYA berlaku untuk data kasus ISPA.
- * PM2.5 selalu diambil sebagai rerata regional Kaltim (dari view_kualitas_udara_*),
- * karena taksonomi lokasi kualitas udara (8 titik) berbeda dari kode_wilker/zona
- * ISPA (13 wilayah) dan belum ada mapping 1:1 di antara keduanya.
- *
- * CATATAN TEKNIS: mingguan vs bulanan SENGAJA ditulis sebagai 2 blok kode terpisah
- * (bukan diparameterisasi pakai variabel nama tabel/kolom) karena view mingguan
- * pakai kolom tahun_epid/minggu_epid sedangkan view bulanan pakai tahun/bulan.
- * Kalau nama tabel/kolom disimpan sebagai variabel string biasa lalu dipakai di
- * .from()/.eq(), TypeScript cuma mengizinkan kolom yang sama-sama ada di kedua
- * view (irisan) — sehingga tahun_epid/minggu_epid dan tahun/bulan otomatis
- * tertolak karena tidak ada di keduanya sekaligus. Trade-off: kode agak duplikat,
- * tapi types tetap aman & akurat.
- */
 export async function ambilPerbandinganIspaHotspot(
   opsi: OpsiPerbandinganIspaHotspot
 ): Promise<TitikPerbandinganIspaHotspot[]> {
-  const { granularitas, tahun, periodeAwal, periodeAkhir, wilayahKey } = opsi;
+  const { granularitas, tahun, periodeAwal, periodeAkhir, wilayahKeys } = opsi;
   const supabase = await createClient();
 
-  const isSemua = !wilayahKey || wilayahKey === 'Semua';
-  let kodeWilkerFilter: string | null = null;
-  let zonaFilter: string | null = null;
-  if (!isSemua) {
-    const [kw, z] = wilayahKey.split('::');
-    kodeWilkerFilter = kw;
-    zonaFilter = z ?? null;
-  }
+  const filterOr = bangunFilterOrWilayah(wilayahKeys);
 
   const mapIspa = new Map<number, { anak: number; dewasa: number }>();
   const mapUdara = new Map<number, { total: number; jml: number }>();
@@ -207,10 +195,7 @@ export async function ambilPerbandinganIspaHotspot(
       .eq('tahun_epid', tahun)
       .gte('minggu_epid', periodeAwal)
       .lte('minggu_epid', periodeAkhir);
-    if (kodeWilkerFilter) {
-      queryIspa = queryIspa.eq('kode_wilker', kodeWilkerFilter);
-      queryIspa = zonaFilter ? queryIspa.eq('zona', zonaFilter) : queryIspa.is('zona', null);
-    }
+    if (filterOr) queryIspa = queryIspa.or(filterOr);
 
     const [ispaRes, udaraRes, hotspotRes] = await Promise.all([
       queryIspa,
@@ -257,10 +242,7 @@ export async function ambilPerbandinganIspaHotspot(
       .eq('tahun', tahun)
       .gte('bulan', periodeAwal)
       .lte('bulan', periodeAkhir);
-    if (kodeWilkerFilter) {
-      queryIspa = queryIspa.eq('kode_wilker', kodeWilkerFilter);
-      queryIspa = zonaFilter ? queryIspa.eq('zona', zonaFilter) : queryIspa.is('zona', null);
-    }
+    if (filterOr) queryIspa = queryIspa.or(filterOr);
 
     const [ispaRes, udaraRes, hotspotRes] = await Promise.all([
       queryIspa,
@@ -397,16 +379,16 @@ export interface TitikTrenHarianRentang {
 }
 
 export interface OpsiTrenHarianRentang {
-  tanggalAwal: string; // YYYY-MM-DD
-  tanggalAkhir: string; // YYYY-MM-DD
-  wilayahKey?: string; // 'Semua' | 'WK0X' | 'WK0X::zona'
-  parameterUdara?: ParameterUdara; // default 'pm25'
+  tanggalAwal: string;
+  tanggalAkhir: string;
+  wilayahKeys?: string[];
+  parameterUdara?: ParameterUdara;
 }
 
 export async function ambilTrenHarianRentang(
   opsi: OpsiTrenHarianRentang
 ): Promise<TitikTrenHarianRentang[]> {
-  const { tanggalAwal, tanggalAkhir, wilayahKey, parameterUdara = 'pm25' } = opsi;
+  const { tanggalAwal, tanggalAkhir, wilayahKeys, parameterUdara = 'pm25' } = opsi;
   const supabase = await createClient();
 
   let queryIspa = supabase
@@ -416,12 +398,8 @@ export async function ambilTrenHarianRentang(
     .lte('tanggal', tanggalAkhir)
     .order('tanggal', { ascending: true });
 
-  const isFilterSemua = !wilayahKey || wilayahKey === 'Semua';
-  if (!isFilterSemua) {
-    const [kodeWilker, zona] = wilayahKey.split('::');
-    queryIspa = queryIspa.eq('kode_wilker', kodeWilker);
-    queryIspa = zona ? queryIspa.eq('zona', zona) : queryIspa.is('zona', null);
-  }
+  const filterOr = bangunFilterOrWilayah(wilayahKeys);
+  if (filterOr) queryIspa = queryIspa.or(filterOr);
 
   const [{ data: dataIspa, error: errIspa }, { data: dataUdara, error: errUdara }] = await Promise.all([
     queryIspa,
@@ -436,7 +414,6 @@ export async function ambilTrenHarianRentang(
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
 
-  // Rerata regional per tanggal untuk parameter udara yang dipilih
   const mapUdara = new Map<string, { total: number; jml: number }>();
   for (const baris of (dataUdara ?? []) as Record<string, unknown>[]) {
     const nilai = baris[parameterUdara] as number | null;
@@ -448,7 +425,6 @@ export async function ambilTrenHarianRentang(
     mapUdara.set(tanggal, entri);
   }
 
-  // Rekap kasus ISPA per tanggal
   const mapIspa = new Map<string, { anak: number; dewasa: number }>();
   for (const baris of dataIspa ?? []) {
     const entri = mapIspa.get(baris.tanggal) ?? { anak: 0, dewasa: 0 };
@@ -457,7 +433,6 @@ export async function ambilTrenHarianRentang(
     mapIspa.set(baris.tanggal, entri);
   }
 
-  // Susun deret tanggal lengkap (termasuk hari tanpa data, biar grafik tidak bolong)
   const hasil: TitikTrenHarianRentang[] = [];
   const kursor = new Date(tanggalAwal);
   const akhir = new Date(tanggalAkhir);

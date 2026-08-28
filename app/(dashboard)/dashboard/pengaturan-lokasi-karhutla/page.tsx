@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
-import { ambilDaftarWilayahIspa, ambilDaftarLokasiUdara } from '@/lib/supabase/queries-karhutla-server';
+import { BarisWilayahIspa } from './BarisWilayahIspa';
+import { BarisLokasiUdara } from './BarisLokasiUdara';
 import {
-  tambahWilayahIspa, hapusWilayahIspa,
-  tambahLokasiUdara, hapusLokasiUdara,
+  tambahWilayahIspa, hapusWilayahIspa, perbaruiWilayahIspa,
+  tambahLokasiUdara, hapusLokasiUdara, perbaruiLokasiUdara,
 } from './actions';
 
 export default async function PengaturanLokasiKarhutlaPage() {
@@ -28,8 +29,8 @@ export default async function PengaturanLokasiKarhutlaPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 space-y-8">
       <div>
-        <Link href="/dashboard" className="mb-2 inline-block text-sm font-medium text-teal hover:underline">
-          ← Kembali ke Dashboard Utama
+        <Link href="/dashboard/karhutla" className="mb-2 inline-block text-sm font-medium text-teal hover:underline">
+          ← Kembali ke Dashboard Karhutla
         </Link>
         <p className="text-xs font-semibold uppercase tracking-widest text-muted">Khusus Admin</p>
         <h1 className="text-2xl font-bold text-ink">Kelola Lokasi Karhutla</h1>
@@ -39,21 +40,18 @@ export default async function PengaturanLokasiKarhutlaPage() {
         </p>
       </div>
 
-      <section className="rounded-card border border-border bg-surface p-5 space-y-4">
+      <section id="wilayah-ispa" className="rounded-card border border-border bg-surface p-5 space-y-4">
         <h2 className="text-base font-bold text-ink">Wilayah ISPA</h2>
 
         <div className="space-y-2">
-          {(wilayahIspa ?? []).map((w) => (
-            <form key={w.id} action={hapusWilayahIspa.bind(null, w.id)}
-              className="flex items-center justify-between rounded-control border border-border px-3 py-2">
-              <span className="text-sm text-ink">
-                {w.label} <span className="text-xs text-muted">({w.kode_wilker}{w.zona ? `::${w.zona}` : ''})</span>
-              </span>
-              <button type="submit" className="text-xs font-medium text-risiko-merah hover:underline">
-                Hapus
-              </button>
-            </form>
-          ))}
+            {(wilayahIspa ?? []).map((w) => (
+                <BarisWilayahIspa
+                key={w.id}
+                wilayah={w}
+                perbaruiWilayahIspa={perbaruiWilayahIspa}
+                hapusWilayahIspa={hapusWilayahIspa}
+                />
+            ))}
         </div>
 
         <form action={tambahWilayahIspa} className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border">
@@ -69,21 +67,20 @@ export default async function PengaturanLokasiKarhutlaPage() {
         </form>
       </section>
 
-      <section className="rounded-card border border-border bg-surface p-5 space-y-4">
+      <section id="lokasi-udara" className="rounded-card border border-border bg-surface p-5 space-y-4">
         <h2 className="text-base font-bold text-ink">Lokasi Kualitas Udara</h2>
 
         {Object.entries(lokasiTerkelompok).map(([induk, items]) => (
           <div key={induk} className="space-y-1">
             <p className="text-sm font-semibold text-ink">{induk}</p>
-            {(items ?? []).map((l) => (
-              <form key={l.id} action={hapusLokasiUdara.bind(null, l.id)}
-                className="flex items-center justify-between rounded-control border border-border px-3 py-2 ml-3">
-                <span className="text-sm text-ink">{l.sub_lokasi ?? '(tanpa sub-lokasi)'}</span>
-                <button type="submit" className="text-xs font-medium text-risiko-merah hover:underline">
-                  Hapus
-                </button>
-              </form>
-            ))}
+              {(items ?? []).map((l) => (
+                <BarisLokasiUdara
+                    key={l.id}
+                    lokasi={l}
+                    perbaruiLokasiUdara={perbaruiLokasiUdara}
+                    hapusLokasiUdara={hapusLokasiUdara}
+                />
+              ))}
           </div>
         ))}
 

@@ -1,5 +1,5 @@
 import KarhutlaClient from './KarhutlaClient';
-
+import { getUserRole } from '@/lib/auth/get-user-role';
 import {
   ambilTrenIspaPm25, ambilHotspotCache,
   ambilDaftarWilayahIspa, ambilDaftarLokasiUdara,
@@ -8,8 +8,9 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function HalamanKarhutla() {
-  const [trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara] = await Promise.all([
-    ambilTrenIspaPm25({ wilayahKey: 'Semua', hariTerakhir: 30 }),
+  const [role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara] = await Promise.all([
+    getUserRole(),
+    ambilTrenIspaPm25({ wilayahKeys: [], hariTerakhir: 30 }),
     ambilHotspotCache(3),
     ambilDaftarWilayahIspa(),
     ambilDaftarLokasiUdara(),
@@ -25,6 +26,7 @@ export default async function HalamanKarhutla() {
       </div>
 
       <KarhutlaClient
+        role={role}
         trenAwal={trenAwal}
         hotspotAwal={hotspotAwal}
         daftarWilayahIspa={daftarWilayahIspa}

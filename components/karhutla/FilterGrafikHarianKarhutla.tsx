@@ -1,11 +1,13 @@
 'use client';
 
-import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
+import PilihWilayahMultiSelect from './PilihWilayahMultiSelect';
+import { buatOpsiWilayahIspa } from '@/lib/karhutla/constants';
+import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
 
 export interface StateFilterHarian {
   tanggalAwal: string;
   tanggalAkhir: string;
-  wilayahKey: string;
+  wilayahKeys: string[];
   parameter: 'pm25' | 'pm10' | 'suhu' | 'hcho' | 'tvoc' | 'kelembapan';
 }
 
@@ -21,10 +23,14 @@ const PILIHAN_PARAMETER: { value: StateFilterHarian['parameter']; label: string 
 export default function FilterGrafikHarianKarhutla({
   nilai,
   onUbah,
+  daftarWilayahIspa,
 }: {
   nilai: StateFilterHarian;
   onUbah: (nilaiBaru: StateFilterHarian) => void;
+  daftarWilayahIspa: WilayahIspaRow[];
 }) {
+  const opsiWilayah = buatOpsiWilayahIspa(daftarWilayahIspa);
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm space-y-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -50,18 +56,11 @@ export default function FilterGrafikHarianKarhutla({
 
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Wilayah (ISPA)</label>
-          <select
-            value={nilai.wilayahKey}
-            onChange={(e) => onUbah({ ...nilai, wilayahKey: e.target.value })}
-            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-          >
-            <option value="Semua">Semua Wilayah</option>
-            {DAFTAR_WILAYAH_KARHUTLA.map((w) => (
-              <option key={w.label} value={w.zona ? `${w.kode_wilker}::${w.zona}` : w.kode_wilker}>
-                {w.label}
-              </option>
-            ))}
-          </select>
+          <PilihWilayahMultiSelect
+            opsi={opsiWilayah}
+            nilai={nilai.wilayahKeys}
+            onUbah={(wilayahKeys) => onUbah({ ...nilai, wilayahKeys })}
+          />
         </div>
 
         <div className="flex items-center gap-2">

@@ -1,5 +1,6 @@
 'use client';
 
+import * as XLSX from 'xlsx';
 import { unduhCsv } from '@/lib/karhutla/csv';
 import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
 import type { BarisTabelIspa, BarisTabelKualitasUdara } from '@/lib/supabase/queries-karhutla-server';
@@ -13,6 +14,22 @@ function labelWilayah(kodeWilker: string, zona: string | null): string {
 
 function formatTanggal(tanggal: string): string {
   return new Date(tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/** Unduh data yang sudah ada sebagai file .xlsx (bukan template kosong) */
+function unduhExcel<T extends Record<string, unknown>>(
+  namaFile: string,
+  namaSheet: string,
+  kolom: { key: keyof T; label: string }[],
+  baris: T[]
+) {
+  const header = kolom.map((k) => k.label);
+  const isi = baris.map((b) => kolom.map((k) => b[k.key] ?? ''));
+  const worksheet = XLSX.utils.aoa_to_sheet([header, ...isi]);
+  worksheet['!cols'] = header.map((h) => ({ wch: Math.max(h.length + 4, 12) }));
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, namaSheet);
+  XLSX.writeFile(workbook, namaFile);
 }
 
 export default function TabelDataKarhutla({
@@ -74,6 +91,60 @@ export default function TabelDataKarhutla({
     );
   }
 
+  function unduhIspaExcel() {
+    unduhExcel(
+      `ispa-harian-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'ISPA Harian',
+      [
+        { key: 'tanggal', label: 'Tanggal' },
+        { key: 'wilayah', label: 'Wilayah' },
+        { key: 'kasus_ispa_anak', label: 'Kasus ISPA Anak' },
+        { key: 'kasus_ispa_dewasa', label: 'Kasus ISPA Dewasa' },
+        { key: 'keterangan', label: 'Keterangan' },
+      ],
+      dataIspa.map((d) => ({
+        tanggal: formatTanggal(d.tanggal),
+        wilayah: labelWilayah(d.kode_wilker, d.zona),
+        kasus_ispa_anak: d.kasus_ispa_anak,
+        kasus_ispa_dewasa: d.kasus_ispa_dewasa,
+        keterangan: d.keterangan ?? '',
+      }))
+    );
+  }
+
+  function unduhUdaraExcel() {
+    unduhExcel(
+      `kualitas-udara-harian-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'Kualitas Udara',
+      [
+        { key: 'tanggal', label: 'Tanggal' },
+        { key: 'lokasi', label: 'Lokasi' },
+        { key: 'pm25', label: 'PM2.5' },
+        { key: 'pm10', label: 'PM10' },
+        { key: 'suhu', label: 'Suhu' },
+        { key: 'hcho', label: 'HCHO' },
+        { key: 'tvoc', label: 'TVOC' },
+        { key: 'kelembapan', label: 'Kelembapan' },
+        { key: 'ispu_status', label: 'Status ISPU' },
+        { key: 'status_evaluasi', label: 'Status Evaluasi' },
+        { key: 'catatan_evaluasi', label: 'Catatan' },
+      ],
+      dataUdara.map((d) => ({
+        tanggal: formatTanggal(d.tanggal),
+        lokasi: d.lokasi,
+        pm25: d.pm25 ?? '',
+        pm10: d.pm10 ?? '',
+        suhu: d.suhu ?? '',
+        hcho: d.hcho ?? '',
+        tvoc: d.tvoc ?? '',
+        kelembapan: d.kelembapan ?? '',
+        ispu_status: d.ispu_status ?? '',
+        status_evaluasi: d.status_evaluasi,
+        catatan_evaluasi: d.catatan_evaluasi ?? '',
+      }))
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* ================= Tabel ISPA ================= */}
@@ -83,13 +154,22 @@ export default function TabelDataKarhutla({
             <h2 className="text-base font-semibold text-gray-900">Data Kasus ISPA Harian</h2>
             <p className="text-xs text-gray-500">{dataIspa.length} baris</p>
           </div>
-          <button
-            onClick={unduhIspa}
-            disabled={dataIspa.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            ⬇ Unduh CSV
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={unduhIspaExcel}
+              disabled={dataIspa.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ⬇ Unduh Excel
+            </button>
+            <button
+              onClick={unduhIspa}
+              disabled={dataIspa.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ⬇ Unduh CSV
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto max-h-105">
@@ -129,13 +209,22 @@ export default function TabelDataKarhutla({
             <h2 className="text-base font-semibold text-gray-900">Data Kualitas Udara Harian</h2>
             <p className="text-xs text-gray-500">{dataUdara.length} baris</p>
           </div>
-          <button
-            onClick={unduhUdara}
-            disabled={dataUdara.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            ⬇ Unduh CSV
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={unduhUdaraExcel}
+              disabled={dataUdara.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ⬇ Unduh Excel
+            </button>
+            <button
+              onClick={unduhUdara}
+              disabled={dataUdara.length === 0}
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ⬇ Unduh CSV
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto max-h-105">

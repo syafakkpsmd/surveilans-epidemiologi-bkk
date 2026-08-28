@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
     const tanggalAwal = searchParams.get('awal');
     const tanggalAkhir = searchParams.get('akhir');
-    const wilayahKey = searchParams.get('wilayah') ?? 'Semua';
+    const wilayahKeys = searchParams.getAll('wilayah').filter((v) => v && v !== 'Semua');
     const parameterMentah = searchParams.get('parameter') ?? 'pm25';
 
     if (!tanggalAwal || !tanggalAkhir) {
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       ? (parameterMentah as ParameterUdara)
       : 'pm25';
 
-    const data = await ambilTrenHarianRentang({ tanggalAwal, tanggalAkhir, wilayahKey, parameterUdara });
+    const data = await ambilTrenHarianRentang({ tanggalAwal, tanggalAkhir, wilayahKeys, parameterUdara });
 
     return NextResponse.json({ data });
   } catch (err) {

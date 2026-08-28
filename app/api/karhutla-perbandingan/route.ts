@@ -1,35 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ambilTrenHarianRentang, type ParameterUdara } from '@/lib/supabase/queries-karhutla-server';
-
-const PARAMETER_VALID: ParameterUdara[] = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'];
+import { ambilPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const granularitas = (searchParams.get('granularitas') ?? 'mingguan') as 'mingguan' | 'bulanan';
+    const tahun = Number(searchParams.get('tahun') ?? new Date().getFullYear());
+    const periodeAwal = Number(searchParams.get('awal') ?? 1);
+    const periodeAkhir = Number(searchParams.get('akhir') ?? (granularitas === 'mingguan' ? 53 : 12));
+    const wilayahKeys = searchParams.getAll('wilayah').filter((v) => v && v !== 'Semua');
 
-    const tanggalAwal = searchParams.get('awal');
-    const tanggalAkhir = searchParams.get('akhir');
-    const wilayahKey = searchParams.get('wilayah') ?? 'Semua';
-    const parameterMentah = searchParams.get('parameter') ?? 'pm25';
-
-    if (!tanggalAwal || !tanggalAkhir) {
-      return NextResponse.json({ error: 'Parameter awal dan akhir (tanggal) wajib diisi.' }, { status: 400 });
+    if (periodeAwal > periodeAkhir) {
+      return NextResponse.json(
+        { error: 'Periode awal tidak boleh lebih besar dari periode akhir.' },
+        { status: 400 }
+      );
     }
-    if (tanggalAwal > tanggalAkhir) {
-      return NextResponse.json({ error: 'Tanggal awal tidak boleh lebih besar dari tanggal akhir.' }, { status: 400 });
-    }
-
-    const parameterUdara: ParameterUdara = PARAMETER_VALID.includes(parameterMentah as ParameterUdara)
-      ? (parameterMentah as ParameterUdara)
-      : 'pm25';
-
-    const data = await ambilTrenHarianRentang({ tanggalAwal, tanggalAkhir, wilayahKey, parameterUdara });
-
+    const data = await ambilPerbandinganIspaHotspot({
+      granularitas, tahun, periodeAwal, periodeAkhir, wilayahKeys,
+    });
     return NextResponse.json({ data });
   } catch (err) {
-    console.error('[karhutla-tren-harian][GET]', err);
+    console.error('[karhutla-perbandingan][GET]', err);
     return NextResponse.json(
-      { error: 'Gagal mengambil data tren harian.', detail: (err as Error).message },
+      { error: 'Gagal mengambil data perbandingan ISPA-hotspot.', detail: (err as Error).message },
       { status: 500 }
     );
   }

@@ -1,6 +1,6 @@
 export const DAFTAR_WILAYAH_KARHUTLA = [
-  { label: 'Palaran (Samarinda)', kode_wilker: 'WK01', zona: 'Palaran' },
-  { label: 'Sidomulyo (Samarinda)', kode_wilker: 'WK01', zona: 'Sidomulyo' },
+  { label: 'Palaran', kode_wilker: 'WK01', zona: 'Palaran' },
+  { label: 'Sidomulyo', kode_wilker: 'WK01', zona: 'Sidomulyo' },
   { label: 'Klinik Pelabuhan Samarinda', kode_wilker: 'WK01', zona: 'Klinik Pelabuhan Samarinda' },
 
   { label: 'Bandara APT Pranoto', kode_wilker: 'WK07', zona: null },
@@ -63,3 +63,23 @@ export const LABEL_STATUS: Record<StatusEvaluasi, string> = {
   TMS: 'Tidak Memenuhi Syarat (TMS)',
   BELUM_DIUJI: 'Belum Diuji',
 };
+
+export const NAMA_WILKER: Record<string, string> = {
+  WK01: 'Samarinda',
+  WK02: 'Tanjung Santan',
+  WK03: 'Tanjung Laut',
+  WK04: 'Lhoktuan',
+  WK05: 'Sangatta',
+  WK06: 'Sangkulirang',
+  WK07: 'APT Pranoto',
+};
+
+export function buatOpsiWilayahIspa(
+  daftarWilayah: { label: string; kode_wilker: string; zona: string | null }[]
+) {
+  return daftarWilayah.map((w) => ({
+    key: w.zona ? `${w.kode_wilker}::${w.zona}` : w.kode_wilker,
+    label: w.label,
+    induk: NAMA_WILKER[w.kode_wilker] ?? w.kode_wilker,
+  }));
+}

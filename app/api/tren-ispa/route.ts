@@ -4,9 +4,8 @@ import { ambilTrenIspaPm25 } from '@/lib/supabase/queries-karhutla-server';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const wilayahKey = searchParams.get('wilayah') ?? 'Semua';
-
-    const data = await ambilTrenIspaPm25({ wilayahKey, hariTerakhir: 30 });
+    const wilayahKeys = searchParams.getAll('wilayah').filter((v) => v && v !== 'Semua');
+    const data = await ambilTrenIspaPm25({ wilayahKeys, hariTerakhir: 30 });
     return NextResponse.json({ data });
   } catch (err) {
     console.error('[tren-ispa][GET]', err);

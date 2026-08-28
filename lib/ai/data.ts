@@ -3158,12 +3158,15 @@ export async function ambilDataAnalisisSkdrTren(
 
 const NAMA_BULAN_KARHUTLA = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-function labelWilayahKarhutla(wilayahKey?: string): string {
-  if (!wilayahKey || wilayahKey === 'Semua') return 'Seluruh wilayah kerja';
-  const entri = DAFTAR_WILAYAH_KARHUTLA.find((w) =>
-    w.zona ? `${w.kode_wilker}::${w.zona}` === wilayahKey : w.kode_wilker === wilayahKey
-  );
-  return entri?.label ?? wilayahKey;
+function labelWilayahKarhutla(wilayahKeys: string[]): string {
+  if (wilayahKeys.length === 0) return 'Seluruh wilayah kerja';
+  const label = wilayahKeys.map((key) => {
+    const entri = DAFTAR_WILAYAH_KARHUTLA.find((w) =>
+      w.zona ? `${w.kode_wilker}::${w.zona}` === key : w.kode_wilker === key
+    );
+    return entri?.label ?? key;
+  });
+  return label.join(', ');
 }
 
 export async function ambilDataAnalisisKarhutlaIspaHotspot(
@@ -3193,13 +3196,18 @@ export async function ambilDataAnalisisKarhutlaIspaHotspot(
   const periodeDariSebelumnya = Math.max(1, periodeDari - panjang);
   const periodeSampaiSebelumnya = periodeDari - 1;
 
-  const wilayahKey = wilayahKerja && wilayahKerja !== 'Semua' ? wilayahKerja : 'Semua';
+  // wilayahKerja dikirim sebagai string gabungan koma dari BoxAnalisisAI/BoxPrediksiAI
+  // (mis. "WK01,WK02"), atau undefined/'Semua' berarti seluruh wilayah kerja.
+  const wilayahKeys =
+    wilayahKerja && wilayahKerja !== 'Semua'
+      ? wilayahKerja.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
   const granularitas = isMingguan ? 'mingguan' : 'bulanan';
 
   const [dataSaatIni, dataSebelumnya] = await Promise.all([
-    ambilPerbandinganIspaHotspot({ granularitas, tahun, periodeAwal: periodeDari, periodeAkhir: periodeSampai, wilayahKey }),
+    ambilPerbandinganIspaHotspot({ granularitas, tahun, periodeAwal: periodeDari, periodeAkhir: periodeSampai, wilayahKeys }),
     periodeSampaiSebelumnya >= periodeDariSebelumnya
-      ? ambilPerbandinganIspaHotspot({ granularitas, tahun, periodeAwal: periodeDariSebelumnya, periodeAkhir: periodeSampaiSebelumnya, wilayahKey })
+      ? ambilPerbandinganIspaHotspot({ granularitas, tahun, periodeAwal: periodeDariSebelumnya, periodeAkhir: periodeSampaiSebelumnya, wilayahKeys })
       : Promise.resolve([]),
   ]);
 
@@ -3216,7 +3224,7 @@ export async function ambilDataAnalisisKarhutlaIspaHotspot(
 
   return {
     labelKonteks: 'Karhutla — Kasus ISPA vs Titik Panas',
-    labelWilayah: labelWilayahKarhutla(wilayahKey),
+    labelWilayah: labelWilayahKarhutla(wilayahKeys),
     labelPeriodeSaatIni: labelSaatIni,
     labelPeriodeSebelumnya: isMingguan
       ? `Minggu ${periodeDariSebelumnya}-${periodeSampaiSebelumnya} tahun ${tahun}`

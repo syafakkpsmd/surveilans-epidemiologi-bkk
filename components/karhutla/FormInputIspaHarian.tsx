@@ -1,7 +1,9 @@
+// components/karhutla/FormInputIspaHarian.tsx
 'use client';
 
 import { useState } from 'react';
 import { simpanIspaHarian } from '@/lib/supabase/queries-karhutla-client';
+import { NAMA_WILKER } from '@/lib/karhutla/constants';
 import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
 
 export default function FormInputIspaHarian({
@@ -10,13 +12,19 @@ export default function FormInputIspaHarian({
   const hariIni = new Date().toISOString().slice(0, 10);
 
   const [tanggal, setTanggal] = useState(hariIni);
-  const [wilayahIndex, setWilayahIndex] = useState(0);
+  const [wilayahId, setWilayahId] = useState(daftarWilayah[0]?.id ?? '');
   const [kasusAnak, setKasusAnak] = useState('');
   const [kasusDewasa, setKasusDewasa] = useState('');
   const [keterangan, setKeterangan] = useState('');
   const [menyimpan, setMenyimpan] = useState(false);
   const [pesanError, setPesanError] = useState<string | null>(null);
   const [pesanSukses, setPesanSukses] = useState<string | null>(null);
+
+  const wilayahTerkelompok = daftarWilayah.reduce<Record<string, WilayahIspaRow[]>>((acc, w) => {
+    const namaInduk = NAMA_WILKER[w.kode_wilker] ?? w.kode_wilker;
+    (acc[namaInduk] ??= []).push(w);
+    return acc;
+  }, {});
 
   function resetForm() { setKasusAnak(''); setKasusDewasa(''); setKeterangan(''); }
 
@@ -25,7 +33,9 @@ export default function FormInputIspaHarian({
     setPesanError(null); setPesanSukses(null);
     if (!tanggal) { setPesanError('Tanggal wajib diisi.'); return; }
 
-    const wilayah = daftarWilayah[wilayahIndex];
+    const wilayah = daftarWilayah.find((w) => w.id === wilayahId);
+    if (!wilayah) { setPesanError('Wilayah tidak valid.'); return; }
+
     setMenyimpan(true);
     try {
       await simpanIspaHarian({
@@ -55,9 +65,13 @@ export default function FormInputIspaHarian({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Wilayah</label>
-          <select value={wilayahIndex} onChange={(e) => setWilayahIndex(Number(e.target.value))}
+          <select value={wilayahId} onChange={(e) => setWilayahId(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-            {daftarWilayah.map((w, i) => <option key={w.id} value={i}>{w.label}</option>)}
+            {Object.entries(wilayahTerkelompok).map(([induk, items]) => (
+              <optgroup key={induk} label={induk}>
+                {items.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
+              </optgroup>
+            ))}
           </select>
         </div>
         <div>

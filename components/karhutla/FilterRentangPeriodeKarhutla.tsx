@@ -1,13 +1,15 @@
 'use client';
 
-import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
+import PilihWilayahMultiSelect from './PilihWilayahMultiSelect';
+import { buatOpsiWilayahIspa } from '@/lib/karhutla/constants';
+import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
 
 export interface StateFilterPeriode {
   granularitas: 'mingguan' | 'bulanan';
   tahun: number;
   periodeAwal: number;
   periodeAkhir: number;
-  wilayahKey: string;
+  wilayahKeys: string[];
 }
 
 const NAMA_BULAN_LENGKAP = [
@@ -18,12 +20,15 @@ const NAMA_BULAN_LENGKAP = [
 export default function FilterRentangPeriodeKarhutla({
   nilai,
   onUbah,
+  daftarWilayahIspa,
 }: {
   nilai: StateFilterPeriode;
   onUbah: (nilaiBaru: StateFilterPeriode) => void;
+  daftarWilayahIspa: WilayahIspaRow[];
 }) {
   const batasMaks = nilai.granularitas === 'mingguan' ? 53 : 12;
   const tahunSekarang = new Date().getFullYear();
+  const opsiWilayah = buatOpsiWilayahIspa(daftarWilayahIspa);
 
   function ubahGranularitas(g: 'mingguan' | 'bulanan') {
     const maks = g === 'mingguan' ? 53 : 12;
@@ -101,18 +106,11 @@ export default function FilterRentangPeriodeKarhutla({
 
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Wilayah</label>
-          <select
-            value={nilai.wilayahKey}
-            onChange={(e) => onUbah({ ...nilai, wilayahKey: e.target.value })}
-            className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-          >
-            <option value="Semua">Semua Wilayah</option>
-            {DAFTAR_WILAYAH_KARHUTLA.map((w) => (
-              <option key={w.label} value={w.zona ? `${w.kode_wilker}::${w.zona}` : w.kode_wilker}>
-                {w.label}
-              </option>
-            ))}
-          </select>
+          <PilihWilayahMultiSelect
+            opsi={opsiWilayah}
+            nilai={nilai.wilayahKeys}
+            onUbah={(wilayahKeys) => onUbah({ ...nilai, wilayahKeys })}
+          />
         </div>
       </div>
 

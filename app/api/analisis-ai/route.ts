@@ -21,6 +21,7 @@ import {
   ambilDataAnalisisSkdr,
   ambilDataAnalisisSkdrTren,
   isKonteksSkdrTren,
+  ambilDataAnalisisKarhutlaIspaHotspot,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -73,6 +74,8 @@ import {
   susunPromptPrediksiSkdr,
   susunPromptSkdrTren,
   susunPromptPrediksiSkdrTren,
+  susunPromptKarhutlaIspaHotspot,
+  susunPromptPrediksiKarhutlaIspaHotspot
 } from '@/lib/ai/prompt';
 import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
 import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
@@ -516,6 +519,12 @@ export async function POST(request: Request) {
     } else if (konteks === 'skdr-tren-mingguan' || konteks === 'skdr-tren-bulanan') {
       const data = await ambilDataAnalisisSkdrTren(konteks, periodeKey, wilayahKerja, Number(metrikMentah));
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiSkdrTren(data) : susunPromptSkdrTren(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'karhutla-ispa-mingguan' || konteks === 'karhutla-ispa-bulanan') {
+      const data = await ambilDataAnalisisKarhutlaIspaHotspot(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKarhutlaIspaHotspot(data) : susunPromptKarhutlaIspaHotspot(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
 

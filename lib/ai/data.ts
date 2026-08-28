@@ -41,6 +41,8 @@ import type { RingkasanPenyakitEmerging, Penyakit, Negara } from '@/types/global
 import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
 import { createClient } from '@/lib/supabase/server';
 import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/supabase/queriesPesawat';
+import { ambilPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
+import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
 
 
 export const KONTEKS_TREN = [
@@ -88,6 +90,8 @@ export const KONTEKS_TREN = [
   'skdr-mingguan',
   'skdr-tren-bulanan',
   'skdr-tren-mingguan',
+  'karhutla-ispa-bulanan',
+  'karhutla-ispa-mingguan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -152,6 +156,8 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'skdr-mingguan',
   'skdr-tren-mingguan',
   'skdr-tren-bulanan',
+  'karhutla-ispa-bulanan',
+  'karhutla-ispa-mingguan',
 ] as const;
 
 export const KONTEKS_EVENT = [
@@ -3134,4 +3140,96 @@ export async function ambilDataAnalisisSkdrTren(
       .sort((a, b) => a[0] - b[0])
       .map(([minggu, jumlah]) => ({ kategori: 'minggu', nilai: `Mg ${minggu}`, jumlah })),
   };
+}
+
+// ============================================================
+// TEMPEL KE lib/ai/data.ts
+// ============================================================
+//
+// 1. Import yang dibutuhkan (sesuaikan path kalau beda):
+//    import { ambilPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
+//    import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
+//
+// 2. Tambahkan 'karhutla-ispa-mingguan' dan 'karhutla-ispa-bulanan' ke:
+//    - array KONTEKS_TREN (atau array konteks trend/breakdown yang relevan)
+//    - array KONTEKS_PREDIKSI_NON_VEKTOR
+//
+// 3. Tempel fungsi di bawah ini di lib/ai/data.ts
+
+const NAMA_BULAN_KARHUTLA = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+function labelWilayahKarhutla(wilayahKey?: string): string {
+  if (!wilayahKey || wilayahKey === 'Semua') return 'Seluruh wilayah kerja';
+  const entri = DAFTAR_WILAYAH_KARHUTLA.find((w) =>
+    w.zona ? `${w.kode_wilker}::${w.zona}` === wilayahKey : w.kode_wilker === wilayahKey
+  );
+  return entri?.label ?? wilayahKey;
+}
+
+export async function ambilDataAnalisisKarhutlaIspaHotspot(
+  konteks: string,
+  periodeKey: string,
+  wilayahKerja: string | undefined
+): Promise<DataAnalisis> {
+  const isMingguan = konteks === 'karhutla-ispa-mingguan';
+
+  const tahunMatch = periodeKey.match(/^(\d+)-/);
+  const tahun = tahunMatch ? Number(tahunMatch[1]) : new Date().getFullYear();
+
+  let periodeDari: number, periodeSampai: number, labelSaatIni: string;
+  if (isMingguan) {
+    const m = periodeKey.match(/W(\d+)_W(\d+)/);
+    periodeDari = m ? Number(m[1]) : 1;
+    periodeSampai = m ? Number(m[2]) : 53;
+    labelSaatIni = `Minggu ${periodeDari}-${periodeSampai} tahun ${tahun}`;
+  } else {
+    const m = periodeKey.match(/M(\d+)_M(\d+)/);
+    periodeDari = m ? Number(m[1]) : 1;
+    periodeSampai = m ? Number(m[2]) : 12;
+    labelSaatIni = `Bulan ${NAMA_BULAN_KARHUTLA[periodeDari - 1] ?? '-'}-${NAMA_BULAN_KARHUTLA[periodeSampai - 1] ?? '-'} ${tahun}`;
+  }
+
+  const panjang = periodeSampai - periodeDari + 1;
+  const periodeDariSebelumnya = Math.max(1, periodeDari - panjang);
+  const periodeSampaiSebelumnya = periodeDari - 1;
+
+  const wilayahKey = wilayahKerja && wilayahKerja !== 'Semua' ? wilayahKerja : 'Semua';
+  const granularitas = isMingguan ? 'mingguan' : 'bulanan';
+
+  const [dataSaatIni, dataSebelumnya] = await Promise.all([
+    ambilPerbandinganIspaHotspot({ granularitas, tahun, periodeAwal: periodeDari, periodeAkhir: periodeSampai, wilayahKey }),
+    periodeSampaiSebelumnya >= periodeDariSebelumnya
+      ? ambilPerbandinganIspaHotspot({ granularitas, tahun, periodeAwal: periodeDariSebelumnya, periodeAkhir: periodeSampaiSebelumnya, wilayahKey })
+      : Promise.resolve([]),
+  ]);
+
+  const totalKasusSaatIni = dataSaatIni.reduce((t, d) => t + d.totalKasusIspa, 0);
+  const totalHotspotSaatIni = dataSaatIni.reduce((t, d) => t + d.jumlahHotspot, 0);
+  const totalKasusSebelumnya = dataSebelumnya.reduce((t, d) => t + d.totalKasusIspa, 0);
+  const totalHotspotSebelumnya = dataSebelumnya.reduce((t, d) => t + d.jumlahHotspot, 0);
+
+  const topKategori: DataAnalisis['topKategori'] = [];
+  dataSaatIni.forEach((d) => {
+    topKategori.push({ kategori: 'kasus_ispa', nilai: d.periodeLabel, jumlah: d.totalKasusIspa });
+    topKategori.push({ kategori: 'hotspot', nilai: d.periodeLabel, jumlah: d.jumlahHotspot });
+  });
+
+  return {
+    labelKonteks: 'Karhutla — Kasus ISPA vs Titik Panas',
+    labelWilayah: labelWilayahKarhutla(wilayahKey),
+    labelPeriodeSaatIni: labelSaatIni,
+    labelPeriodeSebelumnya: isMingguan
+      ? `Minggu ${periodeDariSebelumnya}-${periodeSampaiSebelumnya} tahun ${tahun}`
+      : `Bulan ${NAMA_BULAN_KARHUTLA[periodeDariSebelumnya - 1] ?? '-'}-${NAMA_BULAN_KARHUTLA[periodeSampaiSebelumnya - 1] ?? '-'} ${tahun}`,
+    ringkasanSaatIni: {
+      total_kasus_ispa: totalKasusSaatIni,
+      jumlah_hotspot: totalHotspotSaatIni,
+      rata_rata_kasus_per_periode: panjang > 0 ? Math.round((totalKasusSaatIni / panjang) * 100) / 100 : 0,
+    },
+    ringkasanSebelumnya: {
+      total_kasus_ispa: totalKasusSebelumnya,
+      jumlah_hotspot: totalHotspotSebelumnya,
+    },
+    topKategori,
+  } as DataAnalisis;
 }

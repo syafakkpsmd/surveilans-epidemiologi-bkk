@@ -1457,3 +1457,42 @@ Rincian per minggu periode ini: ${rincian}
 Ekstrapolasikan arah tren ke depan berdasarkan pola ini.
 Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
 }
+
+// ============================================================
+// TEMPEL KE lib/ai/prompt.ts
+// (PERSONA_EPIDEMIOLOG dan DataAnalisis sudah ada di file ini, tidak perlu import baru)
+// ============================================================
+
+export function susunPromptKarhutlaIspaHotspot(data: DataAnalisis) {
+  const rincian = data.topKategori.length > 0
+    ? data.topKategori
+        .map((k) => `${k.nilai} (${k.kategori === 'kasus_ispa' ? 'kasus ISPA' : 'titik panas'}): ${k.jumlah}`)
+        .join('\n')
+    : '(tidak ada data pada rentang ini)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Data perbandingan kasus ISPA vs titik panas (hotspot NASA FIRMS) — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Catatan: jumlah hotspot bersifat REGIONAL Kalimantan Timur (bukan spesifik per wilayah kerja), sedangkan kasus ISPA sudah difilter sesuai wilayah yang dipilih.
+Ringkasan periode ini: total kasus ISPA ${data.ringkasanSaatIni.total_kasus_ispa}, jumlah hotspot ${data.ringkasanSaatIni.jumlah_hotspot}.
+Ringkasan periode sebelumnya (${data.labelPeriodeSebelumnya}): total kasus ISPA ${data.ringkasanSebelumnya.total_kasus_ispa}, jumlah hotspot ${data.ringkasanSebelumnya.jumlah_hotspot}.
+Rincian per periode:
+${rincian}
+Jangan mengarang angka di luar yang diberikan. Analisis apakah tren kasus ISPA sejalan dengan tren jumlah titik panas (indikasi kualitas udara akibat karhutla berdampak ke ISPA), dan soroti anomali (misal kasus ISPA naik signifikan tanpa kenaikan hotspot yang berarti, atau sebaliknya — kemungkinan ada penyebab lain).
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiKarhutlaIspaHotspot(data: DataAnalisis) {
+  const rincian = data.topKategori.length > 0
+    ? data.topKategori
+        .map((k) => `${k.nilai} (${k.kategori === 'kasus_ispa' ? 'kasus ISPA' : 'titik panas'}): ${k.jumlah}`)
+        .join('\n')
+    : '(tidak ada data)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren kasus ISPA terkait Karhutla — ${data.labelWilayah}.
+Dari periode ${data.labelPeriodeSebelumnya} (kasus ISPA ${data.ringkasanSebelumnya.total_kasus_ispa}, hotspot ${data.ringkasanSebelumnya.jumlah_hotspot}) ke periode ${data.labelPeriodeSaatIni} (kasus ISPA ${data.ringkasanSaatIni.total_kasus_ispa}, hotspot ${data.ringkasanSaatIni.jumlah_hotspot}).
+Rincian per periode:
+${rincian}
+Ekstrapolasikan risiko kenaikan kasus ISPA ke depan berdasarkan tren titik panas saat ini (kalau hotspot masih tinggi/naik, risiko paparan kabut asap berlanjut sehingga kasus ISPA berpotensi ikut naik).
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}

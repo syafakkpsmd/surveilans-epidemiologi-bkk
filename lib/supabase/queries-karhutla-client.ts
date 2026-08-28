@@ -1,3 +1,4 @@
+// lib/supabase/queries-karhutla-client.ts
 import { createClient } from '@/lib/supabase/client';
 
 /**
@@ -5,14 +6,19 @@ import { createClient } from '@/lib/supabase/client';
  * File ini TIDAK boleh mengimpor apa pun dari lib/supabase/server.ts.
  */
 
+// ------------------------------------------------------------
+// Kasus ISPA — dipakai oleh form dashboard (admin) MAUPUN form
+// publik (/form/ispa-harian). Upsert supaya idempotent: submit
+// ulang untuk tanggal+wilayah yang sama akan meng-update, bukan
+// membuat baris duplikat.
+// ------------------------------------------------------------
+
 export interface InputIspaHarian {
   tanggal: string;          // YYYY-MM-DD
   kode_wilker: string;
   zona: string | null;
   kasus_ispa_anak: number;
   kasus_ispa_dewasa: number;
-  pm25: number | null;
-  ispu_status: string | null;
   keterangan: string | null;
 }
 
@@ -20,50 +26,7 @@ export async function simpanIspaHarian(input: InputIspaHarian) {
   const supabase = createClient();
 
   const { data, error } = await supabase
-    .from('karhutla_ispa_harian')
-    .insert({
-      tanggal: input.tanggal,
-      kode_wilker: input.kode_wilker,
-      zona: input.zona,
-      kasus_ispa_anak: input.kasus_ispa_anak,
-      kasus_ispa_dewasa: input.kasus_ispa_dewasa,
-      pm25: input.pm25,
-      ispu_status: input.ispu_status,
-      keterangan: input.keterangan,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === '23505') {
-      throw new Error('Data untuk tanggal dan wilayah ini sudah pernah diinput. Silakan edit data yang sudah ada.');
-    }
-    throw new Error(`Gagal menyimpan data: ${error.message}`);
-  }
-
-  return data;
-}
-
-// ------------------------------------------------------------
-// Form terpisah (link publik): ISPA saja & Lingkungan saja.
-// Pakai UPSERT per-kolom supaya dua form tidak saling menimpa
-// data punya form yang lain untuk tanggal+wilayah yang sama.
-// ------------------------------------------------------------
-
-export interface InputIspaSaja {
-  tanggal: string;
-  kode_wilker: string;
-  zona: string | null;
-  kasus_ispa_anak: number;
-  kasus_ispa_dewasa: number;
-  keterangan_ispa: string | null;
-}
-
-export async function simpanIspaSaja(input: InputIspaSaja) {
-  const supabase = createClient();
-
-  const { data, error } = await supabase
-    .from('karhutla_ispa_harian')
+    .from('ispa_harian')
     .upsert(
       {
         tanggal: input.tanggal,
@@ -71,7 +34,7 @@ export async function simpanIspaSaja(input: InputIspaSaja) {
         zona: input.zona,
         kasus_ispa_anak: input.kasus_ispa_anak,
         kasus_ispa_dewasa: input.kasus_ispa_dewasa,
-        keterangan_ispa: input.keterangan_ispa,
+        keterangan: input.keterangan,
       },
       { onConflict: 'tanggal,kode_wilker,zona' }
     )
@@ -82,34 +45,49 @@ export async function simpanIspaSaja(input: InputIspaSaja) {
   return data;
 }
 
-export interface InputLingkunganSaja {
+// ------------------------------------------------------------
+// Kualitas Udara — dipakai oleh form dashboard (admin) MAUPUN
+// form publik (/form/lingkungan-harian). Upsert per tanggal+lokasi.
+// ------------------------------------------------------------
+
+export interface InputKualitasUdaraHarian {
   tanggal: string;
-  kode_wilker: string;
-  zona: string | null;
+  lokasi: string;
   pm25: number | null;
+  pm10: number | null;
+  suhu: number | null;
+  hcho: number | null;
+  tvoc: number | null;
+  kelembapan: number | null;
   ispu_status: string | null;
-  keterangan_lingkungan: string | null;
+  catatan_evaluasi: string | null;
+  status_evaluasi: string;
 }
 
-export async function simpanLingkunganSaja(input: InputLingkunganSaja) {
+export async function simpanKualitasUdaraHarian(input: InputKualitasUdaraHarian) {
   const supabase = createClient();
 
   const { data, error } = await supabase
-    .from('karhutla_ispa_harian')
+    .from('kualitas_udara_harian')
     .upsert(
       {
         tanggal: input.tanggal,
-        kode_wilker: input.kode_wilker,
-        zona: input.zona,
+        lokasi: input.lokasi,
         pm25: input.pm25,
+        pm10: input.pm10,
+        suhu: input.suhu,
+        hcho: input.hcho,
+        tvoc: input.tvoc,
+        kelembapan: input.kelembapan,
         ispu_status: input.ispu_status,
-        keterangan_lingkungan: input.keterangan_lingkungan,
+        catatan_evaluasi: input.catatan_evaluasi,
+        status_evaluasi: input.status_evaluasi,
       },
-      { onConflict: 'tanggal,kode_wilker,zona' }
+      { onConflict: 'tanggal,lokasi' }
     )
     .select()
     .single();
 
-  if (error) throw new Error(`Gagal menyimpan data lingkungan: ${error.message}`);
+  if (error) throw new Error(`Gagal menyimpan data kualitas udara: ${error.message}`);
   return data;
 }

@@ -262,6 +262,44 @@ export type Database = {
         }
         Relationships: []
       }
+      ispa_harian: {
+        Row: {
+          dibuat_pada: string
+          id: string
+          input_oleh: string | null
+          kasus_ispa_anak: number
+          kasus_ispa_dewasa: number
+          keterangan: string | null
+          kode_wilker: string
+          tanggal: string
+          zona: string | null
+        }
+        Insert: {
+          dibuat_pada?: string
+          id?: string
+          input_oleh?: string | null
+          kasus_ispa_anak?: number
+          kasus_ispa_dewasa?: number
+          keterangan?: string | null
+          kode_wilker: string
+          tanggal: string
+          zona?: string | null
+        }
+        Update: {
+          dibuat_pada?: string
+          id?: string
+          input_oleh?: string | null
+          kasus_ispa_anak?: number
+          kasus_ispa_dewasa?: number
+          keterangan?: string | null
+          kode_wilker?: string
+          tanggal?: string
+          zona?: string | null
+        }
+        Relationships: []
+      }
+
+      
       jenis_kegiatan_foto: {
         Row: {
           dibuat_pada: string
@@ -277,54 +315,6 @@ export type Database = {
           dibuat_pada?: string
           id?: number
           nama?: string
-        }
-        Relationships: []
-      }
-      karhutla_ispa_harian: {
-        Row: {
-          dibuat_pada: string
-          id: string
-          input_oleh: string | null
-          ispu_status: string | null
-          kasus_ispa_anak: number
-          kasus_ispa_dewasa: number
-          keterangan: string | null
-          keterangan_ispa: string | null
-          keterangan_lingkungan: string | null
-          kode_wilker: string
-          pm25: number | null
-          tanggal: string
-          zona: string | null
-        }
-        Insert: {
-          dibuat_pada?: string
-          id?: string
-          input_oleh?: string | null
-          ispu_status?: string | null
-          kasus_ispa_anak?: number
-          kasus_ispa_dewasa?: number
-          keterangan?: string | null
-          keterangan_ispa?: string | null
-          keterangan_lingkungan?: string | null
-          kode_wilker: string
-          pm25?: number | null
-          tanggal: string
-          zona?: string | null
-        }
-        Update: {
-          dibuat_pada?: string
-          id?: string
-          input_oleh?: string | null
-          ispu_status?: string | null
-          kasus_ispa_anak?: number
-          kasus_ispa_dewasa?: number
-          keterangan?: string | null
-          keterangan_ispa?: string | null
-          keterangan_lingkungan?: string | null
-          kode_wilker?: string
-          pm25?: number | null
-          tanggal?: string
-          zona?: string | null
         }
         Relationships: []
       }
@@ -603,6 +593,57 @@ export type Database = {
           tgl_keberangkatan?: string | null
           tujuan_berlayar?: string | null
           wilayah_kerja?: string | null
+        }
+        Relationships: []
+      }
+      kualitas_udara_harian: {
+        Row: {
+          catatan_evaluasi: string | null
+          created_at: string | null
+          created_by: string | null
+          hcho: number | null
+          id: string
+          ispu_status: string | null
+          kelembapan: number | null
+          lokasi: string
+          pm10: number | null
+          pm25: number | null
+          status_evaluasi: string | null
+          suhu: number | null
+          tanggal: string
+          tvoc: number | null
+        }
+        Insert: {
+          catatan_evaluasi?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          hcho?: number | null
+          id?: string
+          ispu_status?: string | null
+          kelembapan?: number | null
+          lokasi: string
+          pm10?: number | null
+          pm25?: number | null
+          status_evaluasi?: string | null
+          suhu?: number | null
+          tanggal: string
+          tvoc?: number | null
+        }
+        Update: {
+          catatan_evaluasi?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          hcho?: number | null
+          id?: string
+          ispu_status?: string | null
+          kelembapan?: number | null
+          lokasi?: string
+          pm10?: number | null
+          pm25?: number | null
+          status_evaluasi?: string | null
+          suhu?: number | null
+          tanggal?: string
+          tvoc?: number | null
         }
         Relationships: []
       }
@@ -1861,6 +1902,60 @@ export type Database = {
           },
         ]
       }
+      wilayah_ispa: {
+        Row: {
+          id: string
+          label: string
+          kode_wilker: string
+          zona: string | null
+          urutan: number
+          dibuat_pada: string
+        }
+        Insert: {
+          id?: string
+          label: string
+          kode_wilker: string
+          zona?: string | null
+          urutan?: number
+          dibuat_pada?: string
+        }
+        Update: {
+          id?: string
+          label?: string
+          kode_wilker?: string
+          zona?: string | null
+          urutan?: number
+          dibuat_pada?: string
+        }
+        Relationships: []
+      }
+      lokasi_kualitas_udara: {
+        Row: {
+          id: string
+          nama: string
+          lokasi_induk: string
+          sub_lokasi: string | null
+          urutan: number
+          dibuat_pada: string
+        }
+        Insert: {
+          id?: string
+          nama: string
+          lokasi_induk: string
+          sub_lokasi?: string | null
+          urutan?: number
+          dibuat_pada?: string
+        }
+        Update: {
+          id?: string
+          nama?: string
+          lokasi_induk?: string
+          sub_lokasi?: string | null
+          urutan?: number
+          dibuat_pada?: string
+        }
+        Relationships: []
+      }
       wilker_nama_alias: {
         Row: {
           kode_wilker: string
@@ -2049,6 +2144,52 @@ export type Database = {
           },
         ]
       }
+      view_hotspot_kaltim_bulanan: {
+        Row: {
+          bulan: number | null
+          confidence_rerata: number | null
+          frp_rerata: number | null
+          jumlah_hotspot: number | null
+          tahun: number | null
+        }
+        Relationships: []
+      }
+      view_hotspot_kaltim_mingguan: {
+        Row: {
+          confidence_rerata: number | null
+          frp_rerata: number | null
+          jumlah_hotspot: number | null
+          minggu_epid: number | null
+          tahun_epid: number | null
+        }
+        Relationships: []
+      }
+      view_karhutla_ispa_bulanan: {
+        Row: {
+          bulan: number | null
+          jml_input: number | null
+          kode_wilker: string | null
+          tahun: number | null
+          total_kasus_anak: number | null
+          total_kasus_dewasa: number | null
+          total_kasus_ispa: number | null
+          zona: string | null
+        }
+        Relationships: []
+      }
+      view_karhutla_ispa_mingguan: {
+        Row: {
+          jml_input: number | null
+          kode_wilker: string | null
+          minggu_epid: number | null
+          tahun_epid: number | null
+          total_kasus_anak: number | null
+          total_kasus_dewasa: number | null
+          total_kasus_ispa: number | null
+          zona: string | null
+        }
+        Relationships: []
+      }
       view_kegiatan_cop_enriched: {
         Row: {
           bendera_kapal: string | null
@@ -2095,6 +2236,32 @@ export type Database = {
           total_penumpang: number | null
           tujuan_berlayar: string | null
           wilayah_kerja: string | null
+        }
+        Relationships: []
+      }
+      view_kualitas_udara_bulanan: {
+        Row: {
+          bulan: number | null
+          jml_input: number | null
+          jml_tms: number | null
+          lokasi: string | null
+          pm10_rerata: number | null
+          pm25_rerata: number | null
+          suhu_rerata: number | null
+          tahun: number | null
+        }
+        Relationships: []
+      }
+      view_kualitas_udara_mingguan: {
+        Row: {
+          jml_input: number | null
+          jml_tms: number | null
+          lokasi: string | null
+          minggu_epid: number | null
+          pm10_rerata: number | null
+          pm25_rerata: number | null
+          suhu_rerata: number | null
+          tahun_epid: number | null
         }
         Relationships: []
       }

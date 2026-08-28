@@ -1,12 +1,18 @@
 import KarhutlaClient from './KarhutlaClient';
-import { ambilTrenIspaPm25, ambilHotspotCache } from '@/lib/supabase/queries-karhutla-server';
 
-export const dynamic = 'force-dynamic'; // data harian, jangan di-cache statis
+import {
+  ambilTrenIspaPm25, ambilHotspotCache,
+  ambilDaftarWilayahIspa, ambilDaftarLokasiUdara,
+} from '@/lib/supabase/queries-karhutla-server';
+
+export const dynamic = 'force-dynamic';
 
 export default async function HalamanKarhutla() {
-  const [trenAwal, hotspotAwal] = await Promise.all([
+  const [trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara] = await Promise.all([
     ambilTrenIspaPm25({ wilayahKey: 'Semua', hariTerakhir: 30 }),
     ambilHotspotCache(3),
+    ambilDaftarWilayahIspa(),
+    ambilDaftarLokasiUdara(),
   ]);
 
   return (
@@ -18,7 +24,12 @@ export default async function HalamanKarhutla() {
         </p>
       </div>
 
-      <KarhutlaClient trenAwal={trenAwal} hotspotAwal={hotspotAwal} />
+      <KarhutlaClient
+        trenAwal={trenAwal}
+        hotspotAwal={hotspotAwal}
+        daftarWilayahIspa={daftarWilayahIspa}
+        daftarLokasiUdara={daftarLokasiUdara}
+      />
     </div>
   );
 }

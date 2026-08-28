@@ -21,10 +21,10 @@ import type {
   LokasiUdaraRow,
 } from '@/lib/supabase/queries-karhutla-server';
 import GrafikMultiParameterHarianKarhutla from '@/components/karhutla/GrafikMultiParameterHarianKarhutla';
+import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
+import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 
-// TODO: sesuaikan import ini dengan lokasi BoxAnalisisAI/BoxPrediksiAI di project Anda
-// import BoxAnalisisAI from '@/components/ai/BoxAnalisisAI';
-// import BoxPrediksiAI from '@/components/ai/BoxPrediksiAI';
+
 
 const PetaHotspotKarhutla = dynamic(() => import('@/components/karhutla/PetaHotspotKarhutla'), {
   ssr: false,

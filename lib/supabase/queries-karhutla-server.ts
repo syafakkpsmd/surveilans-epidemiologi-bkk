@@ -23,22 +23,37 @@ function bangunFilterOrWilayah(wilayahKeys: string[] | undefined): string | null
  * Jangan pernah import file ini dari komponen yang ada 'use client'.
  */
 
+// ------------------------------------------------------------
+// Tren "N hari terakhir": kasus ISPA vs PM2.5 vs jumlah titik api
+// ------------------------------------------------------------
+
+export interface TitikTrenIspa {
+  tanggal: string;
+  kasus_ispa_anak: number;
+  kasus_ispa_dewasa: number;
+  pm25_rerata: number | null;
+  jumlah_titik_api: number;
+}
+
 /**
  * wilayahKey: gabungan "kode_wilker" atau "kode_wilker::zona" (mis. "WK01::Palaran").
  * "Semua" atau undefined = tanpa filter (gabungan semua wilayah).
  *
- * CATATAN: PM2.5 sekarang berasal dari tabel kualitas_udara_harian yang punya
- * taksonomi lokasi berbeda (8 lokasi) dari kode_wilker/zona ISPA (13 wilayah).
- * Karena tidak ada mapping 1:1, PM2.5 ditampilkan sebagai rerata REGIONAL
- * (gabungan semua lokasi) — konsisten dengan pola hotspot yang sudah regional juga.
+ * CATATAN: PM2.5 berasal dari tabel kualitas_udara_harian yang punya taksonomi
+ * lokasi berbeda (8 lokasi) dari kode_wilker/zona ISPA (13 wilayah). Karena tidak
+ * ada mapping 1:1, PM2.5 ditampilkan sebagai rerata REGIONAL (gabungan semua
+ * lokasi) — konsisten dengan pola hotspot yang juga regional.
  */
-export async function ambilTrenIspaPm25(opsi: { wilayahKeys?: string[]; hariTerakhir?: number } = {}) {
+export async function ambilTrenIspaPm25(
+  opsi: { wilayahKeys?: string[]; hariTerakhir?: number } = {}
+): Promise<TitikTrenIspa[]> {
   const { wilayahKeys, hariTerakhir = 30 } = opsi;
   const supabase = await createClient();
 
   const sejakTanggal = new Date();
   sejakTanggal.setDate(sejakTanggal.getDate() - hariTerakhir);
   const tanggalAwal = sejakTanggal.toISOString().slice(0, 10);
+  const tanggalAkhir = new Date().toISOString().slice(0, 10);
 
   let queryIspa = supabase
     .from('ispa_harian')
@@ -49,17 +64,27 @@ export async function ambilTrenIspaPm25(opsi: { wilayahKeys?: string[]; hariTera
   const filterOr = bangunFilterOrWilayah(wilayahKeys);
   if (filterOr) queryIspa = queryIspa.or(filterOr);
 
-  const [{ data: dataIspa, error: errIspa }, { data: dataUdara, error: errUdara }] = await Promise.all([
+  const [
+    { data: dataIspa, error: errIspa },
+    { data: dataUdara, error: errUdara },
+    { data: dataHotspot, error: errHotspot },
+  ] = await Promise.all([
     queryIspa,
     supabase
       .from('kualitas_udara_harian')
       .select('tanggal, pm25')
       .gte('tanggal', tanggalAwal)
       .order('tanggal', { ascending: true }),
+    supabase
+      .from('hotspot_nasa_kaltim')
+      .select('tanggal_deteksi, confidence')
+      .gte('tanggal_deteksi', tanggalAwal)
+      .gt('confidence', 80),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil tren ISPA: ${errIspa.message}`);
   if (errUdara) throw new Error(`Gagal mengambil data PM2.5: ${errUdara.message}`);
+  if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
 
   const mapPm25 = new Map<string, { total: number; jml: number }>();
   for (const baris of dataUdara ?? []) {
@@ -69,28 +94,48 @@ export async function ambilTrenIspaPm25(opsi: { wilayahKeys?: string[]; hariTera
     entri.jml += 1;
     mapPm25.set(baris.tanggal, entri);
   }
-  const pm25PerTanggal = (tanggal: string) => {
+  const pm25PerTanggal = (tanggal: string): number | null => {
     const e = mapPm25.get(tanggal);
     return e && e.jml > 0 ? Number((e.total / e.jml).toFixed(1)) : null;
   };
 
-  if (!dataIspa) return [];
+  const mapHotspot = new Map<string, number>();
+  for (const baris of dataHotspot ?? []) {
+    const tanggal = baris.tanggal_deteksi;
+    mapHotspot.set(tanggal, (mapHotspot.get(tanggal) ?? 0) + 1);
+  }
 
   const mapIspa = new Map<string, { kasus_ispa_anak: number; kasus_ispa_dewasa: number }>();
-  for (const baris of dataIspa) {
+  for (const baris of dataIspa ?? []) {
     const entri = mapIspa.get(baris.tanggal) ?? { kasus_ispa_anak: 0, kasus_ispa_dewasa: 0 };
     entri.kasus_ispa_anak += baris.kasus_ispa_anak;
     entri.kasus_ispa_dewasa += baris.kasus_ispa_dewasa;
     mapIspa.set(baris.tanggal, entri);
   }
 
-  return Array.from(mapIspa.entries()).map(([tanggal, e]) => ({
-    tanggal,
-    kasus_ispa_anak: e.kasus_ispa_anak,
-    kasus_ispa_dewasa: e.kasus_ispa_dewasa,
-    pm25_rerata: pm25PerTanggal(tanggal),
-  }));
+  // Loop kalender penuh (sama seperti ambilTrenHarianRentang) —
+  // supaya PM2.5/titik api tetap tampil walau kasus ISPA 0/kosong hari itu.
+  const hasil: TitikTrenIspa[] = [];
+  const kursor = new Date(tanggalAwal);
+  const akhir = new Date(tanggalAkhir);
+  while (kursor <= akhir) {
+    const tanggalStr = kursor.toISOString().slice(0, 10);
+    const ispa = mapIspa.get(tanggalStr);
+    hasil.push({
+      tanggal: tanggalStr,
+      kasus_ispa_anak: ispa?.kasus_ispa_anak ?? 0,
+      kasus_ispa_dewasa: ispa?.kasus_ispa_dewasa ?? 0,
+      pm25_rerata: pm25PerTanggal(tanggalStr),
+      jumlah_titik_api: mapHotspot.get(tanggalStr) ?? 0,
+    });
+    kursor.setDate(kursor.getDate() + 1);
+  }
+
+  return hasil;
 }
+// ------------------------------------------------------------
+// Cache hotspot untuk peta (snapshot titik terbaru, bukan tren)
+// ------------------------------------------------------------
 
 export async function ambilHotspotCache(hariTerakhir = 3) {
   const supabase = await createClient();
@@ -110,8 +155,8 @@ export async function ambilHotspotCache(hariTerakhir = 3) {
 // ------------------------------------------------------------
 // Daftar wilayah ISPA & lokasi kualitas udara - DINAMIS dari
 // database (tabel wilayah_ispa / lokasi_kualitas_udara), bisa
-// dikelola superadmin. Ini menggantikan DAFTAR_WILAYAH_KARHUTLA
-// dan LOKASI_KUALITAS_UDARA yang tadinya hardcoded di constants.ts.
+// dikelola admin. Ini menggantikan DAFTAR_WILAYAH_KARHUTLA dan
+// LOKASI_KUALITAS_UDARA yang tadinya hardcoded di constants.ts.
 // ------------------------------------------------------------
 
 export interface WilayahIspaRow {
@@ -164,7 +209,7 @@ export interface TitikPerbandinganIspaHotspot {
   totalKasusIspa: number;
   totalKasusAnak: number;
   totalKasusDewasa: number;
-  pm25Rerata: number | null; // regional, lihat catatan di bawah
+  pm25Rerata: number | null; // regional, lihat catatan di ambilTrenIspaPm25
   jumlahHotspot: number;
 }
 
@@ -355,7 +400,9 @@ export async function ambilTabelKualitasUdara(hariTerakhir = 90): Promise<BarisT
 
   const { data, error } = await supabase
     .from('kualitas_udara_harian')
-    .select('id, tanggal, lokasi, pm25, pm10, suhu, hcho, tvoc, kelembapan, ispu_status, status_evaluasi, catatan_evaluasi')
+    .select(
+      'id, tanggal, lokasi, pm25, pm10, suhu, hcho, tvoc, kelembapan, ispu_status, status_evaluasi, catatan_evaluasi'
+    )
     .gte('tanggal', sejak.toISOString().slice(0, 10))
     .order('tanggal', { ascending: false });
 
@@ -376,6 +423,7 @@ export interface TitikTrenHarianRentang {
   kasus_ispa_anak: number;
   kasus_ispa_dewasa: number;
   nilai_parameter_udara: number | null; // rerata regional untuk parameter yang dipilih
+  jumlah_titik_api: number;
 }
 
 export interface OpsiTrenHarianRentang {
@@ -401,7 +449,11 @@ export async function ambilTrenHarianRentang(
   const filterOr = bangunFilterOrWilayah(wilayahKeys);
   if (filterOr) queryIspa = queryIspa.or(filterOr);
 
-  const [{ data: dataIspa, error: errIspa }, { data: dataUdara, error: errUdara }] = await Promise.all([
+  const [
+    { data: dataIspa, error: errIspa },
+    { data: dataUdara, error: errUdara },
+    { data: dataHotspot, error: errHotspot },
+  ] = await Promise.all([
     queryIspa,
     supabase
       .from('kualitas_udara_harian')
@@ -409,10 +461,17 @@ export async function ambilTrenHarianRentang(
       .gte('tanggal', tanggalAwal)
       .lte('tanggal', tanggalAkhir)
       .order('tanggal', { ascending: true }),
+    supabase
+      .from('hotspot_nasa_kaltim')
+      .select('tanggal_deteksi, confidence')
+      .gte('tanggal_deteksi', tanggalAwal)
+      .lte('tanggal_deteksi', tanggalAkhir)
+      .gt('confidence', 80),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
+  if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
 
   const mapUdara = new Map<string, { total: number; jml: number }>();
   for (const baris of (dataUdara ?? []) as Record<string, unknown>[]) {
@@ -433,6 +492,12 @@ export async function ambilTrenHarianRentang(
     mapIspa.set(baris.tanggal, entri);
   }
 
+  const mapHotspot = new Map<string, number>();
+  for (const baris of dataHotspot ?? []) {
+    const tanggal = baris.tanggal_deteksi;
+    mapHotspot.set(tanggal, (mapHotspot.get(tanggal) ?? 0) + 1);
+  }
+
   const hasil: TitikTrenHarianRentang[] = [];
   const kursor = new Date(tanggalAwal);
   const akhir = new Date(tanggalAkhir);
@@ -445,9 +510,37 @@ export async function ambilTrenHarianRentang(
       kasus_ispa_anak: ispa?.anak ?? 0,
       kasus_ispa_dewasa: ispa?.dewasa ?? 0,
       nilai_parameter_udara: udara && udara.jml > 0 ? Number((udara.total / udara.jml).toFixed(2)) : null,
+      jumlah_titik_api: mapHotspot.get(tanggalStr) ?? 0,
     });
     kursor.setDate(kursor.getDate() + 1);
   }
 
   return hasil;
+}
+
+export interface BarisTabelHotspot {
+  id: string;
+  tanggal_deteksi: string;
+  jam_deteksi: string | null;
+  latitude: number;
+  longitude: number;
+  confidence: number | null;
+  confidence_asli: string | null;
+  satelit: string | null;
+  frp: number | null;
+}
+
+export async function ambilTabelHotspot(hariTerakhir = 90): Promise<BarisTabelHotspot[]> {
+  const supabase = await createClient();
+  const sejak = new Date();
+  sejak.setDate(sejak.getDate() - hariTerakhir);
+
+  const { data, error } = await supabase
+    .from('hotspot_nasa_kaltim')
+    .select('id, tanggal_deteksi, jam_deteksi, latitude, longitude, confidence, confidence_asli, satelit, frp')
+    .gte('tanggal_deteksi', sejak.toISOString().slice(0, 10))
+    .order('tanggal_deteksi', { ascending: false });
+
+  if (error) throw new Error(`Gagal mengambil data tabel hotspot: ${error.message}`);
+  return data ?? [];
 }

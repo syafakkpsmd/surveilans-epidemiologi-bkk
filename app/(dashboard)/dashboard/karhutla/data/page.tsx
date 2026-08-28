@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import TabelDataKarhutla from '@/components/karhutla/TabelDataKarhutla';
-import { ambilTabelIspa, ambilTabelKualitasUdara } from '@/lib/supabase/queries-karhutla-server';
+import TabelHotspotHarian from '@/components/karhutla/TabelHotspotHarian';
+import { ambilTabelIspa, ambilTabelKualitasUdara, ambilTabelHotspot } from '@/lib/supabase/queries-karhutla-server';
 
-export const dynamic = 'force-dynamic'; // data harian, jangan di-cache statis
+export const dynamic = 'force-dynamic';
 
 export default async function HalamanDataKarhutla() {
-  const [dataIspa, dataUdara] = await Promise.all([
+  const [dataIspa, dataUdara, dataHotspot] = await Promise.all([
     ambilTabelIspa(90),
     ambilTabelKualitasUdara(90),
+    ambilTabelHotspot(90),
   ]);
 
   return (
@@ -19,9 +21,9 @@ export default async function HalamanDataKarhutla() {
             Tabel lengkap data kasus ISPA dan parameter kualitas udara (90 hari terakhir)
           </p>
         </div>
-        
-        <Link 
-          href="/dashboard/karhutla" 
+
+        <Link
+          href="/dashboard/karhutla"
           className="text-sm font-medium text-teal hover:underline whitespace-nowrap"
         >
           ← Kembali ke Dashboard Karhutla
@@ -29,6 +31,8 @@ export default async function HalamanDataKarhutla() {
       </div>
 
       <TabelDataKarhutla dataIspa={dataIspa} dataUdara={dataUdara} />
+
+      <TabelHotspotHarian data={dataHotspot} />
     </div>
   );
 }

@@ -99,11 +99,11 @@ export default function FormInputKualitasUdaraHarian({
           <input type="number" step="0.1" value={suhu} onChange={(e) => setSuhu(e.target.value)} placeholder="mis. 29.1"
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-1">HCHO (mg/m³)</label>
-          <input type="number" min={0} step="0.01" value={hcho} onChange={(e) => setHcho(e.target.value)} placeholder="mis. 0.1"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-1">TVOC (mg/m³)</label>
-          <input type="number" min={0} step="0.1" value={tvoc} onChange={(e) => setTvoc(e.target.value)} placeholder="mis. 0"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" /></div>
+  <input type="number" min={0} step="0.001" value={hcho} onChange={(e) => setHcho(e.target.value)} placeholder="mis. 0.100"
+    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" /></div>
+<div><label className="block text-sm font-medium text-gray-700 mb-1">TVOC (mg/m³)</label>
+  <input type="number" min={0} step="0.001" value={tvoc} onChange={(e) => setTvoc(e.target.value)} placeholder="mis. 0.000"
+    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-1">Kelembapan (%)</label>
           <input type="number" min={0} max={100} step="1" value={kelembapan} onChange={(e) => setKelembapan(e.target.value)} placeholder="mis. 75"
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" /></div>

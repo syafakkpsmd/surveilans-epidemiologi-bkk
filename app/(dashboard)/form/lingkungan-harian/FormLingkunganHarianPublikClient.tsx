@@ -107,12 +107,12 @@ export default function FormLingkunganHarianPublikClient({ daftarLokasi }: { daf
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">HCHO (mg/m³)</label>
-              <input type="number" min={0} step="0.01" value={hcho} onChange={(e) => setHcho(e.target.value)} placeholder="mis. 0.1"
+              <input type="number" min={0} step="0.001" value={hcho} onChange={(e) => setHcho(e.target.value)} placeholder="mis. 0.100"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">TVOC (mg/m³)</label>
-              <input type="number" min={0} step="0.1" value={tvoc} onChange={(e) => setTvoc(e.target.value)} placeholder="mis. 0"
+              <input type="number" min={0} step="0.001" value={tvoc} onChange={(e) => setTvoc(e.target.value)} placeholder="mis. 0.000"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>

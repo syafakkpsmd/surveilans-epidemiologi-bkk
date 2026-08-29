@@ -3,17 +3,19 @@ import { getUserRole } from '@/lib/auth/get-user-role';
 import {
   ambilTrenIspaPm25, ambilHotspotCache,
   ambilDaftarWilayahIspa, ambilDaftarLokasiUdara,
+  ambilDaftarWilayahKerjaSkdr,
 } from '@/lib/supabase/queries-karhutla-server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HalamanKarhutla() {
-  const [role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara] = await Promise.all([
+  const [role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr] = await Promise.all([
     getUserRole(),
     ambilTrenIspaPm25({ wilayahKeys: [], hariTerakhir: 30 }),
     ambilHotspotCache(3),
     ambilDaftarWilayahIspa(),
     ambilDaftarLokasiUdara(),
+    ambilDaftarWilayahKerjaSkdr(),
   ]);
 
   return (
@@ -31,6 +33,7 @@ export default async function HalamanKarhutla() {
         hotspotAwal={hotspotAwal}
         daftarWilayahIspa={daftarWilayahIspa}
         daftarLokasiUdara={daftarLokasiUdara}
+        daftarWilayahSkdr={daftarWilayahSkdr}
       />
     </div>
   );

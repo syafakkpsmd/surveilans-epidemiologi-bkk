@@ -6,7 +6,13 @@ import {
 } from 'recharts';
 import type { TitikPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
 
-export default function KurvaPerbandinganIspaHotspot({ data }: { data: TitikPerbandinganIspaHotspot[] }) {
+export default function KurvaPerbandinganIspaHotspot({
+  data,
+  sumberLabel = 'ISPA harian (modul karhutla)',
+}: {
+  data: TitikPerbandinganIspaHotspot[];
+  sumberLabel?: string;
+}) {
   const chartData = data.map((d) => ({
     periode: d.periodeLabel,
     'Kasus ISPA': d.totalKasusIspa,
@@ -28,7 +34,7 @@ export default function KurvaPerbandinganIspaHotspot({ data }: { data: TitikPerb
         </span>
       </div>
       <p className="text-xs text-gray-500 mb-3">
-        Batang = kasus ISPA (sumbu kiri, per wilayah terpilih) &middot; Garis merah = jumlah hotspot regional Kaltim (sumbu kanan)
+        Batang = kasus ISPA ({sumberLabel}, sumbu kiri) &middot; Garis merah = jumlah hotspot regional Kaltim (sumbu kanan)
       </p>
 
       {chartData.length === 0 ? (

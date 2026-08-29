@@ -349,7 +349,107 @@ export async function ambilPerbandinganIspaHotspot(
 }
 
 // ------------------------------------------------------------
-// Data mentah untuk halaman tabel (bukan agregat) - dipakai
+// Perbandingan ISPA (sumber SKDR) vs Hotspot -- dipakai tombol
+// "SKDR" di grafik Analisis Kasus ISPA vs Titik Panas.
+// Beda dari ambilPerbandinganIspaHotspot() di atas: sumber kasus
+// ISPA di sini adalah skdr_mingguan (data yang sudah diinput lewat
+// modul SKDR), bukan ispa_harian punya modul karhutla. Data hotspot
+// & PM2.5 regional tetap dari view yang sama (tidak terikat sistem
+// wilayah karhutla kode_wilker/zona).
+// ------------------------------------------------------------
+
+// id 24 = 'ISPA-AA' di skdr_jenis_penyakit, lihat DAFTAR_PENYAKIT_SKDR
+// di app/(dashboard)/dashboard/skdr/SkdrClient.tsx
+const JENIS_PENYAKIT_ISPA_SKDR_ID = 24;
+
+export interface OpsiPerbandinganSkdrHotspot {
+  tahun: number;
+  periodeAwal: number; // minggu epid, 1-53
+  periodeAkhir: number;
+  wilayahKerja?: string; // wilayah_kerja SKDR (satu nilai, bukan multi) -- kosong = semua wilayah
+}
+
+export async function ambilPerbandinganSkdrHotspot(
+  opsi: OpsiPerbandinganSkdrHotspot
+): Promise<TitikPerbandinganIspaHotspot[]> {
+  const { tahun, periodeAwal, periodeAkhir, wilayahKerja } = opsi;
+  const supabase = await createClient();
+
+  let querySkdr = supabase
+    .from('skdr_mingguan')
+    .select('minggu_epid, jumlah_kasus')
+    .eq('tahun_epid', tahun)
+    .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID)
+    .gte('minggu_epid', periodeAwal)
+    .lte('minggu_epid', periodeAkhir);
+  if (wilayahKerja) querySkdr = querySkdr.eq('wilayah_kerja', wilayahKerja);
+
+  const [skdrRes, udaraRes, hotspotRes] = await Promise.all([
+    querySkdr,
+    supabase
+      .from('view_kualitas_udara_mingguan')
+      .select('*')
+      .eq('tahun_epid', tahun)
+      .gte('minggu_epid', periodeAwal)
+      .lte('minggu_epid', periodeAkhir),
+    supabase
+      .from('view_hotspot_kaltim_mingguan')
+      .select('*')
+      .eq('tahun_epid', tahun)
+      .gte('minggu_epid', periodeAwal)
+      .lte('minggu_epid', periodeAkhir),
+  ]);
+
+  if (skdrRes.error) throw new Error(`Gagal mengambil data ISPA SKDR: ${skdrRes.error.message}`);
+  if (udaraRes.error) throw new Error(`Gagal mengambil data kualitas udara: ${udaraRes.error.message}`);
+  if (hotspotRes.error) throw new Error(`Gagal mengambil data hotspot: ${hotspotRes.error.message}`);
+
+  const mapSkdr = new Map<number, number>();
+  for (const baris of skdrRes.data ?? []) {
+    const periode = baris.minggu_epid as number;
+    mapSkdr.set(periode, (mapSkdr.get(periode) ?? 0) + (baris.jumlah_kasus ?? 0));
+  }
+
+  const mapUdara = new Map<number, { total: number; jml: number }>();
+  for (const baris of udaraRes.data ?? []) {
+    if (baris.pm25_rerata == null) continue;
+    const periode = baris.minggu_epid as number;
+    const entri = mapUdara.get(periode) ?? { total: 0, jml: 0 };
+    entri.total += Number(baris.pm25_rerata);
+    entri.jml += 1;
+    mapUdara.set(periode, entri);
+  }
+
+  const mapHotspot = new Map<number, number>();
+  for (const baris of hotspotRes.data ?? []) {
+    mapHotspot.set(baris.minggu_epid as number, baris.jumlah_hotspot ?? 0);
+  }
+
+  const hasil: TitikPerbandinganIspaHotspot[] = [];
+  for (let p = periodeAwal; p <= periodeAkhir; p++) {
+    const udara = mapUdara.get(p);
+    const totalKasus = mapSkdr.get(p) ?? 0;
+    hasil.push({
+      periode: p,
+      periodeLabel: `Mg ${p}`,
+      totalKasusIspa: totalKasus,
+      totalKasusAnak: 0, // skdr_mingguan tidak memecah anak/dewasa
+      totalKasusDewasa: 0,
+      pm25Rerata: udara && udara.jml > 0 ? Number((udara.total / udara.jml).toFixed(1)) : null,
+      jumlahHotspot: mapHotspot.get(p) ?? 0,
+    });
+  }
+
+  return hasil;
+}
+
+/** Daftar wilayah_kerja SKDR (taksonomi berbeda dari kode_wilker/zona karhutla). */
+export async function ambilDaftarWilayahKerjaSkdr(): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('view_wilayah_kerja_skdr').select('wilayah_kerja');
+  if (error) throw new Error(`Gagal mengambil daftar wilayah kerja SKDR: ${error.message}`);
+  return (data ?? []).map((d) => d.wilayah_kerja as string).filter(Boolean);
+}
 // oleh /dashboard/karhutla/data untuk menampilkan & unduh CSV.
 // ------------------------------------------------------------
 
@@ -429,14 +529,15 @@ export interface TitikTrenHarianRentang {
 export interface OpsiTrenHarianRentang {
   tanggalAwal: string;
   tanggalAkhir: string;
-  wilayahKeys?: string[];
+  wilayahKeys?: string[]; // filter utk data ISPA (taksonomi kode_wilker/zona)
+  lokasiUdara?: string[]; // filter utk data kualitas udara (taksonomi lokasi_kualitas_udara.nama) -- terpisah dari wilayahKeys krn sistem lokasi beda antara modul ISPA & kualitas udara
   parameterUdara?: ParameterUdara;
 }
 
 export async function ambilTrenHarianRentang(
   opsi: OpsiTrenHarianRentang
 ): Promise<TitikTrenHarianRentang[]> {
-  const { tanggalAwal, tanggalAkhir, wilayahKeys, parameterUdara = 'pm25' } = opsi;
+  const { tanggalAwal, tanggalAkhir, wilayahKeys, lokasiUdara, parameterUdara = 'pm25' } = opsi;
   const supabase = await createClient();
 
   let queryIspa = supabase
@@ -449,18 +550,21 @@ export async function ambilTrenHarianRentang(
   const filterOr = bangunFilterOrWilayah(wilayahKeys);
   if (filterOr) queryIspa = queryIspa.or(filterOr);
 
+  let queryUdara = supabase
+    .from('kualitas_udara_harian')
+    .select(`tanggal, lokasi, ${parameterUdara}`)
+    .gte('tanggal', tanggalAwal)
+    .lte('tanggal', tanggalAkhir)
+    .order('tanggal', { ascending: true });
+  if (lokasiUdara && lokasiUdara.length > 0) queryUdara = queryUdara.in('lokasi', lokasiUdara);
+
   const [
     { data: dataIspa, error: errIspa },
     { data: dataUdara, error: errUdara },
     { data: dataHotspot, error: errHotspot },
   ] = await Promise.all([
     queryIspa,
-    supabase
-      .from('kualitas_udara_harian')
-      .select(`tanggal, ${parameterUdara}`)
-      .gte('tanggal', tanggalAwal)
-      .lte('tanggal', tanggalAkhir)
-      .order('tanggal', { ascending: true }),
+    queryUdara,
     supabase
       .from('hotspot_nasa_kaltim')
       .select('tanggal_deteksi, confidence')

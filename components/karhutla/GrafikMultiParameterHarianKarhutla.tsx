@@ -5,8 +5,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import PilihWilayahMultiSelect from './PilihWilayahMultiSelect';
-import { buatOpsiWilayahIspa } from '@/lib/karhutla/constants';
-import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
+import { buatOpsiLokasiUdara } from '@/lib/karhutla/constants';
+import type { LokasiUdaraRow } from '@/lib/supabase/queries-karhutla-server';
 
 // PENTING: sesuaikan `id` di bawah ini dengan value parameter yang dipakai
 // di dropdown FilterGrafikHarianKarhutla (mis. 'pm25' | 'pm10' | ...),
@@ -24,11 +24,11 @@ type IdParameter = (typeof DAFTAR_PARAMETER)[number]['id'];
 type BarisGabungan = { tanggal: string; [key: string]: string | number | null };
 
 export default function GrafikMultiParameterHarianKarhutla({
-  daftarWilayahIspa,
+  daftarLokasiUdara,
 }: {
-  daftarWilayahIspa: WilayahIspaRow[];
+  daftarLokasiUdara: LokasiUdaraRow[];
 }) {
-  const opsiWilayah = useMemo(() => buatOpsiWilayahIspa(daftarWilayahIspa), [daftarWilayahIspa]);
+  const opsiLokasi = useMemo(() => buatOpsiLokasiUdara(daftarLokasiUdara), [daftarLokasiUdara]);
 
   const hariIniStr = new Date().toISOString().slice(0, 10);
   const tigaPuluhHariLalu = new Date();
@@ -36,7 +36,7 @@ export default function GrafikMultiParameterHarianKarhutla({
 
   const [tanggalAwal, setTanggalAwal] = useState(tigaPuluhHariLalu.toISOString().slice(0, 10));
   const [tanggalAkhir, setTanggalAkhir] = useState(hariIniStr);
-  const [wilayahKeys, setWilayahKeys] = useState<string[]>([]);
+  const [lokasiKeys, setLokasiKeys] = useState<string[]>([]);
   const [parameterAktif, setParameterAktif] = useState<IdParameter[]>(
     DAFTAR_PARAMETER.map((p) => p.id)
   );
@@ -58,10 +58,13 @@ export default function GrafikMultiParameterHarianKarhutla({
         const hasilPerParameter = await Promise.all(
           parameterAktif.map(async (paramId) => {
             const params = new URLSearchParams({ awal: tanggalAwal, akhir: tanggalAkhir, parameter: paramId });
-            wilayahKeys.forEach((k) => params.append('wilayah', k));
+            lokasiKeys.forEach((k) => params.append('lokasiUdara', k));
             const res = await fetch(`/api/karhutla-tren-harian?${params.toString()}`, { signal: controller.signal });
             const json = await res.json();
-            return { paramId, titik: (json.data ?? []) as { tanggal: string; nilai: number | null }[] };
+            return {
+              paramId,
+              titik: (json.data ?? []) as { tanggal: string; nilai_parameter_udara: number | null }[],
+            };
           })
         );
 
@@ -69,7 +72,7 @@ export default function GrafikMultiParameterHarianKarhutla({
         for (const { paramId, titik } of hasilPerParameter) {
           for (const t of titik) {
             const baris = gabungan.get(t.tanggal) ?? { tanggal: t.tanggal };
-            baris[paramId] = t.nilai;
+            baris[paramId] = t.nilai_parameter_udara;
             gabungan.set(t.tanggal, baris);
           }
         }
@@ -83,7 +86,7 @@ export default function GrafikMultiParameterHarianKarhutla({
 
     muat();
     return () => controller.abort();
-  }, [tanggalAwal, tanggalAkhir, wilayahKeys, parameterAktif]);
+  }, [tanggalAwal, tanggalAkhir, lokasiKeys, parameterAktif]);
 
   function toggleParameter(id: IdParameter) {
     setParameterAktif((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -115,7 +118,7 @@ export default function GrafikMultiParameterHarianKarhutla({
         </div>
         <div className="flex-1 min-w-50">
           <label className="block text-xs font-medium text-gray-600 mb-1">Wilayah</label>
-          <PilihWilayahMultiSelect opsi={opsiWilayah} nilai={wilayahKeys} onUbah={setWilayahKeys} />
+          <PilihWilayahMultiSelect opsi={opsiLokasi} nilai={lokasiKeys} onUbah={setLokasiKeys} />
         </div>
       </div>
 

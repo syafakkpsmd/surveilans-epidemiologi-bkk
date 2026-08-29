@@ -106,12 +106,12 @@ const NAV_GROUPS: NavGroup[] = [
           { label: "Diare Kecoa", href: "/dashboard/vektor/diare-kecoa", prefetch: false },
         ],
       },
+      { label: "Master Tabel", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
     ],
   },
   {
     title: "Surveilans",
     items: [
-      { label: "Master Tabel", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
       { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
       { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
       { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },

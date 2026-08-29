@@ -1,0 +1,124 @@
+From 4ac69602572180d47e336b6b6a6095185bfd3727 Mon Sep 17 00:00:00 2001
+From: "Syafa (via Claude)" <syafa@bkksamarinda.local>
+Date: Sat, 29 Aug 2026 01:40:22 +0000
+Subject: [PATCH] feat: tombol Unduh Excel di setiap tabel Master Tabel
+
+- Tiap kartu tabel (RekapTabelWilkerBulan) kini punya tombol 'Unduh
+  Excel' yang mengekspor persis apa yang tampil: header bulan
+  bergrup + sub-kolom metrik (merged cell), semua baris wilayah
+  kerja, dan baris JUMLAH -- pakai lib xlsx (SheetJS) yang sudah
+  jadi dependency proyek
+- Nama file otomatis mengikuti judul tabel (mis. Sanitasi_Tempat_
+  Tempat_Umum_TTU_.xlsx)
+---
+ .../master-tabel/RekapTabelWilkerBulan.tsx    | 80 ++++++++++++++++---
+ 1 file changed, 71 insertions(+), 9 deletions(-)
+
+diff --git a/components/master-tabel/RekapTabelWilkerBulan.tsx b/components/master-tabel/RekapTabelWilkerBulan.tsx
+index 0c4bd24..925e729 100644
+--- a/components/master-tabel/RekapTabelWilkerBulan.tsx
++++ b/components/master-tabel/RekapTabelWilkerBulan.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import { useMemo, useState } from "react";
++import * as XLSX from "xlsx";
+ 
+ const NAMA_BULAN = [
+   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+@@ -97,6 +98,56 @@ export default function RekapTabelWilkerBulan({
+ 
+   const adaData = baris.length > 0;
+ 
++  function unduhExcel() {
++    const n = metrikAktif.length;
++
++    // Baris 1: judul wilayah + nama bulan (akan di-merge selebar jumlah metrik)
++    const baris1: (string | number)[] = ["Wilayah Kerja", ...NAMA_BULAN.flatMap((b) => [b, ...Array(n - 1).fill("")]), "Total", ...Array(n - 1).fill("")];
++    // Baris 2: kosong di kolom wilayah, lalu label singkat metrik per bulan + total
++    const baris2: (string | number)[] = ["", ...NAMA_BULAN.flatMap(() => metrikAktif.map((m) => m.singkat)), ...metrikAktif.map((m) => m.singkat)];
++
++    const dataRows: (string | number)[][] = baris.map((b) => [
++      b.label,
++      ...b.monthly.flatMap((bln) => metrikAktif.map((m) => Number(bln[m.key]) || 0)),
++      ...metrikAktif.map((m) => Number(totalBaris(b, m).toFixed(m.desimal ?? 0))),
++    ]);
++
++    const barisJumlah: (string | number)[] = [
++      "JUMLAH",
++      ...Array.from({ length: 12 }, (_, idxBulan) =>
++        metrikAktif.map((m) => Number(totalGrandKolom(baris, idxBulan, m).toFixed(m.desimal ?? 0)))
++      ).flat(),
++      ...metrikAktif.map((m) => Number(totalGrandTotal(baris, m).toFixed(m.desimal ?? 0))),
++    ];
++
++    const aoa = [[judul], subjudul ? [subjudul] : [], [], baris1, baris2, ...dataRows, barisJumlah];
++    const offset = subjudul ? 4 : 3; // baris index (0-based) tempat baris1 berada
++
++    const ws = XLSX.utils.aoa_to_sheet(aoa);
++
++    // Merge judul & subjudul selebar tabel
++    const lebarTotal = 1 + 12 * n + n;
++    ws["!merges"] = [
++      { s: { r: 0, c: 0 }, e: { r: 0, c: lebarTotal - 1 } },
++      ...(subjudul ? [{ s: { r: 1, c: 0 }, e: { r: 1, c: lebarTotal - 1 } }] : []),
++      // Merge tiap grup bulan & grup "Total" di baris header
++      ...NAMA_BULAN.map((_, i) => ({
++        s: { r: offset, c: 1 + i * n },
++        e: { r: offset, c: 1 + i * n + (n - 1) },
++      })),
++      { s: { r: offset, c: 1 + 12 * n }, e: { r: offset, c: 1 + 12 * n + (n - 1) } },
++      { s: { r: offset, c: 0 }, e: { r: offset + 1, c: 0 } }, // "Wilayah Kerja" span 2 baris
++    ];
++
++    ws["!cols"] = [{ wch: 20 }, ...Array(12 * n + n).fill({ wch: 9 })];
++
++    const wb = XLSX.utils.book_new();
++    XLSX.utils.book_append_sheet(wb, ws, judul.slice(0, 31) || "Rekap");
++
++    const namaFile = `${judul.replace(/[^a-z0-9]+/gi, "_")}.xlsx`;
++    XLSX.writeFile(wb, namaFile);
++  }
++
+   return (
+     <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
+       {/* Header kartu */}
+@@ -108,15 +159,26 @@ export default function RekapTabelWilkerBulan({
+           <h3 className="text-sm font-semibold tracking-wide text-white sm:text-base">{judul}</h3>
+           {subjudul ? <p className="mt-0.5 text-xs text-white/70">{subjudul}</p> : null}
+         </div>
+-        {metrikDetail?.length ? (
+-          <button
+-            type="button"
+-            onClick={() => setTampilkanDetail((v) => !v)}
+-            className="rounded-[var(--radius-pill)] border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
+-          >
+-            {tampilkanDetail ? "Sembunyikan detail" : "Tampilkan detail"}
+-          </button>
+-        ) : null}
++        <div className="flex items-center gap-2">
++          {metrikDetail?.length ? (
++            <button
++              type="button"
++              onClick={() => setTampilkanDetail((v) => !v)}
++              className="rounded-[var(--radius-pill)] border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
++            >
++              {tampilkanDetail ? "Sembunyikan detail" : "Tampilkan detail"}
++            </button>
++          ) : null}
++          {adaData ? (
++            <button
++              type="button"
++              onClick={unduhExcel}
++              className="inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
++            >
++              📥 Unduh Excel
++            </button>
++          ) : null}
++        </div>
+       </div>
+ 
+       {!adaData ? (
+-- 
+2.43.0
+

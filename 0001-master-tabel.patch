@@ -1,0 +1,957 @@
+From e18ff71ab1128c2e6d41324d5abda4d12428b95b Mon Sep 17 00:00:00 2001
+From: "Syafa (via Claude)" <syafa@bkksamarinda.local>
+Date: Sat, 29 Aug 2026 00:52:34 +0000
+Subject: [PATCH] feat: modul Master Tabel rekap Sanitasi & Vektor per wilayah
+ kerja x bulan
+
+- Halaman baru /dashboard/master-tabel dengan tab Sanitasi (TTU, PAB,
+  TPP, Rat Guard) dan Vektor (Tikus/Pes, DBD Perimeter, DBD Buffer,
+  Larvasida, Pengasapan, Diare Lalat, Diare Kecoa)
+- Komponen tabel rekap generik (RekapTabelWilkerBulan) dengan header
+  bulan bergrup, kolom sticky, baris JUMLAH, toggle detail metrik
+- Query baru queriesMasterTabel.ts untuk agregasi DBD per zona &
+  aktivitas (larvasida/pengasapan), serta diare per wilayah kerja
+- Tautan menu baru di sidebar (grup Surveilans)
+---
+ .../dashboard/master-tabel/page.tsx           |  90 ++++
+ components/SidebarNav.tsx                     |   2 +
+ components/master-tabel/MasterTabelClient.tsx | 412 ++++++++++++++++++
+ .../master-tabel/RekapTabelWilkerBulan.tsx    | 246 +++++++++++
+ lib/supabase/queriesMasterTabel.ts            | 136 ++++++
+ 5 files changed, 886 insertions(+)
+ create mode 100644 app/(dashboard)/dashboard/master-tabel/page.tsx
+ create mode 100644 components/master-tabel/MasterTabelClient.tsx
+ create mode 100644 components/master-tabel/RekapTabelWilkerBulan.tsx
+ create mode 100644 lib/supabase/queriesMasterTabel.ts
+
+diff --git a/app/(dashboard)/dashboard/master-tabel/page.tsx b/app/(dashboard)/dashboard/master-tabel/page.tsx
+new file mode 100644
+index 0000000..8ae4469
+--- /dev/null
++++ b/app/(dashboard)/dashboard/master-tabel/page.tsx
+@@ -0,0 +1,90 @@
++// ================================================================
++// app/(dashboard)/dashboard/master-tabel/page.tsx
++//
++// Hub "Master Tabel": rekap gabungan Sanitasi (TTU/PAB/TPP/Rat Guard)
++// & Vektor (Tikus-Pes/DBD Perimeter-Buffer/Larvasida/Pengasapan/
++// Diare Lalat-Kecoa) per wilayah kerja x bulan, dalam satu halaman.
++//
++// Semua fetch dijalankan paralel & masing-masing dibungkus fallback
++// array kosong -- supaya satu dataset yang gagal/kosong tidak
++// menjatuhkan seluruh halaman.
++// ================================================================
++
++import {
++  getRingkasanTtuBulanan,
++  getRingkasanPabBulanan,
++  getRingkasanTppBulanan,
++  getRingkasanRatGuardBulanan,
++  getRingkasanVektorTikusBulanan,
++  getWilkerRef,
++} from "@/lib/supabase/queries";
++import {
++  getMasterVektorDbdAktivitasBulanan,
++  getMasterVektorDiareBulananPerWilker,
++} from "@/lib/supabase/queriesMasterTabel";
++import MasterTabelClient from "@/components/master-tabel/MasterTabelClient";
++
++type PageProps = {
++  searchParams: Promise<{ tahun?: string | string[] }>;
++};
++
++export default async function MasterTabelPage({ searchParams }: PageProps) {
++  const resolved = await searchParams;
++  const tahunParam = Array.isArray(resolved.tahun) ? resolved.tahun[0] : resolved.tahun;
++  const tahunParsed = tahunParam ? parseInt(tahunParam, 10) : NaN;
++  const tahun = Number.isFinite(tahunParsed) ? tahunParsed : new Date().getFullYear();
++
++  const aman = <T,>(p: Promise<T[]>): Promise<T[]> => p.catch((err) => {
++    console.error("Master Tabel — gagal ambil salah satu dataset:", err);
++    return [] as T[];
++  });
++
++  const [
++    daftarWilker,
++    ttu,
++    pab,
++    tpp,
++    ratGuard,
++    tikus,
++    dbdAktivitas,
++    diareLalat,
++    diareKecoa,
++  ] = await Promise.all([
++    getWilkerRef().catch(() => []),
++    aman(getRingkasanTtuBulanan(tahun)),
++    aman(getRingkasanPabBulanan(tahun)),
++    aman(getRingkasanTppBulanan(tahun)),
++    aman(getRingkasanRatGuardBulanan(tahun)),
++    aman(getRingkasanVektorTikusBulanan(tahun)),
++    aman(getMasterVektorDbdAktivitasBulanan(tahun)),
++    aman(getMasterVektorDiareBulananPerWilker(tahun, "lalat")),
++    aman(getMasterVektorDiareBulananPerWilker(tahun, "kecoa")),
++  ]);
++
++  return (
++    <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 md:px-6 md:py-8">
++      <div>
++        <h1 className="text-xl font-bold text-[var(--color-navy)]">Master Tabel — Sanitasi &amp; Vektor</h1>
++        <p className="text-sm text-[var(--color-muted)]">
++          Rekap bulanan seluruh kegiatan sanitasi dan pengendalian vektor per wilayah kerja dalam satu tampilan.
++        </p>
++      </div>
++
++      <MasterTabelClient
++        tahun={tahun}
++        daftarWilker={(daftarWilker ?? []).map((w: any) => ({
++          kode: w.kode ?? w.kode_wilker ?? "",
++          nama: w.nama ?? w.nama_wilker ?? w.kode ?? "",
++        }))}
++        ttu={ttu}
++        pab={pab}
++        tpp={tpp}
++        ratGuard={ratGuard}
++        tikus={tikus}
++        dbdAktivitas={dbdAktivitas}
++        diareLalat={diareLalat}
++        diareKecoa={diareKecoa}
++      />
++    </div>
++  );
++}
+diff --git a/components/SidebarNav.tsx b/components/SidebarNav.tsx
+index 7ac4826..2f77d14 100644
+--- a/components/SidebarNav.tsx
++++ b/components/SidebarNav.tsx
+@@ -28,6 +28,7 @@ import {
+   MapPin,
+   ClipboardCheck,
+   BuildingIcon,
++  Table2,
+   Pipette,
+   ExternalLink,
+   Book,
+@@ -110,6 +111,7 @@ const NAV_GROUPS: NavGroup[] = [
+   {
+     title: "Surveilans",
+     items: [
++      { label: "Master Tabel", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
+       { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
+       { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
+       { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
+diff --git a/components/master-tabel/MasterTabelClient.tsx b/components/master-tabel/MasterTabelClient.tsx
+new file mode 100644
+index 0000000..a06f914
+--- /dev/null
++++ b/components/master-tabel/MasterTabelClient.tsx
+@@ -0,0 +1,412 @@
++"use client";
++
++import { useMemo, useState } from "react";
++import { useRouter } from "next/navigation";
++import RekapTabelWilkerBulan, {
++  type BarisRekap,
++  type MetrikDef,
++} from "./RekapTabelWilkerBulan";
++
++type WilkerRef = { kode: string; nama: string };
++
++type Props = {
++  tahun: number;
++  daftarWilker: WilkerRef[];
++  ttu: any[];
++  pab: any[];
++  tpp: any[];
++  ratGuard: any[];
++  tikus: any[];
++  dbdAktivitas: any[]; // BarisAktivitasDbd[]
++  diareLalat: any[]; // BarisDiareWilker[]
++  diareKecoa: any[]; // BarisDiareWilker[]
++};
++
++type Kategori = "sanitasi" | "vektor";
++
++type DatasetId =
++  | "ttu"
++  | "pab"
++  | "tpp"
++  | "ratguard"
++  | "tikus"
++  | "dbd_perimeter"
++  | "dbd_buffer"
++  | "larvasida"
++  | "pengasapan"
++  | "diare_lalat"
++  | "diare_kecoa";
++
++const TAB_SANITASI: { id: DatasetId; label: string; ikon: string }[] = [
++  { id: "ttu", label: "TTU (Tempat-Tempat Umum)", ikon: "🏢" },
++  { id: "pab", label: "PAB (Penyedia Air Bersih)", ikon: "💧" },
++  { id: "tpp", label: "TPP (Tempat Pengelolaan Pangan)", ikon: "🍽️" },
++  { id: "ratguard", label: "Rat Guard Kapal", ikon: "🐀" },
++];
++
++const TAB_VEKTOR: { id: DatasetId; label: string; ikon: string }[] = [
++  { id: "tikus", label: "Vektor Tikus & Pes", ikon: "🐭" },
++  { id: "dbd_perimeter", label: "DBD — Perimeter", ikon: "🦟" },
++  { id: "dbd_buffer", label: "DBD — Buffer", ikon: "🦟" },
++  { id: "larvasida", label: "Larvasida", ikon: "🧪" },
++  { id: "pengasapan", label: "Pengasapan (Fogging)", ikon: "🌫️" },
++  { id: "diare_lalat", label: "Vektor Diare — Lalat", ikon: "🪰" },
++  { id: "diare_kecoa", label: "Vektor Diare — Kecoa", ikon: "🪳" },
++];
++
++function susunBaris(opts: {
++  raw: any[];
++  bulanKey: string;
++  labelResolver: (row: any) => string;
++  metricKeys: string[];
++  filterLabel?: string;
++}): BarisRekap[] {
++  const { raw, bulanKey, labelResolver, metricKeys, filterLabel } = opts;
++  const peta = new Map<string, BarisRekap>();
++
++  for (const row of raw) {
++    const label = labelResolver(row) || "—";
++    if (filterLabel && filterLabel !== "Semua" && label !== filterLabel) continue;
++
++    const bln = Number(row[bulanKey]);
++    if (!bln || bln < 1 || bln > 12) continue;
++
++    if (!peta.has(label)) {
++      peta.set(label, {
++        label,
++        monthly: Array.from({ length: 12 }, () => ({}) as Record<string, number>),
++      });
++    }
++    const baris = peta.get(label)!;
++    const sel = baris.monthly[bln - 1];
++    for (const k of metricKeys) {
++      sel[k] = (sel[k] || 0) + (Number(row[k]) || 0);
++    }
++  }
++
++  return Array.from(peta.values()).sort((a, b) => a.label.localeCompare(b.label, "id"));
++}
++
++export default function MasterTabelClient({
++  tahun,
++  daftarWilker,
++  ttu,
++  pab,
++  tpp,
++  ratGuard,
++  tikus,
++  dbdAktivitas,
++  diareLalat,
++  diareKecoa,
++}: Props) {
++  const router = useRouter();
++  const [kategori, setKategori] = useState<Kategori>("sanitasi");
++  const [dataset, setDataset] = useState<DatasetId>("ttu");
++  const [wilayah, setWilayah] = useState<string>("Semua");
++
++  const petaKodeKeNama = useMemo(() => {
++    const m = new Map<string, string>();
++    daftarWilker.forEach((w) => m.set(w.kode, w.nama));
++    return m;
++  }, [daftarWilker]);
++
++  const namaDariKode = (kode: string) => petaKodeKeNama.get(kode) || kode;
++
++  const daftarWilayahGabungan = useMemo(() => {
++    const set = new Set<string>();
++    [...ttu, ...pab, ...tpp, ...ratGuard].forEach((r) => {
++      if (r.wilayah_kerja) set.add(r.wilayah_kerja);
++    });
++    daftarWilker.forEach((w) => set.add(w.nama));
++    return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
++  }, [ttu, pab, tpp, ratGuard, daftarWilker]);
++
++  function pilihKategori(k: Kategori) {
++    setKategori(k);
++    setDataset(k === "sanitasi" ? "ttu" : "tikus");
++  }
++
++  // -------- Metrik per dataset --------
++  const METRIK_MS_TMS: MetrikDef[] = [
++    { key: "jumlah_diperiksa", label: "Jumlah Diperiksa", singkat: "Periksa" },
++    { key: "jumlah_ms", label: "Memenuhi Syarat", singkat: "MS", nada: "baik" },
++    { key: "jumlah_tms", label: "Tidak Memenuhi Syarat", singkat: "TMS", nada: "buruk" },
++  ];
++
++  const METRIK_RATGUARD: MetrikDef[] = [
++    { key: "pasang", label: "Rat Guard Terpasang", singkat: "Pasang", nada: "baik" },
++    { key: "tidak_pasang", label: "Tidak Terpasang", singkat: "T.Pasang", nada: "buruk" },
++    { key: "jumlah_kapal", label: "Jumlah Kapal Diawasi", singkat: "Kapal" },
++  ];
++
++  const METRIK_TIKUS: MetrikDef[] = [
++    { key: "jml_trap_dipasang", label: "Perangkap Dipasang", singkat: "Trap" },
++    { key: "jml_trap_tertangkap", label: "Tikus Tertangkap", singkat: "Tangkap", nada: "buruk" },
++    { key: "index_pinjal", label: "Indeks Pinjal", singkat: "Idx.Pinjal", desimal: 2, agregasi: "avg" },
++    { key: "tsi", label: "Succes Trap (%)", singkat: "STI", desimal: 2, agregasi: "avg" },
++  ];
++  const METRIK_TIKUS_DETAIL: MetrikDef[] = [
++    { key: "rt", label: "Rumah Tinggal (RT)", singkat: "RT" },
++    { key: "rn", label: "Rumah Niaga (RN)", singkat: "RN" },
++    { key: "mm", label: "Multi Manfaat (MM)", singkat: "MM" },
++    { key: "jenis_lainnya", label: "Lainnya", singkat: "Lain" },
++  ];
++
++  const METRIK_DBD: MetrikDef[] = [
++    { key: "rumah_diperiksa", label: "Rumah Diperiksa", singkat: "Rumah" },
++    { key: "rumah_positif", label: "Rumah Positif Jentik", singkat: "R.(+)", nada: "buruk" },
++    { key: "container_diperiksa", label: "Container Diperiksa", singkat: "Cont." },
++    { key: "container_positif", label: "Container Positif", singkat: "C.(+)", nada: "buruk" },
++  ];
++
++  const METRIK_LARVASIDA: MetrikDef[] = [
++    { key: "larvasida_gram", label: "Pemakaian Bubuk Abate", singkat: "Abate", satuan: "gram" },
++  ];
++
++  const METRIK_PENGASAPAN: MetrikDef[] = [
++    { key: "luas_fogging_ha", label: "Luas Wilayah Fogging", singkat: "Luas", desimal: 1, satuan: "Ha" },
++    { key: "insektisida_fogging_ml", label: "Insektisida Terpakai", singkat: "Insek.", satuan: "ml" },
++  ];
++
++  const METRIK_DIARE: MetrikDef[] = [
++    { key: "jml_pengamatan", label: "Jumlah Pengamatan", singkat: "Amatan" },
++    { key: "jml_memenuhi_syarat", label: "Memenuhi Syarat", singkat: "MS", nada: "baik" },
++    { key: "jml_tidak_memenuhi_syarat", label: "Tidak Memenuhi Syarat", singkat: "TMS", nada: "buruk" },
++    { key: "indeks_rerata", label: "Rata-rata Indeks", singkat: "Idx.", desimal: 2, agregasi: "avg" },
++  ];
++
++  // -------- Rakit baris sesuai dataset aktif --------
++  const konfigDataset: Record<
++    DatasetId,
++    { judul: string; subjudul: string; metrik: MetrikDef[]; metrikDetail?: MetrikDef[]; baris: BarisRekap[] }
++  > = {
++    ttu: {
++      judul: "Sanitasi Tempat-Tempat Umum (TTU)",
++      subjudul: `Rekap bulanan per wilayah kerja — Tahun ${tahun}`,
++      metrik: METRIK_MS_TMS,
++      baris: susunBaris({
++        raw: ttu,
++        bulanKey: "bulan",
++        labelResolver: (r) => r.wilayah_kerja,
++        metricKeys: ["jumlah_diperiksa", "jumlah_ms", "jumlah_tms"],
++        filterLabel: wilayah,
++      }),
++    },
++    pab: {
++      judul: "Pengawasan Penyedia Air Bersih (PAB)",
++      subjudul: `Rekap bulanan per wilayah kerja — Tahun ${tahun}`,
++      metrik: METRIK_MS_TMS,
++      baris: susunBaris({
++        raw: pab,
++        bulanKey: "bulan",
++        labelResolver: (r) => r.wilayah_kerja,
++        metricKeys: ["jumlah_diperiksa", "jumlah_ms", "jumlah_tms"],
++        filterLabel: wilayah,
++      }),
++    },
++    tpp: {
++      judul: "Tempat Pengelolaan Pangan (TPP)",
++      subjudul: `Rekap bulanan per wilayah kerja — Tahun ${tahun}`,
++      metrik: METRIK_MS_TMS,
++      baris: susunBaris({
++        raw: tpp,
++        bulanKey: "bulan",
++        labelResolver: (r) => r.wilayah_kerja,
++        metricKeys: ["jumlah_diperiksa", "jumlah_ms", "jumlah_tms"],
++        filterLabel: wilayah,
++      }),
++    },
++    ratguard: {
++      judul: "Rat Guard Kapal",
++      subjudul: `Kepatuhan pemasangan rat guard per wilayah kerja — Tahun ${tahun}`,
++      metrik: METRIK_RATGUARD,
++      baris: susunBaris({
++        raw: ratGuard,
++        bulanKey: "bulan",
++        labelResolver: (r) => r.wilayah_kerja,
++        metricKeys: ["jumlah_kapal", "pasang", "tidak_pasang"],
++        filterLabel: wilayah,
++      }),
++    },
++    tikus: {
++      judul: "Vektor Tikus & Pes",
++      subjudul: `Perangkap, hasil tangkap & indeks pinjal per wilayah kerja — Tahun ${tahun}`,
++      metrik: METRIK_TIKUS,
++      metrikDetail: METRIK_TIKUS_DETAIL,
++      baris: susunBaris({
++        raw: tikus,
++        bulanKey: "bulan",
++        labelResolver: (r) => namaDariKode(r.kode_wilker),
++        metricKeys: [
++          "jml_trap_dipasang",
++          "jml_trap_tertangkap",
++          "index_pinjal",
++          "tsi",
++          "rt",
++          "rn",
++          "mm",
++          "jenis_lainnya",
++        ],
++        filterLabel: wilayah,
++      }),
++    },
++    dbd_perimeter: {
++      judul: "Vektor DBD — Zona Perimeter",
++      subjudul: `Pemeriksaan jentik rumah & kontainer — Tahun ${tahun}`,
++      metrik: METRIK_DBD,
++      baris: susunBaris({
++        raw: dbdAktivitas.filter((r) => String(r.zona).toLowerCase().includes("perimeter")),
++        bulanKey: "bulan",
++        labelResolver: (r) => namaDariKode(r.kode_wilker),
++        metricKeys: ["rumah_diperiksa", "rumah_positif", "container_diperiksa", "container_positif"],
++        filterLabel: wilayah,
++      }),
++    },
++    dbd_buffer: {
++      judul: "Vektor DBD — Zona Buffer",
++      subjudul: `Pemeriksaan jentik rumah & kontainer — Tahun ${tahun}`,
++      metrik: METRIK_DBD,
++      baris: susunBaris({
++        raw: dbdAktivitas.filter((r) => String(r.zona).toLowerCase().includes("buffer")),
++        bulanKey: "bulan",
++        labelResolver: (r) => namaDariKode(r.kode_wilker),
++        metricKeys: ["rumah_diperiksa", "rumah_positif", "container_diperiksa", "container_positif"],
++        filterLabel: wilayah,
++      }),
++    },
++    larvasida: {
++      judul: "Larvasida",
++      subjudul: `Pemakaian bubuk abate per wilayah kerja — Tahun ${tahun}`,
++      metrik: METRIK_LARVASIDA,
++      baris: susunBaris({
++        raw: dbdAktivitas,
++        bulanKey: "bulan",
++        labelResolver: (r) => namaDariKode(r.kode_wilker),
++        metricKeys: ["larvasida_gram"],
++        filterLabel: wilayah,
++      }),
++    },
++    pengasapan: {
++      judul: "Pengasapan (Fogging)",
++      subjudul: `Luas wilayah & insektisida terpakai — Tahun ${tahun}`,
++      metrik: METRIK_PENGASAPAN,
++      baris: susunBaris({
++        raw: dbdAktivitas,
++        bulanKey: "bulan",
++        labelResolver: (r) => namaDariKode(r.kode_wilker),
++        metricKeys: ["luas_fogging_ha", "insektisida_fogging_ml"],
++        filterLabel: wilayah,
++      }),
++    },
++    diare_lalat: {
++      judul: "Vektor Diare — Lalat",
++      subjudul: `Fly index & kepatuhan lokasi pengamatan — Tahun ${tahun}`,
++      metrik: METRIK_DIARE,
++      baris: susunBaris({
++        raw: diareLalat,
++        bulanKey: "bulan",
++        labelResolver: (r) => namaDariKode(r.kode_wilker),
++        metricKeys: ["jml_pengamatan", "jml_memenuhi_syarat", "jml_tidak_memenuhi_syarat", "indeks_rerata"],
++        filterLabel: wilayah,
++      }),
++    },
++    diare_kecoa: {
++      judul: "Vektor Diare — Kecoa",
++      subjudul: `Kepadatan kecoa & kepatuhan lokasi pengamatan — Tahun ${tahun}`,
++      metrik: METRIK_DIARE,
++      baris: susunBaris({
++        raw: diareKecoa,
++        bulanKey: "bulan",
++        labelResolver: (r) => namaDariKode(r.kode_wilker),
++        metricKeys: ["jml_pengamatan", "jml_memenuhi_syarat", "jml_tidak_memenuhi_syarat", "indeks_rerata"],
++        filterLabel: wilayah,
++      }),
++    },
++  };
++
++  const aktif = konfigDataset[dataset];
++  const tabAktif = kategori === "sanitasi" ? TAB_SANITASI : TAB_VEKTOR;
++
++  return (
++    <div className="space-y-5">
++      {/* Toolbar: tahun + wilayah */}
++      <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 shadow-sm">
++        <div className="flex items-center gap-2">
++          <span className="text-xs font-medium text-[var(--color-muted)]">Tahun</span>
++          <select
++            value={tahun}
++            onChange={(e) => router.push(`/dashboard/master-tabel?tahun=${e.target.value}`)}
++            className="rounded-[var(--radius-control)] border border-[var(--color-border)] bg-white px-2.5 py-1.5 text-sm font-medium text-[var(--color-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]/40"
++          >
++            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
++              <option key={y} value={y}>
++                {y}
++              </option>
++            ))}
++          </select>
++        </div>
++
++        <div className="flex items-center gap-2">
++          <span className="text-xs font-medium text-[var(--color-muted)]">Wilayah Kerja</span>
++          <select
++            value={wilayah}
++            onChange={(e) => setWilayah(e.target.value)}
++            className="rounded-[var(--radius-control)] border border-[var(--color-border)] bg-white px-2.5 py-1.5 text-sm font-medium text-[var(--color-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]/40"
++          >
++            <option value="Semua">Semua Wilayah</option>
++            {daftarWilayahGabungan.map((w) => (
++              <option key={w} value={w}>
++                {w}
++              </option>
++            ))}
++          </select>
++        </div>
++
++        <div className="ml-auto flex items-center gap-1 rounded-[var(--radius-pill)] bg-[#f0f2f4] p-1">
++          {(["sanitasi", "vektor"] as Kategori[]).map((k) => (
++            <button
++              key={k}
++              type="button"
++              onClick={() => pilihKategori(k)}
++              className={`rounded-[var(--radius-pill)] px-4 py-1.5 text-xs font-semibold capitalize transition ${
++                kategori === k
++                  ? "bg-[var(--color-navy)] text-white shadow-sm"
++                  : "text-[var(--color-muted)] hover:text-[var(--color-ink)]"
++              }`}
++            >
++              {k}
++            </button>
++          ))}
++        </div>
++      </div>
++
++      {/* Sub-tab dataset */}
++      <div className="flex flex-wrap gap-2">
++        {tabAktif.map((t) => (
++          <button
++            key={t.id}
++            type="button"
++            onClick={() => setDataset(t.id)}
++            className={`flex items-center gap-1.5 rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-medium transition ${
++              dataset === t.id
++                ? "border-[var(--color-teal)] bg-[var(--color-teal)]/10 text-[var(--color-teal)]"
++                : "border-[var(--color-border)] bg-white text-[var(--color-muted)] hover:border-[var(--color-teal)]/40 hover:text-[var(--color-ink)]"
++            }`}
++          >
++            <span>{t.ikon}</span>
++            {t.label}
++          </button>
++        ))}
++      </div>
++
++      {/* Tabel rekap aktif */}
++      <RekapTabelWilkerBulan
++        judul={aktif.judul}
++        subjudul={aktif.subjudul}
++        metrik={aktif.metrik}
++        metrikDetail={aktif.metrikDetail}
++        baris={aktif.baris}
++      />
++    </div>
++  );
++}
+diff --git a/components/master-tabel/RekapTabelWilkerBulan.tsx b/components/master-tabel/RekapTabelWilkerBulan.tsx
+new file mode 100644
+index 0000000..0c4bd24
+--- /dev/null
++++ b/components/master-tabel/RekapTabelWilkerBulan.tsx
+@@ -0,0 +1,246 @@
++"use client";
++
++import { useMemo, useState } from "react";
++
++const NAMA_BULAN = [
++  "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
++  "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
++];
++
++export type AgregasiMetrik = "sum" | "avg";
++
++export type MetrikDef = {
++  key: string;
++  label: string;
++  singkat: string; // header kolom (ringkas, muat di kolom sempit)
++  agregasi?: AgregasiMetrik; // default 'sum'
++  desimal?: number; // default 0
++  nada?: "netral" | "baik" | "buruk"; // pewarnaan angka
++  satuan?: string;
++};
++
++export type BarisRekap = {
++  label: string;
++  monthly: Record<string, number>[]; // index 0..11
++};
++
++type Props = {
++  judul: string;
++  subjudul?: string;
++  metrik: MetrikDef[];
++  metrikDetail?: MetrikDef[]; // metrik tambahan, disembunyikan di balik toggle "Detail"
++  baris: BarisRekap[];
++  satuanBaris?: string; // mis. "wilayah kerja"
++  aksenDari?: string; // warna gradient header (hex)
++  aksenKe?: string;
++};
++
++function formatAngka(v: number, desimal = 0) {
++  if (!Number.isFinite(v)) return "0";
++  return v.toLocaleString("id-ID", {
++    minimumFractionDigits: desimal,
++    maximumFractionDigits: desimal,
++  });
++}
++
++function totalBaris(baris: BarisRekap, m: MetrikDef): number {
++  const nilai = baris.monthly.map((bln) => Number(bln[m.key]) || 0);
++  if ((m.agregasi ?? "sum") === "avg") {
++    const isi = nilai.filter((v) => v > 0);
++    if (!isi.length) return 0;
++    return isi.reduce((a, b) => a + b, 0) / isi.length;
++  }
++  return nilai.reduce((a, b) => a + b, 0);
++}
++
++function totalGrandKolom(baris: BarisRekap[], bulanIdx: number, m: MetrikDef): number {
++  const nilai = baris.map((b) => Number(b.monthly[bulanIdx]?.[m.key]) || 0);
++  if ((m.agregasi ?? "sum") === "avg") {
++    const isi = nilai.filter((v) => v > 0);
++    if (!isi.length) return 0;
++    return isi.reduce((a, b) => a + b, 0) / isi.length;
++  }
++  return nilai.reduce((a, b) => a + b, 0);
++}
++
++function totalGrandTotal(baris: BarisRekap[], m: MetrikDef): number {
++  const nilai = baris.map((b) => totalBaris(b, m));
++  if ((m.agregasi ?? "sum") === "avg") {
++    const isi = nilai.filter((v) => v > 0);
++    if (!isi.length) return 0;
++    return isi.reduce((a, b) => a + b, 0) / isi.length;
++  }
++  return nilai.reduce((a, b) => a + b, 0);
++}
++
++function warnaNada(nada: MetrikDef["nada"]) {
++  if (nada === "baik") return "text-[#1B5E20]";
++  if (nada === "buruk") return "text-[#B71C1C]";
++  return "text-[#1b2733]";
++}
++
++export default function RekapTabelWilkerBulan({
++  judul,
++  subjudul,
++  metrik,
++  metrikDetail,
++  baris,
++  aksenDari = "#0f2a38",
++  aksenKe = "#0f4c5c",
++}: Props) {
++  const [tampilkanDetail, setTampilkanDetail] = useState(false);
++
++  const metrikAktif = useMemo(
++    () => (tampilkanDetail && metrikDetail?.length ? [...metrik, ...metrikDetail] : metrik),
++    [tampilkanDetail, metrik, metrikDetail]
++  );
++
++  const adaData = baris.length > 0;
++
++  return (
++    <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
++      {/* Header kartu */}
++      <div
++        className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
++        style={{ background: `linear-gradient(120deg, ${aksenDari}, ${aksenKe})` }}
++      >
++        <div>
++          <h3 className="text-sm font-semibold tracking-wide text-white sm:text-base">{judul}</h3>
++          {subjudul ? <p className="mt-0.5 text-xs text-white/70">{subjudul}</p> : null}
++        </div>
++        {metrikDetail?.length ? (
++          <button
++            type="button"
++            onClick={() => setTampilkanDetail((v) => !v)}
++            className="rounded-[var(--radius-pill)] border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
++          >
++            {tampilkanDetail ? "Sembunyikan detail" : "Tampilkan detail"}
++          </button>
++        ) : null}
++      </div>
++
++      {!adaData ? (
++        <div className="px-5 py-10 text-center text-sm text-[var(--color-muted)]">
++          Belum ada data untuk periode &amp; filter yang dipilih.
++        </div>
++      ) : (
++        <div className="overflow-x-auto">
++          <table className="w-full min-w-[1100px] border-collapse text-[11.5px]">
++            <thead>
++              {/* Baris grup bulan */}
++              <tr>
++                <th
++                  rowSpan={2}
++                  className="sticky left-0 z-20 min-w-[168px] border-b border-r border-[var(--color-border)] bg-[#f4f6f8] px-3 py-2 text-left align-bottom text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]"
++                >
++                  Wilayah Kerja
++                </th>
++                {NAMA_BULAN.map((bln) => (
++                  <th
++                    key={bln}
++                    colSpan={metrikAktif.length}
++                    className="border-b border-l border-[var(--color-border)] bg-[#f4f6f8] px-2 py-1.5 text-center text-[11px] font-semibold text-[var(--color-ink)]"
++                  >
++                    {bln}
++                  </th>
++                ))}
++                <th
++                  rowSpan={2}
++                  colSpan={metrikAktif.length}
++                  className="border-b border-l border-[var(--color-border)] bg-[#e7ecef] px-2 py-2 text-center align-bottom text-[11px] font-semibold uppercase tracking-wide text-[var(--color-ink)]"
++                >
++                  Total
++                </th>
++              </tr>
++              <tr>
++                {NAMA_BULAN.map((bln) =>
++                  metrikAktif.map((m) => (
++                    <th
++                      key={`${bln}-${m.key}`}
++                      className="border-b border-l border-[var(--color-border)] bg-white px-1.5 py-1 text-center text-[10px] font-medium text-[var(--color-muted)]"
++                      title={m.label}
++                    >
++                      {m.singkat}
++                    </th>
++                  ))
++                )}
++              </tr>
++            </thead>
++            <tbody>
++              {baris.map((b, idxBaris) => (
++                <tr
++                  key={b.label}
++                  className={idxBaris % 2 === 0 ? "bg-white" : "bg-[#fafbfc]"}
++                >
++                  <td className="sticky left-0 z-10 border-b border-r border-[var(--color-border)] bg-inherit px-3 py-1.5 font-medium text-[var(--color-ink)]">
++                    {b.label}
++                  </td>
++                  {b.monthly.map((bulanData, idxBulan) =>
++                    metrikAktif.map((m) => {
++                      const v = Number(bulanData[m.key]) || 0;
++                      return (
++                        <td
++                          key={`${idxBulan}-${m.key}`}
++                          className={`border-b border-l border-[var(--color-border)] px-1.5 py-1.5 text-center tabular-nums ${
++                            v === 0 ? "text-[var(--color-muted)]/50" : warnaNada(m.nada)
++                          }`}
++                        >
++                          {formatAngka(v, m.desimal)}
++                        </td>
++                      );
++                    })
++                  )}
++                  {metrikAktif.map((m) => (
++                    <td
++                      key={`total-${m.key}`}
++                      className={`border-b border-l border-[var(--color-border)] bg-[#f4f6f8] px-1.5 py-1.5 text-center font-semibold tabular-nums ${warnaNada(
++                        m.nada
++                      )}`}
++                    >
++                      {formatAngka(totalBaris(b, m), m.desimal)}
++                    </td>
++                  ))}
++                </tr>
++              ))}
++
++              {/* Baris JUMLAH keseluruhan */}
++              <tr className="bg-[#0f4c5c]/10 font-semibold">
++                <td className="sticky left-0 z-10 border-t-2 border-r border-[var(--color-border)] bg-[#e6f0f2] px-3 py-2 text-[var(--color-navy)]">
++                  JUMLAH
++                </td>
++                {NAMA_BULAN.map((_, idxBulan) =>
++                  metrikAktif.map((m) => (
++                    <td
++                      key={`grand-${idxBulan}-${m.key}`}
++                      className="border-t-2 border-l border-[var(--color-border)] bg-[#e6f0f2] px-1.5 py-2 text-center tabular-nums text-[var(--color-navy)]"
++                    >
++                      {formatAngka(totalGrandKolom(baris, idxBulan, m), m.desimal)}
++                    </td>
++                  ))
++                )}
++                {metrikAktif.map((m) => (
++                  <td
++                    key={`grand-total-${m.key}`}
++                    className="border-t-2 border-l border-[var(--color-border)] bg-[#d7e6ea] px-1.5 py-2 text-center tabular-nums text-[var(--color-navy)]"
++                  >
++                    {formatAngka(totalGrandTotal(baris, m), m.desimal)}
++                  </td>
++                ))}
++              </tr>
++            </tbody>
++          </table>
++        </div>
++      )}
++
++      {/* Legenda metrik */}
++      <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-[var(--color-border)] bg-[#fafbfc] px-5 py-2.5 text-[11px] text-[var(--color-muted)]">
++        {metrikAktif.map((m) => (
++          <span key={m.key}>
++            <span className="font-semibold text-[var(--color-ink)]">{m.singkat}</span> = {m.label}
++            {m.satuan ? ` (${m.satuan})` : ""}
++          </span>
++        ))}
++      </div>
++    </div>
++  );
++}
+diff --git a/lib/supabase/queriesMasterTabel.ts b/lib/supabase/queriesMasterTabel.ts
+new file mode 100644
+index 0000000..0388966
+--- /dev/null
++++ b/lib/supabase/queriesMasterTabel.ts
+@@ -0,0 +1,136 @@
++// ================================================================
++// lib/supabase/queriesMasterTabel.ts
++//
++// Query pendukung khusus untuk modul "Master Tabel" (rekap gabungan
++// Sanitasi & Vektor per wilayah kerja x bulan). Dataset Sanitasi (TTU/
++// PAB/TPP) dan Rat Guard dipakai langsung dari fungsi yang sudah ada
++// di lib/supabase/queries.ts (getRingkasanTtuBulanan dkk) -- baris di
++// sana SUDAH per wilayah_kerja x bulan, tidak perlu fungsi baru.
++//
++// Dua fungsi di bawah ini melengkapi yang belum tersedia dalam bentuk
++// "per wilayah kerja x bulan" siap pakai:
++//  - getMasterVektorDbdAktivitasBulanan: rumah/kontainer diperiksa +
++//    larvasida + pengasapan dari tabel vektor_dbd, dikelompokkan per
++//    kode_wilker + zona + bulan (zona dibaca apa adanya dari data,
++//    TIDAK di-hardcode, supaya cocok dengan nilai zona apa pun yang
++//    tersimpan).
++//  - getMasterVektorDiareBulananPerWilker: versi "belum diringkas
++//    lintas wilayah" dari view_vektor_diare_bulanan (fungsi yang
++//    sudah ada, getTrenDiareBulanan/getHasilPengamatanBulanan,
++//    menggabung semua wilayah jadi satu baris per bulan kalau
++//    kodeWilker tidak diisi -- di sini kita tetap pecah per wilayah).
++// ================================================================
++
++import { createClient } from './server';
++
++export type BarisAktivitasDbd = {
++  kode_wilker: string;
++  zona: string;
++  bulan: number;
++  rumah_diperiksa: number;
++  rumah_positif: number;
++  container_diperiksa: number;
++  container_positif: number;
++  larvasida_gram: number;
++  luas_fogging_ha: number;
++  insektisida_fogging_ml: number;
++};
++
++export async function getMasterVektorDbdAktivitasBulanan(
++  tahun: number,
++  kodeWilker?: string
++): Promise<BarisAktivitasDbd[]> {
++  const supabase = await createClient();
++  let query = supabase
++    .from('vektor_dbd')
++    .select(
++      'tgl_survei, kode_wilker, zona, jml_rumah_diperiksa, jml_positif_jentik, container_diperiksa, container_positif, larvasida_gram, luas_wilayah_fogging_ha, jml_insektisida_fogging_ml'
++    )
++    .gte('tgl_survei', `${tahun}-01-01`)
++    .lte('tgl_survei', `${tahun}-12-31`)
++    .order('tgl_survei');
++
++  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
++
++  const { data, error } = await query;
++  if (error) throw new Error(`Gagal ambil aktivitas DBD master tabel: ${error.message}`);
++
++  const kelompok = new Map<string, BarisAktivitasDbd>();
++
++  for (const row of data ?? []) {
++    const d = new Date(row.tgl_survei);
++    const bulan = d.getUTCMonth() + 1;
++    const zona = row.zona || 'Tanpa Zona';
++    const kode = row.kode_wilker || '—';
++    const key = `${kode}|${zona}|${bulan}`;
++
++    if (!kelompok.has(key)) {
++      kelompok.set(key, {
++        kode_wilker: kode,
++        zona,
++        bulan,
++        rumah_diperiksa: 0,
++        rumah_positif: 0,
++        container_diperiksa: 0,
++        container_positif: 0,
++        larvasida_gram: 0,
++        luas_fogging_ha: 0,
++        insektisida_fogging_ml: 0,
++      });
++    }
++
++    const g = kelompok.get(key)!;
++    g.rumah_diperiksa += Number(row.jml_rumah_diperiksa) || 0;
++    g.rumah_positif += Number(row.jml_positif_jentik) || 0;
++    g.container_diperiksa += Number(row.container_diperiksa) || 0;
++    g.container_positif += Number(row.container_positif) || 0;
++    g.larvasida_gram += Number(row.larvasida_gram) || 0;
++    g.luas_fogging_ha += Number(row.luas_wilayah_fogging_ha) || 0;
++    g.insektisida_fogging_ml += Number(row.jml_insektisida_fogging_ml) || 0;
++  }
++
++  return Array.from(kelompok.values());
++}
++
++export type BarisDiareWilker = {
++  kode_wilker: string;
++  bulan: number;
++  jml_pengamatan: number;
++  jml_memenuhi_syarat: number;
++  jml_tidak_memenuhi_syarat: number;
++  indeks_rerata: number; // fly_index_rerata (lalat) ATAU kepadatan_kecoa_rerata (kecoa)
++};
++
++export async function getMasterVektorDiareBulananPerWilker(
++  tahun: number,
++  jenis: 'lalat' | 'kecoa',
++  kodeWilker?: string
++): Promise<BarisDiareWilker[]> {
++  const supabase = await createClient();
++  const kolomIndeks = jenis === 'lalat' ? 'fly_index_rerata' : 'kepadatan_kecoa_rerata';
++
++  let query = (supabase as any)
++    .from('view_vektor_diare_bulanan')
++    .select(`kode_wilker, bulan, jml_pengamatan, jml_memenuhi_syarat, ${kolomIndeks}`)
++    .eq('tahun', tahun)
++    .eq('jenis_kegiatan', jenis)
++    .order('bulan');
++
++  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
++
++  const { data, error } = await query;
++  if (error) throw new Error(`Gagal ambil rekap Diare (${jenis}) per wilker: ${error.message}`);
++
++  return (data ?? []).map((r: any) => {
++    const pengamatan = Number(r.jml_pengamatan) || 0;
++    const memenuhi = Number(r.jml_memenuhi_syarat) || 0;
++    return {
++      kode_wilker: r.kode_wilker || '—',
++      bulan: Number(r.bulan) || 0,
++      jml_pengamatan: pengamatan,
++      jml_memenuhi_syarat: memenuhi,
++      jml_tidak_memenuhi_syarat: Math.max(pengamatan - memenuhi, 0),
++      indeks_rerata: Number(r[kolomIndeks]) || 0,
++    };
++  });
++}
+-- 
+2.43.0
+

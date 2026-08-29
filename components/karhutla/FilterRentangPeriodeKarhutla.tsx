@@ -5,11 +5,12 @@ import { buatOpsiWilayahIspa } from '@/lib/karhutla/constants';
 import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
 
 export interface StateFilterPeriode {
-  granularitas: 'mingguan' | 'bulanan';
+  granularitas: 'mingguan' | 'bulanan' | 'skdr';
   tahun: number;
   periodeAwal: number;
   periodeAkhir: number;
-  wilayahKeys: string[];
+  wilayahKeys: string[]; // dipakai granularitas 'mingguan'/'bulanan' (sumber: modul karhutla)
+  wilayahSkdr?: string; // dipakai granularitas 'skdr' (sumber: modul SKDR, taksonomi wilayah beda)
 }
 
 const NAMA_BULAN_LENGKAP = [
@@ -21,17 +22,20 @@ export default function FilterRentangPeriodeKarhutla({
   nilai,
   onUbah,
   daftarWilayahIspa,
+  daftarWilayahSkdr = [],
 }: {
   nilai: StateFilterPeriode;
   onUbah: (nilaiBaru: StateFilterPeriode) => void;
   daftarWilayahIspa: WilayahIspaRow[];
+  daftarWilayahSkdr?: string[];
 }) {
-  const batasMaks = nilai.granularitas === 'mingguan' ? 53 : 12;
+  // 'skdr' pakai rentang minggu juga (skdr_mingguan memang per-minggu), sama seperti 'mingguan'
+  const batasMaks = nilai.granularitas === 'bulanan' ? 12 : 53;
   const tahunSekarang = new Date().getFullYear();
   const opsiWilayah = buatOpsiWilayahIspa(daftarWilayahIspa);
 
-  function ubahGranularitas(g: 'mingguan' | 'bulanan') {
-    const maks = g === 'mingguan' ? 53 : 12;
+  function ubahGranularitas(g: StateFilterPeriode['granularitas']) {
+    const maks = g === 'bulanan' ? 12 : 53;
     onUbah({
       ...nilai,
       granularitas: g,
@@ -41,6 +45,7 @@ export default function FilterRentangPeriodeKarhutla({
   }
 
   const opsiPeriode = Array.from({ length: batasMaks }, (_, i) => i + 1);
+  const labelPeriode = nilai.granularitas === 'bulanan' ? 'Bulan' : 'Minggu';
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm space-y-3">
@@ -60,6 +65,14 @@ export default function FilterRentangPeriodeKarhutla({
           >
             Bulanan
           </button>
+          <button
+            type="button"
+            onClick={() => ubahGranularitas('skdr')}
+            className={`px-3 py-1.5 border-l border-gray-300 ${nilai.granularitas === 'skdr' ? 'bg-green-600 text-white' : 'bg-white text-gray-700'}`}
+            title="Kasus ISPA-AA dari modul SKDR (data laporan mingguan puskesmas/wilker)"
+          >
+            SKDR
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -73,9 +86,7 @@ export default function FilterRentangPeriodeKarhutla({
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">
-            Dari {nilai.granularitas === 'mingguan' ? 'Minggu' : 'Bulan'}
-          </label>
+          <label className="text-sm text-gray-600">Dari {labelPeriode}</label>
           <select
             value={nilai.periodeAwal}
             onChange={(e) => onUbah({ ...nilai, periodeAwal: Number(e.target.value) })}
@@ -83,7 +94,7 @@ export default function FilterRentangPeriodeKarhutla({
           >
             {opsiPeriode.map((p) => (
               <option key={p} value={p}>
-                {nilai.granularitas === 'mingguan' ? `Mg ${p}` : NAMA_BULAN_LENGKAP[p - 1]}
+                {nilai.granularitas === 'bulanan' ? NAMA_BULAN_LENGKAP[p - 1] : `Mg ${p}`}
               </option>
             ))}
           </select>
@@ -98,7 +109,7 @@ export default function FilterRentangPeriodeKarhutla({
           >
             {opsiPeriode.map((p) => (
               <option key={p} value={p}>
-                {nilai.granularitas === 'mingguan' ? `Mg ${p}` : NAMA_BULAN_LENGKAP[p - 1]}
+                {nilai.granularitas === 'bulanan' ? NAMA_BULAN_LENGKAP[p - 1] : `Mg ${p}`}
               </option>
             ))}
           </select>
@@ -106,13 +117,32 @@ export default function FilterRentangPeriodeKarhutla({
 
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Wilayah</label>
-          <PilihWilayahMultiSelect
-            opsi={opsiWilayah}
-            nilai={nilai.wilayahKeys}
-            onUbah={(wilayahKeys) => onUbah({ ...nilai, wilayahKeys })}
-          />
+          {nilai.granularitas === 'skdr' ? (
+            <select
+              value={nilai.wilayahSkdr ?? ''}
+              onChange={(e) => onUbah({ ...nilai, wilayahSkdr: e.target.value || undefined })}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-sm min-w-40"
+            >
+              <option value="">Semua Wilayah</option>
+              {daftarWilayahSkdr.map((w) => (
+                <option key={w} value={w}>{w.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          ) : (
+            <PilihWilayahMultiSelect
+              opsi={opsiWilayah}
+              nilai={nilai.wilayahKeys}
+              onUbah={(wilayahKeys) => onUbah({ ...nilai, wilayahKeys })}
+            />
+          )}
         </div>
       </div>
+
+      {nilai.granularitas === 'skdr' && (
+        <p className="text-xs text-gray-400">
+          Sumber kasus ISPA: laporan mingguan SKDR (ISPA-AA) -- beda taksonomi wilayah dari modul karhutla.
+        </p>
+      )}
 
       {nilai.periodeAwal > nilai.periodeAkhir && (
         <p className="text-xs text-red-600">

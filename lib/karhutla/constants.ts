@@ -83,3 +83,19 @@ export function buatOpsiWilayahIspa(
     induk: NAMA_WILKER[w.kode_wilker] ?? w.kode_wilker,
   }));
 }
+
+/**
+ * Opsi untuk PilihWilayahMultiSelect sumber lokasi KUALITAS UDARA
+ * (tabel lokasi_kualitas_udara) -- taksonomi terpisah dari wilayah ISPA
+ * di atas. `key` di sini adalah `nama`, nilai persis yang disimpan di
+ * kolom kualitas_udara_harian.lokasi (dipakai filter .in('lokasi', ...)).
+ */
+export function buatOpsiLokasiUdara(
+  daftarLokasi: { nama: string; lokasi_induk: string; sub_lokasi: string | null }[]
+) {
+  return daftarLokasi.map((l) => ({
+    key: l.nama,
+    label: l.sub_lokasi ?? l.lokasi_induk,
+    induk: l.lokasi_induk,
+  }));
+}

@@ -37,7 +37,7 @@ const PetaHotspotKarhutla = dynamic(() => import('@/components/karhutla/PetaHots
 });
 
 function buatPeriodeKey(f: StateFilterPeriode): string {
-  const prefix = f.granularitas === 'mingguan' ? 'W' : 'M';
+  const prefix = f.granularitas === 'bulanan' ? 'M' : 'W'; // 'mingguan' & 'skdr' sama-sama per-minggu
   return `${f.tahun}-${prefix}${f.periodeAwal}_${prefix}${f.periodeAkhir}`;
 }
 
@@ -46,13 +46,14 @@ function tambahkanParamWilayah(params: URLSearchParams, wilayahKeys: string[]) {
 }
 
 export default function KarhutlaClient({
-  role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara,
+  role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr,
 }: {
   role: string | null;
   trenAwal: TitikTrenIspa[];
   hotspotAwal: HotspotRow[];
   daftarWilayahIspa: WilayahIspaRow[];
   daftarLokasiUdara: LokasiUdaraRow[];
+  daftarWilayahSkdr: string[];
 }) {
   const isAdmin = role === 'admin';
   const router = useRouter();
@@ -84,7 +85,7 @@ export default function KarhutlaClient({
 
   const tahunSekarang = new Date().getFullYear();
   const [filterPeriode, setFilterPeriode] = useState<StateFilterPeriode>({
-    granularitas: 'mingguan', tahun: tahunSekarang, periodeAwal: 1, periodeAkhir: 53, wilayahKeys: [],
+    granularitas: 'mingguan', tahun: tahunSekarang, periodeAwal: 1, periodeAkhir: 53, wilayahKeys: [], wilayahSkdr: undefined,
   });
   const [dataPerbandingan, setDataPerbandingan] = useState<TitikPerbandinganIspaHotspot[]>([]);
   const [memuatPerbandingan, setMemuatPerbandingan] = useState(false);
@@ -95,15 +96,27 @@ export default function KarhutlaClient({
     const controller = new AbortController();
     setMemuatPerbandingan(true);
 
-    const params = new URLSearchParams({
-      granularitas: filterPeriode.granularitas,
-      tahun: String(filterPeriode.tahun),
-      awal: String(filterPeriode.periodeAwal),
-      akhir: String(filterPeriode.periodeAkhir),
-    });
-    tambahkanParamWilayah(params, filterPeriode.wilayahKeys);
+    let url: string;
+    if (filterPeriode.granularitas === 'skdr') {
+      const params = new URLSearchParams({
+        tahun: String(filterPeriode.tahun),
+        awal: String(filterPeriode.periodeAwal),
+        akhir: String(filterPeriode.periodeAkhir),
+      });
+      if (filterPeriode.wilayahSkdr) params.set('wilayah', filterPeriode.wilayahSkdr);
+      url = `/api/karhutla-perbandingan-skdr?${params.toString()}`;
+    } else {
+      const params = new URLSearchParams({
+        granularitas: filterPeriode.granularitas,
+        tahun: String(filterPeriode.tahun),
+        awal: String(filterPeriode.periodeAwal),
+        akhir: String(filterPeriode.periodeAkhir),
+      });
+      tambahkanParamWilayah(params, filterPeriode.wilayahKeys);
+      url = `/api/karhutla-perbandingan?${params.toString()}`;
+    }
 
-    fetch(`/api/karhutla-perbandingan?${params.toString()}`, { signal: controller.signal })
+    fetch(url, { signal: controller.signal })
       .then((res) => res.json())
       .then((json) => setDataPerbandingan(json.data ?? []))
       .catch((err) => { if (err.name !== 'AbortError') console.error('Gagal ambil data perbandingan:', err); })
@@ -113,7 +126,10 @@ export default function KarhutlaClient({
   }, [filterPeriode]);
 
   const periodeKey = buatPeriodeKey(filterPeriode);
-  const kontekPerbandingan = filterPeriode.granularitas === 'mingguan' ? 'karhutla-ispa-mingguan' : 'karhutla-ispa-bulanan';
+  const kontekPerbandingan =
+    filterPeriode.granularitas === 'mingguan' ? 'karhutla-ispa-mingguan'
+    : filterPeriode.granularitas === 'bulanan' ? 'karhutla-ispa-bulanan'
+    : 'skdr-ispa-mingguan';
 
   const hariIniStr = new Date().toISOString().slice(0, 10);
   const tigaPuluhHariLalu = new Date();
@@ -222,17 +238,25 @@ export default function KarhutlaClient({
 
       <div className="space-y-4">
         <h2 className="text-base font-semibold text-gray-900">Analisis Kasus ISPA vs Titik Panas</h2>
-        <FilterRentangPeriodeKarhutla nilai={filterPeriode} onUbah={setFilterPeriode} daftarWilayahIspa={daftarWilayahIspa} />
+        <FilterRentangPeriodeKarhutla
+          nilai={filterPeriode}
+          onUbah={setFilterPeriode}
+          daftarWilayahIspa={daftarWilayahIspa}
+          daftarWilayahSkdr={daftarWilayahSkdr}
+        />
         {memuatPerbandingan ? (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-400">
             Memuat data perbandingan...
           </div>
         ) : (
-          <KurvaPerbandinganIspaHotspot data={dataPerbandingan} />
+          <KurvaPerbandinganIspaHotspot
+            data={dataPerbandingan}
+            sumberLabel={filterPeriode.granularitas === 'skdr' ? 'ISPA-AA mingguan, SKDR' : 'ISPA harian, modul karhutla'}
+          />
         )}
         {/* TODO: BoxAnalisisAI / BoxPrediksiAI — lihat catatan di riwayat sebelumnya */}
       </div>
-      <GrafikMultiParameterHarianKarhutla daftarWilayahIspa={daftarWilayahIspa} />
+      <GrafikMultiParameterHarianKarhutla daftarLokasiUdara={daftarLokasiUdara} />
 
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => setFormTerbuka('ispa')}

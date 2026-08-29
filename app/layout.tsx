@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Surveilans Epidemiologi BKK Kelas I Samarinda",
   description:
-    "Dashboard surveilans kegiatan pengawasan kapal (COP & PHQC) BKK Kelas I Samarinda.",
+    "Dashboard surveilans Epidemiologi BKK Kelas I Samarinda.",
 };
 
 export default function RootLayout({

@@ -22,10 +22,11 @@ function kategoriStatusClient(status: string): KategoriStatus {
 
 function KartuPenerbangan({ item }: { item: JadwalRingkasAPT }) {
   const kategori = item.kategori ?? kategoriStatusClient(item.status);
+  const logo = item.logoMaskapai || 'https://placehold.co/100x100/png?text=?';
   return (
     <div className="flex items-center gap-3 border-b border-gray-100 py-3 last:border-0">
       <img
-        src={item.logoMaskapai}
+        src={logo}
         alt={item.namaMaskapai}
         className="h-8 w-8 shrink-0 rounded object-contain"
         onError={(e) => {
@@ -59,6 +60,7 @@ export default function PapanJadwalLive() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tersedia, setTersedia] = useState(true);
+  const [sumberData, setSumberData] = useState<'resmi' | 'opensky' | 'campuran' | 'tidak_tersedia'>('resmi');
 
   const metaAktif = DAFTAR_BANDARA.find((b) => b.kode === bandaraDipilih) ?? DAFTAR_BANDARA[0];
 
@@ -75,6 +77,7 @@ export default function PapanJadwalLive() {
           setKedatangan(json.kedatangan ?? []);
           setKeberangkatan(json.keberangkatan ?? []);
           setTersedia(json.tersedia !== false);
+          setSumberData(json.sumberData ?? 'resmi');
           setError(null);
         }
       } catch (err) {
@@ -135,6 +138,16 @@ export default function PapanJadwalLive() {
         <p className="py-8 text-center text-sm text-gray-400">
           Jadwal live untuk {metaAktif.nama} belum tersedia. Menunggu integrasi sumber data.
         </p>
+      )}
+
+      {!loading && tersedia && (sumberData === 'opensky' || sumberData === 'campuran') && (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          ⚠️ Sumber resmi {metaAktif.nama} sedang tidak dapat diakses (kemungkinan situs bandara berubah).
+          {sumberData === 'campuran'
+            ? ' Sebagian data di bawah ini dari OpenSky Network (cadangan)'
+            : ' Menampilkan data dari OpenSky Network (cadangan)'}
+          : pergerakan pesawat aktual, tanpa info gate/status real-time, bukan jadwal ke depan.
+        </div>
       )}
 
       {error && (

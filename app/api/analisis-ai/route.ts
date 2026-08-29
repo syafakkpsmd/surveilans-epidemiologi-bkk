@@ -22,6 +22,7 @@ import {
   ambilDataAnalisisSkdrTren,
   isKonteksSkdrTren,
   ambilDataAnalisisKarhutlaIspaHotspot,
+  ambilDataAnalisisKarhutlaSkdrHotspot,
 } from '@/lib/ai/data';
 import {
   susunPrompt,
@@ -524,6 +525,17 @@ export async function POST(request: Request) {
 
     } else if (konteks === 'karhutla-ispa-mingguan' || konteks === 'karhutla-ispa-bulanan') {
       const data = await ambilDataAnalisisKarhutlaIspaHotspot(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKarhutlaIspaHotspot(data) : susunPromptKarhutlaIspaHotspot(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'skdr-ispa-mingguan') {
+      // Varian SKDR dari chart "Analisis Kasus ISPA vs Titik Panas" di
+      // halaman Karhutla -- sumber kasus ISPA dari skdr_mingguan, bukan
+      // input harian modul karhutla. Prompt-nya dipakai bareng
+      // (susunPromptKarhutlaIspaHotspot), karena bentuk DataAnalisis-nya
+      // sama persis, cuma sumber datanya beda.
+      const data = await ambilDataAnalisisKarhutlaSkdrHotspot(periodeKey, wilayahKerja);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKarhutlaIspaHotspot(data) : susunPromptKarhutlaIspaHotspot(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;

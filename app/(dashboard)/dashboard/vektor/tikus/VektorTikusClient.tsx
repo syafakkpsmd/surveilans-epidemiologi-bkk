@@ -361,7 +361,7 @@ export default function VektorTikusClient({
               tipeChart={periodeType === "bulanan" ? "bar" : "line"}
               seriesList={[
                 { key: "tertangkap", label: "Tertangkap", warna: "#B71C1C" },
-                { key: "tsi", label: "Success Trap (%)", warna: "#E65100" },
+                { key: "tsi", label: "Success Trap (%)", warna: "#1E3A8A" },
                 { key: "index_pinjal", label: "Index Pinjal", warna: "#1B5E20" },
               ]}
             />

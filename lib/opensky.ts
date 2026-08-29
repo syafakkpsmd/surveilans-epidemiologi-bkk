@@ -114,6 +114,111 @@ export const KODE_ICAO_BANDARA = {
   SEPINGGAN: 'WALL',
 } as const;
 
+// ---------------------------------------------------------------------
+// Konversi ke bentuk JadwalRingkasAPT -- dipakai sebagai FALLBACK saat
+// sumber resmi bandara (lib/aptpranoto.ts) gagal/berubah struktur.
+//
+// PENTING -- keterbatasan data OpenSky dibanding sumber resmi FIDS bandara:
+// - Ini data PERGERAKAN AKTUAL pesawat (dari sinyal ADS-B), BUKAN jadwal
+//   terjadwal ke depan. Hanya penerbangan yang SUDAH mendarat/lepas landas
+//   yang muncul di sini.
+// - Tidak ada info gate, konter check-in, atau status real-time
+//   ("Boarding", "Delayed", dll) -- OpenSky tidak tahu itu.
+// - Nama kota & maskapai diterjemahkan dari kode ICAO bandara/callsign
+//   pakai tabel referensi terbatas di bawah -- kalau kodenya tidak ada
+//   di tabel, ditampilkan apa adanya (kode mentah) daripada menebak.
+// ---------------------------------------------------------------------
+
+// Tabel bandara: HANYA bandara besar berkode ICAO yang terdokumentasi publik.
+// Sengaja tidak lengkap -- lebih aman tampilkan kode mentah drpd menebak salah.
+const BANDARA_ICAO: Record<string, { kota: string; iata: string }> = {
+  WIII: { kota: 'Jakarta', iata: 'CGK' },
+  WARR: { kota: 'Surabaya', iata: 'SUB' },
+  WAHI: { kota: 'Yogyakarta', iata: 'YIA' },
+  WADD: { kota: 'Denpasar', iata: 'DPS' },
+  WAOO: { kota: 'Banjarmasin', iata: 'BDJ' },
+  WALK: { kota: 'Berau', iata: 'BEJ' },
+  WALL: { kota: 'Balikpapan', iata: 'BPN' },
+  WALS: { kota: 'Samarinda', iata: 'AAP' },
+};
+
+// Tabel maskapai: HANYA kode ICAO 3-huruf maskapai besar yang terdokumentasi
+// publik & baku. Sengaja tidak mencakup operator kecil/charter regional --
+// lebih aman tampilkan "Maskapai tidak diketahui" drpd menebak salah.
+const MASKAPAI_ICAO: Record<string, string> = {
+  GIA: 'Garuda Indonesia',
+  BTK: 'Batik Air',
+  CTV: 'Citilink',
+  LNI: 'Lion Air',
+  WON: 'Wings Air',
+};
+
+function formatJamWita(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleTimeString('id-ID', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar',
+  });
+}
+
+function terjemahkanCallsign(callsign: string | null): { kodePenerbangan: string; namaMaskapai: string } {
+  const bersih = (callsign ?? '').trim();
+  if (!bersih) return { kodePenerbangan: '-', namaMaskapai: 'Maskapai tidak diketahui' };
+  const prefiks = bersih.slice(0, 3).toUpperCase();
+  return {
+    kodePenerbangan: bersih,
+    namaMaskapai: MASKAPAI_ICAO[prefiks] ?? 'Maskapai tidak diketahui',
+  };
+}
+
+/** Konversi hasil getArrivalsByAirport() -> bentuk JadwalRingkasAPT (fallback). */
+export function ringkasKedatanganOpenSky(data: OpenSkyFlight[]): {
+  id: string; jam: string; kodePenerbangan: string; namaMaskapai: string;
+  logoMaskapai: string; status: string; kota: string; iata: string; kategori: 'landed';
+}[] {
+  return data
+    .filter((f) => f.lastSeen != null)
+    .sort((a, b) => b.lastSeen - a.lastSeen)
+    .map((f) => {
+      const { kodePenerbangan, namaMaskapai } = terjemahkanCallsign(f.callsign);
+      const asal = f.estDepartureAirport ? BANDARA_ICAO[f.estDepartureAirport] : undefined;
+      return {
+        id: `${f.icao24}-${f.lastSeen}`,
+        jam: formatJamWita(f.lastSeen),
+        kodePenerbangan,
+        namaMaskapai,
+        logoMaskapai: '',
+        status: 'Sudah Mendarat',
+        kota: asal?.kota ?? (f.estDepartureAirport ?? 'Tidak diketahui'),
+        iata: asal?.iata ?? '-',
+        kategori: 'landed' as const,
+      };
+    });
+}
+
+/** Konversi hasil getDeparturesByAirport() -> bentuk JadwalRingkasAPT (fallback). */
+export function ringkasKeberangkatanOpenSky(data: OpenSkyFlight[]): {
+  id: string; jam: string; kodePenerbangan: string; namaMaskapai: string;
+  logoMaskapai: string; status: string; kota: string; iata: string; kategori: 'landed';
+}[] {
+  return data
+    .filter((f) => f.firstSeen != null)
+    .sort((a, b) => b.firstSeen - a.firstSeen)
+    .map((f) => {
+      const { kodePenerbangan, namaMaskapai } = terjemahkanCallsign(f.callsign);
+      const tujuan = f.estArrivalAirport ? BANDARA_ICAO[f.estArrivalAirport] : undefined;
+      return {
+        id: `${f.icao24}-${f.firstSeen}`,
+        jam: formatJamWita(f.firstSeen),
+        kodePenerbangan,
+        namaMaskapai,
+        logoMaskapai: '',
+        status: 'Sudah Lepas Landas',
+        kota: tujuan?.kota ?? (f.estArrivalAirport ?? 'Tidak diketahui'),
+        iata: tujuan?.iata ?? '-',
+        kategori: 'landed' as const,
+      };
+    });
+}
+
 /**
  * Diagnostik: cek apakah ada pesawat terdeteksi OpenSky di suatu area (bounding box)
  * saat ini, TANPA bergantung pada estimasi bandara asal/tujuan.

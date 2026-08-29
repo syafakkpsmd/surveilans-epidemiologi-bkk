@@ -127,7 +127,7 @@ export function kategoriStatus(status: string): KategoriStatus {
 // ---------------------------------------------------------------------
 
 export type JadwalRingkasAPT = {
-  id: number;
+  id: number | string;
   jam: string;
   kodePenerbangan: string;
   namaMaskapai: string;
@@ -138,6 +138,7 @@ export type JadwalRingkasAPT = {
   gate?: string;
   konter?: number;
   kategori?: KategoriStatus; // opsional -- kalau diisi adapter, dipakai langsung tanpa ditebak ulang di client
+  sumberData?: 'resmi' | 'opensky'; // 'opensky' = data fallback, lihat lib/opensky.ts untuk keterbatasannya
 };
 
 export function ringkasKedatanganAPT(data: JadwalKedatanganAPT[]): JadwalRingkasAPT[] {
@@ -150,6 +151,7 @@ export function ringkasKedatanganAPT(data: JadwalKedatanganAPT[]): JadwalRingkas
     status: item.remark.status,
     kota: item.bandara_asal.kota_provinsi,
     iata: item.bandara_asal.iata,
+    sumberData: 'resmi',
   }));
 }
 
@@ -165,6 +167,7 @@ export function ringkasKeberangkatanAPT(data: JadwalKeberangkatanAPT[]): JadwalR
     iata: item.bandara_tujuan.iata,
     gate: item.gate?.nama,
     konter: item.konter,
+    sumberData: 'resmi',
   }));
 }
 

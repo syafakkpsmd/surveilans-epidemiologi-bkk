@@ -150,7 +150,7 @@ export default function TabelHotspotHarian({ data }: { data: BarisTabelHotspot[]
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center justify-between p-4 border-b border-gray-100">
-        <h2 className="text-base font-semibold text-gray-900">Riwayat Titik Panas (Hotspot NASA FIRMS)</h2>
+        <h2 className="text-base font-semibold text-gray-900">Riwayat Titik Panas (Hotspot)</h2>
         <span className="text-xs text-gray-500">
           {data.length} titik &middot; {jumlahHariUnik} hari terekam
         </span>

@@ -41,7 +41,7 @@ import type { RingkasanPenyakitEmerging, Penyakit, Negara } from '@/types/global
 import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
 import { createClient } from '@/lib/supabase/server';
 import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/supabase/queriesPesawat';
-import { ambilPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
+import { ambilPerbandinganIspaHotspot, ambilPerbandinganSkdrHotspot } from '@/lib/supabase/queries-karhutla-server';
 import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
 
 
@@ -92,6 +92,7 @@ export const KONTEKS_TREN = [
   'skdr-tren-mingguan',
   'karhutla-ispa-bulanan',
   'karhutla-ispa-mingguan',
+  'skdr-ispa-mingguan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -158,6 +159,7 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'skdr-tren-bulanan',
   'karhutla-ispa-bulanan',
   'karhutla-ispa-mingguan',
+  'skdr-ispa-mingguan',
 ] as const;
 
 export const KONTEKS_EVENT = [
@@ -3229,6 +3231,67 @@ export async function ambilDataAnalisisKarhutlaIspaHotspot(
     labelPeriodeSebelumnya: isMingguan
       ? `Minggu ${periodeDariSebelumnya}-${periodeSampaiSebelumnya} tahun ${tahun}`
       : `Bulan ${NAMA_BULAN_KARHUTLA[periodeDariSebelumnya - 1] ?? '-'}-${NAMA_BULAN_KARHUTLA[periodeSampaiSebelumnya - 1] ?? '-'} ${tahun}`,
+    ringkasanSaatIni: {
+      total_kasus_ispa: totalKasusSaatIni,
+      jumlah_hotspot: totalHotspotSaatIni,
+      rata_rata_kasus_per_periode: panjang > 0 ? Math.round((totalKasusSaatIni / panjang) * 100) / 100 : 0,
+    },
+    ringkasanSebelumnya: {
+      total_kasus_ispa: totalKasusSebelumnya,
+      jumlah_hotspot: totalHotspotSebelumnya,
+    },
+    topKategori,
+  } as DataAnalisis;
+}
+
+// ============================================================
+// VARIAN SKDR: sama seperti ambilDataAnalisisKarhutlaIspaHotspot di
+// atas, tapi sumber kasus ISPA dari skdr_mingguan (bukan input
+// harian modul karhutla) -- selalu mingguan, wilayah cuma 1 nilai
+// (taksonomi wilayah_kerja SKDR beda dari kode_wilker/zona karhutla).
+// ============================================================
+
+export async function ambilDataAnalisisKarhutlaSkdrHotspot(
+  periodeKey: string,
+  wilayahKerja: string | undefined
+): Promise<DataAnalisis> {
+  const tahunMatch = periodeKey.match(/^(\d+)-/);
+  const tahun = tahunMatch ? Number(tahunMatch[1]) : new Date().getFullYear();
+
+  const m = periodeKey.match(/W(\d+)_W(\d+)/);
+  const periodeDari = m ? Number(m[1]) : 1;
+  const periodeSampai = m ? Number(m[2]) : 53;
+  const labelSaatIni = `Minggu ${periodeDari}-${periodeSampai} tahun ${tahun}`;
+
+  const panjang = periodeSampai - periodeDari + 1;
+  const periodeDariSebelumnya = Math.max(1, periodeDari - panjang);
+  const periodeSampaiSebelumnya = periodeDari - 1;
+
+  const wilayahKerjaBersih = wilayahKerja && wilayahKerja !== 'Semua' ? wilayahKerja : undefined;
+
+  const [dataSaatIni, dataSebelumnya] = await Promise.all([
+    ambilPerbandinganSkdrHotspot({ tahun, periodeAwal: periodeDari, periodeAkhir: periodeSampai, wilayahKerja: wilayahKerjaBersih }),
+    periodeSampaiSebelumnya >= periodeDariSebelumnya
+      ? ambilPerbandinganSkdrHotspot({ tahun, periodeAwal: periodeDariSebelumnya, periodeAkhir: periodeSampaiSebelumnya, wilayahKerja: wilayahKerjaBersih })
+      : Promise.resolve([]),
+  ]);
+
+  const totalKasusSaatIni = dataSaatIni.reduce((t, d) => t + d.totalKasusIspa, 0);
+  const totalHotspotSaatIni = dataSaatIni.reduce((t, d) => t + d.jumlahHotspot, 0);
+  const totalKasusSebelumnya = dataSebelumnya.reduce((t, d) => t + d.totalKasusIspa, 0);
+  const totalHotspotSebelumnya = dataSebelumnya.reduce((t, d) => t + d.jumlahHotspot, 0);
+
+  const topKategori: DataAnalisis['topKategori'] = [];
+  dataSaatIni.forEach((d) => {
+    topKategori.push({ kategori: 'kasus_ispa', nilai: d.periodeLabel, jumlah: d.totalKasusIspa });
+    topKategori.push({ kategori: 'hotspot', nilai: d.periodeLabel, jumlah: d.jumlahHotspot });
+  });
+
+  return {
+    labelKonteks: 'Karhutla — Kasus ISPA (SKDR) vs Titik Panas',
+    labelWilayah: wilayahKerjaBersih ?? 'Seluruh wilayah kerja SKDR',
+    labelPeriodeSaatIni: labelSaatIni,
+    labelPeriodeSebelumnya: `Minggu ${periodeDariSebelumnya}-${periodeSampaiSebelumnya} tahun ${tahun}`,
     ringkasanSaatIni: {
       total_kasus_ispa: totalKasusSaatIni,
       jumlah_hotspot: totalHotspotSaatIni,

@@ -1,5 +1,6 @@
 import KarhutlaClient from './KarhutlaClient';
 import { getUserRole } from '@/lib/auth/get-user-role';
+import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import {
   ambilTrenIspaPm25, ambilHotspotCache,
   ambilDaftarWilayahIspa, ambilDaftarLokasiUdara,
@@ -9,8 +10,9 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function HalamanKarhutla() {
-  const [role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr] = await Promise.all([
-    getUserRole(),
+  const [role, statusAkses, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr] = await Promise.all([
+    getUserRole(), // khusus tombol "Sinkronisasi Hotspot" (admin-only) -- JANGAN dipakai untuk Analisis AI
+    getStatusAkses(), // khusus BoxAnalisisAI/BoxPrediksiAI, lihat catatan di lib/auth/getStatusAkses.ts
     ambilTrenIspaPm25({ wilayahKeys: [], hariTerakhir: 30 }),
     ambilHotspotCache(3),
     ambilDaftarWilayahIspa(),
@@ -29,6 +31,8 @@ export default async function HalamanKarhutla() {
 
       <KarhutlaClient
         role={role}
+        sudahLoginAI={statusAkses.sudahLogin}
+        roleAI={statusAkses.role}
         trenAwal={trenAwal}
         hotspotAwal={hotspotAwal}
         daftarWilayahIspa={daftarWilayahIspa}

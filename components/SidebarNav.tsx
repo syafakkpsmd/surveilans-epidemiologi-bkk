@@ -34,7 +34,9 @@ import {
   Book,
   Activity,
   AlertTriangle,
-  Flame
+  Flame,
+  Droplet,
+  BellRing
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -117,10 +119,10 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
       { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2, prefetch: false },
       { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon, prefetch: false },
-      { label: "Surveilans PAB", href: "/dashboard/pab", icon: Pipette, prefetch: false },
+      { label: "Surveilans PAB", href: "/dashboard/pab", icon: Droplet, prefetch: false },
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
-      { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: AlertTriangle, prefetch: false },
+      { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
       { label: "ISPA KARHUTLA", href: "/dashboard/karhutla", icon: Flame , prefetch: false },
       { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
     ],

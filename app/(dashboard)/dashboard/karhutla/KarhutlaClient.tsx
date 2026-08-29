@@ -21,6 +21,7 @@ import type {
   WilayahIspaRow,
   LokasiUdaraRow,
 } from '@/lib/supabase/queries-karhutla-server';
+import type { PeranUser } from '@/types/database.types';
 import GrafikMultiParameterHarianKarhutla from '@/components/karhutla/GrafikMultiParameterHarianKarhutla';
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
@@ -46,9 +47,12 @@ function tambahkanParamWilayah(params: URLSearchParams, wilayahKeys: string[]) {
 }
 
 export default function KarhutlaClient({
-  role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr,
+  role, sudahLoginAI, roleAI, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr,
 }: {
   role: string | null;
+  /** Khusus BoxAnalisisAI/BoxPrediksiAI -- dari getStatusAkses(), BUKAN dari `role` di atas (lihat catatan lib/auth/getStatusAkses.ts). */
+  sudahLoginAI: boolean;
+  roleAI: PeranUser | null;
   trenAwal: TitikTrenIspa[];
   hotspotAwal: HotspotRow[];
   daftarWilayahIspa: WilayahIspaRow[];
@@ -130,6 +134,15 @@ export default function KarhutlaClient({
     filterPeriode.granularitas === 'mingguan' ? 'karhutla-ispa-mingguan'
     : filterPeriode.granularitas === 'bulanan' ? 'karhutla-ispa-bulanan'
     : 'skdr-ispa-mingguan';
+
+  // Karhutla-ISPA (mingguan/bulanan) pakai multi-wilayah (gabung koma),
+  // SKDR cuma 1 wilayah -- taksonominya beda dari kode_wilker/zona karhutla.
+  const wilayahKerjaAiPerbandingan =
+    filterPeriode.granularitas === 'skdr'
+      ? filterPeriode.wilayahSkdr
+      : filterPeriode.wilayahKeys.length > 0
+        ? filterPeriode.wilayahKeys.join(',')
+        : undefined;
 
   const hariIniStr = new Date().toISOString().slice(0, 10);
   const tigaPuluhHariLalu = new Date();
@@ -254,7 +267,24 @@ export default function KarhutlaClient({
             sumberLabel={filterPeriode.granularitas === 'skdr' ? 'ISPA-AA mingguan, SKDR' : 'ISPA harian, modul karhutla'}
           />
         )}
-        {/* TODO: BoxAnalisisAI / BoxPrediksiAI — lihat catatan di riwayat sebelumnya */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <BoxAnalisisAI
+            sudahLogin={sudahLoginAI}
+            role={roleAI}
+            konteks={kontekPerbandingan}
+            periodeKey={periodeKey}
+            wilayahKerja={wilayahKerjaAiPerbandingan}
+            wajibWilayahKerja={false}
+          />
+          <BoxPrediksiAI
+            sudahLogin={sudahLoginAI}
+            role={roleAI}
+            konteks={kontekPerbandingan}
+            periodeKey={periodeKey}
+            wilayahKerja={wilayahKerjaAiPerbandingan}
+            wajibWilayahKerja={false}
+          />
+        </div>
       </div>
       <GrafikMultiParameterHarianKarhutla daftarLokasiUdara={daftarLokasiUdara} />
 

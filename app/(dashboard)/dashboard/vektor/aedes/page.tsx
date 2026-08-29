@@ -318,7 +318,7 @@ export default async function VektorAedesPage({
                 <TrenChartMingguan
                   data={dataAktivitasMingguan}
                   seriesList={[
-                    { key: 'rumah_positif', label: 'Rumah Positif', warna: '#B71C1C' },
+                    { key: 'rumah_positif', label: 'Rumah Positif', warna: '#1E3A8A' },
                     { key: 'container_positif', label: 'Container Positif', warna: '#EF6C00' },
                   ]}
                 />

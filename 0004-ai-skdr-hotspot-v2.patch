@@ -1,0 +1,266 @@
+From 3775357f0ee8bc4dd8b984e4728b2a9c39d1c493 Mon Sep 17 00:00:00 2001
+From: "Syafa (via Claude)" <syafa@bkksamarinda.local>
+Date: Sat, 29 Aug 2026 12:04:11 +0000
+Subject: [PATCH] feat: tombol Analisis AI & Prediksi AI di grafik ISPA vs
+ Titik Panas (termasuk SKDR)
+
+- Pasang BoxAnalisisAI & BoxPrediksiAI di bawah grafik 'Analisis Kasus
+  ISPA vs Titik Panas' pada halaman Karhutla, menggantikan TODO yang
+  sebelumnya kosong. Otomatis mengikuti mode filter yang aktif
+  (Mingguan/Bulanan = data ISPA input harian modul karhutla, SKDR =
+  data ISPA-AA dari skdr_mingguan) lewat kontekPerbandingan yang
+  sudah ada
+- lib/ai/data.ts: fungsi baru ambilDataAnalisisKarhutlaSkdrHotspot,
+  varian dari ambilDataAnalisisKarhutlaIspaHotspot tapi sumber
+  datanya ambilPerbandinganSkdrHotspot (SKDR, selalu mingguan, 1
+  wilayah). Konteks 'skdr-ispa-mingguan' didaftarkan ke KONTEKS_TREN
+  & KONTEKS_PREDIKSI_NON_VEKTOR
+- app/api/analisis-ai/route.ts: handler baru untuk konteks
+  'skdr-ispa-mingguan', reuse prompt susunPromptKarhutlaIspaHotspot /
+  susunPromptPrediksiKarhutlaIspaHotspot yang sudah ada (bentuk
+  DataAnalisis sama, cuma sumber data beda)
+- wajibWilayahKerja=false untuk kedua Box, karena baik data hotspot
+  (regional Kaltim) maupun mode 'Semua Wilayah Kerja' tetap valid
+  dianalisis
+- FIX: pakai getStatusAkses() (bukan getUserRole()) untuk
+  sudahLogin/role Analisis AI -- getUserRole() collapse ke 'tamu'
+  kalau user login tapi belum ada baris profiles / role tak dikenal,
+  sehingga tombol Analisis AI salah kelihatan terkunci padahal user
+  sudah login sebagai admin/petugas. Pola ini sama seperti yang
+  sudah dipakai halaman COP & PHQC.
+---
+ .../dashboard/karhutla/KarhutlaClient.tsx     | 34 +++++++++-
+ app/(dashboard)/dashboard/karhutla/page.tsx   |  8 ++-
+ app/api/analisis-ai/route.ts                  | 12 ++++
+ lib/ai/data.ts                                | 65 ++++++++++++++++++-
+ 4 files changed, 114 insertions(+), 5 deletions(-)
+
+diff --git a/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx b/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx
+index 60555e6..260c934 100644
+--- a/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx
++++ b/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx
+@@ -21,6 +21,7 @@ import type {
+   WilayahIspaRow,
+   LokasiUdaraRow,
+ } from '@/lib/supabase/queries-karhutla-server';
++import type { PeranUser } from '@/types/database.types';
+ import GrafikMultiParameterHarianKarhutla from '@/components/karhutla/GrafikMultiParameterHarianKarhutla';
+ import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
+ import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
+@@ -46,9 +47,12 @@ function tambahkanParamWilayah(params: URLSearchParams, wilayahKeys: string[]) {
+ }
+ 
+ export default function KarhutlaClient({
+-  role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr,
++  role, sudahLoginAI, roleAI, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr,
+ }: {
+   role: string | null;
++  /** Khusus BoxAnalisisAI/BoxPrediksiAI -- dari getStatusAkses(), BUKAN dari `role` di atas (lihat catatan lib/auth/getStatusAkses.ts). */
++  sudahLoginAI: boolean;
++  roleAI: PeranUser | null;
+   trenAwal: TitikTrenIspa[];
+   hotspotAwal: HotspotRow[];
+   daftarWilayahIspa: WilayahIspaRow[];
+@@ -131,6 +135,15 @@ export default function KarhutlaClient({
+     : filterPeriode.granularitas === 'bulanan' ? 'karhutla-ispa-bulanan'
+     : 'skdr-ispa-mingguan';
+ 
++  // Karhutla-ISPA (mingguan/bulanan) pakai multi-wilayah (gabung koma),
++  // SKDR cuma 1 wilayah -- taksonominya beda dari kode_wilker/zona karhutla.
++  const wilayahKerjaAiPerbandingan =
++    filterPeriode.granularitas === 'skdr'
++      ? filterPeriode.wilayahSkdr
++      : filterPeriode.wilayahKeys.length > 0
++        ? filterPeriode.wilayahKeys.join(',')
++        : undefined;
++
+   const hariIniStr = new Date().toISOString().slice(0, 10);
+   const tigaPuluhHariLalu = new Date();
+   tigaPuluhHariLalu.setDate(tigaPuluhHariLalu.getDate() - 30);
+@@ -254,7 +267,24 @@ export default function KarhutlaClient({
+             sumberLabel={filterPeriode.granularitas === 'skdr' ? 'ISPA-AA mingguan, SKDR' : 'ISPA harian, modul karhutla'}
+           />
+         )}
+-        {/* TODO: BoxAnalisisAI / BoxPrediksiAI — lihat catatan di riwayat sebelumnya */}
++        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
++          <BoxAnalisisAI
++            sudahLogin={sudahLoginAI}
++            role={roleAI}
++            konteks={kontekPerbandingan}
++            periodeKey={periodeKey}
++            wilayahKerja={wilayahKerjaAiPerbandingan}
++            wajibWilayahKerja={false}
++          />
++          <BoxPrediksiAI
++            sudahLogin={sudahLoginAI}
++            role={roleAI}
++            konteks={kontekPerbandingan}
++            periodeKey={periodeKey}
++            wilayahKerja={wilayahKerjaAiPerbandingan}
++            wajibWilayahKerja={false}
++          />
++        </div>
+       </div>
+       <GrafikMultiParameterHarianKarhutla daftarLokasiUdara={daftarLokasiUdara} />
+ 
+diff --git a/app/(dashboard)/dashboard/karhutla/page.tsx b/app/(dashboard)/dashboard/karhutla/page.tsx
+index 03a5e88..634ee89 100644
+--- a/app/(dashboard)/dashboard/karhutla/page.tsx
++++ b/app/(dashboard)/dashboard/karhutla/page.tsx
+@@ -1,5 +1,6 @@
+ import KarhutlaClient from './KarhutlaClient';
+ import { getUserRole } from '@/lib/auth/get-user-role';
++import { getStatusAkses } from '@/lib/auth/getStatusAkses';
+ import {
+   ambilTrenIspaPm25, ambilHotspotCache,
+   ambilDaftarWilayahIspa, ambilDaftarLokasiUdara,
+@@ -9,8 +10,9 @@ import {
+ export const dynamic = 'force-dynamic';
+ 
+ export default async function HalamanKarhutla() {
+-  const [role, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr] = await Promise.all([
+-    getUserRole(),
++  const [role, statusAkses, trenAwal, hotspotAwal, daftarWilayahIspa, daftarLokasiUdara, daftarWilayahSkdr] = await Promise.all([
++    getUserRole(), // khusus tombol "Sinkronisasi Hotspot" (admin-only) -- JANGAN dipakai untuk Analisis AI
++    getStatusAkses(), // khusus BoxAnalisisAI/BoxPrediksiAI, lihat catatan di lib/auth/getStatusAkses.ts
+     ambilTrenIspaPm25({ wilayahKeys: [], hariTerakhir: 30 }),
+     ambilHotspotCache(3),
+     ambilDaftarWilayahIspa(),
+@@ -29,6 +31,8 @@ export default async function HalamanKarhutla() {
+ 
+       <KarhutlaClient
+         role={role}
++        sudahLoginAI={statusAkses.sudahLogin}
++        roleAI={statusAkses.role}
+         trenAwal={trenAwal}
+         hotspotAwal={hotspotAwal}
+         daftarWilayahIspa={daftarWilayahIspa}
+diff --git a/app/api/analisis-ai/route.ts b/app/api/analisis-ai/route.ts
+index e7ffd93..57b180b 100644
+--- a/app/api/analisis-ai/route.ts
++++ b/app/api/analisis-ai/route.ts
+@@ -22,6 +22,7 @@ import {
+   ambilDataAnalisisSkdrTren,
+   isKonteksSkdrTren,
+   ambilDataAnalisisKarhutlaIspaHotspot,
++  ambilDataAnalisisKarhutlaSkdrHotspot,
+ } from '@/lib/ai/data';
+ import {
+   susunPrompt,
+@@ -528,6 +529,17 @@ export async function POST(request: Request) {
+       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+ 
++    } else if (konteks === 'skdr-ispa-mingguan') {
++      // Varian SKDR dari chart "Analisis Kasus ISPA vs Titik Panas" di
++      // halaman Karhutla -- sumber kasus ISPA dari skdr_mingguan, bukan
++      // input harian modul karhutla. Prompt-nya dipakai bareng
++      // (susunPromptKarhutlaIspaHotspot), karena bentuk DataAnalisis-nya
++      // sama persis, cuma sumber datanya beda.
++      const data = await ambilDataAnalisisKarhutlaSkdrHotspot(periodeKey, wilayahKerja);
++      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKarhutlaIspaHotspot(data) : susunPromptKarhutlaIspaHotspot(data);
++      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
++      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
++
+     } else if (konteks === 'simulasi-wabah-kapal' || konteks === 'simulasi-wabah-pesawat') {
+       // periodeKey di sini BUKAN format periode (2026-W27), tapi UUID id simulasi.
+       // Tidak ada "periode sebelumnya" karena ini event tunggal, bukan tren waktu.
+diff --git a/lib/ai/data.ts b/lib/ai/data.ts
+index 85da07d..f729efc 100644
+--- a/lib/ai/data.ts
++++ b/lib/ai/data.ts
+@@ -41,7 +41,7 @@ import type { RingkasanPenyakitEmerging, Penyakit, Negara } from '@/types/global
+ import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
+ import { createClient } from '@/lib/supabase/server';
+ import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/supabase/queriesPesawat';
+-import { ambilPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
++import { ambilPerbandinganIspaHotspot, ambilPerbandinganSkdrHotspot } from '@/lib/supabase/queries-karhutla-server';
+ import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
+ 
+ 
+@@ -92,6 +92,7 @@ export const KONTEKS_TREN = [
+   'skdr-tren-mingguan',
+   'karhutla-ispa-bulanan',
+   'karhutla-ispa-mingguan',
++  'skdr-ispa-mingguan',
+ ] as const;
+ 
+ export const KONTEKS_BREAKDOWN = [
+@@ -158,6 +159,7 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
+   'skdr-tren-bulanan',
+   'karhutla-ispa-bulanan',
+   'karhutla-ispa-mingguan',
++  'skdr-ispa-mingguan',
+ ] as const;
+ 
+ export const KONTEKS_EVENT = [
+@@ -3240,4 +3242,65 @@ export async function ambilDataAnalisisKarhutlaIspaHotspot(
+     },
+     topKategori,
+   } as DataAnalisis;
++}
++
++// ============================================================
++// VARIAN SKDR: sama seperti ambilDataAnalisisKarhutlaIspaHotspot di
++// atas, tapi sumber kasus ISPA dari skdr_mingguan (bukan input
++// harian modul karhutla) -- selalu mingguan, wilayah cuma 1 nilai
++// (taksonomi wilayah_kerja SKDR beda dari kode_wilker/zona karhutla).
++// ============================================================
++
++export async function ambilDataAnalisisKarhutlaSkdrHotspot(
++  periodeKey: string,
++  wilayahKerja: string | undefined
++): Promise<DataAnalisis> {
++  const tahunMatch = periodeKey.match(/^(\d+)-/);
++  const tahun = tahunMatch ? Number(tahunMatch[1]) : new Date().getFullYear();
++
++  const m = periodeKey.match(/W(\d+)_W(\d+)/);
++  const periodeDari = m ? Number(m[1]) : 1;
++  const periodeSampai = m ? Number(m[2]) : 53;
++  const labelSaatIni = `Minggu ${periodeDari}-${periodeSampai} tahun ${tahun}`;
++
++  const panjang = periodeSampai - periodeDari + 1;
++  const periodeDariSebelumnya = Math.max(1, periodeDari - panjang);
++  const periodeSampaiSebelumnya = periodeDari - 1;
++
++  const wilayahKerjaBersih = wilayahKerja && wilayahKerja !== 'Semua' ? wilayahKerja : undefined;
++
++  const [dataSaatIni, dataSebelumnya] = await Promise.all([
++    ambilPerbandinganSkdrHotspot({ tahun, periodeAwal: periodeDari, periodeAkhir: periodeSampai, wilayahKerja: wilayahKerjaBersih }),
++    periodeSampaiSebelumnya >= periodeDariSebelumnya
++      ? ambilPerbandinganSkdrHotspot({ tahun, periodeAwal: periodeDariSebelumnya, periodeAkhir: periodeSampaiSebelumnya, wilayahKerja: wilayahKerjaBersih })
++      : Promise.resolve([]),
++  ]);
++
++  const totalKasusSaatIni = dataSaatIni.reduce((t, d) => t + d.totalKasusIspa, 0);
++  const totalHotspotSaatIni = dataSaatIni.reduce((t, d) => t + d.jumlahHotspot, 0);
++  const totalKasusSebelumnya = dataSebelumnya.reduce((t, d) => t + d.totalKasusIspa, 0);
++  const totalHotspotSebelumnya = dataSebelumnya.reduce((t, d) => t + d.jumlahHotspot, 0);
++
++  const topKategori: DataAnalisis['topKategori'] = [];
++  dataSaatIni.forEach((d) => {
++    topKategori.push({ kategori: 'kasus_ispa', nilai: d.periodeLabel, jumlah: d.totalKasusIspa });
++    topKategori.push({ kategori: 'hotspot', nilai: d.periodeLabel, jumlah: d.jumlahHotspot });
++  });
++
++  return {
++    labelKonteks: 'Karhutla — Kasus ISPA (SKDR) vs Titik Panas',
++    labelWilayah: wilayahKerjaBersih ?? 'Seluruh wilayah kerja SKDR',
++    labelPeriodeSaatIni: labelSaatIni,
++    labelPeriodeSebelumnya: `Minggu ${periodeDariSebelumnya}-${periodeSampaiSebelumnya} tahun ${tahun}`,
++    ringkasanSaatIni: {
++      total_kasus_ispa: totalKasusSaatIni,
++      jumlah_hotspot: totalHotspotSaatIni,
++      rata_rata_kasus_per_periode: panjang > 0 ? Math.round((totalKasusSaatIni / panjang) * 100) / 100 : 0,
++    },
++    ringkasanSebelumnya: {
++      total_kasus_ispa: totalKasusSebelumnya,
++      jumlah_hotspot: totalHotspotSebelumnya,
++    },
++    topKategori,
++  } as DataAnalisis;
+ }
+\ No newline at end of file
+-- 
+2.43.0
+

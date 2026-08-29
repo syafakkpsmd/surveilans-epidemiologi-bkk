@@ -3,10 +3,13 @@ import { ambilDataPranoto } from './pranoto';
 import { ambilDataSepinggan } from './sepinggan';
 import { DAFTAR_BANDARA, getMetaBandara } from './daftar';
 
-type PengambilData = () => Promise<{
+type HasilPengambilData = {
   kedatangan: JadwalRingkasAPT[];
   keberangkatan: JadwalRingkasAPT[];
-}>;
+  sumberData?: 'resmi' | 'opensky' | 'campuran' | 'tidak_tersedia'; // opsional -- adapter lama (sepinggan) belum mengisi ini
+};
+
+type PengambilData = () => Promise<HasilPengambilData>;
 
 const PENGAMBIL_DATA: Record<string, PengambilData> = {
   pranoto: ambilDataPranoto,

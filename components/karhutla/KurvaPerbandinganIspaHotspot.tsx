@@ -27,7 +27,7 @@ export default function KurvaPerbandinganIspaHotspot({
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-base font-semibold text-gray-900">
-          Perbandingan Kasus ISPA vs Jumlah Hotspot
+          Perbandingan Kasus ISPA dengan Jumlah Hotspot
         </h3>
         <span className="text-xs text-gray-500">
           Total: {totalKasus} kasus &middot; {totalHotspot} titik panas
@@ -49,7 +49,7 @@ export default function KurvaPerbandinganIspaHotspot({
             <Tooltip />
             <Legend />
 
-            <Bar yAxisId="kiri" dataKey="Kasus ISPA" fill="#F97316" radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="kiri" dataKey="Kasus ISPA" fill="#7E22CE" radius={[3, 3, 0, 0]} />
             <Line yAxisId="kanan" type="monotone" dataKey="Jumlah Hotspot" stroke="#DC2626" strokeWidth={2} dot={{ r: 3 }} />
           </ComposedChart>
         </ResponsiveContainer>

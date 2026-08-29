@@ -39,7 +39,7 @@ export default function GrafikHarianRentangKarhutla({
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-base font-semibold text-gray-900">
-          Grafik Harian: Kasus ISPA vs {labelParameter} vs Titik Api
+          Grafik Harian: Kasus ISPA dan {labelParameter} dengan Titik Api
         </h3>
         <span className="text-xs text-gray-500">
           Total {totalKasus} kasus &middot; {totalTitikApi} titik api &middot; {data.length} hari
@@ -62,8 +62,8 @@ export default function GrafikHarianRentangKarhutla({
             <Tooltip />
             <Legend />
 
-            <Bar yAxisId="kiri" dataKey="Kasus ISPA Anak" stackId="ispa" fill="#F97316" />
-            <Bar yAxisId="kiri" dataKey="Kasus ISPA Dewasa" stackId="ispa" fill="#FB923C" radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="kiri" dataKey="Kasus ISPA Anak" stackId="ispa" fill="#3B82F6" />
+            <Bar yAxisId="kiri" dataKey="Kasus ISPA Dewasa" stackId="ispa" fill="#93C5FD" radius={[3, 3, 0, 0]} />
             <Line yAxisId="kanan" type="monotone" dataKey={labelParameter} stroke="#7C3AED" strokeWidth={2} dot={{ r: 2 }} connectNulls />
             <Line yAxisId="kanan2" type="monotone" dataKey="Titik Api" stroke="#DC2626" strokeWidth={2} dot={{ r: 2 }} connectNulls />
           </ComposedChart>

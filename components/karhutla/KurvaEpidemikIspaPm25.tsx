@@ -27,7 +27,7 @@ export default function KurvaEpidemikIspaPm25({ data }: { data: TitikTrenIspa[] 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <h3 className="text-base font-semibold text-gray-900 mb-1">
-        Kurva Epidemik: Kasus ISPA vs PM2.5 vs Titik Api
+        Kurva Epidemik: Kasus ISPA dan PM2.5 dengan Titik Api
       </h3>
       <p className="text-xs text-gray-500 mb-3">
         Batang = jumlah kasus harian (sumbu kiri) &middot; Garis ungu = rerata PM2.5 &middot; Garis merah = jumlah titik api (keduanya sumbu kanan)
@@ -46,8 +46,8 @@ export default function KurvaEpidemikIspaPm25({ data }: { data: TitikTrenIspa[] 
             <Tooltip />
             <Legend />
 
-            <Bar yAxisId="kiri" dataKey="ISPA Anak" fill="#F97316" radius={[3, 3, 0, 0]} />
-            <Bar yAxisId="kiri" dataKey="ISPA Dewasa" fill="#FB923C" radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="kiri" dataKey="ISPA Anak" fill="#3B82F6" radius={[3, 3, 0, 0]} />
+            <Bar yAxisId="kiri" dataKey="ISPA Dewasa" fill="#93C5FD" radius={[3, 3, 0, 0]} />
 
             <Line yAxisId="kanan" type="monotone" dataKey="PM2.5 (µg/m³)" stroke="#7C3AED" strokeWidth={2} dot={{ r: 3 }} connectNulls />
             <Line yAxisId="kanan2" type="monotone" dataKey="Titik Api" stroke="#DC2626" strokeWidth={2} dot={{ r: 3 }} connectNulls />

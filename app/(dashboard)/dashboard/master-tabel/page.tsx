@@ -62,10 +62,10 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto max-w-350 space-y-5 px-4 py-6 md:px-6 md:py-8">
       <div>
-        <h1 className="text-xl font-bold text-[var(--color-navy)]">Master Tabel — Sanitasi &amp; Vektor</h1>
-        <p className="text-sm text-[var(--color-muted)]">
+        <h1 className="text-xl font-bold text-navy">Master Tabel — Sanitasi &amp; Vektor</h1>
+        <p className="text-sm text-muted">
           Rekap bulanan seluruh kegiatan sanitasi dan pengendalian vektor per wilayah kerja dalam satu tampilan.
         </p>
       </div>

@@ -96,6 +96,13 @@ export interface AmbilHotspotOpsi {
   confidenceMin?: number;
   /** bounding box custom, default Kaltim */
   bbox?: string;
+  /**
+   * Tanggal AWAL rentang (format YYYY-MM-DD), opsional.
+   * Kalau diisi: mengambil data [date] .. [date + dayRange-1] (histori).
+   * Kalau kosong: FIRMS mengembalikan data TERBARU mundur `dayRange` hari
+   * dari hari ini (perilaku default/NRT biasa).
+   */
+  date?: string;
 }
 
 /**
@@ -113,6 +120,7 @@ export async function ambilHotspotKaltim(
     dayRange = 1,
     confidenceMin = 80,
     bbox = BBOX_KALTIM,
+    date,
   } = opsi;
 
   const mapKey = process.env.NASA_FIRMS_MAP_KEY;
@@ -123,7 +131,11 @@ export async function ambilHotspotKaltim(
     );
   }
 
-  const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${bbox}/${dayRange}`;
+  // Format resmi: /api/area/csv/[MAP_KEY]/[SOURCE]/[AREA]/[DAY_RANGE]/[DATE]
+  // [DATE] opsional -- kalau diisi, hasilnya [DATE] .. [DATE + DAY_RANGE-1].
+  const url = date
+    ? `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${bbox}/${dayRange}/${date}`
+    : `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${bbox}/${dayRange}`;
 
   let response: Response;
   try {

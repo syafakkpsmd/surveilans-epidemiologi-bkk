@@ -80,6 +80,43 @@ export default function KarhutlaClient({
     }
   }
 
+  // --- Backfill histori hotspot (mis. "tarik dari awal Agustus") ---
+  const [backfillTerbuka, setBackfillTerbuka] = useState(false);
+  const [backfillBerjalan, setBackfillBerjalan] = useState(false);
+  const [backfillDari, setBackfillDari] = useState(() => {
+    const d = new Date();
+    d.setDate(1); // default: awal bulan berjalan
+    return d.toISOString().slice(0, 10);
+  });
+  const [backfillSampai, setBackfillSampai] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pesanBackfill, setPesanBackfill] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null);
+
+  async function jalankanBackfill() {
+    setBackfillBerjalan(true);
+    setPesanBackfill(null);
+    try {
+      const res = await fetch('/api/hotspot-karhutla/backfill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dariTanggal: backfillDari, sampaiTanggal: backfillSampai }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Gagal menarik histori hotspot.');
+      const adaGagal = (json.chunkGagal?.length ?? 0) > 0;
+      setPesanBackfill({
+        tipe: adaGagal ? 'error' : 'sukses',
+        teks: adaGagal
+          ? `${json.pesan} Rentang gagal: ${json.chunkGagal.map((c: any) => `${c.dari}–${c.sampai}`).join(', ')}`
+          : json.pesan,
+      });
+      router.refresh();
+    } catch (err) {
+      setPesanBackfill({ tipe: 'error', teks: (err as Error).message });
+    } finally {
+      setBackfillBerjalan(false);
+    }
+  }
+
   const [tren, setTren] = useState(trenAwal);
   const [filterWilayahKurva, setFilterWilayahKurva] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -203,6 +240,14 @@ export default function KarhutlaClient({
             {sinkronBerjalan ? '⏳ Menyinkronkan...' : '🔄 Sinkronisasi Hotspot Sekarang'}
           </button>
         )}
+        {isAdmin && (
+          <button
+            onClick={() => setBackfillTerbuka((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-100"
+          >
+            🕘 Tarik Histori Hotspot
+          </button>
+        )}
         <a
           href="/dashboard/karhutla/data"
           className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -210,6 +255,57 @@ export default function KarhutlaClient({
           📋 Lihat Semua Data &amp; Unduh Excel/CSV
         </a>
       </div>
+
+      {isAdmin && backfillTerbuka && (
+        <div className="rounded-md border border-sky-200 bg-sky-50/60 p-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-sky-900">Tarik histori hotspot dari NASA FIRMS</p>
+            <p className="text-xs text-sky-700 mt-0.5">
+              Untuk mengisi data lama yang belum tersimpan di cache (mis. dari awal Agustus). Ditarik per
+              10 hari (batas resmi FIRMS Area API), otomatis di-upsert jadi tidak akan menduplikasi data yang
+              sudah ada. Sumber near-real-time (MODIS_NRT) umumnya hanya menyimpan histori ~2 bulan terakhir.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Dari tanggal</label>
+              <input
+                type="date"
+                value={backfillDari}
+                onChange={(e) => setBackfillDari(e.target.value)}
+                className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Sampai tanggal</label>
+              <input
+                type="date"
+                value={backfillSampai}
+                onChange={(e) => setBackfillSampai(e.target.value)}
+                className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
+              />
+            </div>
+            <button
+              onClick={jalankanBackfill}
+              disabled={backfillBerjalan || backfillDari > backfillSampai}
+              className="inline-flex items-center gap-1.5 rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {backfillBerjalan ? '⏳ Menarik data...' : '⬇️ Tarik Sekarang'}
+            </button>
+          </div>
+          {pesanBackfill && (
+            <div
+              className={`rounded-md border px-3 py-2 text-sm ${
+                pesanBackfill.tipe === 'sukses'
+                  ? 'bg-green-50 border-green-200 text-green-700'
+                  : 'bg-red-50 border-red-200 text-red-700'
+              }`}
+            >
+              {pesanBackfill.teks}
+            </div>
+          )}
+        </div>
+      )}
 
       {pesanSinkron && (
         <div

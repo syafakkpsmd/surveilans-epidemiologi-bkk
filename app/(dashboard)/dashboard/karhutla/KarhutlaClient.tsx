@@ -249,6 +249,12 @@ export default function KarhutlaClient({
           </button>
         )}
         <a
+          href="/dashboard/karhutla/infografis"
+          className="inline-flex items-center gap-1.5 rounded-md border border-teal bg-teal px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+        >
+          🖼️ Info Grafis
+        </a>
+        <a
           href="/dashboard/karhutla/data"
           className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >

@@ -1,5 +1,13 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
+import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+import { NAMA_WILKER } from '@/lib/karhutla/constants';
+import {
+  petakanLokasiUdaraKeWilker,
+  cariWilkerTerdekatDariTitik,
+  DAFTAR_KODE_WILKER,
+  mundurkanTanggal,
+} from '@/lib/karhutla/infografis-utils';
 
 /**
  * Membangun filter Supabase .or() dari beberapa wilayahKey ("WK01" atau "WK01::Palaran").
@@ -647,4 +655,244 @@ export async function ambilTabelHotspot(hariTerakhir = 90): Promise<BarisTabelHo
 
   if (error) throw new Error(`Gagal mengambil data tabel hotspot: ${error.message}`);
   return data ?? [];
+}
+// ------------------------------------------------------------
+// Info Grafis Karhutla harian — ringkasan 1 hari untuk halaman
+// /dashboard/karhutla/infografis (poster yang bisa diunduh JPEG/PDF).
+// Menggabungkan ISPA, kualitas udara (PM2.5/ISPU), titik panas, dan
+// perbandingan SKDR mingguan — dipecah per wilayah kerja.
+// ------------------------------------------------------------
+
+export interface RingkasanWilker {
+  kode_wilker: string;
+  nama: string;
+  kasusIspaAnak: number;
+  kasusIspaDewasa: number;
+  jumlahHotspot: number;
+  pm25Rerata: number | null;
+  statusIspu: string | null;
+}
+
+export interface TitikTren7Hari {
+  tanggal: string;
+  totalIspa: number;
+  jumlahHotspot: number;
+}
+
+export interface RingkasanSkdrMingguan {
+  label: string;
+  totalKasus: number;
+}
+
+export interface RingkasanInfografisHarian {
+  tanggalDiminta: string;
+  tanggalDitampilkan: string; // bisa beda dari tanggalDiminta kalau fallback dipakai
+  pakaiFallback: boolean;
+  totalHotspot: number;
+  totalIspaAnak: number;
+  totalIspaDewasa: number;
+  pm25Rerata: number | null; // rerata regional (semua lokasi)
+  statusIspuDominan: string | null;
+  perWilker: RingkasanWilker[];
+  hotspotPoints: { latitude: number; longitude: number }[];
+  tren7Hari: TitikTren7Hari[];
+  skdrMingguIni: RingkasanSkdrMingguan;
+  skdrMingguLalu: RingkasanSkdrMingguan;
+}
+
+export async function ambilRingkasanInfografisHarian(
+  tanggalDiminta: string
+): Promise<RingkasanInfografisHarian> {
+  const supabase = await createClient();
+
+  // --- 1. Tentukan tanggal efektif: fallback ke tanggal terakhir yang ada
+  //        data kalau tanggal yang diminta masih kosong (mis. cron belum
+  //        sempat jalan / belum ada input manual hari itu). ---
+  const tanggalMulaiCek = mundurkanTanggal(tanggalDiminta, 13);
+  const [{ data: cekIspa }, { data: cekHotspot }] = await Promise.all([
+    supabase.from('ispa_harian').select('tanggal').gte('tanggal', tanggalMulaiCek).lte('tanggal', tanggalDiminta),
+    supabase
+      .from('hotspot_nasa_kaltim')
+      .select('tanggal_deteksi')
+      .gte('tanggal_deteksi', tanggalMulaiCek)
+      .lte('tanggal_deteksi', tanggalDiminta)
+      .gt('confidence', 80),
+  ]);
+
+  const tanggalTersedia = new Set<string>();
+  for (const b of cekIspa ?? []) tanggalTersedia.add(b.tanggal);
+  for (const b of cekHotspot ?? []) tanggalTersedia.add(b.tanggal_deteksi);
+
+  let tanggalDitampilkan = tanggalDiminta;
+  let pakaiFallback = false;
+  if (!tanggalTersedia.has(tanggalDiminta)) {
+    const terurut = Array.from(tanggalTersedia).sort().reverse();
+    if (terurut.length > 0) {
+      tanggalDitampilkan = terurut[0];
+      pakaiFallback = true;
+    }
+  }
+
+  // --- 2. Ambil data mentah untuk tanggal efektif ---
+  const [
+    { data: dataIspa, error: errIspa },
+    { data: dataUdara, error: errUdara },
+    { data: dataHotspot, error: errHotspot },
+  ] = await Promise.all([
+    supabase
+      .from('ispa_harian')
+      .select('kode_wilker, kasus_ispa_anak, kasus_ispa_dewasa')
+      .eq('tanggal', tanggalDitampilkan),
+    supabase.from('kualitas_udara_harian').select('lokasi, pm25, ispu_status').eq('tanggal', tanggalDitampilkan),
+    supabase
+      .from('hotspot_nasa_kaltim')
+      .select('latitude, longitude')
+      .eq('tanggal_deteksi', tanggalDitampilkan)
+      .gt('confidence', 80),
+  ]);
+
+  if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
+  if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
+  if (errHotspot) throw new Error(`Gagal mengambil data titik panas: ${errHotspot.message}`);
+
+  // --- 3. Susun breakdown per wilker (7 wilker, selalu lengkap walau 0) ---
+  const perWilkerMap = new Map<string, RingkasanWilker>();
+  for (const kode of DAFTAR_KODE_WILKER) {
+    perWilkerMap.set(kode, {
+      kode_wilker: kode,
+      nama: NAMA_WILKER[kode] ?? kode,
+      kasusIspaAnak: 0,
+      kasusIspaDewasa: 0,
+      jumlahHotspot: 0,
+      pm25Rerata: null,
+      statusIspu: null,
+    });
+  }
+
+  for (const b of dataIspa ?? []) {
+    const w = perWilkerMap.get(b.kode_wilker);
+    if (!w) continue; // kode_wilker di luar WK01-WK07 (jarang, tapi jaga-jaga)
+    w.kasusIspaAnak += b.kasus_ispa_anak;
+    w.kasusIspaDewasa += b.kasus_ispa_dewasa;
+  }
+
+  const akumulasiPm25 = new Map<string, { total: number; jml: number }>();
+  const statusIspuPerWilker = new Map<string, string>();
+  for (const b of dataUdara ?? []) {
+    const kode = petakanLokasiUdaraKeWilker(b.lokasi);
+    if (!kode || !perWilkerMap.has(kode)) continue;
+    if (b.pm25 != null) {
+      const e = akumulasiPm25.get(kode) ?? { total: 0, jml: 0 };
+      e.total += Number(b.pm25);
+      e.jml += 1;
+      akumulasiPm25.set(kode, e);
+    }
+    if (b.ispu_status && !statusIspuPerWilker.has(kode)) {
+      statusIspuPerWilker.set(kode, b.ispu_status);
+    }
+  }
+  for (const [kode, e] of akumulasiPm25) {
+    const w = perWilkerMap.get(kode);
+    if (w && e.jml > 0) w.pm25Rerata = Number((e.total / e.jml).toFixed(1));
+  }
+  for (const [kode, status] of statusIspuPerWilker) {
+    const w = perWilkerMap.get(kode);
+    if (w) w.statusIspu = status;
+  }
+
+  for (const b of dataHotspot ?? []) {
+    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude);
+    const w = perWilkerMap.get(kode);
+    if (w) w.jumlahHotspot += 1;
+  }
+
+  const perWilker = DAFTAR_KODE_WILKER.map((k) => perWilkerMap.get(k)!);
+
+  // --- 4. Total & rerata regional (semua lokasi, tanpa breakdown) ---
+  const totalIspaAnak = perWilker.reduce((s, w) => s + w.kasusIspaAnak, 0);
+  const totalIspaDewasa = perWilker.reduce((s, w) => s + w.kasusIspaDewasa, 0);
+  const totalHotspot = perWilker.reduce((s, w) => s + w.jumlahHotspot, 0);
+  const nilaiPm25Semua = (dataUdara ?? [])
+    .map((b) => b.pm25)
+    .filter((v): v is number => v != null)
+    .map(Number);
+  const pm25RerataRegional =
+    nilaiPm25Semua.length > 0
+      ? Number((nilaiPm25Semua.reduce((a, b) => a + b, 0) / nilaiPm25Semua.length).toFixed(1))
+      : null;
+  const statusIspuDominan = (dataUdara ?? []).find((b) => b.ispu_status)?.ispu_status ?? null;
+
+  // --- 5. Tren 7 hari terakhir (berakhir di tanggalDitampilkan) ---
+  const tanggalAwalTren = mundurkanTanggal(tanggalDitampilkan, 6);
+  const [{ data: trenIspa }, { data: trenHotspot }] = await Promise.all([
+    supabase
+      .from('ispa_harian')
+      .select('tanggal, kasus_ispa_anak, kasus_ispa_dewasa')
+      .gte('tanggal', tanggalAwalTren)
+      .lte('tanggal', tanggalDitampilkan),
+    supabase
+      .from('hotspot_nasa_kaltim')
+      .select('tanggal_deteksi')
+      .gte('tanggal_deteksi', tanggalAwalTren)
+      .lte('tanggal_deteksi', tanggalDitampilkan)
+      .gt('confidence', 80),
+  ]);
+
+  const mapTrenIspa = new Map<string, number>();
+  for (const b of trenIspa ?? []) {
+    mapTrenIspa.set(b.tanggal, (mapTrenIspa.get(b.tanggal) ?? 0) + b.kasus_ispa_anak + b.kasus_ispa_dewasa);
+  }
+  const mapTrenHotspot = new Map<string, number>();
+  for (const b of trenHotspot ?? []) {
+    mapTrenHotspot.set(b.tanggal_deteksi, (mapTrenHotspot.get(b.tanggal_deteksi) ?? 0) + 1);
+  }
+  const tren7Hari: TitikTren7Hari[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const tgl = mundurkanTanggal(tanggalDitampilkan, i);
+    tren7Hari.push({
+      tanggal: tgl,
+      totalIspa: mapTrenIspa.get(tgl) ?? 0,
+      jumlahHotspot: mapTrenHotspot.get(tgl) ?? 0,
+    });
+  }
+
+  // --- 6. Perbandingan SKDR mingguan: minggu berjalan vs minggu lalu,
+  //        dihitung dari minggu epidemiologi tanggalDitampilkan. ---
+  const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(new Date(`${tanggalDitampilkan}T00:00:00Z`));
+  const mingguLaluEpid = mingguEpid > 1 ? mingguEpid - 1 : 52;
+  const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
+
+  const [skdrIni, skdrLalu] = await Promise.all([
+    supabase
+      .from('skdr_mingguan')
+      .select('jumlah_kasus')
+      .eq('tahun_epid', tahunEpid)
+      .eq('minggu_epid', mingguEpid)
+      .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID),
+    supabase
+      .from('skdr_mingguan')
+      .select('jumlah_kasus')
+      .eq('tahun_epid', tahunMingguLalu)
+      .eq('minggu_epid', mingguLaluEpid)
+      .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID),
+  ]);
+
+  const totalSkdrIni = (skdrIni.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
+  const totalSkdrLalu = (skdrLalu.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
+
+  return {
+    tanggalDiminta,
+    tanggalDitampilkan,
+    pakaiFallback,
+    totalHotspot,
+    totalIspaAnak,
+    totalIspaDewasa,
+    pm25Rerata: pm25RerataRegional,
+    statusIspuDominan,
+    perWilker,
+    hotspotPoints: (dataHotspot ?? []).map((b) => ({ latitude: b.latitude, longitude: b.longitude })),
+    tren7Hari,
+    skdrMingguIni: { label: `Mg ${mingguEpid}/${tahunEpid}`, totalKasus: totalSkdrIni },
+    skdrMingguLalu: { label: `Mg ${mingguLaluEpid}/${tahunMingguLalu}`, totalKasus: totalSkdrLalu },
+  };
 }

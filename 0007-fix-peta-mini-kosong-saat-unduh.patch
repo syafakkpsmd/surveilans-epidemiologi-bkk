@@ -1,0 +1,42 @@
+From e5ef6c42d748b1a959d781cc6b6ab982ab6ce860 Mon Sep 17 00:00:00 2001
+From: "Syafa (via Claude)" <syafa@bkksmd.local>
+Date: Sun, 30 Aug 2026 05:45:39 +0000
+Subject: [PATCH] fix(karhutla): peta mini hotspot kosong saat diekspor
+ JPEG/PDF
+
+SVG di PetaMiniHotspot pakai width/height="100%" (relatif ke elemen
+induk) -- ini gagal ter-capture html-to-image krn proses clone DOM
+offscreen tidak selalu mewarisi ukuran relatif tsb (isu umum di
+html-to-image/html2canvas dgn SVG persentase).
+
+Fix: svg dikasih width/height PIKSEL EKSPLISIT (480x620, sesuai
+viewBox) sbg atribut HTML, sementara ukuran tampilan di layar tetap
+pakai CSS width/height 100% (terpisah). Tampilan on-screen tidak
+berubah, cuma bikin html-to-image bisa 'lihat' ukuran asli SVG saat
+capture.
+---
+ components/karhutla/infografis/PetaMiniHotspot.tsx | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/components/karhutla/infografis/PetaMiniHotspot.tsx b/components/karhutla/infografis/PetaMiniHotspot.tsx
+index 6eb1602..38c891b 100644
+--- a/components/karhutla/infografis/PetaMiniHotspot.tsx
++++ b/components/karhutla/infografis/PetaMiniHotspot.tsx
+@@ -45,7 +45,13 @@ export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMi
+   const proyeksi = buatProyeksi(hotspots);
+ 
+   return (
+-    <svg viewBox={`0 0 ${LEBAR} ${TINGGI}`} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
++    <svg
++      viewBox={`0 0 ${LEBAR} ${TINGGI}`}
++      width={LEBAR}
++      height={TINGGI}
++      style={{ width: '100%', height: '100%', display: 'block' }}
++      xmlns="http://www.w3.org/2000/svg"
++    >
+       <rect x={0} y={0} width={LEBAR} height={TINGGI} rx={12} fill="#eaf3f1" />
+       <rect x={4} y={4} width={LEBAR - 8} height={TINGGI - 8} rx={10} fill="none" stroke="#c3d9d5" strokeWidth={1.5} />
+ 
+-- 
+2.43.0
+

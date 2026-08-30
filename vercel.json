@@ -1,5 +1,5 @@
 {
   "crons": [
-    { "path": "/api/hotspot-karhutla", "schedule": "0 0 * * *" }
+    { "path": "/api/cron/hotspot-karhutla", "schedule": "0 0 * * *" }
   ]
 }

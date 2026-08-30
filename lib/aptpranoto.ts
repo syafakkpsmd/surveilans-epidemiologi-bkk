@@ -1,123 +1,130 @@
 // src/lib/aptpranoto.ts
 // Integrasi endpoint publik resmi APT Pranoto Airport (aptpairport.id)
-// Ditemukan via DevTools Network tab -- endpoint yang dipakai situs resminya sendiri.
-// CATATAN: ini endpoint tidak resmi/tidak didokumentasikan publik oleh pihak bandara,
-// jadi bisa berubah sewaktu-waktu tanpa pemberitahuan. Selalu bungkus dengan try-catch
-// dan siapkan fallback (misal ke data manual/Supabase) kalau endpoint ini gagal/berubah.
 //
-// PENTING: endpoint ini hanya berisi jadwal APT Pranoto (Samarinda).
-// bandara_asal/bandara_tujuan adalah kota rute, BUKAN live board independen bandara lain.
+// RIWAYAT: situs resminya di-rebuild total ke "AIAIS Portal v2.0.0" (~Agustus 2026).
+// Endpoint lama yang diasumsikan di sini sebelumnya (/api/arrivals, /api/departures,
+// bentuk {success, data:[...]}) SUDAH TIDAK ADA -- itu sebabnya papan jadwal sempat
+// kosong ("Menunggu integrasi sumber data"). Endpoint yang benar sekarang dikonfirmasi
+// via DevTools Network tab (tab Jaringan > Fetch/XHR) langsung dari halaman publik
+// https://aptpairport.id/flights pada 30 Agustus 2026:
+//
+//   GET https://aptpairport.id/api/v2/flights
+//   -> { success, message, data: { flights: [...] } }
+//
+// Satu array 'flights' berisi GABUNGAN kedatangan & keberangkatan (dibedakan lewat
+// field flight_type: 'arrival' | 'departure'), dan mencakup lebih dari satu tanggal
+// (hari ini + beberapa hari ke belakang) -- karena itu kita filter ke tanggal hari
+// ini (WITA) di sisi kita sebelum ditampilkan.
+//
+// CATATAN: ini tetap endpoint tidak resmi/tidak didokumentasikan publik oleh pihak
+// bandara, jadi bisa berubah lagi sewaktu-waktu tanpa pemberitahuan. Selalu bungkus
+// dengan try-catch dan pertahankan fallback OpenSky (lib/opensky.ts) kalau endpoint
+// ini gagal/berubah struktur lagi.
 
-const APT_PRANOTO_BASE = 'https://aptpairport.id/api';
-const LOGO_BASE_URL = 'https://aptpairport.id/api/image-proxy';
+const APT_PRANOTO_FLIGHTS_URL = 'https://aptpairport.id/api/v2/flights';
 
-type MaskapaiAPT = {
-  id: number;
-  nama: string;
-  logo: string;
-  kode_warna: string;
+type FlightTypeAPT = 'arrival' | 'departure';
+
+// Nilai 'status' mentah yang teramati dari API (mesin-terbaca, buat pemetaan kategori).
+// Daftar ini tidak dijamin lengkap -- kalau ada nilai baru yang tidak dikenal,
+// kategoriStatus() jatuh ke 'ontime' drpd menebak salah.
+type StatusMentahAPT =
+  | 'scheduled'
+  | 'check_in'
+  | 'boarding'
+  | 'gate_closed'
+  | 'landed'
+  | 'departed'
+  | 'delayed'
+  | 'cancelled'
+  | (string & {});
+
+export type FlightAPT = {
+  id: string; // mis. "arr_1878", "dep_1857"
+  flight_number: string;
+  airline: string;
+  airline_logo: string; // URL absolut lengkap, siap pakai langsung
+  airline_code: string;
+  airline_color: string;
+  origin: string; // mis. "Juanda (SUB)"
+  destination: string; // mis. "Samarinda (AAP)"
+  origin_city: string;
+  destination_city: string;
+  flight_date: string; // "YYYY-MM-DD"
+  scheduled_time: string; // mis. "09:35 WITA"
+  estimated_time: string | null;
+  terminal: string | null;
+  gate: string | null;
+  baggage_belt: number | null;
+  checkin_counters: number[];
+  flight_type: FlightTypeAPT;
+  status: StatusMentahAPT;
+  remarks: string; // mis. "Arrived", "Scheduled", "Gate Open", "Cancelled" -- teks siap tampil
+  delay_reason: string | null;
+  note: string | null;
+  updated_at: string;
 };
 
-type PesawatAPT = {
-  id: number;
-  kode_penerbangan: string;
-  jenis: string;
-  tipe: string;
-};
-
-type RemarkAPT = {
-  id: number;
-  status: string; // "Arrived On-Time" | "Estimate" | "Check In Open" | "Scheduled" | dll
-  jenis: string;
-  is_aktif: string;
-};
-
-type BandaraAPT = {
-  id: number;
-  nama: string;
-  iata: string;
-  kota_provinsi: string;
-};
-
-type GateAPT = {
-  id: number;
-  nama: string; // mis. "A1", "B1"
-  urutan: number;
-};
-
-export type JadwalKedatanganAPT = {
-  id: number;
-  tanggal: string;
-  jam: string;
-  conveyor: number;
-  maskapai: MaskapaiAPT;
-  pesawat: PesawatAPT;
-  remark: RemarkAPT;
-  bandara_asal: BandaraAPT;
-};
-
-export type JadwalKeberangkatanAPT = {
-  id: number;
-  tanggal: string;
-  jam: string;
-  konter: number;
-  konter2: number;
-  konter3: number;
-  gate: GateAPT;
-  maskapai: MaskapaiAPT;
-  pesawat: PesawatAPT;
-  remark: RemarkAPT;
-  bandara_tujuan: BandaraAPT;
-};
-
-type ResponseAPT<T> = {
+type ResponseFlightsAPT = {
   success: boolean;
-  data: T[];
+  message?: string;
+  data: { flights: FlightAPT[] };
 };
 
-async function fetchAPT<T>(endpoint: string): Promise<T[]> {
-  const res = await fetch(`${APT_PRANOTO_BASE}/${endpoint}`, {
+async function fetchSemuaFlightsAPT(): Promise<FlightAPT[]> {
+  const res = await fetch(APT_PRANOTO_FLIGHTS_URL, {
     next: { revalidate: 60 }, // cache 60 detik -- data ini update per menit di sumbernya
   });
 
   if (!res.ok) {
-    throw new Error(`APT Pranoto API error (${endpoint}): ${res.status} ${res.statusText}`);
+    throw new Error(`APT Pranoto API error (flights): ${res.status} ${res.statusText}`);
   }
 
-  const json: ResponseAPT<T> = await res.json();
+  const json: ResponseFlightsAPT = await res.json();
 
   if (!json.success) {
-    throw new Error(`APT Pranoto API mengembalikan success: false (${endpoint})`);
+    throw new Error('APT Pranoto API mengembalikan success: false (flights)');
   }
 
-  return json.data;
+  return json.data.flights;
 }
 
-export async function getKedatanganAPT(): Promise<JadwalKedatanganAPT[]> {
-  return fetchAPT<JadwalKedatanganAPT>('arrivals');
+/** Tanggal hari ini dalam format "YYYY-MM-DD", di zona waktu WITA -- supaya cocok dengan field flight_date dari API, terlepas dari zona waktu server yang menjalankan kode ini. */
+function tanggalHariIniWITA(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Makassar' });
 }
 
-export async function getKeberangkatanAPT(): Promise<JadwalKeberangkatanAPT[]> {
-  return fetchAPT<JadwalKeberangkatanAPT>('departures');
+export async function getKedatanganAPT(): Promise<FlightAPT[]> {
+  const semua = await fetchSemuaFlightsAPT();
+  const hariIni = tanggalHariIniWITA();
+  return semua.filter((f) => f.flight_type === 'arrival' && f.flight_date === hariIni);
+}
+
+export async function getKeberangkatanAPT(): Promise<FlightAPT[]> {
+  const semua = await fetchSemuaFlightsAPT();
+  const hariIni = tanggalHariIniWITA();
+  return semua.filter((f) => f.flight_type === 'departure' && f.flight_date === hariIni);
 }
 
 // ---------------------------------------------------------------------
-// Helper logo & status
+// Helper kota/IATA & status
 // ---------------------------------------------------------------------
 
-export function urlLogoMaskapai(namaFileLogo: string): string {
-  if (!namaFileLogo) return '';
-  return `${LOGO_BASE_URL}/${namaFileLogo}`;
+/** Ekstrak kode IATA dari string rute API, mis. "Juanda (SUB)" -> "SUB". */
+function ekstrakIATA(namaBandara: string): string {
+  const m = namaBandara.match(/\(([A-Z0-9-]+)\)\s*$/);
+  return m ? m[1] : '-';
 }
 
 export type KategoriStatus = 'landed' | 'delayed' | 'boarding' | 'ontime';
 
+/** Pemetaan dari 'status' mentah API (mesin-terbaca) ke kategori warna badge UI. */
 export function kategoriStatus(status: string): KategoriStatus {
   const s = status.toLowerCase();
-  if (s.includes('delay')) return 'delayed';
-  if (s.includes('boarding') || s.includes('check in')) return 'boarding';
-  if (s.includes('landed') || s.includes('departured') || s.includes('arrived')) return 'landed';
-  return 'ontime';
+  if (s === 'landed' || s === 'departed') return 'landed';
+  if (s === 'cancelled' || s === 'delayed') return 'delayed';
+  if (s === 'check_in' || s === 'boarding' || s === 'gate_closed') return 'boarding';
+  return 'ontime'; // termasuk 'scheduled' dan nilai tidak dikenal lainnya
 }
 
 // ---------------------------------------------------------------------
@@ -141,32 +148,34 @@ export type JadwalRingkasAPT = {
   sumberData?: 'resmi' | 'opensky'; // 'opensky' = data fallback, lihat lib/opensky.ts untuk keterbatasannya
 };
 
-export function ringkasKedatanganAPT(data: JadwalKedatanganAPT[]): JadwalRingkasAPT[] {
+export function ringkasKedatanganAPT(data: FlightAPT[]): JadwalRingkasAPT[] {
   return data.map((item) => ({
     id: item.id,
-    jam: item.jam,
-    kodePenerbangan: item.pesawat.kode_penerbangan,
-    namaMaskapai: item.maskapai.nama,
-    logoMaskapai: urlLogoMaskapai(item.maskapai.logo),
-    status: item.remark.status,
-    kota: item.bandara_asal.kota_provinsi,
-    iata: item.bandara_asal.iata,
+    jam: item.scheduled_time.replace(/\s*WITA$/i, ''),
+    kodePenerbangan: item.flight_number,
+    namaMaskapai: item.airline,
+    logoMaskapai: item.airline_logo ?? '',
+    status: item.remarks,
+    kota: item.origin_city,
+    iata: ekstrakIATA(item.origin),
+    kategori: kategoriStatus(item.status),
     sumberData: 'resmi',
   }));
 }
 
-export function ringkasKeberangkatanAPT(data: JadwalKeberangkatanAPT[]): JadwalRingkasAPT[] {
+export function ringkasKeberangkatanAPT(data: FlightAPT[]): JadwalRingkasAPT[] {
   return data.map((item) => ({
     id: item.id,
-    jam: item.jam,
-    kodePenerbangan: item.pesawat.kode_penerbangan,
-    namaMaskapai: item.maskapai.nama,
-    logoMaskapai: urlLogoMaskapai(item.maskapai.logo),
-    status: item.remark.status,
-    kota: item.bandara_tujuan.kota_provinsi,
-    iata: item.bandara_tujuan.iata,
-    gate: item.gate?.nama,
-    konter: item.konter,
+    jam: item.scheduled_time.replace(/\s*WITA$/i, ''),
+    kodePenerbangan: item.flight_number,
+    namaMaskapai: item.airline,
+    logoMaskapai: item.airline_logo ?? '',
+    status: item.remarks,
+    kota: item.destination_city,
+    iata: ekstrakIATA(item.destination),
+    gate: item.gate ?? undefined,
+    konter: item.checkin_counters[0],
+    kategori: kategoriStatus(item.status),
     sumberData: 'resmi',
   }));
 }

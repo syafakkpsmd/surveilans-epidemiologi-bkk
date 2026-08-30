@@ -1,0 +1,65 @@
+From fd9dc7bdecdd1dc5aa1f10a403cc73c0511c03c2 Mon Sep 17 00:00:00 2001
+From: "Syafa (via Claude)" <syafa@bkksmd.local>
+Date: Sun, 30 Aug 2026 06:05:26 +0000
+Subject: [PATCH] feat(karhutla): label peta mini pakai nama wilayah, bukan
+ kode WK
+
+Marker di peta mini info grafis sebelumnya berlabel kode (WK01, WK07,
+dst) -- diganti nama wilayah (Samarinda, APT Pranoto, dst) pakai
+NAMA_WILKER yang sudah ada di lib/karhutla/constants.ts, supaya lebih
+gampang dibaca orang awam/publik.
+
+Nama wilayah lebih panjang dari kode, jadi ditambah logika anti-
+overflow: marker yang posisinya dekat tepi kanan SVG (Sangkulirang)
+otomatis membalik label ke kiri, supaya teks tidak kepotong tepi peta.
+Sudah disimulasikan manual -- semua 7 label sekarang berada dalam
+batas 0-480px.
+---
+ .../karhutla/infografis/PetaMiniHotspot.tsx       | 15 +++++++++++----
+ 1 file changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/components/karhutla/infografis/PetaMiniHotspot.tsx b/components/karhutla/infografis/PetaMiniHotspot.tsx
+index 38c891b..d2f3c93 100644
+--- a/components/karhutla/infografis/PetaMiniHotspot.tsx
++++ b/components/karhutla/infografis/PetaMiniHotspot.tsx
+@@ -1,4 +1,5 @@
+ import { WILKER_LOKASI } from '@/lib/data/wilker-lokasi';
++import { NAMA_WILKER } from '@/lib/karhutla/constants';
+ 
+ /**
+  * Peta mini titik panas — SENGAJA pakai SVG statis buram-manual, BUKAN
+@@ -61,21 +62,27 @@ export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMi
+         return <circle key={i} cx={x} cy={y} r={5} fill="#d62839" fillOpacity={0.55} stroke="#d62839" strokeWidth={0.5} />;
+       })}
+ 
+-      {/* Marker wilayah kerja */}
++      {/* Marker wilayah kerja — label pakai nama (Samarinda, APT Pranoto, dst),
++          bukan kode WK01/WK07, supaya lebih gampang dibaca orang awam. */}
+       {WILKER_LOKASI.map((w) => {
+         const { x, y } = proyeksi(w.pusat.lat, w.pusat.lng);
++        const nama = NAMA_WILKER[w.kode] ?? w.kode;
++        // Marker dekat tepi kanan (mis. Sangkulirang) -> label dibalik ke kiri
++        // supaya teks nama yang lebih panjang dari kode tidak kepotong tepi SVG.
++        const dekatTepiKanan = x > LEBAR - 130;
+         return (
+           <g key={w.kode}>
+             <circle cx={x} cy={y} r={7} fill="#0f2a38" stroke="#ffffff" strokeWidth={2} />
+             <text
+-              x={x + 11}
++              x={dekatTepiKanan ? x - 11 : x + 11}
+               y={y + 4}
+-              fontSize={13}
++              textAnchor={dekatTepiKanan ? 'end' : 'start'}
++              fontSize={12}
+               fontWeight={700}
+               fill="#0f2a38"
+               style={{ paintOrder: 'stroke', stroke: '#eaf3f1', strokeWidth: 3 }}
+             >
+-              {w.kode}
++              {nama}
+             </text>
+           </g>
+         );
+-- 
+2.43.0
+

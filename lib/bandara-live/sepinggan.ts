@@ -83,10 +83,13 @@ function kategoriStatusSepinggan(status: string): KategoriStatus {
   return 'ontime'; // Scheduled, Estimate, Perkiraan, dll
 }
 
-// Hash sederhana buat bikin id numerik stabil dari flightno + jadwal
-// (API-nya tidak menyediakan field id)
-function buatId(flightno: string, schedule: string): number {
-  const str = `${flightno}-${schedule}`;
+// Hash sederhana buat bikin id numerik stabil dari beberapa field baris
+// (API-nya tidak menyediakan field id). Menyertakan arrdep + airportcode
+// selain flightno+schedule -- supaya baris arr & dept, atau baris domestik
+// & internasional, yang kebetulan py flightno+schedule sama tidak collide
+// jadi id yang sama persis.
+function buatId(baris: BarisSepinggan): number {
+  const str = `${baris.flightno}-${baris.schedule}-${baris.arrdep}-${baris.airportcode}-${baris.domint}`;
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = (hash << 5) - hash + str.charCodeAt(i);
@@ -108,7 +111,7 @@ function ringkas(baris: BarisSepinggan[]): JadwalRingkasAPT[] {
     // aktifnya) -- disembunyikan supaya tidak bikin daftar dobel/membingungkan
     .filter((item) => !item.flightstat.toLowerCase().includes('not operating'))
     .map((item) => ({
-      id: buatId(item.flightno, item.schedule),
+      id: buatId(item),
       jam: jamTampil(item),
       kodePenerbangan: item.flightno,
       namaMaskapai: namaMaskapai(item.operator),

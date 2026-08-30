@@ -1,0 +1,353 @@
+From e5751ccd1dd2644fb0271ea98dc13236f8b78aed Mon Sep 17 00:00:00 2001
+From: "Syafa (via Claude)" <syafa@bkksamarinda.local>
+Date: Sun, 30 Aug 2026 00:03:50 +0000
+Subject: [PATCH] feat: tarik histori hotspot NASA FIRMS untuk rentang tanggal
+ masa lalu (backfill)
+
+- lib/nasa-firms/fetchHotspot.ts: ambilHotspotKaltim() sekarang
+  menerima opsi 'date' (tanggal awal, opsional) sesuai parameter resmi
+  FIRMS Area API (/api/area/csv/.../[DAY_RANGE]/[DATE] -> data
+  [DATE]..[DATE+DAY_RANGE-1]), supaya bisa ambil data histori, bukan
+  cuma 'N hari terakhir dari hari ini'
+- lib/nasa-firms/syncHotspot.ts: fungsi baru backfillHotspotKaltim()
+  -- pecah rentang tanggal jadi chunk maks 10 hari (batas resmi FIRMS
+  Area API), tiap chunk langsung di-upsert (bukan dikumpulkan di
+  memori) supaya chunk yang gagal tidak menghilangkan chunk lain yang
+  sudah berhasil; hasil akhir melaporkan rentang mana saja yang gagal
+- Route baru POST /api/hotspot-karhutla/backfill (admin-only, body
+  {dariTanggal, sampaiTanggal})
+- UI: tombol '\ud83d\udd58 Tarik Histori Hotspot' (admin-only) di halaman
+  Karhutla, buka panel input tanggal awal/akhir + tombol tarik,
+  menampilkan hasil/rentang yang gagal kalau ada
+- Catatan retensi: source MODIS_NRT (dipakai konsisten dengan sync
+  harian) umumnya hanya simpan ~2 bulan histori; untuk data lebih tua
+  perlu ganti ke MODIS_SP (Standard Processing/arsip)
+---
+ .../dashboard/karhutla/KarhutlaClient.tsx     |  96 ++++++++++++++++
+ app/api/hotspot-karhutla/backfill/route.ts    |  38 +++++++
+ lib/nasa-firms/fetchHotspot.ts                |  14 ++-
+ lib/nasa-firms/syncHotspot.ts                 | 103 ++++++++++++++++++
+ 4 files changed, 250 insertions(+), 1 deletion(-)
+ create mode 100644 app/api/hotspot-karhutla/backfill/route.ts
+
+diff --git a/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx b/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx
+index 260c934..3b01eaa 100644
+--- a/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx
++++ b/app/(dashboard)/dashboard/karhutla/KarhutlaClient.tsx
+@@ -80,6 +80,43 @@ export default function KarhutlaClient({
+     }
+   }
+ 
++  // --- Backfill histori hotspot (mis. "tarik dari awal Agustus") ---
++  const [backfillTerbuka, setBackfillTerbuka] = useState(false);
++  const [backfillBerjalan, setBackfillBerjalan] = useState(false);
++  const [backfillDari, setBackfillDari] = useState(() => {
++    const d = new Date();
++    d.setDate(1); // default: awal bulan berjalan
++    return d.toISOString().slice(0, 10);
++  });
++  const [backfillSampai, setBackfillSampai] = useState(() => new Date().toISOString().slice(0, 10));
++  const [pesanBackfill, setPesanBackfill] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null);
++
++  async function jalankanBackfill() {
++    setBackfillBerjalan(true);
++    setPesanBackfill(null);
++    try {
++      const res = await fetch('/api/hotspot-karhutla/backfill', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ dariTanggal: backfillDari, sampaiTanggal: backfillSampai }),
++      });
++      const json = await res.json();
++      if (!res.ok) throw new Error(json.error ?? 'Gagal menarik histori hotspot.');
++      const adaGagal = (json.chunkGagal?.length ?? 0) > 0;
++      setPesanBackfill({
++        tipe: adaGagal ? 'error' : 'sukses',
++        teks: adaGagal
++          ? `${json.pesan} Rentang gagal: ${json.chunkGagal.map((c: any) => `${c.dari}–${c.sampai}`).join(', ')}`
++          : json.pesan,
++      });
++      router.refresh();
++    } catch (err) {
++      setPesanBackfill({ tipe: 'error', teks: (err as Error).message });
++    } finally {
++      setBackfillBerjalan(false);
++    }
++  }
++
+   const [tren, setTren] = useState(trenAwal);
+   const [filterWilayahKurva, setFilterWilayahKurva] = useState<string[]>([]);
+   const [isPending, startTransition] = useTransition();
+@@ -203,6 +240,14 @@ export default function KarhutlaClient({
+             {sinkronBerjalan ? '⏳ Menyinkronkan...' : '🔄 Sinkronisasi Hotspot Sekarang'}
+           </button>
+         )}
++        {isAdmin && (
++          <button
++            onClick={() => setBackfillTerbuka((v) => !v)}
++            className="inline-flex items-center gap-1.5 rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 hover:bg-sky-100"
++          >
++            🕘 Tarik Histori Hotspot
++          </button>
++        )}
+         <a
+           href="/dashboard/karhutla/data"
+           className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+@@ -211,6 +256,57 @@ export default function KarhutlaClient({
+         </a>
+       </div>
+ 
++      {isAdmin && backfillTerbuka && (
++        <div className="rounded-md border border-sky-200 bg-sky-50/60 p-4 space-y-3">
++          <div>
++            <p className="text-sm font-medium text-sky-900">Tarik histori hotspot dari NASA FIRMS</p>
++            <p className="text-xs text-sky-700 mt-0.5">
++              Untuk mengisi data lama yang belum tersimpan di cache (mis. dari awal Agustus). Ditarik per
++              10 hari (batas resmi FIRMS Area API), otomatis di-upsert jadi tidak akan menduplikasi data yang
++              sudah ada. Sumber near-real-time (MODIS_NRT) umumnya hanya menyimpan histori ~2 bulan terakhir.
++            </p>
++          </div>
++          <div className="flex flex-wrap items-end gap-3">
++            <div>
++              <label className="block text-xs font-medium text-gray-600 mb-1">Dari tanggal</label>
++              <input
++                type="date"
++                value={backfillDari}
++                onChange={(e) => setBackfillDari(e.target.value)}
++                className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
++              />
++            </div>
++            <div>
++              <label className="block text-xs font-medium text-gray-600 mb-1">Sampai tanggal</label>
++              <input
++                type="date"
++                value={backfillSampai}
++                onChange={(e) => setBackfillSampai(e.target.value)}
++                className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
++              />
++            </div>
++            <button
++              onClick={jalankanBackfill}
++              disabled={backfillBerjalan || backfillDari > backfillSampai}
++              className="inline-flex items-center gap-1.5 rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-60 disabled:cursor-not-allowed"
++            >
++              {backfillBerjalan ? '⏳ Menarik data...' : '⬇️ Tarik Sekarang'}
++            </button>
++          </div>
++          {pesanBackfill && (
++            <div
++              className={`rounded-md border px-3 py-2 text-sm ${
++                pesanBackfill.tipe === 'sukses'
++                  ? 'bg-green-50 border-green-200 text-green-700'
++                  : 'bg-red-50 border-red-200 text-red-700'
++              }`}
++            >
++              {pesanBackfill.teks}
++            </div>
++          )}
++        </div>
++      )}
++
+       {pesanSinkron && (
+         <div
+           className={`rounded-md border px-3 py-2 text-sm ${
+diff --git a/app/api/hotspot-karhutla/backfill/route.ts b/app/api/hotspot-karhutla/backfill/route.ts
+new file mode 100644
+index 0000000..5cc95e3
+--- /dev/null
++++ b/app/api/hotspot-karhutla/backfill/route.ts
+@@ -0,0 +1,38 @@
++import { NextRequest, NextResponse } from 'next/server';
++import { getUserRole } from '@/lib/auth/get-user-role';
++import { backfillHotspotKaltim } from '@/lib/nasa-firms/syncHotspot';
++
++/**
++ * POST /api/hotspot-karhutla/backfill
++ *   -> tarik histori hotspot NASA FIRMS untuk rentang tanggal masa lalu
++ *      (mis. "dari 1 Agustus sampai hari ini") + upsert ke cache Supabase.
++ *      Body JSON: { dariTanggal: 'YYYY-MM-DD', sampaiTanggal: 'YYYY-MM-DD' }
++ *      Admin-only -- endpoint ini bisa memicu banyak request ke FIRMS API
++ *      sekaligus (1 request per 10 hari), jadi lebih ketat daripada sync
++ *      biasa (yang cuma tarik 3 hari terakhir).
++ */
++export async function POST(request: NextRequest) {
++  try {
++    const role = await getUserRole();
++    if (role !== 'admin') {
++      return NextResponse.json({ error: 'Hanya admin yang boleh menjalankan backfill histori hotspot.' }, { status: 403 });
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const dariTanggal = typeof body.dariTanggal === 'string' ? body.dariTanggal : null;
++    const sampaiTanggal = typeof body.sampaiTanggal === 'string' ? body.sampaiTanggal : null;
++
++    if (!dariTanggal || !sampaiTanggal) {
++      return NextResponse.json({ error: 'dariTanggal dan sampaiTanggal wajib diisi (format YYYY-MM-DD).' }, { status: 400 });
++    }
++
++    const hasil = await backfillHotspotKaltim(dariTanggal, sampaiTanggal);
++    return NextResponse.json(hasil);
++  } catch (err) {
++    console.error('[hotspot-karhutla/backfill][POST]', err);
++    return NextResponse.json(
++      { error: 'Gagal menjalankan backfill histori hotspot.', detail: (err as Error).message },
++      { status: 500 }
++    );
++  }
++}
+diff --git a/lib/nasa-firms/fetchHotspot.ts b/lib/nasa-firms/fetchHotspot.ts
+index 94dfb1e..d490781 100644
+--- a/lib/nasa-firms/fetchHotspot.ts
++++ b/lib/nasa-firms/fetchHotspot.ts
+@@ -96,6 +96,13 @@ export interface AmbilHotspotOpsi {
+   confidenceMin?: number;
+   /** bounding box custom, default Kaltim */
+   bbox?: string;
++  /**
++   * Tanggal AWAL rentang (format YYYY-MM-DD), opsional.
++   * Kalau diisi: mengambil data [date] .. [date + dayRange-1] (histori).
++   * Kalau kosong: FIRMS mengembalikan data TERBARU mundur `dayRange` hari
++   * dari hari ini (perilaku default/NRT biasa).
++   */
++  date?: string;
+ }
+ 
+ /**
+@@ -113,6 +120,7 @@ export async function ambilHotspotKaltim(
+     dayRange = 1,
+     confidenceMin = 80,
+     bbox = BBOX_KALTIM,
++    date,
+   } = opsi;
+ 
+   const mapKey = process.env.NASA_FIRMS_MAP_KEY;
+@@ -123,7 +131,11 @@ export async function ambilHotspotKaltim(
+     );
+   }
+ 
+-  const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${bbox}/${dayRange}`;
++  // Format resmi: /api/area/csv/[MAP_KEY]/[SOURCE]/[AREA]/[DAY_RANGE]/[DATE]
++  // [DATE] opsional -- kalau diisi, hasilnya [DATE] .. [DATE + DAY_RANGE-1].
++  const url = date
++    ? `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${bbox}/${dayRange}/${date}`
++    : `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${mapKey}/${source}/${bbox}/${dayRange}`;
+ 
+   let response: Response;
+   try {
+diff --git a/lib/nasa-firms/syncHotspot.ts b/lib/nasa-firms/syncHotspot.ts
+index fecc6cd..8b0f49e 100644
+--- a/lib/nasa-firms/syncHotspot.ts
++++ b/lib/nasa-firms/syncHotspot.ts
+@@ -2,6 +2,109 @@
+ import { createAdminClient } from '@/lib/supabase/admin';
+ import { ambilHotspotKaltim } from './fetchHotspot';
+ 
++export interface HasilBackfillHotspot {
++  pesan: string;
++  totalTitik: number;
++  totalHari: number;
++  chunkGagal: { dari: string; sampai: string; pesanError: string }[];
++}
++
++/**
++ * Tarik histori hotspot NASA FIRMS untuk rentang tanggal tertentu di masa
++ * lalu (mis. "dari awal Agustus") dan upsert ke cache Supabase.
++ *
++ * FIRMS Area API membatasi DAY_RANGE maksimal 10 hari per request, jadi
++ * rentang yang lebih panjang dipecah jadi beberapa chunk 10-harian berurutan.
++ * Tiap chunk di-upsert langsung (bukan dikumpulkan dulu di memori) supaya
++ * kalau salah satu chunk gagal (mis. rate limit FIRMS), chunk lain yang
++ * sudah berhasil tidak ikut hilang -- fungsi tetap lanjut ke chunk berikut
++ * dan melaporkan chunk mana saja yang gagal di akhir.
++ *
++ * Catatan retensi: FIRMS *_NRT (near real-time) biasanya hanya menyimpan
++ * data ~2 bulan ke belakang. Untuk histori lebih lama dari itu, perlu
++ * source *_SP (Standard Processing/arsip) yang publikasinya lebih lambat
++ * tapi datanya sudah final -- fungsi ini masih pakai MODIS_NRT (source yang
++ * sama seperti sync harian) supaya konsisten; kalau suatu saat perlu histori
++ * lebih dari ~2 bulan, source-nya perlu diganti ke 'MODIS_SP'.
++ */
++export async function backfillHotspotKaltim(
++  dariTanggal: string,
++  sampaiTanggal: string
++): Promise<HasilBackfillHotspot> {
++  const mulai = new Date(`${dariTanggal}T00:00:00Z`);
++  const akhir = new Date(`${sampaiTanggal}T00:00:00Z`);
++
++  if (Number.isNaN(mulai.getTime()) || Number.isNaN(akhir.getTime())) {
++    throw new Error('Format tanggal tidak valid, gunakan YYYY-MM-DD.');
++  }
++  if (mulai > akhir) {
++    throw new Error('Tanggal awal harus sebelum atau sama dengan tanggal akhir.');
++  }
++
++  const supabase = createAdminClient();
++  const MAKS_HARI_PER_CHUNK = 10; // batas resmi FIRMS Area API
++
++  let totalTitik = 0;
++  let totalHari = 0;
++  const chunkGagal: HasilBackfillHotspot['chunkGagal'] = [];
++
++  let kursor = new Date(mulai);
++  while (kursor <= akhir) {
++    const sisaHari = Math.floor((akhir.getTime() - kursor.getTime()) / 86_400_000) + 1;
++    const panjangChunk = Math.min(MAKS_HARI_PER_CHUNK, sisaHari);
++    const chunkDari = kursor.toISOString().slice(0, 10);
++    const chunkSampaiDate = new Date(kursor);
++    chunkSampaiDate.setUTCDate(chunkSampaiDate.getUTCDate() + panjangChunk - 1);
++    const chunkSampai = chunkSampaiDate.toISOString().slice(0, 10);
++
++    try {
++      const hotspots = await ambilHotspotKaltim({
++        source: 'MODIS_NRT',
++        dayRange: panjangChunk,
++        date: chunkDari,
++        confidenceMin: 80,
++      });
++
++      if (hotspots.length > 0) {
++        const baris = hotspots.map((h) => ({
++          latitude: h.latitude,
++          longitude: h.longitude,
++          tanggal_deteksi: h.tanggalDeteksi,
++          jam_deteksi: h.jamDeteksi,
++          confidence: h.confidence,
++          confidence_asli: h.confidenceAsli,
++          satelit: h.satelit,
++          frp: h.frp,
++          sumber_source: h.sumberSource,
++        }));
++
++        const { error } = await supabase
++          .from('hotspot_nasa_kaltim')
++          .upsert(baris, {
++            onConflict: 'latitude,longitude,tanggal_deteksi,jam_deteksi,sumber_source',
++            ignoreDuplicates: true,
++          });
++
++        if (error) throw error;
++        totalTitik += baris.length;
++      }
++
++      totalHari += panjangChunk;
++    } catch (err) {
++      chunkGagal.push({ dari: chunkDari, sampai: chunkSampai, pesanError: (err as Error).message });
++    }
++
++    kursor.setUTCDate(kursor.getUTCDate() + panjangChunk);
++  }
++
++  const pesan =
++    chunkGagal.length === 0
++      ? `Backfill selesai: ${totalTitik} titik dari ${totalHari} hari (${dariTanggal} s/d ${sampaiTanggal}).`
++      : `Backfill selesai sebagian: ${totalTitik} titik berhasil, tapi ${chunkGagal.length} rentang gagal ditarik (lihat detail).`;
++
++  return { pesan, totalTitik, totalHari, chunkGagal };
++}
++
+ export interface HasilSyncHotspot {
+   pesan: string;
+   jumlah: number;
+-- 
+2.43.0
+

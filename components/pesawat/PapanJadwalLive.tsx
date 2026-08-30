@@ -165,7 +165,7 @@ export default function PapanJadwalLive() {
             {kedatanganFiltered.length === 0 ? (
               <p className="py-6 text-center text-sm text-gray-400">Tidak ada jadwal ditemukan.</p>
             ) : (
-              kedatanganFiltered.map((item) => <KartuPenerbangan key={item.id} item={item} />)
+              kedatanganFiltered.map((item, idx) => <KartuPenerbangan key={`${item.id}-${idx}`} item={item} />)
             )}
           </div>
 
@@ -176,7 +176,7 @@ export default function PapanJadwalLive() {
             {keberangkatanFiltered.length === 0 ? (
               <p className="py-6 text-center text-sm text-gray-400">Tidak ada jadwal ditemukan.</p>
             ) : (
-              keberangkatanFiltered.map((item) => <KartuPenerbangan key={item.id} item={item} />)
+              keberangkatanFiltered.map((item, idx) => <KartuPenerbangan key={`${item.id}-${idx}`} item={item} />)
             )}
           </div>
         </div>

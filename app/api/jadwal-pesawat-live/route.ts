@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getMetaBandara, getPengambilData } from '@/lib/bandara-live/config';
 
+// PENTING: tanpa ini, Next.js App Router menganggap route GET ini statis
+// dan bisa nge-cache SELURUH response (bukan cuma fetch di dalamnya) sejak
+// request pertama -- membuat jadwal "nyangkut" di snapshot lama dan tidak
+// pernah ter-update walau ada `revalidate: 60` di level fetch individual
+// (lib/aptpranoto.ts, lib/opensky.ts). force-dynamic memastikan handler ini
+// selalu dieksekusi ulang tiap request, sehingga data selalu segar.
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const kodeBandara = searchParams.get('bandara') ?? 'pranoto';

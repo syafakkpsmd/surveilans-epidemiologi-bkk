@@ -59,7 +59,14 @@ export default function InfografisClient({
     setSedangUnduh(format);
     try {
       const { toJpeg } = await import('html-to-image');
-      const dataUrl = await toJpeg(posterRef.current, { quality: 0.95, pixelRatio: 2, backgroundColor: '#ffffff' });
+      const node = posterRef.current;
+      const dataUrl = await toJpeg(node, {
+        quality: 0.95,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        width: LEBAR_POSTER,
+        height: node.scrollHeight,
+      });
 
       const namaFile = `infografis-karhutla-${data.tanggalDitampilkan}`;
 
@@ -165,7 +172,7 @@ export default function InfografisClient({
             <div className="flex h-100 w-120 items-center justify-center text-sm text-muted">Memuat info grafis…</div>
           )}
           {data && (
-            <div ref={posterRef}>
+            <div ref={posterRef} style={{ width: LEBAR_POSTER }}>
               <InfografisPoster data={data} />
             </div>
           )}

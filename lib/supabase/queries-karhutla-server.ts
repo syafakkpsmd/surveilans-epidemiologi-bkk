@@ -911,9 +911,17 @@ export async function ambilRingkasanInfografisHarian(
 
   // --- 6. Perbandingan SKDR mingguan: minggu berjalan vs minggu lalu,
   //        dihitung dari minggu epidemiologi tanggalDitampilkan. ---
-  const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(new Date(`${tanggalDitampilkan}T00:00:00Z`));
-  const mingguLaluEpid = mingguEpid > 1 ? mingguEpid - 1 : 52;
-  const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
+  const { tahunEpid: tahunEpidAsli, mingguEpid: mingguEpidAsli } = hitungMingguEpidemiologi(
+  new Date(`${tanggalDitampilkan}T00:00:00Z`)
+);
+
+// Geser mundur 1 minggu: "Minggu Ini" merujuk ke minggu sebelum minggu kalender berjalan
+// (mis. tanggal jatuh di Mg 35 -> ditampilkan sebagai Mg 34), sesuai permintaan.
+const mingguEpid = mingguEpidAsli > 1 ? mingguEpidAsli - 1 : 52;
+const tahunEpid = mingguEpidAsli > 1 ? tahunEpidAsli : tahunEpidAsli - 1;
+
+const mingguLaluEpid = mingguEpid > 1 ? mingguEpid - 1 : 52;
+const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
 
   const [skdrIni, skdrLalu, daftarWilayahSkdr] = await Promise.all([
     supabase

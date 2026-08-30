@@ -115,7 +115,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
             </p>
           </div>
           <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: '#ffffff', lineHeight: 1.15 }}>
-            Kualitas Udara &amp; ISPA pada masa Karhutla
+            Pemantauan Kualitas Udara &amp; ISPA pada masa Karhutla
           </h1>
           <p style={{ margin: '6px 0 0', fontSize: 15, color: '#a9c2d1' }}>
             {formatTanggalPanjang(data.tanggalDitampilkan)} &middot; Kalimantan Timur
@@ -230,24 +230,53 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
             }}
           >
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dataTren} margin={{ top: 8, right: 12, left: -12, bottom: 8 }}>
-                <defs>
-                  <linearGradient id="gradIspa" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={WARNA.cyan} stopOpacity={0.45} />
-                    <stop offset="100%" stopColor={WARNA.cyan} stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gradHotspot" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={WARNA.merah} stopOpacity={0.45} />
-                    <stop offset="100%" stopColor={WARNA.merah} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: WARNA.muted }} />
-                <YAxis tick={{ fontSize: 11, fill: WARNA.muted }} />
-                <Area type="monotone" dataKey="Kasus ISPA" stroke={WARNA.cyan} strokeWidth={2.5} fill="url(#gradIspa)" dot={{ r: 3, fill: WARNA.cyan }} />
-                <Area type="monotone" dataKey="Titik Panas" stroke={WARNA.merah} strokeWidth={2.5} fill="url(#gradHotspot)" dot={{ r: 3, fill: WARNA.merah }} />
-              </AreaChart>
-            </ResponsiveContainer>
+  <AreaChart data={dataTren} margin={{ top: 8, right: 12, left: -12, bottom: 8 }}>
+    <defs>
+      <linearGradient id="gradIspa" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={WARNA.cyan} stopOpacity={0.45} />
+        <stop offset="100%" stopColor={WARNA.cyan} stopOpacity={0} />
+      </linearGradient>
+      <linearGradient id="gradHotspot" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={WARNA.merah} stopOpacity={0.45} />
+        <stop offset="100%" stopColor={WARNA.merah} stopOpacity={0} />
+      </linearGradient>
+    </defs>
+    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+    <XAxis dataKey="label" tick={{ fontSize: 11, fill: WARNA.muted }} />
+
+    {/* Sumbu kiri: khusus Kasus ISPA */}
+    <YAxis
+      yAxisId="ispa"
+      tick={{ fontSize: 11, fill: WARNA.cyan }}
+    />
+
+    {/* Sumbu kanan: khusus Titik Panas */}
+    <YAxis
+      yAxisId="hotspot"
+      orientation="right"
+      tick={{ fontSize: 11, fill: WARNA.merah }}
+    />
+
+    <Area
+      yAxisId="ispa"
+      type="monotone"
+      dataKey="Kasus ISPA"
+      stroke={WARNA.cyan}
+      strokeWidth={2.5}
+      fill="url(#gradIspa)"
+      dot={{ r: 3, fill: WARNA.cyan }}
+    />
+    <Area
+      yAxisId="hotspot"
+      type="monotone"
+      dataKey="Titik Panas"
+      stroke={WARNA.merah}
+      strokeWidth={2.5}
+      fill="url(#gradHotspot)"
+      dot={{ r: 3, fill: WARNA.merah }}
+    />
+  </AreaChart>
+</ResponsiveContainer>
           </div>
           <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: WARNA.muted }}>
             <LegendaGaris warna={WARNA.cyan} label="Kasus ISPA" />

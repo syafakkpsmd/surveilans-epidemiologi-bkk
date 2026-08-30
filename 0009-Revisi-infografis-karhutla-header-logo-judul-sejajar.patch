@@ -1,0 +1,838 @@
+From f22882a2074a7ba9b2a43b681e5d4755bce7b5a2 Mon Sep 17 00:00:00 2001
+From: Syafa <syafa@bkk-samarinda.local>
+Date: Sun, 30 Aug 2026 06:38:59 +0000
+Subject: [PATCH 09/11] Revisi infografis karhutla: header logo+judul sejajar,
+ hapus label WK0x, peta mini dgn siluet daratan & grid, tabel kualitas udara
+ per wilker, SKDR per wilayah, redesain tema gelap ala AI dashboard
+
+---
+ .../karhutla/infografis/InfografisPoster.tsx  | 340 ++++++++++++++----
+ .../karhutla/infografis/PetaMiniHotspot.tsx   | 124 ++++++-
+ lib/supabase/queries-karhutla-server.ts       | 104 +++++-
+ 3 files changed, 464 insertions(+), 104 deletions(-)
+
+diff --git a/components/karhutla/infografis/InfografisPoster.tsx b/components/karhutla/infografis/InfografisPoster.tsx
+index c0ad1d5..647c075 100644
+--- a/components/karhutla/infografis/InfografisPoster.tsx
++++ b/components/karhutla/infografis/InfografisPoster.tsx
+@@ -1,16 +1,28 @@
+-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
++import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
+ import PetaMiniHotspot from './PetaMiniHotspot';
++import { LABEL_STATUS, type StatusEvaluasi } from '@/lib/karhutla/constants';
+ import type { RingkasanInfografisHarian } from '@/lib/supabase/queries-karhutla-server';
+ 
++/**
++ * Palet "AI dashboard" gelap -- sengaja HINDARI backdrop-filter/CSS filter
++ * (blur dsb) karena html-to-image kadang gagal capture properti itu.
++ * Gradient, box-shadow, dan border-radius biasa semuanya aman dipakai.
++ */
+ const WARNA = {
+-  navy: '#0f2a38',
+-  teal: '#0f4c5c',
+-  ink: '#1b2733',
+-  muted: '#5b7083',
+-  border: '#d5dce1',
+-  hijau: '#2f9e44',
+-  kuning: '#f0a202',
+-  merah: '#d62839',
++  bgDeep: '#070f1a',
++  bgPanel: '#0d1c2b',
++  bgCard: '#11253688',
++  bgCardSolid: '#112536',
++  border: 'rgba(255,255,255,0.09)',
++  borderStrong: 'rgba(255,255,255,0.18)',
++  cyan: '#22d3ee',
++  teal: '#2dd4bf',
++  navy: '#0b1f30',
++  ink: '#eaf3f8',
++  muted: '#8ca4b6',
++  hijau: '#34d399',
++  kuning: '#fbbf24',
++  merah: '#fb7185',
+ };
+ 
+ function formatTanggalPanjang(tanggal: string): string {
+@@ -35,6 +47,12 @@ function warnaStatusIspu(status: string | null): string {
+   return WARNA.merah;
+ }
+ 
++function warnaStatusEvaluasi(status: StatusEvaluasi): string {
++  if (status === 'MS') return WARNA.hijau;
++  if (status === 'TMS') return WARNA.merah;
++  return WARNA.muted;
++}
++
+ export const LEBAR_POSTER = 1080;
+ 
+ export default function InfografisPoster({ data }: { data: RingkasanInfografisHarian }) {
+@@ -47,65 +65,92 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
+     'Titik Panas': t.jumlahHotspot,
+   }));
+ 
+-  const dataSkdr = [
+-    { label: data.skdrMingguLalu.label, 'Kasus ISPA (SKDR)': data.skdrMingguLalu.totalKasus },
+-    { label: data.skdrMingguIni.label, 'Kasus ISPA (SKDR)': data.skdrMingguIni.totalKasus },
+-  ];
++  const dataSkdrWilayah = data.skdrPerWilayah.map((w) => ({
++    label: w.wilayah,
++    'Minggu Lalu': w.mingguLalu,
++    'Minggu Ini': w.mingguIni,
++  }));
+ 
+   return (
+     <div
+       style={{
+         width: LEBAR_POSTER,
+         fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+-        background: '#ffffff',
++        background: `linear-gradient(180deg, ${WARNA.bgDeep} 0%, ${WARNA.bgPanel} 100%)`,
+         color: WARNA.ink,
+       }}
+     >
+       {/* ---------- HEADER ---------- */}
+-      <div style={{ background: WARNA.navy, padding: '28px 48px', textAlign: 'center' }}>
++      <div
++        style={{
++          background: `linear-gradient(120deg, ${WARNA.navy} 0%, #0f3a4a 100%)`,
++          backgroundImage: `radial-gradient(rgba(34,211,238,0.16) 1px, transparent 1px), linear-gradient(120deg, ${WARNA.navy} 0%, #0f3a4a 100%)`,
++          backgroundSize: '20px 20px, 100% 100%',
++          padding: '30px 48px',
++          display: 'flex',
++          alignItems: 'center',
++          gap: 28,
++          borderBottom: `1px solid ${WARNA.borderStrong}`,
++        }}
++      >
+         {/* eslint-disable-next-line @next/next/no-img-element -- sengaja <img> biasa, BUKAN next/image:
+             next/image pakai lazy-load & optimizer eksternal yang bikin html-to-image gagal/kosong saat
+             capture poster ini jadi JPEG/PDF. */}
+         <img
+           src="/logo-header-infografis.png"
+           alt="Kemenkes RI - BKK Kelas I Samarinda"
+-          style={{ height: 84, margin: '0 auto', display: 'block' }}
++          style={{ height: 76, flexShrink: 0, display: 'block' }}
+         />
+-      </div>
+-
+-      <div style={{ padding: '32px 48px 8px', textAlign: 'center' }}>
+-        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, letterSpacing: 2, color: WARNA.teal, textTransform: 'uppercase' }}>
+-          Info Grafis Harian
+-        </p>
+-        <h1 style={{ margin: '4px 0 0', fontSize: 30, fontWeight: 800, color: WARNA.navy }}>
+-          Kesiagaan Karhutla &amp; ISPA
+-        </h1>
+-        <p style={{ margin: '6px 0 0', fontSize: 16, color: WARNA.muted }}>
+-          {formatTanggalPanjang(data.tanggalDitampilkan)} &middot; Kalimantan Timur
+-        </p>
+-        {data.pakaiFallback && (
+-          <div
+-            style={{
+-              display: 'inline-block',
+-              marginTop: 10,
+-              padding: '4px 14px',
+-              borderRadius: 999,
+-              background: '#fff3d6',
+-              color: '#8a5a00',
+-              fontSize: 12,
+-              fontWeight: 600,
+-            }}
+-          >
+-            Menampilkan data terakhir tersedia ({formatTanggalPanjang(data.tanggalDitampilkan)}) — data tanggal{' '}
+-            {formatTanggalSingkat(data.tanggalDiminta)} belum masuk
++        <div style={{ flex: 1, minWidth: 0 }}>
++          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
++            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: 2, color: WARNA.cyan, textTransform: 'uppercase' }}>
++              Info Grafis Harian
++            </p>
++            <span
++              style={{
++                fontSize: 10,
++                fontWeight: 700,
++                letterSpacing: 0.5,
++                color: WARNA.bgDeep,
++                background: `linear-gradient(90deg, ${WARNA.cyan}, ${WARNA.teal})`,
++                padding: '3px 10px',
++                borderRadius: 999,
++              }}
++            >
++              ⚡ EPIC-AI
++            </span>
+           </div>
+-        )}
++          <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: '#ffffff', lineHeight: 1.15 }}>
++            Kesiagaan Karhutla &amp; ISPA
++          </h1>
++          <p style={{ margin: '6px 0 0', fontSize: 15, color: '#a9c2d1' }}>
++            {formatTanggalPanjang(data.tanggalDitampilkan)} &middot; Kalimantan Timur
++          </p>
++          {data.pakaiFallback && (
++            <div
++              style={{
++                display: 'inline-block',
++                marginTop: 10,
++                padding: '4px 14px',
++                borderRadius: 999,
++                background: 'rgba(251,191,36,0.15)',
++                color: WARNA.kuning,
++                fontSize: 12,
++                fontWeight: 600,
++                border: `1px solid rgba(251,191,36,0.35)`,
++              }}
++            >
++              Menampilkan data terakhir tersedia ({formatTanggalPanjang(data.tanggalDitampilkan)}) — data tanggal{' '}
++              {formatTanggalSingkat(data.tanggalDiminta)} belum masuk
++            </div>
++          )}
++        </div>
+       </div>
+ 
+       {/* ---------- KPI RINGKASAN ---------- */}
+-      <div style={{ display: 'flex', gap: 16, padding: '20px 48px 0' }}>
++      <div style={{ display: 'flex', gap: 16, padding: '24px 48px 0' }}>
+         <KartuKpi label="Titik Panas" nilai={data.totalHotspot} satuan="titik" warna={data.totalHotspot > 0 ? WARNA.merah : WARNA.hijau} />
+-        <KartuKpi label="Kasus ISPA" nilai={totalIspa} satuan="kasus" warna={WARNA.teal} />
++        <KartuKpi label="Kasus ISPA" nilai={totalIspa} satuan="kasus" warna={WARNA.cyan} />
+         <KartuKpi
+           label="PM2.5 Rerata"
+           nilai={data.pm25Rerata ?? '—'}
+@@ -113,7 +158,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
+           warna={warnaStatusIspu(data.statusIspuDominan)}
+           keterangan={data.statusIspuDominan ?? 'Belum ada data'}
+         />
+-        <KartuKpi label="Wilayah Terdampak" nilai={`${wilayahTerdampak}/7`} satuan="wilker" warna={WARNA.navy} />
++        <KartuKpi label="Wilayah Terdampak" nilai={`${wilayahTerdampak}/7`} satuan="wilker" warna={WARNA.teal} />
+       </div>
+ 
+       {/* ---------- BREAKDOWN PER WILAYAH KERJA ---------- */}
+@@ -125,6 +170,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
+               key={w.kode_wilker}
+               style={{
+                 border: `1px solid ${WARNA.border}`,
++                background: WARNA.bgCardSolid,
+                 borderRadius: 10,
+                 padding: '12px 16px',
+                 display: 'flex',
+@@ -132,13 +178,10 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
+                 justifyContent: 'space-between',
+               }}
+             >
+-              <div>
+-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: WARNA.navy }}>{w.nama}</p>
+-                <p style={{ margin: '2px 0 0', fontSize: 11, color: WARNA.muted }}>{w.kode_wilker}</p>
+-              </div>
++              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{w.nama}</p>
+               <div style={{ display: 'flex', gap: 14, textAlign: 'right' }}>
+                 <MiniStat label="Titik Panas" nilai={w.jumlahHotspot} warna={w.jumlahHotspot > 0 ? WARNA.merah : WARNA.muted} />
+-                <MiniStat label="ISPA" nilai={w.kasusIspaAnak + w.kasusIspaDewasa} warna={WARNA.teal} />
++                <MiniStat label="ISPA" nilai={w.kasusIspaAnak + w.kasusIspaDewasa} warna={WARNA.cyan} />
+                 <MiniStat label="PM2.5" nilai={w.pm25Rerata ?? '—'} warna={warnaStatusIspu(w.statusIspu)} />
+               </div>
+             </div>
+@@ -150,41 +193,147 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
+       <div style={{ display: 'flex', gap: 16, padding: '28px 48px 0' }}>
+         <div style={{ flex: '0 0 300px' }}>
+           <JudulSeksi>Sebaran Titik Panas</JudulSeksi>
+-          <div style={{ marginTop: 12, height: 340 }}>
++          <div style={{ marginTop: 12, height: 340, borderRadius: 16, overflow: 'hidden', border: `1px solid ${WARNA.border}` }}>
+             <PetaMiniHotspot hotspots={data.hotspotPoints} />
+           </div>
+         </div>
+         <div style={{ flex: 1 }}>
+           <JudulSeksi>Tren 7 Hari Terakhir</JudulSeksi>
+-          <div style={{ marginTop: 12, height: 340, border: `1px solid ${WARNA.border}`, borderRadius: 10, padding: '12px 12px 0' }}>
++          <div
++            style={{
++              marginTop: 12,
++              height: 340,
++              background: WARNA.bgCardSolid,
++              border: `1px solid ${WARNA.border}`,
++              borderRadius: 10,
++              padding: '12px 12px 0',
++            }}
++          >
+             <ResponsiveContainer width="100%" height="100%">
+-              <LineChart data={dataTren} margin={{ top: 8, right: 12, left: -12, bottom: 8 }}>
+-                <CartesianGrid strokeDasharray="3 3" stroke="#E3E8EC" />
+-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+-                <YAxis tick={{ fontSize: 11 }} />
+-                <Line type="monotone" dataKey="Kasus ISPA" stroke={WARNA.teal} strokeWidth={2.5} dot={{ r: 3 }} />
+-                <Line type="monotone" dataKey="Titik Panas" stroke={WARNA.merah} strokeWidth={2.5} dot={{ r: 3 }} />
+-              </LineChart>
++              <AreaChart data={dataTren} margin={{ top: 8, right: 12, left: -12, bottom: 8 }}>
++                <defs>
++                  <linearGradient id="gradIspa" x1="0" y1="0" x2="0" y2="1">
++                    <stop offset="0%" stopColor={WARNA.cyan} stopOpacity={0.45} />
++                    <stop offset="100%" stopColor={WARNA.cyan} stopOpacity={0} />
++                  </linearGradient>
++                  <linearGradient id="gradHotspot" x1="0" y1="0" x2="0" y2="1">
++                    <stop offset="0%" stopColor={WARNA.merah} stopOpacity={0.45} />
++                    <stop offset="100%" stopColor={WARNA.merah} stopOpacity={0} />
++                  </linearGradient>
++                </defs>
++                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
++                <XAxis dataKey="label" tick={{ fontSize: 11, fill: WARNA.muted }} />
++                <YAxis tick={{ fontSize: 11, fill: WARNA.muted }} />
++                <Area type="monotone" dataKey="Kasus ISPA" stroke={WARNA.cyan} strokeWidth={2.5} fill="url(#gradIspa)" dot={{ r: 3, fill: WARNA.cyan }} />
++                <Area type="monotone" dataKey="Titik Panas" stroke={WARNA.merah} strokeWidth={2.5} fill="url(#gradHotspot)" dot={{ r: 3, fill: WARNA.merah }} />
++              </AreaChart>
+             </ResponsiveContainer>
+           </div>
+           <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: WARNA.muted }}>
+-            <LegendaGaris warna={WARNA.teal} label="Kasus ISPA" />
++            <LegendaGaris warna={WARNA.cyan} label="Kasus ISPA" />
+             <LegendaGaris warna={WARNA.merah} label="Titik Panas" />
+           </div>
++        </div>
++      </div>
+ 
+-          <div style={{ marginTop: 20 }}>
+-            <JudulSeksi>Perbandingan SKDR Mingguan (ISPA)</JudulSeksi>
+-            <div style={{ marginTop: 12, height: 140 }}>
+-              <ResponsiveContainer width="100%" height="100%">
+-                <BarChart data={dataSkdr} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
+-                  <CartesianGrid strokeDasharray="3 3" stroke="#E3E8EC" />
+-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+-                  <YAxis tick={{ fontSize: 11 }} />
+-                  <Bar dataKey="Kasus ISPA (SKDR)" fill={WARNA.teal} radius={[4, 4, 0, 0]} />
+-                </BarChart>
+-              </ResponsiveContainer>
+-            </div>
+-          </div>
++      {/* ---------- TABEL KUALITAS UDARA PER WILAYAH KERJA ---------- */}
++      <div style={{ padding: '28px 48px 0' }}>
++        <JudulSeksi>Kualitas Udara per Wilayah Kerja</JudulSeksi>
++        <div
++          style={{
++            marginTop: 12,
++            border: `1px solid ${WARNA.border}`,
++            borderRadius: 10,
++            overflow: 'hidden',
++            background: WARNA.bgCardSolid,
++          }}
++        >
++          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
++            <thead>
++              <tr style={{ background: 'rgba(34,211,238,0.08)' }}>
++                <ThKualitasUdara align="left">Wilker</ThKualitasUdara>
++                <ThKualitasUdara>PM2.5 (µg/m³)</ThKualitasUdara>
++                <ThKualitasUdara>PM10 (µg/m³)</ThKualitasUdara>
++                <ThKualitasUdara>Suhu (°C)</ThKualitasUdara>
++                <ThKualitasUdara>HCHO (mg/m³)</ThKualitasUdara>
++                <ThKualitasUdara>TVOC (mg/m³)</ThKualitasUdara>
++                <ThKualitasUdara>Kelembapan (%)</ThKualitasUdara>
++                <ThKualitasUdara>Status</ThKualitasUdara>
++              </tr>
++            </thead>
++            <tbody>
++              {data.perWilker.map((w, i) => (
++                <tr key={w.kode_wilker} style={{ borderTop: `1px solid ${WARNA.border}`, background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
++                  <TdKualitasUdara align="left" bold>
++                    {w.nama}
++                  </TdKualitasUdara>
++                  <TdKualitasUdara>{w.pm25Rerata ?? '—'}</TdKualitasUdara>
++                  <TdKualitasUdara>{w.pm10Rerata ?? '—'}</TdKualitasUdara>
++                  <TdKualitasUdara>{w.suhuRerata ?? '—'}</TdKualitasUdara>
++                  <TdKualitasUdara>{w.hchoRerata ?? '—'}</TdKualitasUdara>
++                  <TdKualitasUdara>{w.tvocRerata ?? '—'}</TdKualitasUdara>
++                  <TdKualitasUdara>{w.kelembapanRerata ?? '—'}</TdKualitasUdara>
++                  <td style={{ padding: '9px 14px', textAlign: 'center' }}>
++                    <span
++                      style={{
++                        display: 'inline-block',
++                        padding: '3px 10px',
++                        borderRadius: 999,
++                        fontSize: 11,
++                        fontWeight: 700,
++                        color: warnaStatusEvaluasi(w.statusEvaluasi),
++                        background: `${warnaStatusEvaluasi(w.statusEvaluasi)}22`,
++                      }}
++                    >
++                      {LABEL_STATUS[w.statusEvaluasi]}
++                    </span>
++                  </td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++        </div>
++      </div>
++
++      {/* ---------- SKDR MINGGUAN PER WILAYAH ---------- */}
++      <div style={{ padding: '28px 48px 0' }}>
++        <JudulSeksi>Perbandingan SKDR Mingguan (ISPA) per Wilayah</JudulSeksi>
++        <div
++          style={{
++            marginTop: 12,
++            height: 260,
++            background: WARNA.bgCardSolid,
++            border: `1px solid ${WARNA.border}`,
++            borderRadius: 10,
++            padding: '12px 12px 0',
++          }}
++        >
++          {dataSkdrWilayah.length > 0 ? (
++            <ResponsiveContainer width="100%" height="100%">
++              <BarChart data={dataSkdrWilayah} margin={{ top: 8, right: 12, left: -12, bottom: 48 }} barGap={4}>
++                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
++                <XAxis
++                  dataKey="label"
++                  tick={{ fontSize: 10, fill: WARNA.muted }}
++                  interval={0}
++                  angle={-35}
++                  textAnchor="end"
++                  height={70}
++                />
++                <YAxis tick={{ fontSize: 11, fill: WARNA.muted }} allowDecimals={false} />
++                <Bar dataKey="Minggu Lalu" fill="rgba(45,212,191,0.35)" radius={[4, 4, 0, 0]} />
++                <Bar dataKey="Minggu Ini" fill={WARNA.teal} radius={[4, 4, 0, 0]} />
++              </BarChart>
++            </ResponsiveContainer>
++          ) : (
++            <p style={{ margin: 0, padding: '40px 0', textAlign: 'center', fontSize: 13, color: WARNA.muted }}>
++              Belum ada data SKDR per wilayah untuk periode ini.
++            </p>
++          )}
++        </div>
++        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: WARNA.muted }}>
++          <LegendaGaris warna="rgba(45,212,191,0.6)" label={`Minggu Lalu (${data.skdrMingguLalu.label})`} />
++          <LegendaGaris warna={WARNA.teal} label={`Minggu Ini (${data.skdrMingguIni.label})`} />
+         </div>
+       </div>
+ 
+@@ -198,7 +347,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
+           })}{' '}
+           WITA.
+         </p>
+-        <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 700, color: WARNA.navy }}>
++        <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 700, color: WARNA.cyan }}>
+           Balai Kekarantinaan Kesehatan Kelas I Samarinda — Kementerian Kesehatan RI
+         </p>
+       </div>
+@@ -220,7 +369,16 @@ function KartuKpi({
+   keterangan?: string;
+ }) {
+   return (
+-    <div style={{ flex: 1, border: `1px solid ${WARNA.border}`, borderRadius: 10, padding: '16px 18px' }}>
++    <div
++      style={{
++        flex: 1,
++        border: `1px solid ${WARNA.border}`,
++        borderTop: `3px solid ${warna}`,
++        background: WARNA.bgCardSolid,
++        borderRadius: 10,
++        padding: '16px 18px',
++      }}
++    >
+       <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: WARNA.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+         {label}
+       </p>
+@@ -243,7 +401,7 @@ function MiniStat({ label, nilai, warna }: { label: string; nilai: number | stri
+ 
+ function JudulSeksi({ children }: { children: React.ReactNode }) {
+   return (
+-    <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: WARNA.navy, borderLeft: `4px solid ${WARNA.teal}`, paddingLeft: 10 }}>
++    <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#ffffff', borderLeft: `4px solid ${WARNA.cyan}`, paddingLeft: 10 }}>
+       {children}
+     </h2>
+   );
+@@ -257,3 +415,29 @@ function LegendaGaris({ warna, label }: { warna: string; label: string }) {
+     </span>
+   );
+ }
++
++function ThKualitasUdara({ children, align = 'center' }: { children: React.ReactNode; align?: 'left' | 'center' }) {
++  return (
++    <th
++      style={{
++        padding: '10px 14px',
++        textAlign: align,
++        fontSize: 11,
++        fontWeight: 700,
++        color: WARNA.cyan,
++        textTransform: 'uppercase',
++        letterSpacing: 0.3,
++      }}
++    >
++      {children}
++    </th>
++  );
++}
++
++function TdKualitasUdara({ children, align = 'center', bold = false }: { children: React.ReactNode; align?: 'left' | 'center'; bold?: boolean }) {
++  return (
++    <td style={{ padding: '9px 14px', textAlign: align, fontWeight: bold ? 700 : 500, color: bold ? '#ffffff' : WARNA.ink }}>
++      {children}
++    </td>
++  );
++}
+diff --git a/components/karhutla/infografis/PetaMiniHotspot.tsx b/components/karhutla/infografis/PetaMiniHotspot.tsx
+index d2f3c93..95c219b 100644
+--- a/components/karhutla/infografis/PetaMiniHotspot.tsx
++++ b/components/karhutla/infografis/PetaMiniHotspot.tsx
+@@ -11,6 +11,12 @@ import { NAMA_WILKER } from '@/lib/karhutla/constants';
+  * Proyeksi equirectangular sederhana (linear lat/lng -> x/y) — cukup
+  * akurat utk area sekecil cakupan wilker BKK Samarinda, tidak perlu
+  * proyeksi peta yang presisi.
++ *
++ * Siluet "daratan" DIHITUNG dari convex hull titik-titik yang ada
++ * (wilker + hotspot), BUKAN garis pantai asli (tidak ada data GeoJSON
++ * batas Kaltim di repo ini) — makanya bentuknya kasar/generik. Ini
++ * murni supaya kartu tidak terlihat kosong (cuma titik mengambang di
++ * ruang putih); tetap jujur ditandai "ilustrasi" di keterangan.
+  */
+ 
+ interface TitikHotspotMini {
+@@ -42,9 +48,70 @@ function buatProyeksi(titikTambahan: TitikHotspotMini[]) {
+   };
+ }
+ 
++/** Convex hull sederhana (monotone chain) — dipakai utk siluet "daratan" ilustratif. */
++function convexHull(titik: { x: number; y: number }[]): { x: number; y: number }[] {
++  if (titik.length < 3) return titik;
++  const pts = [...titik].sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
++  const lintas = (o: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
++    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
++
++  const bawah: { x: number; y: number }[] = [];
++  for (const p of pts) {
++    while (bawah.length >= 2 && lintas(bawah[bawah.length - 2], bawah[bawah.length - 1], p) <= 0) bawah.pop();
++    bawah.push(p);
++  }
++  const atas: { x: number; y: number }[] = [];
++  for (let i = pts.length - 1; i >= 0; i--) {
++    const p = pts[i];
++    while (atas.length >= 2 && lintas(atas[atas.length - 2], atas[atas.length - 1], p) <= 0) atas.pop();
++    atas.push(p);
++  }
++  atas.pop();
++  bawah.pop();
++  return [...bawah, ...atas];
++}
++
++/** Perbesar hull menjauhi titik pusatnya, lalu ubah jadi path Catmull-Rom halus (biar tidak kaku poligonal). */
++function hullKeHalusPath(hull: { x: number; y: number }[], inflate: number): string {
++  if (hull.length < 3) return '';
++  const cx = hull.reduce((s, p) => s + p.x, 0) / hull.length;
++  const cy = hull.reduce((s, p) => s + p.y, 0) / hull.length;
++  const membesar = hull.map((p) => {
++    const dx = p.x - cx;
++    const dy = p.y - cy;
++    const jarak = Math.sqrt(dx * dx + dy * dy) || 1;
++    return { x: p.x + (dx / jarak) * inflate, y: p.y + (dy / jarak) * inflate };
++  });
++
++  const n = membesar.length;
++  let d = `M ${membesar[0].x} ${membesar[0].y} `;
++  for (let i = 0; i < n; i++) {
++    const p0 = membesar[(i - 1 + n) % n];
++    const p1 = membesar[i];
++    const p2 = membesar[(i + 1) % n];
++    const p3 = membesar[(i + 2) % n];
++    const c1x = p1.x + (p2.x - p0.x) / 6;
++    const c1y = p1.y + (p2.y - p0.y) / 6;
++    const c2x = p2.x - (p3.x - p1.x) / 6;
++    const c2y = p2.y - (p3.y - p1.y) / 6;
++    d += `C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y} `;
++  }
++  return d + 'Z';
++}
++
+ export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMini[] }) {
+   const proyeksi = buatProyeksi(hotspots);
+ 
++  const titikWilker = WILKER_LOKASI.map((w) => proyeksi(w.pusat.lat, w.pusat.lng));
++  const titikHotspot = hotspots.map((h) => proyeksi(h.latitude, h.longitude));
++  const semuaTitik = [...titikWilker, ...titikHotspot];
++  const pathDaratan = hullKeHalusPath(convexHull(semuaTitik), 46);
++
++  // Garis grid koordinat tipis, kesan "peta" walau tanpa basemap asli.
++  const jumlahGrid = 6;
++  const garisVertikal = Array.from({ length: jumlahGrid + 1 }, (_, i) => PADDING + (i * (LEBAR - PADDING * 2)) / jumlahGrid);
++  const garisHorizontal = Array.from({ length: jumlahGrid + 1 }, (_, i) => PADDING + (i * (TINGGI - PADDING * 2)) / jumlahGrid);
++
+   return (
+     <svg
+       viewBox={`0 0 ${LEBAR} ${TINGGI}`}
+@@ -53,13 +120,45 @@ export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMi
+       style={{ width: '100%', height: '100%', display: 'block' }}
+       xmlns="http://www.w3.org/2000/svg"
+     >
+-      <rect x={0} y={0} width={LEBAR} height={TINGGI} rx={12} fill="#eaf3f1" />
+-      <rect x={4} y={4} width={LEBAR - 8} height={TINGGI - 8} rx={10} fill="none" stroke="#c3d9d5" strokeWidth={1.5} />
++      <defs>
++        <linearGradient id="airLaut" x1="0" y1="0" x2="1" y2="1">
++          <stop offset="0%" stopColor="#0d3b52" />
++          <stop offset="100%" stopColor="#0a2c40" />
++        </linearGradient>
++        <linearGradient id="daratan" x1="0" y1="0" x2="0" y2="1">
++          <stop offset="0%" stopColor="#1f5b46" />
++          <stop offset="100%" stopColor="#173f32" />
++        </linearGradient>
++        <radialGradient id="haloPanas" cx="50%" cy="50%" r="50%">
++          <stop offset="0%" stopColor="#ff5a4e" stopOpacity={0.85} />
++          <stop offset="100%" stopColor="#ff5a4e" stopOpacity={0} />
++        </radialGradient>
++      </defs>
++
++      <rect x={0} y={0} width={LEBAR} height={TINGGI} rx={16} fill="url(#airLaut)" />
++
++      {/* Grid koordinat -- penanda ini "peta", bukan kanvas kosong */}
++      {garisVertikal.map((x, i) => (
++        <line key={`v${i}`} x1={x} y1={PADDING} x2={x} y2={TINGGI - PADDING} stroke="#ffffff" strokeOpacity={0.06} strokeWidth={1} />
++      ))}
++      {garisHorizontal.map((y, i) => (
++        <line key={`h${i}`} x1={PADDING} y1={y} x2={LEBAR - PADDING} y2={y} stroke="#ffffff" strokeOpacity={0.06} strokeWidth={1} />
++      ))}
++
++      {/* Siluet daratan ilustratif (convex hull dari titik wilker + hotspot) */}
++      {pathDaratan && <path d={pathDaratan} fill="url(#daratan)" stroke="#2f7a5f" strokeWidth={1.5} strokeOpacity={0.6} />}
+ 
+-      {/* Titik hotspot — merah, ditumpuk transparan biar densitas kelihatan */}
++      <rect x={4} y={4} width={LEBAR - 8} height={TINGGI - 8} rx={14} fill="none" stroke="#ffffff" strokeOpacity={0.12} strokeWidth={1.5} />
++
++      {/* Halo panas -- radial glow di belakang klaster titik, kesan heatmap */}
++      {hotspots.map((h, i) => {
++        const { x, y } = proyeksi(h.latitude, h.longitude);
++        return <circle key={`halo${i}`} cx={x} cy={y} r={16} fill="url(#haloPanas)" />;
++      })}
++      {/* Titik hotspot -- merah terang, ditumpuk transparan biar densitas kelihatan */}
+       {hotspots.map((h, i) => {
+         const { x, y } = proyeksi(h.latitude, h.longitude);
+-        return <circle key={i} cx={x} cy={y} r={5} fill="#d62839" fillOpacity={0.55} stroke="#d62839" strokeWidth={0.5} />;
++        return <circle key={i} cx={x} cy={y} r={4} fill="#ff8a72" fillOpacity={0.9} stroke="#fff1ee" strokeWidth={0.5} />;
+       })}
+ 
+       {/* Marker wilayah kerja — label pakai nama (Samarinda, APT Pranoto, dst),
+@@ -72,15 +171,15 @@ export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMi
+         const dekatTepiKanan = x > LEBAR - 130;
+         return (
+           <g key={w.kode}>
+-            <circle cx={x} cy={y} r={7} fill="#0f2a38" stroke="#ffffff" strokeWidth={2} />
++            <circle cx={x} cy={y} r={5} fill="#0f2a38" stroke="#ffd166" strokeWidth={2} />
+             <text
+               x={dekatTepiKanan ? x - 11 : x + 11}
+               y={y + 4}
+               textAnchor={dekatTepiKanan ? 'end' : 'start'}
+               fontSize={12}
+               fontWeight={700}
+-              fill="#0f2a38"
+-              style={{ paintOrder: 'stroke', stroke: '#eaf3f1', strokeWidth: 3 }}
++              fill="#ffffff"
++              style={{ paintOrder: 'stroke', stroke: '#0a2c40', strokeWidth: 3 }}
+             >
+               {nama}
+             </text>
+@@ -90,11 +189,14 @@ export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMi
+ 
+       {/* Legenda */}
+       <g transform={`translate(${PADDING}, ${TINGGI - 26})`}>
+-        <circle cx={6} cy={0} r={5} fill="#d62839" fillOpacity={0.55} />
+-        <text x={16} y={4} fontSize={12} fill="#5b7083">Titik panas</text>
+-        <circle cx={110} cy={0} r={6} fill="#0f2a38" />
+-        <text x={122} y={4} fontSize={12} fill="#5b7083">Wilayah kerja</text>
++        <circle cx={6} cy={0} r={4} fill="#ff8a72" />
++        <text x={16} y={4} fontSize={11} fill="#c9dde6">Titik panas</text>
++        <circle cx={106} cy={0} r={5} fill="#0f2a38" stroke="#ffd166" strokeWidth={1.5} />
++        <text x={118} y={4} fontSize={11} fill="#c9dde6">Wilayah kerja</text>
+       </g>
++      <text x={LEBAR - PADDING} y={TINGGI - 26} textAnchor="end" fontSize={9} fill="#7fa0b3">
++        *siluet daratan ilustratif, bukan peta presisi
++      </text>
+     </svg>
+   );
+ }
+diff --git a/lib/supabase/queries-karhutla-server.ts b/lib/supabase/queries-karhutla-server.ts
+index ea40527..e76bd3c 100644
+--- a/lib/supabase/queries-karhutla-server.ts
++++ b/lib/supabase/queries-karhutla-server.ts
+@@ -1,7 +1,7 @@
+ import 'server-only';
+ import { createClient } from '@/lib/supabase/server';
+ import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+-import { NAMA_WILKER } from '@/lib/karhutla/constants';
++import { NAMA_WILKER, hitungStatusEvaluasi, type StatusEvaluasi } from '@/lib/karhutla/constants';
+ import {
+   petakanLokasiUdaraKeWilker,
+   cariWilkerTerdekatDariTitik,
+@@ -670,7 +670,13 @@ export interface RingkasanWilker {
+   kasusIspaDewasa: number;
+   jumlahHotspot: number;
+   pm25Rerata: number | null;
++  pm10Rerata: number | null;
++  suhuRerata: number | null;
++  hchoRerata: number | null;
++  tvocRerata: number | null;
++  kelembapanRerata: number | null;
+   statusIspu: string | null;
++  statusEvaluasi: StatusEvaluasi;
+ }
+ 
+ export interface TitikTren7Hari {
+@@ -684,6 +690,12 @@ export interface RingkasanSkdrMingguan {
+   totalKasus: number;
+ }
+ 
++export interface RingkasanSkdrPerWilayah {
++  wilayah: string;
++  mingguLalu: number;
++  mingguIni: number;
++}
++
+ export interface RingkasanInfografisHarian {
+   tanggalDiminta: string;
+   tanggalDitampilkan: string; // bisa beda dari tanggalDiminta kalau fallback dipakai
+@@ -698,6 +710,7 @@ export interface RingkasanInfografisHarian {
+   tren7Hari: TitikTren7Hari[];
+   skdrMingguIni: RingkasanSkdrMingguan;
+   skdrMingguLalu: RingkasanSkdrMingguan;
++  skdrPerWilayah: RingkasanSkdrPerWilayah[];
+ }
+ 
+ export async function ambilRingkasanInfografisHarian(
+@@ -743,7 +756,10 @@ export async function ambilRingkasanInfografisHarian(
+       .from('ispa_harian')
+       .select('kode_wilker, kasus_ispa_anak, kasus_ispa_dewasa')
+       .eq('tanggal', tanggalDitampilkan),
+-    supabase.from('kualitas_udara_harian').select('lokasi, pm25, ispu_status').eq('tanggal', tanggalDitampilkan),
++    supabase
++      .from('kualitas_udara_harian')
++      .select('lokasi, pm25, pm10, suhu, hcho, tvoc, kelembapan, ispu_status')
++      .eq('tanggal', tanggalDitampilkan),
+     supabase
+       .from('hotspot_nasa_kaltim')
+       .select('latitude, longitude')
+@@ -765,7 +781,13 @@ export async function ambilRingkasanInfografisHarian(
+       kasusIspaDewasa: 0,
+       jumlahHotspot: 0,
+       pm25Rerata: null,
++      pm10Rerata: null,
++      suhuRerata: null,
++      hchoRerata: null,
++      tvocRerata: null,
++      kelembapanRerata: null,
+       statusIspu: null,
++      statusEvaluasi: 'BELUM_DIUJI',
+     });
+   }
+ 
+@@ -776,24 +798,54 @@ export async function ambilRingkasanInfografisHarian(
+     w.kasusIspaDewasa += b.kasus_ispa_dewasa;
+   }
+ 
+-  const akumulasiPm25 = new Map<string, { total: number; jml: number }>();
++  // Akumulasi rerata utk keenam parameter kualitas udara sekaligus (dulu cuma PM2.5) --
++  // dipakai utk tabel "Kualitas Udara per Wilayah Kerja" di poster infografis.
++  const PARAM_UDARA = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'] as const;
++  const akumulasiUdara = new Map<string, Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>>();
+   const statusIspuPerWilker = new Map<string, string>();
+-  for (const b of dataUdara ?? []) {
+-    const kode = petakanLokasiUdaraKeWilker(b.lokasi);
++  for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
++    const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
+     if (!kode || !perWilkerMap.has(kode)) continue;
+-    if (b.pm25 != null) {
+-      const e = akumulasiPm25.get(kode) ?? { total: 0, jml: 0 };
+-      e.total += Number(b.pm25);
+-      e.jml += 1;
+-      akumulasiPm25.set(kode, e);
++
++    const akum =
++      akumulasiUdara.get(kode) ??
++      ({
++        pm25: { total: 0, jml: 0 },
++        pm10: { total: 0, jml: 0 },
++        suhu: { total: 0, jml: 0 },
++        hcho: { total: 0, jml: 0 },
++        tvoc: { total: 0, jml: 0 },
++        kelembapan: { total: 0, jml: 0 },
++      } as Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>);
++    for (const param of PARAM_UDARA) {
++      const nilai = b[param] as number | null;
++      if (nilai == null) continue;
++      akum[param].total += Number(nilai);
++      akum[param].jml += 1;
+     }
++    akumulasiUdara.set(kode, akum);
++
+     if (b.ispu_status && !statusIspuPerWilker.has(kode)) {
+-      statusIspuPerWilker.set(kode, b.ispu_status);
++      statusIspuPerWilker.set(kode, b.ispu_status as string);
+     }
+   }
+-  for (const [kode, e] of akumulasiPm25) {
++  for (const [kode, akum] of akumulasiUdara) {
+     const w = perWilkerMap.get(kode);
+-    if (w && e.jml > 0) w.pm25Rerata = Number((e.total / e.jml).toFixed(1));
++    if (!w) continue;
++    if (akum.pm25.jml > 0) w.pm25Rerata = Number((akum.pm25.total / akum.pm25.jml).toFixed(1));
++    if (akum.pm10.jml > 0) w.pm10Rerata = Number((akum.pm10.total / akum.pm10.jml).toFixed(1));
++    if (akum.suhu.jml > 0) w.suhuRerata = Number((akum.suhu.total / akum.suhu.jml).toFixed(1));
++    if (akum.hcho.jml > 0) w.hchoRerata = Number((akum.hcho.total / akum.hcho.jml).toFixed(2));
++    if (akum.tvoc.jml > 0) w.tvocRerata = Number((akum.tvoc.total / akum.tvoc.jml).toFixed(2));
++    if (akum.kelembapan.jml > 0) w.kelembapanRerata = Number((akum.kelembapan.total / akum.kelembapan.jml).toFixed(1));
++    w.statusEvaluasi = hitungStatusEvaluasi({
++      pm25: w.pm25Rerata,
++      pm10: w.pm10Rerata,
++      suhu: w.suhuRerata,
++      hcho: w.hchoRerata,
++      tvoc: w.tvocRerata,
++      kelembapan: w.kelembapanRerata,
++    });
+   }
+   for (const [kode, status] of statusIspuPerWilker) {
+     const w = perWilkerMap.get(kode);
+@@ -865,13 +917,13 @@ export async function ambilRingkasanInfografisHarian(
+   const [skdrIni, skdrLalu] = await Promise.all([
+     supabase
+       .from('skdr_mingguan')
+-      .select('jumlah_kasus')
++      .select('jumlah_kasus, wilayah_kerja')
+       .eq('tahun_epid', tahunEpid)
+       .eq('minggu_epid', mingguEpid)
+       .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID),
+     supabase
+       .from('skdr_mingguan')
+-      .select('jumlah_kasus')
++      .select('jumlah_kasus, wilayah_kerja')
+       .eq('tahun_epid', tahunMingguLalu)
+       .eq('minggu_epid', mingguLaluEpid)
+       .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID),
+@@ -880,6 +932,27 @@ export async function ambilRingkasanInfografisHarian(
+   const totalSkdrIni = (skdrIni.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
+   const totalSkdrLalu = (skdrLalu.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
+ 
++  // --- 6b. Pecah SKDR per wilayah_kerja (Palaran, Sidomulyo, dst -- taksonomi
++  //         wilayah_kerja SKDR, BEDA dari kode_wilker/zona karhutla di atas). ---
++  const mapSkdrIniPerWilayah = new Map<string, number>();
++  for (const b of skdrIni.data ?? []) {
++    if (!b.wilayah_kerja) continue;
++    mapSkdrIniPerWilayah.set(b.wilayah_kerja, (mapSkdrIniPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
++  }
++  const mapSkdrLaluPerWilayah = new Map<string, number>();
++  for (const b of skdrLalu.data ?? []) {
++    if (!b.wilayah_kerja) continue;
++    mapSkdrLaluPerWilayah.set(b.wilayah_kerja, (mapSkdrLaluPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
++  }
++  const semuaWilayahSkdr = new Set([...mapSkdrIniPerWilayah.keys(), ...mapSkdrLaluPerWilayah.keys()]);
++  const skdrPerWilayah: RingkasanSkdrPerWilayah[] = Array.from(semuaWilayahSkdr)
++    .sort()
++    .map((wilayah) => ({
++      wilayah,
++      mingguLalu: mapSkdrLaluPerWilayah.get(wilayah) ?? 0,
++      mingguIni: mapSkdrIniPerWilayah.get(wilayah) ?? 0,
++    }));
++
+   return {
+     tanggalDiminta,
+     tanggalDitampilkan,
+@@ -894,5 +967,6 @@ export async function ambilRingkasanInfografisHarian(
+     tren7Hari,
+     skdrMingguIni: { label: `Mg ${mingguEpid}/${tahunEpid}`, totalKasus: totalSkdrIni },
+     skdrMingguLalu: { label: `Mg ${mingguLaluEpid}/${tahunMingguLalu}`, totalKasus: totalSkdrLalu },
++    skdrPerWilayah,
+   };
+ }
+-- 
+2.43.0
+

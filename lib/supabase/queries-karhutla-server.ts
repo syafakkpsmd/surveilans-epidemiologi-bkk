@@ -1,7 +1,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
-import { NAMA_WILKER } from '@/lib/karhutla/constants';
+import { NAMA_WILKER, hitungStatusEvaluasi, type StatusEvaluasi } from '@/lib/karhutla/constants';
 import {
   petakanLokasiUdaraKeWilker,
   cariWilkerTerdekatDariTitik,
@@ -670,7 +670,13 @@ export interface RingkasanWilker {
   kasusIspaDewasa: number;
   jumlahHotspot: number;
   pm25Rerata: number | null;
+  pm10Rerata: number | null;
+  suhuRerata: number | null;
+  hchoRerata: number | null;
+  tvocRerata: number | null;
+  kelembapanRerata: number | null;
   statusIspu: string | null;
+  statusEvaluasi: StatusEvaluasi;
 }
 
 export interface TitikTren7Hari {
@@ -682,6 +688,12 @@ export interface TitikTren7Hari {
 export interface RingkasanSkdrMingguan {
   label: string;
   totalKasus: number;
+}
+
+export interface RingkasanSkdrPerWilayah {
+  wilayah: string;
+  mingguLalu: number;
+  mingguIni: number;
 }
 
 export interface RingkasanInfografisHarian {
@@ -698,6 +710,7 @@ export interface RingkasanInfografisHarian {
   tren7Hari: TitikTren7Hari[];
   skdrMingguIni: RingkasanSkdrMingguan;
   skdrMingguLalu: RingkasanSkdrMingguan;
+  skdrPerWilayah: RingkasanSkdrPerWilayah[];
 }
 
 export async function ambilRingkasanInfografisHarian(
@@ -743,7 +756,10 @@ export async function ambilRingkasanInfografisHarian(
       .from('ispa_harian')
       .select('kode_wilker, kasus_ispa_anak, kasus_ispa_dewasa')
       .eq('tanggal', tanggalDitampilkan),
-    supabase.from('kualitas_udara_harian').select('lokasi, pm25, ispu_status').eq('tanggal', tanggalDitampilkan),
+    supabase
+      .from('kualitas_udara_harian')
+      .select('lokasi, pm25, pm10, suhu, hcho, tvoc, kelembapan, ispu_status')
+      .eq('tanggal', tanggalDitampilkan),
     supabase
       .from('hotspot_nasa_kaltim')
       .select('latitude, longitude')
@@ -765,7 +781,13 @@ export async function ambilRingkasanInfografisHarian(
       kasusIspaDewasa: 0,
       jumlahHotspot: 0,
       pm25Rerata: null,
+      pm10Rerata: null,
+      suhuRerata: null,
+      hchoRerata: null,
+      tvocRerata: null,
+      kelembapanRerata: null,
       statusIspu: null,
+      statusEvaluasi: 'BELUM_DIUJI',
     });
   }
 
@@ -776,24 +798,54 @@ export async function ambilRingkasanInfografisHarian(
     w.kasusIspaDewasa += b.kasus_ispa_dewasa;
   }
 
-  const akumulasiPm25 = new Map<string, { total: number; jml: number }>();
+  // Akumulasi rerata utk keenam parameter kualitas udara sekaligus (dulu cuma PM2.5) --
+  // dipakai utk tabel "Kualitas Udara per Wilayah Kerja" di poster infografis.
+  const PARAM_UDARA = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'] as const;
+  const akumulasiUdara = new Map<string, Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>>();
   const statusIspuPerWilker = new Map<string, string>();
-  for (const b of dataUdara ?? []) {
-    const kode = petakanLokasiUdaraKeWilker(b.lokasi);
+  for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
+    const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
     if (!kode || !perWilkerMap.has(kode)) continue;
-    if (b.pm25 != null) {
-      const e = akumulasiPm25.get(kode) ?? { total: 0, jml: 0 };
-      e.total += Number(b.pm25);
-      e.jml += 1;
-      akumulasiPm25.set(kode, e);
+
+    const akum =
+      akumulasiUdara.get(kode) ??
+      ({
+        pm25: { total: 0, jml: 0 },
+        pm10: { total: 0, jml: 0 },
+        suhu: { total: 0, jml: 0 },
+        hcho: { total: 0, jml: 0 },
+        tvoc: { total: 0, jml: 0 },
+        kelembapan: { total: 0, jml: 0 },
+      } as Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>);
+    for (const param of PARAM_UDARA) {
+      const nilai = b[param] as number | null;
+      if (nilai == null) continue;
+      akum[param].total += Number(nilai);
+      akum[param].jml += 1;
     }
+    akumulasiUdara.set(kode, akum);
+
     if (b.ispu_status && !statusIspuPerWilker.has(kode)) {
-      statusIspuPerWilker.set(kode, b.ispu_status);
+      statusIspuPerWilker.set(kode, b.ispu_status as string);
     }
   }
-  for (const [kode, e] of akumulasiPm25) {
+  for (const [kode, akum] of akumulasiUdara) {
     const w = perWilkerMap.get(kode);
-    if (w && e.jml > 0) w.pm25Rerata = Number((e.total / e.jml).toFixed(1));
+    if (!w) continue;
+    if (akum.pm25.jml > 0) w.pm25Rerata = Number((akum.pm25.total / akum.pm25.jml).toFixed(1));
+    if (akum.pm10.jml > 0) w.pm10Rerata = Number((akum.pm10.total / akum.pm10.jml).toFixed(1));
+    if (akum.suhu.jml > 0) w.suhuRerata = Number((akum.suhu.total / akum.suhu.jml).toFixed(1));
+    if (akum.hcho.jml > 0) w.hchoRerata = Number((akum.hcho.total / akum.hcho.jml).toFixed(2));
+    if (akum.tvoc.jml > 0) w.tvocRerata = Number((akum.tvoc.total / akum.tvoc.jml).toFixed(2));
+    if (akum.kelembapan.jml > 0) w.kelembapanRerata = Number((akum.kelembapan.total / akum.kelembapan.jml).toFixed(1));
+    w.statusEvaluasi = hitungStatusEvaluasi({
+      pm25: w.pm25Rerata,
+      pm10: w.pm10Rerata,
+      suhu: w.suhuRerata,
+      hcho: w.hchoRerata,
+      tvoc: w.tvocRerata,
+      kelembapan: w.kelembapanRerata,
+    });
   }
   for (const [kode, status] of statusIspuPerWilker) {
     const w = perWilkerMap.get(kode);
@@ -865,13 +917,13 @@ export async function ambilRingkasanInfografisHarian(
   const [skdrIni, skdrLalu] = await Promise.all([
     supabase
       .from('skdr_mingguan')
-      .select('jumlah_kasus')
+      .select('jumlah_kasus, wilayah_kerja')
       .eq('tahun_epid', tahunEpid)
       .eq('minggu_epid', mingguEpid)
       .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID),
     supabase
       .from('skdr_mingguan')
-      .select('jumlah_kasus')
+      .select('jumlah_kasus, wilayah_kerja')
       .eq('tahun_epid', tahunMingguLalu)
       .eq('minggu_epid', mingguLaluEpid)
       .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID),
@@ -879,6 +931,27 @@ export async function ambilRingkasanInfografisHarian(
 
   const totalSkdrIni = (skdrIni.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
   const totalSkdrLalu = (skdrLalu.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
+
+  // --- 6b. Pecah SKDR per wilayah_kerja (Palaran, Sidomulyo, dst -- taksonomi
+  //         wilayah_kerja SKDR, BEDA dari kode_wilker/zona karhutla di atas). ---
+  const mapSkdrIniPerWilayah = new Map<string, number>();
+  for (const b of skdrIni.data ?? []) {
+    if (!b.wilayah_kerja) continue;
+    mapSkdrIniPerWilayah.set(b.wilayah_kerja, (mapSkdrIniPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
+  }
+  const mapSkdrLaluPerWilayah = new Map<string, number>();
+  for (const b of skdrLalu.data ?? []) {
+    if (!b.wilayah_kerja) continue;
+    mapSkdrLaluPerWilayah.set(b.wilayah_kerja, (mapSkdrLaluPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
+  }
+  const semuaWilayahSkdr = new Set([...mapSkdrIniPerWilayah.keys(), ...mapSkdrLaluPerWilayah.keys()]);
+  const skdrPerWilayah: RingkasanSkdrPerWilayah[] = Array.from(semuaWilayahSkdr)
+    .sort()
+    .map((wilayah) => ({
+      wilayah,
+      mingguLalu: mapSkdrLaluPerWilayah.get(wilayah) ?? 0,
+      mingguIni: mapSkdrIniPerWilayah.get(wilayah) ?? 0,
+    }));
 
   return {
     tanggalDiminta,
@@ -894,5 +967,6 @@ export async function ambilRingkasanInfografisHarian(
     tren7Hari,
     skdrMingguIni: { label: `Mg ${mingguEpid}/${tahunEpid}`, totalKasus: totalSkdrIni },
     skdrMingguLalu: { label: `Mg ${mingguLaluEpid}/${tahunMingguLalu}`, totalKasus: totalSkdrLalu },
+    skdrPerWilayah,
   };
 }

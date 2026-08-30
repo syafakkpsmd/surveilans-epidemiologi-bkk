@@ -139,7 +139,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0, maxWidth: 190 }}>
           <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
             <span style={{ fontSize: 22, fontWeight: 800, color: '#7a1620', letterSpacing: -0.5 }}>Ber</span>
             <span style={{ fontSize: 22, fontWeight: 800, color: '#e0303e', letterSpacing: -0.5, marginLeft: 1 }}>AKHLAK</span>
@@ -196,10 +196,13 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                minWidth: 0,   // <-- tambahan ini
               }}
             >
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#ffffff' }}>{w.nama}</p>
-              <div style={{ display: 'flex', gap: 14, textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {w.nama}
+              </p>
+              <div style={{ display: 'flex', gap: 14, textAlign: 'right', flexShrink: 0 }}>
                 <MiniStat label="Titik Panas" nilai={w.jumlahHotspot} warna={w.jumlahHotspot > 0 ? WARNA.merah : WARNA.muted} />
                 <MiniStat label="ISPA" nilai={w.kasusIspaAnak + w.kasusIspaDewasa} warna={WARNA.cyan} />
                 <MiniStat label="PM2.5" nilai={w.pm25Rerata ?? '—'} warna={warnaStatusIspu(w.statusIspu)} />

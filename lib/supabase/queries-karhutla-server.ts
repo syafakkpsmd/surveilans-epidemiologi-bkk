@@ -1,6 +1,7 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+import { getDaftarWilayahKerjaSkdr } from '@/lib/supabase/queries';
 import { NAMA_WILKER, hitungStatusEvaluasi, type StatusEvaluasi } from '@/lib/karhutla/constants';
 import {
   petakanLokasiUdaraKeWilker,
@@ -914,7 +915,7 @@ export async function ambilRingkasanInfografisHarian(
   const mingguLaluEpid = mingguEpid > 1 ? mingguEpid - 1 : 52;
   const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
 
-  const [skdrIni, skdrLalu] = await Promise.all([
+  const [skdrIni, skdrLalu, daftarWilayahSkdr] = await Promise.all([
     supabase
       .from('skdr_mingguan')
       .select('jumlah_kasus, wilayah_kerja')
@@ -927,13 +928,23 @@ export async function ambilRingkasanInfografisHarian(
       .eq('tahun_epid', tahunMingguLalu)
       .eq('minggu_epid', mingguLaluEpid)
       .eq('jenis_penyakit_id', JENIS_PENYAKIT_ISPA_SKDR_ID),
+    getDaftarWilayahKerjaSkdr(),
   ]);
 
   const totalSkdrIni = (skdrIni.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
   const totalSkdrLalu = (skdrLalu.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
 
   // --- 6b. Pecah SKDR per wilayah_kerja (Palaran, Sidomulyo, dst -- taksonomi
-  //         wilayah_kerja SKDR, BEDA dari kode_wilker/zona karhutla di atas). ---
+  //         wilayah_kerja SKDR, BEDA dari kode_wilker/zona karhutla di atas).
+  //
+  //         PENTING: kategori dasarnya diambil dari `view_wilayah_kerja_skdr`
+  //         (daftar RESMI seluruh wilayah kerja SKDR yang sama dipakai di
+  //         halaman /dashboard/skdr) -- BUKAN hanya wilayah yang kebetulan
+  //         punya kasus di 2 minggu ini. Kalau basisnya cuma union dari data
+  //         yang ada, wilayah dengan 0 kasus di kedua minggu (mis. Samarinda:
+  //         Palaran & Sidomulyo saat sedang tidak ada laporan ISPA) akan
+  //         hilang sama sekali dari grafik, padahal seharusnya tetap tampil
+  //         sebagai batang 0. ---
   const mapSkdrIniPerWilayah = new Map<string, number>();
   for (const b of skdrIni.data ?? []) {
     if (!b.wilayah_kerja) continue;
@@ -944,7 +955,11 @@ export async function ambilRingkasanInfografisHarian(
     if (!b.wilayah_kerja) continue;
     mapSkdrLaluPerWilayah.set(b.wilayah_kerja, (mapSkdrLaluPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
   }
-  const semuaWilayahSkdr = new Set([...mapSkdrIniPerWilayah.keys(), ...mapSkdrLaluPerWilayah.keys()]);
+  const semuaWilayahSkdr = new Set([
+    ...daftarWilayahSkdr,
+    ...mapSkdrIniPerWilayah.keys(),
+    ...mapSkdrLaluPerWilayah.keys(),
+  ]);
   const skdrPerWilayah: RingkasanSkdrPerWilayah[] = Array.from(semuaWilayahSkdr)
     .sort()
     .map((wilayah) => ({

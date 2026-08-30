@@ -45,9 +45,13 @@ export default function InfografisClient({
   }, [tanggal]);
 
   function geserHari(delta: number) {
-    const d = new Date(`${tanggal}T00:00:00`);
-    d.setDate(d.getDate() + delta);
-    setTanggal(d.toISOString().slice(0, 10));
+    const [tahun, bulan, hari] = tanggal.split('-').map(Number);
+    const d = new Date(Date.UTC(tahun, bulan - 1, hari)); // langsung dalam UTC
+    d.setUTCDate(d.getUTCDate() + delta);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    setTanggal(`${y}-${m}-${dd}`);
   }
 
   async function unduh(format: 'jpeg' | 'pdf') {
@@ -158,7 +162,7 @@ export default function InfografisClient({
           }}
         >
           {memuat && !data && (
-            <div className="flex h-[400px] w-[480px] items-center justify-center text-sm text-muted">Memuat info grafis…</div>
+            <div className="flex h-100 w-120 items-center justify-center text-sm text-muted">Memuat info grafis…</div>
           )}
           {data && (
             <div ref={posterRef}>

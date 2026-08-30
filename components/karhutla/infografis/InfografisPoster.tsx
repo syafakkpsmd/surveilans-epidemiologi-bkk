@@ -4,26 +4,32 @@ import { LABEL_STATUS, type StatusEvaluasi } from '@/lib/karhutla/constants';
 import type { RingkasanInfografisHarian } from '@/lib/supabase/queries-karhutla-server';
 
 /**
- * Palet "AI dashboard" gelap -- sengaja HINDARI backdrop-filter/CSS filter
- * (blur dsb) karena html-to-image kadang gagal capture properti itu.
- * Gradient, box-shadow, dan border-radius biasa semuanya aman dipakai.
+ * Palet "AI dashboard" -- versi CERAH dgn perpaduan gradasi biru-teal-ungu
+ * (revisi dari versi sebelumnya yang basisnya nyaris hitam #070f1a).
+ * Sengaja HINDARI backdrop-filter/CSS filter (blur dsb) karena html-to-image
+ * kadang gagal capture properti itu. Gradient, box-shadow, dan border-radius
+ * biasa semuanya aman dipakai (sudah terbukti di header & kartu sebelumnya).
  */
 const WARNA = {
-  bgDeep: '#070f1a',
-  bgPanel: '#0d1c2b',
-  bgCard: '#11253688',
-  bgCardSolid: '#112536',
-  border: 'rgba(255,255,255,0.09)',
-  borderStrong: 'rgba(255,255,255,0.18)',
-  cyan: '#22d3ee',
-  teal: '#2dd4bf',
-  navy: '#0b1f30',
-  ink: '#eaf3f8',
-  muted: '#8ca4b6',
-  hijau: '#34d399',
-  kuning: '#fbbf24',
-  merah: '#fb7185',
+  bgDeep: '#123a63',
+  bgPanel: '#155e8f',
+  bgCardGradA: '#1b4d7e',
+  bgCardGradB: '#123a63',
+  bgCardSolid: '#1b4d7e',
+  border: 'rgba(255,255,255,0.16)',
+  borderStrong: 'rgba(255,255,255,0.28)',
+  cyan: '#3ee8ff',
+  teal: '#2fe7c4',
+  navy: '#123a63',
+  ink: '#f5fafd',
+  muted: '#bcdcef',
+  hijau: '#3fe08c',
+  kuning: '#ffcb4d',
+  merah: '#ff7086',
 };
+
+/** Gradasi kartu yang dipakai berulang (KPI, breakdown wilker, tabel, chart). */
+const GRADASI_KARTU = `linear-gradient(160deg, ${WARNA.bgCardGradA} 0%, ${WARNA.bgCardGradB} 100%)`;
 
 function formatTanggalPanjang(tanggal: string): string {
   return new Date(`${tanggal}T00:00:00`).toLocaleDateString('id-ID', {
@@ -66,7 +72,8 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
   }));
 
   const dataSkdrWilayah = data.skdrPerWilayah.map((w) => ({
-    label: w.wilayah,
+    // ganti underscore jadi spasi supaya "Tanjung_Santan" tampil "Tanjung Santan" dst.
+    label: w.wilayah.replace(/_/g, ' '),
     'Minggu Lalu': w.mingguLalu,
     'Minggu Ini': w.mingguIni,
   }));
@@ -76,15 +83,15 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
       style={{
         width: LEBAR_POSTER,
         fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-        background: `linear-gradient(180deg, ${WARNA.bgDeep} 0%, ${WARNA.bgPanel} 100%)`,
+        background: `linear-gradient(165deg, ${WARNA.bgDeep} 0%, ${WARNA.bgPanel} 55%, #1a8f9e 100%)`,
         color: WARNA.ink,
       }}
     >
       {/* ---------- HEADER ---------- */}
       <div
         style={{
-          background: `linear-gradient(120deg, ${WARNA.navy} 0%, #0f3a4a 100%)`,
-          backgroundImage: `radial-gradient(rgba(34,211,238,0.16) 1px, transparent 1px), linear-gradient(120deg, ${WARNA.navy} 0%, #0f3a4a 100%)`,
+          background: `linear-gradient(120deg, ${WARNA.navy} 0%, #1a8f9e 100%)`,
+          backgroundImage: `radial-gradient(rgba(62,232,255,0.22) 1px, transparent 1px), linear-gradient(120deg, ${WARNA.navy} 0%, #1a8f9e 100%)`,
           backgroundSize: '20px 20px, 100% 100%',
           padding: '30px 48px',
           display: 'flex',
@@ -99,51 +106,64 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
         <img
           src="/logo-header-infografis.png"
           alt="Kemenkes RI - BKK Kelas I Samarinda"
-          style={{ height: 76, flexShrink: 0, display: 'block' }}
+          style={{ height: 76, flexShrink: 0, display: 'block', mixBlendMode: 'lighten' }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: 2, color: WARNA.cyan, textTransform: 'uppercase' }}>
               Info Grafis Harian
             </p>
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: 0.5,
-                color: WARNA.bgDeep,
-                background: `linear-gradient(90deg, ${WARNA.cyan}, ${WARNA.teal})`,
-                padding: '3px 10px',
-                borderRadius: 999,
-              }}
-            >
-              ⚡ EPIC-AI
-            </span>
           </div>
           <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: '#ffffff', lineHeight: 1.15 }}>
-            Kesiagaan Karhutla &amp; ISPA
+            Kualitas Udara &amp; ISPA pada masa Karhutla
           </h1>
           <p style={{ margin: '6px 0 0', fontSize: 15, color: '#a9c2d1' }}>
             {formatTanggalPanjang(data.tanggalDitampilkan)} &middot; Kalimantan Timur
           </p>
+          
           {data.pakaiFallback && (
             <div
               style={{
-                display: 'inline-block',
-                marginTop: 10,
-                padding: '4px 14px',
-                borderRadius: 999,
-                background: 'rgba(251,191,36,0.15)',
-                color: WARNA.kuning,
-                fontSize: 12,
-                fontWeight: 600,
-                border: `1px solid rgba(251,191,36,0.35)`,
-              }}
-            >
+              background: `linear-gradient(160deg, #050d1a 0%, #0e2a4d 40%, #17678a 82%, #1ba3a0 100%)`,
+              backgroundImage: `radial-gradient(rgba(62,232,255,0.22) 1px, transparent 1px), linear-gradient(160deg, #050d1a 0%, #0e2a4d 40%, #17678a 82%, #1ba3a0 100%)`,
+              backgroundSize: '20px 20px, 100% 100%',
+              padding: '30px 48px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 28,
+              borderBottom: `1px solid ${WARNA.borderStrong}`,
+            }}
+          >
               Menampilkan data terakhir tersedia ({formatTanggalPanjang(data.tanggalDitampilkan)}) — data tanggal{' '}
               {formatTanggalSingkat(data.tanggalDiminta)} belum masuk
             </div>
           )}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0 }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: '#7a1620', letterSpacing: -0.5 }}>Ber</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: '#e0303e', letterSpacing: -0.5, marginLeft: 1 }}>AKHLAK</span>
+            <svg
+              style={{ position: 'absolute', top: -9, right: -3 }}
+              width={15}
+              height={13}
+              viewBox="0 0 22 20"
+            >
+              <path d="M0 0 L14 0 L22 10 L14 20 L0 20 L8 10 Z" fill="#e0303e" />
+              <path d="M0 0 L14 0 L18 5 L4 5 Z" fill="#f4a3a8" opacity={0.55} />
+            </svg>
+          </div>
+          <p style={{ fontSize: 8, fontWeight: 700, color: '#fdfdfd', margin: '2px 0 0', letterSpacing: 0.2 }}>
+            <b style={{ color: '#ff6b6b' }}>B</b>erorientasi Pelayanan{' '}
+            <b style={{ color: '#ff6b6b' }}>A</b>kuntabel{' '}
+            <b style={{ color: '#ff6b6b' }}>K</b>ompeten
+          </p>
+          <p style={{ fontSize: 8, fontWeight: 700, color: '#fdfdfd', margin: 0, letterSpacing: 0.2 }}>
+            <b style={{ color: '#ff6b6b' }}>H</b>armonis{' '}
+            <b style={{ color: '#ff6b6b' }}>L</b>oyal{' '}
+            <b style={{ color: '#ff6b6b' }}>A</b>daptif{' '}
+            <b style={{ color: '#ff6b6b' }}>K</b>olaboratif
+          </p>
         </div>
       </div>
 
@@ -170,7 +190,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
               key={w.kode_wilker}
               style={{
                 border: `1px solid ${WARNA.border}`,
-                background: WARNA.bgCardSolid,
+                background: GRADASI_KARTU,
                 borderRadius: 10,
                 padding: '12px 16px',
                 display: 'flex',
@@ -193,7 +213,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
       <div style={{ display: 'flex', gap: 16, padding: '28px 48px 0' }}>
         <div style={{ flex: '0 0 300px' }}>
           <JudulSeksi>Sebaran Titik Panas</JudulSeksi>
-          <div style={{ marginTop: 12, height: 340, borderRadius: 16, overflow: 'hidden', border: `1px solid ${WARNA.border}` }}>
+          <div style={{ marginTop: 12, height: 460, borderRadius: 16, overflow: 'hidden', border: `1px solid ${WARNA.border}` }}>
             <PetaMiniHotspot hotspots={data.hotspotPoints} />
           </div>
         </div>
@@ -203,7 +223,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
             style={{
               marginTop: 12,
               height: 340,
-              background: WARNA.bgCardSolid,
+              background: GRADASI_KARTU,
               border: `1px solid ${WARNA.border}`,
               borderRadius: 10,
               padding: '12px 12px 0',
@@ -245,20 +265,20 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
             border: `1px solid ${WARNA.border}`,
             borderRadius: 10,
             overflow: 'hidden',
-            background: WARNA.bgCardSolid,
+            background: GRADASI_KARTU,
           }}
         >
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: 'rgba(34,211,238,0.08)' }}>
-                <ThKualitasUdara align="left">Wilker</ThKualitasUdara>
+                <ThKualitasUdara align="left">WILKER</ThKualitasUdara>
                 <ThKualitasUdara>PM2.5 (µg/m³)</ThKualitasUdara>
                 <ThKualitasUdara>PM10 (µg/m³)</ThKualitasUdara>
                 <ThKualitasUdara>Suhu (°C)</ThKualitasUdara>
                 <ThKualitasUdara>HCHO (mg/m³)</ThKualitasUdara>
                 <ThKualitasUdara>TVOC (mg/m³)</ThKualitasUdara>
-                <ThKualitasUdara>Kelembapan (%)</ThKualitasUdara>
-                <ThKualitasUdara>Status</ThKualitasUdara>
+                <ThKualitasUdara>KELEMBAPAN (%)</ThKualitasUdara>
+                <ThKualitasUdara>STATUS</ThKualitasUdara>
               </tr>
             </thead>
             <tbody>
@@ -301,8 +321,8 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
         <div
           style={{
             marginTop: 12,
-            height: 260,
-            background: WARNA.bgCardSolid,
+            height: 300,
+            background: GRADASI_KARTU,
             border: `1px solid ${WARNA.border}`,
             borderRadius: 10,
             padding: '12px 12px 0',
@@ -310,15 +330,15 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
         >
           {dataSkdrWilayah.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dataSkdrWilayah} margin={{ top: 8, right: 12, left: -12, bottom: 48 }} barGap={4}>
+              <BarChart data={dataSkdrWilayah} margin={{ top: 8, right: 12, left: -12, bottom: 64 }} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                 <XAxis
                   dataKey="label"
                   tick={{ fontSize: 10, fill: WARNA.muted }}
                   interval={0}
-                  angle={-35}
+                  angle={-40}
                   textAnchor="end"
-                  height={70}
+                  height={86}
                 />
                 <YAxis tick={{ fontSize: 11, fill: WARNA.muted }} allowDecimals={false} />
                 <Bar dataKey="Minggu Lalu" fill="rgba(45,212,191,0.35)" radius={[4, 4, 0, 0]} />
@@ -350,7 +370,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
           })}
         </p>
         <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 700, color: WARNA.cyan }}>
-          Balai Kekarantinaan Kesehatan Kelas I Samarinda — Kementerian Kesehatan RI
+          Balai Kekarantinaan Kesehatan Kelas I Samarinda — Direktorat Jenderal Penanggulangan Penyakit Kementerian Kesehatan RI
         </p>
       </div>
     </div>
@@ -376,7 +396,7 @@ function KartuKpi({
         flex: 1,
         border: `1px solid ${WARNA.border}`,
         borderTop: `3px solid ${warna}`,
-        background: WARNA.bgCardSolid,
+        background: GRADASI_KARTU,
         borderRadius: 10,
         padding: '16px 18px',
       }}
@@ -427,7 +447,6 @@ function ThKualitasUdara({ children, align = 'center' }: { children: React.React
         fontSize: 11,
         fontWeight: 700,
         color: WARNA.cyan,
-        textTransform: 'uppercase',
         letterSpacing: 0.3,
       }}
     >

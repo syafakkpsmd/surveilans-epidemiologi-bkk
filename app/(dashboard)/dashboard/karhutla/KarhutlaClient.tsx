@@ -352,7 +352,7 @@ export default function KarhutlaClient({
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-base font-semibold text-gray-900">Analisis Kasus ISPA vs Titik Panas</h2>
+        <h2 className="text-base font-semibold text-gray-900">Analisis Kasus ISPA dengan Titik Panas</h2>
         <FilterRentangPeriodeKarhutla
           nilai={filterPeriode}
           onUbah={setFilterPeriode}

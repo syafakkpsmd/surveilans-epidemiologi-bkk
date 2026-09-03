@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 export interface OpsiWilayahMultiSelect {
   key: string;
   label: string;
-  induk: string;
+  induk: string | null;
 }
 
 export default function PilihWilayahMultiSelect({
@@ -28,7 +28,8 @@ export default function PilihWilayahMultiSelect({
   }, []);
 
   const terkelompok = opsi.reduce<Record<string, OpsiWilayahMultiSelect[]>>((acc, o) => {
-    (acc[o.induk] ??= []).push(o);
+    const key = o.induk ?? '_tanpa_induk';
+    (acc[key] ??= []).push(o);
     return acc;
   }, {});
 

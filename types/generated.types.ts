@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -298,8 +298,96 @@ export type Database = {
         }
         Relationships: []
       }
-
-      
+      ispu_stasiun_harian: {
+        Row: {
+          co: number | null
+          created_at: string
+          id: string
+          ispu_co: number | null
+          ispu_kategori: string
+          ispu_nilai: number
+          ispu_no2: number | null
+          ispu_o3: number | null
+          ispu_parameter_kritis: string
+          ispu_pm10: number | null
+          ispu_pm25: number | null
+          ispu_so2: number | null
+          kabupaten_kota: string | null
+          latitude: number
+          longitude: number
+          nama_stasiun: string
+          no2: number | null
+          o3: number | null
+          openaq_location_id: number
+          pm10: number | null
+          pm25: number | null
+          provinsi: string | null
+          raw_response: Json | null
+          so2: number | null
+          sumber: string
+          updated_at: string
+          waktu_pengukuran: string
+        }
+        Insert: {
+          co?: number | null
+          created_at?: string
+          id?: string
+          ispu_co?: number | null
+          ispu_kategori: string
+          ispu_nilai: number
+          ispu_no2?: number | null
+          ispu_o3?: number | null
+          ispu_parameter_kritis: string
+          ispu_pm10?: number | null
+          ispu_pm25?: number | null
+          ispu_so2?: number | null
+          kabupaten_kota?: string | null
+          latitude: number
+          longitude: number
+          nama_stasiun: string
+          no2?: number | null
+          o3?: number | null
+          openaq_location_id: number
+          pm10?: number | null
+          pm25?: number | null
+          provinsi?: string | null
+          raw_response?: Json | null
+          so2?: number | null
+          sumber?: string
+          updated_at?: string
+          waktu_pengukuran: string
+        }
+        Update: {
+          co?: number | null
+          created_at?: string
+          id?: string
+          ispu_co?: number | null
+          ispu_kategori?: string
+          ispu_nilai?: number
+          ispu_no2?: number | null
+          ispu_o3?: number | null
+          ispu_parameter_kritis?: string
+          ispu_pm10?: number | null
+          ispu_pm25?: number | null
+          ispu_so2?: number | null
+          kabupaten_kota?: string | null
+          latitude?: number
+          longitude?: number
+          nama_stasiun?: string
+          no2?: number | null
+          o3?: number | null
+          openaq_location_id?: number
+          pm10?: number | null
+          pm25?: number | null
+          provinsi?: string | null
+          raw_response?: Json | null
+          so2?: number | null
+          sumber?: string
+          updated_at?: string
+          waktu_pengukuran?: string
+        }
+        Relationships: []
+      }
       jenis_kegiatan_foto: {
         Row: {
           dibuat_pada: string
@@ -596,6 +684,51 @@ export type Database = {
         }
         Relationships: []
       }
+      klinik_binaan: {
+        Row: {
+          alamat_klinik: string | null
+          created_at: string | null
+          id: string
+          jenis_fasilitas: string | null
+          kabupaten_kota: string | null
+          latitude: number | null
+          longitude: number | null
+          nama_klinik: string
+          pemilik_pimpinan: string | null
+          penanggung_jawab: string | null
+          spreadsheet_id: string | null
+          telepon: string | null
+        }
+        Insert: {
+          alamat_klinik?: string | null
+          created_at?: string | null
+          id?: string
+          jenis_fasilitas?: string | null
+          kabupaten_kota?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          nama_klinik: string
+          pemilik_pimpinan?: string | null
+          penanggung_jawab?: string | null
+          spreadsheet_id?: string | null
+          telepon?: string | null
+        }
+        Update: {
+          alamat_klinik?: string | null
+          created_at?: string | null
+          id?: string
+          jenis_fasilitas?: string | null
+          kabupaten_kota?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          nama_klinik?: string
+          pemilik_pimpinan?: string | null
+          penanggung_jawab?: string | null
+          spreadsheet_id?: string | null
+          telepon?: string | null
+        }
+        Relationships: []
+      }
       kualitas_udara_harian: {
         Row: {
           catatan_evaluasi: string | null
@@ -746,6 +879,33 @@ export type Database = {
         }
         Relationships: []
       }
+      lokasi_kualitas_udara: {
+        Row: {
+          dibuat_pada: string
+          id: string
+          lokasi_induk: string | null
+          nama: string
+          sub_lokasi: string | null
+          urutan: number
+        }
+        Insert: {
+          dibuat_pada?: string
+          id?: string
+          lokasi_induk?: string | null
+          nama: string
+          sub_lokasi?: string | null
+          urutan?: number
+        }
+        Update: {
+          dibuat_pada?: string
+          id?: string
+          lokasi_induk?: string | null
+          nama?: string
+          sub_lokasi?: string | null
+          urutan?: number
+        }
+        Relationships: []
+      }
       malaria_migrasi: {
         Row: {
           dibuat_pada: string
@@ -885,6 +1045,250 @@ export type Database = {
           urutan_prioritas?: number
         }
         Relationships: []
+      }
+      pengaturan_klinik: {
+        Row: {
+          id: number
+          standar_hari_vaksin: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          standar_hari_vaksin?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          standar_hari_vaksin?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      pengawasan_klinik: {
+        Row: {
+          ada_vaksinator_bersertifikat: boolean | null
+          alarm_suhu: boolean | null
+          alur_pelayanan_terpasang: boolean | null
+          anafilaktik_kit: boolean | null
+          apotek_cold_chain_room: boolean | null
+          avr: boolean | null
+          catatan: string | null
+          created_at: string | null
+          form_pencatatan_suhu_manual: boolean | null
+          freeze_tag: boolean | null
+          genset: boolean | null
+          id: string
+          item_bermasalah: string[] | null
+          jenis_pendingin_carrier: string | null
+          jumlah_vaksinator: number | null
+          klinik_id: string
+          log_tag: boolean | null
+          mou_limbah_ada: boolean | null
+          mou_limbah_berlaku: boolean | null
+          nama_petugas_1: string | null
+          nama_petugas_2: string | null
+          nama_petugas_3: string | null
+          nama_petugas_klinik: string | null
+          nomor_sio: string | null
+          nomor_sip_dokter: string | null
+          nomor_sip_perawat: string | null
+          nomor_sip_pj: string | null
+          papan_nama_ruangan_vaksinasi: boolean | null
+          papan_nama_vaksinasi: boolean | null
+          pendaftaran_komputer_jaringan: boolean | null
+          pengelolaan_limbah_medis: boolean | null
+          persentase_kepatuhan: number | null
+          printer_passbook: boolean | null
+          ruang_administrasi_komputer: boolean | null
+          ruang_laboratorium: boolean | null
+          ruang_periksa_screening: boolean | null
+          ruang_tindakan: boolean | null
+          ruang_tunggu_terpisah: boolean | null
+          ruang_vaksinasi: boolean | null
+          safety_box: boolean | null
+          sio_ada: boolean | null
+          sio_berlaku_sampai: string | null
+          skor_kritikal_gagal: number | null
+          skor_pendukung_gagal: number | null
+          sop_pelayanan_vaksinasi: boolean | null
+          sop_syok_anafilaktik: boolean | null
+          status_kepatuhan: string | null
+          submitted_by: string | null
+          tanggal_kegiatan: string
+          tempat_sampah_medis: boolean | null
+          tempat_sampah_tertutup: boolean | null
+          termometer: boolean | null
+          toilet_urin: boolean | null
+          vaccine_carrier: boolean | null
+          vaccine_refrigerator_freezer: boolean | null
+          waktu_mulai_layanan: string | null
+          waktu_tutup_layanan: string | null
+        }
+        Insert: {
+          ada_vaksinator_bersertifikat?: boolean | null
+          alarm_suhu?: boolean | null
+          alur_pelayanan_terpasang?: boolean | null
+          anafilaktik_kit?: boolean | null
+          apotek_cold_chain_room?: boolean | null
+          avr?: boolean | null
+          catatan?: string | null
+          created_at?: string | null
+          form_pencatatan_suhu_manual?: boolean | null
+          freeze_tag?: boolean | null
+          genset?: boolean | null
+          id?: string
+          item_bermasalah?: string[] | null
+          jenis_pendingin_carrier?: string | null
+          jumlah_vaksinator?: number | null
+          klinik_id: string
+          log_tag?: boolean | null
+          mou_limbah_ada?: boolean | null
+          mou_limbah_berlaku?: boolean | null
+          nama_petugas_1?: string | null
+          nama_petugas_2?: string | null
+          nama_petugas_3?: string | null
+          nama_petugas_klinik?: string | null
+          nomor_sio?: string | null
+          nomor_sip_dokter?: string | null
+          nomor_sip_perawat?: string | null
+          nomor_sip_pj?: string | null
+          papan_nama_ruangan_vaksinasi?: boolean | null
+          papan_nama_vaksinasi?: boolean | null
+          pendaftaran_komputer_jaringan?: boolean | null
+          pengelolaan_limbah_medis?: boolean | null
+          persentase_kepatuhan?: number | null
+          printer_passbook?: boolean | null
+          ruang_administrasi_komputer?: boolean | null
+          ruang_laboratorium?: boolean | null
+          ruang_periksa_screening?: boolean | null
+          ruang_tindakan?: boolean | null
+          ruang_tunggu_terpisah?: boolean | null
+          ruang_vaksinasi?: boolean | null
+          safety_box?: boolean | null
+          sio_ada?: boolean | null
+          sio_berlaku_sampai?: string | null
+          skor_kritikal_gagal?: number | null
+          skor_pendukung_gagal?: number | null
+          sop_pelayanan_vaksinasi?: boolean | null
+          sop_syok_anafilaktik?: boolean | null
+          status_kepatuhan?: string | null
+          submitted_by?: string | null
+          tanggal_kegiatan: string
+          tempat_sampah_medis?: boolean | null
+          tempat_sampah_tertutup?: boolean | null
+          termometer?: boolean | null
+          toilet_urin?: boolean | null
+          vaccine_carrier?: boolean | null
+          vaccine_refrigerator_freezer?: boolean | null
+          waktu_mulai_layanan?: string | null
+          waktu_tutup_layanan?: string | null
+        }
+        Update: {
+          ada_vaksinator_bersertifikat?: boolean | null
+          alarm_suhu?: boolean | null
+          alur_pelayanan_terpasang?: boolean | null
+          anafilaktik_kit?: boolean | null
+          apotek_cold_chain_room?: boolean | null
+          avr?: boolean | null
+          catatan?: string | null
+          created_at?: string | null
+          form_pencatatan_suhu_manual?: boolean | null
+          freeze_tag?: boolean | null
+          genset?: boolean | null
+          id?: string
+          item_bermasalah?: string[] | null
+          jenis_pendingin_carrier?: string | null
+          jumlah_vaksinator?: number | null
+          klinik_id?: string
+          log_tag?: boolean | null
+          mou_limbah_ada?: boolean | null
+          mou_limbah_berlaku?: boolean | null
+          nama_petugas_1?: string | null
+          nama_petugas_2?: string | null
+          nama_petugas_3?: string | null
+          nama_petugas_klinik?: string | null
+          nomor_sio?: string | null
+          nomor_sip_dokter?: string | null
+          nomor_sip_perawat?: string | null
+          nomor_sip_pj?: string | null
+          papan_nama_ruangan_vaksinasi?: boolean | null
+          papan_nama_vaksinasi?: boolean | null
+          pendaftaran_komputer_jaringan?: boolean | null
+          pengelolaan_limbah_medis?: boolean | null
+          persentase_kepatuhan?: number | null
+          printer_passbook?: boolean | null
+          ruang_administrasi_komputer?: boolean | null
+          ruang_laboratorium?: boolean | null
+          ruang_periksa_screening?: boolean | null
+          ruang_tindakan?: boolean | null
+          ruang_tunggu_terpisah?: boolean | null
+          ruang_vaksinasi?: boolean | null
+          safety_box?: boolean | null
+          sio_ada?: boolean | null
+          sio_berlaku_sampai?: string | null
+          skor_kritikal_gagal?: number | null
+          skor_pendukung_gagal?: number | null
+          sop_pelayanan_vaksinasi?: boolean | null
+          sop_syok_anafilaktik?: boolean | null
+          status_kepatuhan?: string | null
+          submitted_by?: string | null
+          tanggal_kegiatan?: string
+          tempat_sampah_medis?: boolean | null
+          tempat_sampah_tertutup?: boolean | null
+          termometer?: boolean | null
+          toilet_urin?: boolean | null
+          vaccine_carrier?: boolean | null
+          vaccine_refrigerator_freezer?: boolean | null
+          waktu_mulai_layanan?: string | null
+          waktu_tutup_layanan?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pengawasan_klinik_klinik_id_fkey"
+            columns: ["klinik_id"]
+            isOneToOne: false
+            referencedRelation: "klinik_binaan"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pengawasan_klinik_dokumen: {
+        Row: {
+          cloudinary_public_id: string
+          cloudinary_url: string
+          id: string
+          jenis_dokumen: string
+          pengawasan_id: string | null
+          uploaded_at: string | null
+        }
+        Insert: {
+          cloudinary_public_id: string
+          cloudinary_url: string
+          id?: string
+          jenis_dokumen: string
+          pengawasan_id?: string | null
+          uploaded_at?: string | null
+        }
+        Update: {
+          cloudinary_public_id?: string
+          cloudinary_url?: string
+          id?: string
+          jenis_dokumen?: string
+          pengawasan_id?: string | null
+          uploaded_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pengawasan_klinik_dokumen_pengawasan_id_fkey"
+            columns: ["pengawasan_id"]
+            isOneToOne: false
+            referencedRelation: "pengawasan_klinik"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       peraturan: {
         Row: {
@@ -1904,55 +2308,28 @@ export type Database = {
       }
       wilayah_ispa: {
         Row: {
+          dibuat_pada: string
           id: string
-          label: string
           kode_wilker: string
+          label: string
+          urutan: number
           zona: string | null
-          urutan: number
-          dibuat_pada: string
         }
         Insert: {
+          dibuat_pada?: string
           id?: string
-          label: string
           kode_wilker: string
-          zona?: string | null
+          label: string
           urutan?: number
-          dibuat_pada?: string
+          zona?: string | null
         }
         Update: {
+          dibuat_pada?: string
           id?: string
-          label?: string
           kode_wilker?: string
+          label?: string
+          urutan?: number
           zona?: string | null
-          urutan?: number
-          dibuat_pada?: string
-        }
-        Relationships: []
-      }
-      lokasi_kualitas_udara: {
-        Row: {
-          id: string
-          nama: string
-          lokasi_induk: string
-          sub_lokasi: string | null
-          urutan: number
-          dibuat_pada: string
-        }
-        Insert: {
-          id?: string
-          nama: string
-          lokasi_induk: string
-          sub_lokasi?: string | null
-          urutan?: number
-          dibuat_pada?: string
-        }
-        Update: {
-          id?: string
-          nama?: string
-          lokasi_induk?: string
-          sub_lokasi?: string | null
-          urutan?: number
-          dibuat_pada?: string
         }
         Relationships: []
       }
@@ -2782,12 +3159,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2811,11 +3188,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2836,11 +3213,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2861,11 +3238,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2878,11 +3255,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

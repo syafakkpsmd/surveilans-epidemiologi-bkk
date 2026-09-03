@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { jalankanSimulasiWabahPesawat } from "@/app/actions/simulasiWabahPesawat";
-import { PeranUser } from "@/types/database.types.OLD";
+import { PeranUser } from "@/types/database.types";
 import { BoxAnalisisAI } from "../BoxAnalisisAI";
 
 interface Props {

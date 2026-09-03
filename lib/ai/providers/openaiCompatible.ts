@@ -17,12 +17,16 @@ export const panggilOpenAiCompatible: FungsiProviderAi = async ({
   model,
   baseUrl,
   prompt,
+  opsi,
 }) => {
   if (!baseUrl) {
     throw new Error(
       "Provider tipe 'openai_compatible' butuh base_url (mis. https://api.groq.com/openai/v1). Lengkapi dulu di halaman Atur AI."
     );
   }
+
+  const formatJson = opsi?.formatJson ?? true; // default lama: true
+  const maxOutputTokens = opsi?.maxOutputTokens ?? 1024;
 
   const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
@@ -35,7 +39,8 @@ export const panggilOpenAiCompatible: FungsiProviderAi = async ({
     body: JSON.stringify({
       model,
       temperature: 0.3,
-      response_format: { type: 'json_object' },
+      max_tokens: maxOutputTokens,
+      ...(formatJson ? { response_format: { type: 'json_object' } } : {}),
       messages: [{ role: 'user', content: prompt }],
     }),
   });

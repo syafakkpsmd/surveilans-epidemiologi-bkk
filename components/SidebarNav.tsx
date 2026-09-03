@@ -120,6 +120,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2, prefetch: false },
       { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon, prefetch: false },
       { label: "Surveilans PAB", href: "/dashboard/pab", icon: Droplet, prefetch: false },
+       { label: "Pengawasan Klinik", href: "/dashboard/pengawasan-klinik", icon: ClipboardCheck, prefetch: false },
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
       { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
@@ -127,6 +128,16 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
     ],
   },
+
+  {
+    title: "Klinik Binaan BKK",
+    items: [
+      { label: "Klinik Binaan", href: "/dashboard/klinik", icon: Building2, prefetch: false },
+      { label: "Pengawasan Klinik", href: "/dashboard/pengawasan-klinik", icon: ClipboardCheck, prefetch: false },
+
+    ],
+  },
+
   {
     title: "Informasi Lainnya",
     items: [

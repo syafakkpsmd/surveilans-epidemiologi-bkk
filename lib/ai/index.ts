@@ -14,7 +14,11 @@ const ADAPTER_PER_TIPE: Record<PengaturanAi['tipe_provider'], FungsiProviderAi> 
  * di-parse JSON -- lihat lib/ai/prompt.ts untuk parsing ke bentuk
  * { ringkasan, anomali, rekomendasi }).
  */
-export async function panggilAI(pengaturan: PengaturanAi, prompt: string): Promise<string> {
+export async function panggilAI(
+  pengaturan: PengaturanAi,
+  prompt: string,
+  opsi?: { formatJson?: boolean; maxOutputTokens?: number; maxPromptChars?: number }
+): Promise<string> {
   const adapter = ADAPTER_PER_TIPE[pengaturan.tipe_provider];
 
   if (!adapter) {
@@ -26,5 +30,6 @@ export async function panggilAI(pengaturan: PengaturanAi, prompt: string): Promi
     model: pengaturan.model,
     baseUrl: pengaturan.base_url,
     prompt,
+    opsi,
   });
 }

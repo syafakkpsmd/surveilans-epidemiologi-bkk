@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 type LokasiUdara = {
   id: string;
-  lokasi_induk: string;
+  lokasi_induk: string | null;
   sub_lokasi: string | null;
 };
 
@@ -28,7 +28,7 @@ export function BarisLokasiUdara({
         }}
         className="ml-3 grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-control border border-teal px-3 py-2"
       >
-        <input name="lokasi_induk" defaultValue={lokasi.lokasi_induk} required
+        <input name="lokasi_induk" defaultValue={lokasi.lokasi_induk ?? ''} required
           className="rounded-control border border-border px-2 py-1 text-sm" />
         <input name="sub_lokasi" defaultValue={lokasi.sub_lokasi ?? ''} placeholder="Sub-lokasi (opsional)"
           className="rounded-control border border-border px-2 py-1 text-sm" />

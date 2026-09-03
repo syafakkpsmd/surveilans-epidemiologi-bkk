@@ -47,13 +47,16 @@ function perbaikiJsonTerpotong(teks: string): string {
   return t;
 }
 
-export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt }) => {
+export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt, opsi }) => {
+  const formatJson = opsi?.formatJson ?? true; // default lama: true
+  const maxOutputTokens = opsi?.maxOutputTokens ?? 1024; // default lama: 1024
   if (!apiKey) {
     throw new Error('API key Gemini belum diset. Hubungi Admin untuk konfigurasi di /admin/pengaturan-ai.');
   }
 
   const promptBersih = bersihkanPrompt(prompt);
-  const promptFinal = promptBersih.length > 8000 ? promptBersih.slice(0, 8000) + '...' : promptBersih;
+  const batasPrompt = opsi?.maxPromptChars ?? 8000; // default lama tetap 8000
+  const promptFinal = promptBersih.length > batasPrompt ? promptBersih.slice(0, batasPrompt) + '...' : promptBersih;
 
   // Nama model default fallback jika param kosong
   const namaModel = model || 'gemini-1.5-flash';
@@ -66,8 +69,8 @@ export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt })
     contents: [{ role: 'user', parts: [{ text: promptFinal }] }],
     generationConfig: {
       temperature: 0.2,
-      maxOutputTokens: 1024,
-      responseMimeType: 'application/json',
+      maxOutputTokens,
+      ...(formatJson ? { responseMimeType: 'application/json' } : {}),
       // 'thinkingConfig' DIBUANG agar kompatibel dengan seluruh seri Gemini 1.5/2.0 Flash
     },
   };
@@ -145,7 +148,12 @@ export const panggilGemini: FungsiProviderAi = async ({ apiKey, model, prompt })
   teks = teks.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/, '').trim();
 
   if (finishReason === 'MAX_TOKENS') {
-    teks = perbaikiJsonTerpotong(teks);
+    if (formatJson) {
+      teks = perbaikiJsonTerpotong(teks);
+    }
+    console.warn(
+      `Gemini memotong respons karena MAX_TOKENS (maxOutputTokens=${maxOutputTokens}). Pertimbangkan menaikkan opsi.maxOutputTokens.`
+    );
   }
 
   return teks;

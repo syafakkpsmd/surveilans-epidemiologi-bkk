@@ -63,6 +63,16 @@ export default function KarhutlaClient({
   const router = useRouter();
   const [sinkronBerjalan, setSinkronBerjalan] = useState(false);
   const [pesanSinkron, setPesanSinkron] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null);
+  const [laporanTerbuka, setLaporanTerbuka] = useState(false);
+  const [laporanBerjalan, setLaporanBerjalan] = useState(false);
+  const [pesanLaporan, setPesanLaporan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null);
+  const [laporanDari, setLaporanDari] = useState(() => {
+  const d = new Date();
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [laporanSampai, setLaporanSampai] = useState(() => new Date().toISOString().slice(0, 10));
+  const [laporanWilayah, setLaporanWilayah] = useState<string[]>([]);
 
   async function sinkronisasiHotspotSekarang() {
     setSinkronBerjalan(true);
@@ -114,6 +124,29 @@ export default function KarhutlaClient({
       setPesanBackfill({ tipe: 'error', teks: (err as Error).message });
     } finally {
       setBackfillBerjalan(false);
+    }
+  }
+
+  async function buatLaporan(periodeAwal: string, periodeAkhir: string, wilayahKeys: string[]) {
+    setLaporanBerjalan(true);
+    try {
+      const res = await fetch('/api/karhutla-laporan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ periodeAwal, periodeAkhir, wilayahKeys }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Gagal membuat laporan.');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `laporan-karhutla-${periodeAwal}-${periodeAkhir}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setPesanLaporan({ tipe: 'error', teks: (err as Error).message });
+    } finally {
+      setLaporanBerjalan(false);
     }
   }
 
@@ -231,6 +264,14 @@ export default function KarhutlaClient({
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+        {isAdmin && (
+          <button
+            onClick={() => setLaporanTerbuka(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 hover:bg-purple-100"
+          >
+            📄 Buat Laporan
+          </button>
+        )}
         {isAdmin && (
           <button
             onClick={sinkronisasiHotspotSekarang}
@@ -427,6 +468,64 @@ export default function KarhutlaClient({
             onBerhasilSimpan={() => setFormTerbuka(null)}
             />
         </ModalSederhana>
+        )}
+
+        {laporanTerbuka && (
+          <ModalSederhana judul="Buat Laporan Karhutla & ISPA" onTutup={() => setLaporanTerbuka(false)}>
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Dari tanggal</label>
+                  <input
+                    type="date"
+                    value={laporanDari}
+                    onChange={(e) => setLaporanDari(e.target.value)}
+                    className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Sampai tanggal</label>
+                  <input
+                    type="date"
+                    value={laporanSampai}
+                    onChange={(e) => setLaporanSampai(e.target.value)}
+                    className="rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Wilayah Kerja (kosongkan untuk semua wilayah)
+                </label>
+                <PilihWilayahMultiSelect
+                  opsi={opsiWilayah}
+                  nilai={laporanWilayah}
+                  onUbah={setLaporanWilayah}
+                />
+              </div>
+
+              {pesanLaporan && (
+                <div
+                  className={`rounded-md border px-3 py-2 text-sm ${
+                    pesanLaporan.tipe === 'sukses'
+                      ? 'bg-green-50 border-green-200 text-green-700'
+                      : 'bg-red-50 border-red-200 text-red-700'
+                  }`}
+                >
+                  {pesanLaporan.teks}
+                </div>
+              )}
+
+              <button
+                onClick={() => buatLaporan(laporanDari, laporanSampai, laporanWilayah)}
+                disabled={laporanBerjalan || laporanDari > laporanSampai}
+                className="w-full rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {laporanBerjalan ? '⏳ Membuat laporan...' : '📄 Unduh Laporan (.docx)'}
+              </button>
+            </div>
+          </ModalSederhana>
         )}
     </div>
   );

@@ -14,11 +14,11 @@
   getRingkasanTppMingguan,
   getRingkasanTtuMingguan,
   getRingkasanPabMingguan,
-  getRingkasanRatGuardMingguan,   // <-- tambahkan
+  getRingkasanRatGuardMingguan, 
   getRingkasanRatGuardBulanan,
 } from '@/lib/supabase/queries';
 import { getTrenDiareMultiVariabel, getTrenDiareBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
-import type { Wilayah, KategoriCop } from "@/types/domain.types";
+import type { KategoriCop } from "@/types/domain.types";
 import {
   parsePeriodeMingguan,
   parsePeriodeBulanan,
@@ -93,6 +93,8 @@ export const KONTEKS_TREN = [
   'karhutla-ispa-bulanan',
   'karhutla-ispa-mingguan',
   'skdr-ispa-mingguan',
+  'klinik-kepatuhan-mingguan',
+  'klinik-kepatuhan-bulanan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -160,6 +162,8 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'karhutla-ispa-bulanan',
   'karhutla-ispa-mingguan',
   'skdr-ispa-mingguan',
+  'klinik-kepatuhan-mingguan',
+  'klinik-kepatuhan-bulanan',
 ] as const;
 
 export const KONTEKS_EVENT = [

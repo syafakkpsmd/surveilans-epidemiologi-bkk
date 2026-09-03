@@ -1496,3 +1496,26 @@ ${rincian}
 Ekstrapolasikan risiko kenaikan kasus ISPA ke depan berdasarkan tren titik panas saat ini (kalau hotspot masih tinggi/naik, risiko paparan kabut asap berlanjut sehingga kasus ISPA berpotensi ikut naik).
 Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
 }
+
+export function susunPromptKlinikKepatuhan(data: DataAnalisis) {
+  const rincian = data.topKategori.length > 0
+    ? data.topKategori.map((k) => `${k.nilai}: ${k.jumlah} kasus tidak patuh (vaksin <14 hari sebelum keberangkatan)`).join('\n')
+    : '(tidak ada data pada rentang ini)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Data kepatuhan masa aktif vaksin (standar: jarak penerbitan dokumen vaksin ke tanggal keberangkatan minimal 14 hari) — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Ringkasan periode ini: total layanan ${data.ringkasanSaatIni.total}, patuh ${data.ringkasanSaatIni.patuh}, tidak patuh ${data.ringkasanSaatIni.tidakPatuh} (${data.ringkasanSaatIni.persentaseKepatuhan}% kepatuhan).
+Ringkasan periode sebelumnya (${data.labelPeriodeSebelumnya}): total ${data.ringkasanSebelumnya.total}, patuh ${data.ringkasanSebelumnya.patuh}, tidak patuh ${data.ringkasanSebelumnya.tidakPatuh} (${data.ringkasanSebelumnya.persentaseKepatuhan}% kepatuhan).
+Rincian klinik dengan kasus tidak patuh terbanyak periode ini:
+${rincian}
+Jangan mengarang angka di luar yang diberikan. Soroti klinik mana yang paling banyak menerbitkan dokumen vaksin kurang dari 14 hari sebelum keberangkatan, dan apakah ada tren perbaikan/perburukan dibanding periode sebelumnya.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiKlinikKepatuhan(data: DataAnalisis) {
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren kepatuhan masa aktif vaksin (standar 14 hari) — ${data.labelWilayah}.
+Dari periode ${data.labelPeriodeSebelumnya} (kepatuhan ${data.ringkasanSebelumnya.persentaseKepatuhan}%, total layanan ${data.ringkasanSebelumnya.total}) ke periode ${data.labelPeriodeSaatIni} (kepatuhan ${data.ringkasanSaatIni.persentaseKepatuhan}%, total layanan ${data.ringkasanSaatIni.total}).
+Ekstrapolasikan proyeksi persentase kepatuhan dan volume layanan periode berikutnya berdasarkan tren 2 titik data ini.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}

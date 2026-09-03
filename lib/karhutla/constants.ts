@@ -91,11 +91,11 @@ export function buatOpsiWilayahIspa(
  * kolom kualitas_udara_harian.lokasi (dipakai filter .in('lokasi', ...)).
  */
 export function buatOpsiLokasiUdara(
-  daftarLokasi: { nama: string; lokasi_induk: string; sub_lokasi: string | null }[]
+  daftarLokasi: { nama: string; lokasi_induk: string | null; sub_lokasi: string | null }[]
 ) {
   return daftarLokasi.map((l) => ({
     key: l.nama,
-    label: l.sub_lokasi ?? l.lokasi_induk,
+    label: l.sub_lokasi ?? l.lokasi_induk ?? l.nama,
     induk: l.lokasi_induk,
   }));
 }

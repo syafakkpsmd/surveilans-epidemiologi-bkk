@@ -34,7 +34,8 @@ export default function FormInputKualitasUdaraHarian({
   const statusPreview = hitungStatusEvaluasi(dataUntukStatus);
 
   const lokasiTerkelompok = daftarLokasi.reduce<Record<string, LokasiUdaraRow[]>>((acc, l) => {
-    (acc[l.lokasi_induk] ??= []).push(l);
+    const key = l.lokasi_induk ?? '_tanpa_induk';
+    (acc[key] ??= []).push(l);
     return acc;
   }, {});
 

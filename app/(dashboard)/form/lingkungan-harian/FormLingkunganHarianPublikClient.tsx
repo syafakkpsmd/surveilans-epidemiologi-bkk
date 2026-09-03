@@ -32,7 +32,8 @@ export default function FormLingkunganHarianPublikClient({ daftarLokasi }: { daf
   const statusPreview = hitungStatusEvaluasi(dataUntukStatus);
 
   const lokasiTerkelompok = daftarLokasi.reduce<Record<string, LokasiUdaraRow[]>>((acc, l) => {
-    (acc[l.lokasi_induk] ??= []).push(l);
+    const kunci = l.lokasi_induk ?? 'Lainnya'; // atau label lain sesuai konteks, misal 'Tanpa Induk'
+    (acc[kunci] ??= []).push(l);
     return acc;
   }, {});
 

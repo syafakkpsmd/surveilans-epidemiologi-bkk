@@ -1,13 +1,13 @@
 // lib/klinik/sheets.ts
 import { google } from 'googleapis';
-import path from 'path';
 import { unstable_cache } from 'next/cache';
-
-const KEY_FILE_PATH = path.join(process.cwd(), 'credentials.json');
 
 function getGoogleAuth(scopes: string[]) {
   return new google.auth.GoogleAuth({
-    keyFile: KEY_FILE_PATH,
+    credentials: {
+      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
     scopes,
   });
 }

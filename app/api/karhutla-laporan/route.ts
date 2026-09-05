@@ -95,13 +95,15 @@ export async function POST(request: Request) {
           new Paragraph({ text: 'Pengukuran Kualitas Udara per Wilayah Kerja', heading: HeadingLevel.HEADING_2, spacing: { before: 200 } }),
           buatTabelKualitasUdara(data),
 
-          new Paragraph({ text: 'IV. PEMBAHASAN', heading: HeadingLevel.HEADING_1 }),
-          ...pembahasan.split('\n\n').map((p) => new Paragraph({ text: p, spacing: { after: 200 } })),
           new Paragraph({ text: 'Kurva Epidemik: Kasus ISPA dan PM2.5 dengan Titik Api', heading: HeadingLevel.HEADING_2 }),
           new Paragraph({ children: [new ImageRun({ type: 'png', data: gambarKurva, transformation: { width: 600, height: 300 } })] }),
 
           new Paragraph({ text: 'Grafik Harian: Kasus ISPA dan PM2.5 dengan Titik Api', heading: HeadingLevel.HEADING_2 }),
           new Paragraph({ children: [new ImageRun({ type: 'png', data: gambarHarian, transformation: { width: 600, height: 300 } })] }),
+
+          new Paragraph({ text: 'IV. PEMBAHASAN', heading: HeadingLevel.HEADING_1 }),
+          ...pembahasan.split('\n\n').map((p) => new Paragraph({ text: p, spacing: { after: 200 } })),
+          
 
           new Paragraph({ text: 'V. DAFTAR PUSTAKA', heading: HeadingLevel.HEADING_1 }),
           ...DAFTAR_PUSTAKA_KARHUTLA.map((r) => new Paragraph({ text: `[${r.id}] ${r.sitasi}` })),

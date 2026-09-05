@@ -690,10 +690,12 @@ export default function TabelDataKarhutla({
                             ? 'bg-red-100 text-red-700'
                             : d.status_evaluasi === 'MS'
                             ? 'bg-green-100 text-green-700'
+                            : d.status_evaluasi === 'TIDAK_LENGKAP'
+                            ? 'bg-yellow-100 text-yellow-700'
                             : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                        {d.status_evaluasi}
+                    const supabase = createServiceRoleClient();
                       </span>
                     </td>
                     {bolehKelola && (

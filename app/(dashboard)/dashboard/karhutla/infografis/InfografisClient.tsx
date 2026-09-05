@@ -16,7 +16,7 @@ export default function InfografisClient({
   const [data, setData] = useState<RingkasanInfografisHarian | null>(dataAwal);
   const [memuat, setMemuat] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sedangUnduh, setSedangUnduh] = useState<'jpeg' | 'png' | 'pdf' | null>(null);
+  const [sedangUnduh, setSedangUnduh] = useState<'jpeg' | 'png' | 'pdf' | 'ig' | null>(null);
   const posterRef = useRef<HTMLDivElement | null>(null);
 
   const sudahMountPertama = useRef(false);
@@ -54,7 +54,57 @@ export default function InfografisClient({
     setTanggal(`${y}-${m}-${dd}`);
   }
 
-  async function unduh(format: 'jpeg' | 'png' | 'pdf') {
+/** Potong 1 gambar tinggi jadi beberapa slide IG pada titik potong manual
+ *  (dalam satuan pixel standar poster, lebar 1080) -- bukan interval tetap,
+ *  supaya potongan jatuh di celah kosong (mis. di bawah peta), dan slide
+ *  terakhir tingginya pas mengikuti sisa konten (tidak ada halaman putih). */
+async function unduhCarouselManual(dataUrlPosterPenuh: string, namaFileDasar: string, titikPotong: number[]) {
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = reject;
+    img.src = dataUrlPosterPenuh;
+  });
+
+  const LEBAR_SLIDE = 1080;
+  const skala = LEBAR_SLIDE / img.width;
+  const tinggiTotalStandar = img.height * skala;
+
+  const batas = [0, ...titikPotong, tinggiTotalStandar];
+  const jumlahSlide = batas.length - 1;
+
+  for (let i = 0; i < jumlahSlide; i++) {
+    const yAwalStandar = batas[i];
+    const tinggiSlideStandar = batas[i + 1] - yAwalStandar;
+
+    const ySumberAwal = yAwalStandar / skala;
+    const tinggiSumberDiambil = tinggiSlideStandar / skala;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = LEBAR_SLIDE;
+    canvas.height = Math.round(tinggiSlideStandar);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) continue;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, ySumberAwal, img.width, tinggiSumberDiambil, 0, 0, LEBAR_SLIDE, tinggiSlideStandar);
+
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) continue;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${namaFileDasar}-slide-${i + 1}-dari-${jumlahSlide}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
+  async function unduh(format: 'jpeg' | 'png' | 'pdf' | 'ig') {
     if (!posterRef.current || !data) return;
     setSedangUnduh(format);
     try {
@@ -81,6 +131,8 @@ export default function InfografisClient({
         a.href = dataUrl;
         a.download = `${namaFile}.png`;
         a.click();
+      } else if (format === 'ig') {
+        await unduhCarouselManual(await toPng(node, opsiRender), namaFile, [1219]);
       } else {
         // PDF selalu pakai sumber PNG (lossless) supaya kualitas embed di PDF maksimal
         const dataUrl = await toPng(node, opsiRender);
@@ -163,6 +215,13 @@ export default function InfografisClient({
           className="rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
         >
           {sedangUnduh === 'pdf' ? 'Menyiapkan…' : '⬇ Unduh PDF'}
+        </button>
+        <button
+          onClick={() => unduh('ig')}
+          disabled={!data || sedangUnduh !== null}
+          className="rounded-control bg-linear-to-r from-pink-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {sedangUnduh === 'ig' ? 'Menyiapkan…' : '📸 Unduh untuk IG (Carousel)'}
         </button>
       </div>
 

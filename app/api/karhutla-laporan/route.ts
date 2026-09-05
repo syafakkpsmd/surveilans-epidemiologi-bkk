@@ -81,7 +81,7 @@ export async function POST(request: Request) {
 
           new Paragraph({ text: 'II. METODE', heading: HeadingLevel.HEADING_1 }),
           new Paragraph({
-            text: `Data dikumpulkan dari sistem EPIC-AI BKK Kelas I Samarinda periode ${periodeLabel}, mencakup titik panas (NASA FIRMS), kasus ISPA, kualitas udara (PM2.5/PM10/Suhu/HCHO/TVOC/Kelembapan), dan data SKDR Kementerian Kesehatan RI.`,
+            text: `Penelitian ini menggunakan pendekatan deskriptif kuantitatif. Data kualitas udara (PM2.5, PM10, suhu, HCHO, TVOC, dan kelembapan) dikumpulkan dari seluruh wilayah kerja BKK Kelas I Samarinda, baik di lingkungan pelabuhan maupun bandara. Data kasus Infeksi Saluran Pernapasan Akut (ISPA) bersumber dari klinik BKK serta klinik/puskesmas di masing-masing wilayah kerja. Data titik panas (hotspot) diperoleh dari NASA FIRMS, sedangkan data Sistem Kewaspadaan Dini dan Respons (SKDR) bersumber dari Kementerian Kesehatan RI. Seluruh data kemudian diolah dan dianalisis secara deskriptif untuk melihat tren harian, distribusi per wilayah kerja, serta pola hubungan temporal antara jumlah titik panas, kualitas udara, dan kasus ISPA selama periode ${periodeLabel}.`,
           }),
 
           new Paragraph({ text: 'III. HASIL', heading: HeadingLevel.HEADING_1 }),
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
           new Paragraph({ children: [new ImageRun({ type: 'png', data: gambarHarian, transformation: { width: 600, height: 300 } })] }),
 
           new Paragraph({ text: 'IV. PEMBAHASAN', heading: HeadingLevel.HEADING_1 }),
-          ...pembahasan.split('\n\n').map((p) => new Paragraph({ text: p, spacing: { after: 200 } })),
+          ...bersihkanTeksAI(pembahasan).map((p) => new Paragraph({ text: p, spacing: { after: 200 } })),
           
 
           new Paragraph({ text: 'V. DAFTAR PUSTAKA', heading: HeadingLevel.HEADING_1 }),
@@ -122,6 +122,17 @@ export async function POST(request: Request) {
     const pesan = err instanceof Error ? err.message : 'Gagal membuat laporan.';
     return NextResponse.json({ error: pesan }, { status: 500 });
   }
+}
+
+function bersihkanTeksAI(teks: string): string[] {
+  return teks
+    .split('\n\n')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    // buang baris yang cuma judul markdown, mis. "**Pembahasan**" atau "# Pembahasan"
+    .filter((p) => !/^[#*\s]*pembahasan[#*\s]*$/i.test(p))
+    // hilangkan tanda ** dan * yang tersisa di isi paragraf
+    .map((p) => p.replace(/\*\*/g, '').replace(/(?<!\w)\*(?!\w)/g, ''));
 }
 
 function buatBarisTabel(sel: string[]): TableRow {

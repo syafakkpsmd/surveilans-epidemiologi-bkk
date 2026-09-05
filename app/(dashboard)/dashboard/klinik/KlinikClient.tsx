@@ -6,10 +6,9 @@ import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
 import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
-import { KartuRekap } from "@/components/klinik/KartuRekap";
-import { DonutChart } from "@/components/klinik/DonutChart";
-import { PencarianIcv } from "@/components/klinik/PencarianIcv";
-import { PengaturanStandarVaksin } from "@/components/klinik/PengaturanStandarVaksin";
+import { DAFTAR_KOMORBID } from "@/lib/klinik/komorbid";
+import KomorbidChart from "@/components/klinik/KomorbidChart";
+import MultiSeriesKlinikChart from "@/components/klinik/MultiSeriesKlinikChart";
 
 const NAMA_BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -18,29 +17,26 @@ type KlinikClientProps = {
   dataMingguan: any[];
   dataBulanan: any[];
   role: string;
+  judul?: string;
+  kategoriLabel?: string;
+  granularitas: "bulanan" | "mingguan"; // <-- BUKAN state lokal lagi, jadi prop wajib
   tahunBerjalan: number;
   bulanBerjalan: number;
   tahunEpidBerjalan: number;
   mingguEpidBerjalan: number;
   wilayahParam?: string;
   hasilAI?: Record<string, HasilAIStruktur | null>;
-  rekap: {
-    kartu: any;
-    donutJenisKelamin: any[];
-    donutUmur: any[];
-    donutJenisDokumenIcv: any[];
-    donutWus: any[];
-  };
   standarHariVaksin: number;
 };
 
 export default function KlinikClient({
-  daftarKlinik, dataMingguan, dataBulanan, rekap, role,
+  daftarKlinik, dataMingguan, dataBulanan, role,
   tahunBerjalan, bulanBerjalan, tahunEpidBerjalan, mingguEpidBerjalan, standarHariVaksin,
-  wilayahParam, hasilAI = {},
+  wilayahParam, hasilAI = {}, judul = "Surveilans Klinik Vaksinasi ICV/e-ICV",
+  kategoriLabel = "Klinik Binaan", // <-- tambahan, default
+  granularitas,
 }: KlinikClientProps) {
   const [selectedKlinik, setSelectedKlinik] = useState<string>(wilayahParam || "semua");
-  const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("mingguan");
 
   const daftarMingguTersedia = useMemo(() => {
     const s = new Set<number>(dataMingguan.map((d) => Number(d.minggu)));
@@ -98,6 +94,7 @@ export default function KlinikClient({
         total_layanan: 0, laki_laki: 0, perempuan: 0,
         meningitis: 0, flu: 0, polio: 0, yellow_fever: 0,
         jumlah_icv: 0, patuh: 0, tidak_patuh: 0,
+        ...Object.fromEntries(DAFTAR_KOMORBID.map((k) => [k.key, 0])),
       };
       existing.total_layanan += Number(item.total_layanan || 0);
       existing.laki_laki += Number(item.laki_laki || 0);
@@ -109,6 +106,7 @@ export default function KlinikClient({
       existing.jumlah_icv += Number(item.jumlah_icv || 0);
       existing.patuh += Number(item.patuh || 0);
       existing.tidak_patuh += Number(item.tidak_patuh || 0);
+      for (const k of DAFTAR_KOMORBID) existing[k.key] += Number(item[k.key] || 0);
       peta.set(urutan, existing);
     }
     return Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
@@ -128,38 +126,18 @@ export default function KlinikClient({
 
   return (
     <div className="space-y-6">
-        {/* RINGKASAN TOTAL — tidak terikat filter mingguan/bulanan */}
-        <KartuRekap data={rekap.kartu} />
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <DonutChart judul="Jenis Kelamin" data={rekap.donutJenisKelamin} />
-        <DonutChart judul="Kategori Umur" data={rekap.donutUmur} />
-        <DonutChart judul="Jenis Dokumen ICV" data={rekap.donutJenisDokumenIcv} />
-        <DonutChart judul="Hasil WUS (Perempuan)" data={rekap.donutWus} />
-        </div>
-
-        <PencarianIcv />
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans Klinik Vaksinasi ICV/e-ICV</h1>
+          <h2 className="text-lg font-bold text-[#0F2A38]">{judul}</h2>
           <p className="text-xs text-gray-500 mt-1">Layanan Vaksinasi Internasional Tahun {tahunBerjalan}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
-            <button type="button" onClick={() => setGranularitas("mingguan")}
-              className={`rounded-md px-3 py-1.5 transition-all ${granularitas === "mingguan" ? "bg-[#0F4C5C] text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}>
-              Mingguan
-            </button>
-            <button type="button" onClick={() => setGranularitas("bulanan")}
-              className={`rounded-md px-3 py-1.5 transition-all ${granularitas === "bulanan" ? "bg-[#0F4C5C] text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}>
-              Bulanan
-            </button>
-          </div>
+          {/* HAPUS blok tombol Mingguan/Bulanan di sini */}
 
           <select value={selectedKlinik} onChange={(e) => setSelectedKlinik(e.target.value)}
             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 focus:ring-2 focus:ring-[#0F4C5C] focus:outline-hidden">
-            <option value="semua">Semua Klinik</option>
+            <option value="semua">Semua</option>
             {daftarKlinik.map((k) => <option key={k} value={k}>{k}</option>)}
           </select>
 
@@ -208,17 +186,25 @@ export default function KlinikClient({
           </div>
         </div>
       </div>
+      {/* MultiSeries per-klinik/wilker — menyatu di card ini, bukan terpisah */}
+      <MultiSeriesKlinikChart
+        judul={`Distribusi Layanan Vaksinasi di ${kategoriLabel}`}
+        daftarItem={daftarKlinik}
+        dataPeriode={granularitas === "bulanan" ? dataBulanan : dataMingguan}
+        granularitas={granularitas}
+        defaultDipilihSemua={kategoriLabel === "Wilayah Kerja BKK"}
+      />
 
       {chartData.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-sm text-gray-500">
-          Data layanan klinik periode {granularitas} untuk tahun {tahunBerjalan} belum tersedia pada rentang terfilter.
+          Data layanan {judul.toLowerCase()} periode {granularitas} untuk tahun {tahunBerjalan} belum tersedia pada rentang terfilter.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
             <h3 className="mb-4 text-center text-sm font-bold text-gray-800">
-              Total Layanan & Distribusi Jenis Kelamin {selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} Tahun {tahunBerjalan}
-              <br /> ({granularitas})
+              Distribusi Layanan Berdasarkan Jenis Kelamin {selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} pada Tahun {tahunBerjalan}
+              <br /> (dalam {granularitas})
             </h3>
             <TrenChartLine data={chartData} tipeChart={tipeChartAktif} seriesList={[
               { key: "total_layanan", label: "Total Layanan", warna: "#0F4C5C" },
@@ -229,8 +215,8 @@ export default function KlinikClient({
 
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
             <h3 className="mb-4 text-center text-sm font-bold text-gray-800">
-              Penerbitan Dokumen ICV per Jenis Vaksin {selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} Tahun {tahunBerjalan}
-              <br /> ({granularitas})
+              Distribusi Vaksinasi Internasional {selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} di BKK Kelas I Samarinda Tahun {tahunBerjalan}
+              <br /> (dalam {granularitas})
             </h3>
             <TrenChartLine data={chartData} tipeChart={tipeChartAktif} seriesList={[
               { key: "meningitis", label: "Meningitis", warna: "#7C3AED" },
@@ -240,30 +226,30 @@ export default function KlinikClient({
             ]} />
           </div>
 
+          <KomorbidChart
+            judul={`Distribusi Komorbid${selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} di BKK Kelas I Samarinda Tahun ${tahunBerjalan} dalam ${granularitas}`}
+            data={chartData}
+            tipeChart={tipeChartAktif}
+          />
+
           <BoxAnalisisAI sudahLogin={true} role={role as PeranUser} konteks={konteksAI}
             periodeKey={periodeKey} wilayahKerja={wilayahKerjaAktif} hasilAwal={hasilAwalAnalisis} />
           <BoxPrediksiAI sudahLogin={true} role={role as PeranUser} konteks={konteksAI}
             periodeKey={periodeKey} wilayahKerja={wilayahKerjaAktif} hasilAwal={hasilAwalPrediksi} />
 
-          {role === 'admin' && (
-            <div className="lg:col-span-2">
-                <PengaturanStandarVaksin nilaiAwal={standarHariVaksin} />
-            </div>
-            )}
-
-            <div className="rounded-xl bg-white p-5 shadow-xs border border-red-100 lg:col-span-2">
+          <div className="rounded-xl bg-white p-5 shadow-xs border border-red-100 lg:col-span-2">
             <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
-                <div>
+              <div>
                 <h3 className="text-base font-bold text-red-900">
-                    Ringkasan Kepatuhan Masa Aktif Vaksin (standar {standarHariVaksin} hari)
+                  Ringkasan Kepatuhan Masa Aktif Vaksin (standar {standarHariVaksin} hari) di {kategoriLabel} Kelas I Samarinda Tahun {tahunBerjalan}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                    Jumlah layanan dengan jarak penerbitan-keberangkatan kurang dari {standarHariVaksin} hari.
+                  Jumlah layanan dengan jarak penerbitan-keberangkatan kurang dari {standarHariVaksin} hari.
                 </p>
-                </div>
-                <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">
+              </div>
+              <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">
                 {totalTidakPatuh} Tidak Patuh
-                </span>
+              </span>
             </div>
             {totalTidakPatuh === 0 ? (
               <div className="rounded-lg bg-green-50 p-6 text-center text-xs font-medium text-green-700 border border-green-100">

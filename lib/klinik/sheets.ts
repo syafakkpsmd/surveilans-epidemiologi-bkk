@@ -1,13 +1,23 @@
 // lib/klinik/sheets.ts
 import { google } from 'googleapis';
+import path from 'path';
 import { unstable_cache } from 'next/cache';
 
 function getGoogleAuth(scopes: string[]) {
+  const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+
+  if (clientEmail && privateKey) {
+    // Produksi (Vercel) — kredensial dari environment variable
+    return new google.auth.GoogleAuth({
+      credentials: { client_email: clientEmail, private_key: privateKey },
+      scopes,
+    });
+  }
+
+  // Fallback lokal — kredensial dari file (tidak ikut ter-deploy, hanya untuk dev)
   return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
+    keyFile: path.join(process.cwd(), 'credentials.json'),
     scopes,
   });
 }

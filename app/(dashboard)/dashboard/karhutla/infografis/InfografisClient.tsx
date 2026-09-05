@@ -16,7 +16,7 @@ export default function InfografisClient({
   const [data, setData] = useState<RingkasanInfografisHarian | null>(dataAwal);
   const [memuat, setMemuat] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sedangUnduh, setSedangUnduh] = useState<'jpeg' | 'pdf' | null>(null);
+  const [sedangUnduh, setSedangUnduh] = useState<'jpeg' | 'png' | 'pdf' | null>(null);
   const posterRef = useRef<HTMLDivElement | null>(null);
 
   const sudahMountPertama = useRef(false);
@@ -54,28 +54,36 @@ export default function InfografisClient({
     setTanggal(`${y}-${m}-${dd}`);
   }
 
-  async function unduh(format: 'jpeg' | 'pdf') {
+  async function unduh(format: 'jpeg' | 'png' | 'pdf') {
     if (!posterRef.current || !data) return;
     setSedangUnduh(format);
     try {
-      const { toJpeg } = await import('html-to-image');
+      const { toJpeg, toPng } = await import('html-to-image');
       const node = posterRef.current;
-      const dataUrl = await toJpeg(node, {
-        quality: 0.95,
-        pixelRatio: 2,
+      const opsiRender = {
+        pixelRatio: 3,
         backgroundColor: '#ffffff',
         width: LEBAR_POSTER,
         height: node.scrollHeight,
-      });
+      };
 
       const namaFile = `infografis-karhutla-${data.tanggalDitampilkan}`;
 
       if (format === 'jpeg') {
+        const dataUrl = await toJpeg(node, { ...opsiRender, quality: 0.95 });
         const a = document.createElement('a');
         a.href = dataUrl;
         a.download = `${namaFile}.jpg`;
         a.click();
+      } else if (format === 'png') {
+        const dataUrl = await toPng(node, opsiRender);
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `${namaFile}.png`;
+        a.click();
       } else {
+        // PDF selalu pakai sumber PNG (lossless) supaya kualitas embed di PDF maksimal
+        const dataUrl = await toPng(node, opsiRender);
         const { jsPDF } = await import('jspdf');
         // Ukuran PDF mengikuti rasio poster asli (bukan dipaksa ke A4) supaya
         // tidak ada margin kosong aneh -- 1 halaman = 1 poster penuh.
@@ -83,7 +91,7 @@ export default function InfografisClient({
         const lebarMm = 210; // setara lebar A4 portrait
         const tinggiMm = lebarMm * rasio;
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [lebarMm, tinggiMm] });
-        pdf.addImage(dataUrl, 'JPEG', 0, 0, lebarMm, tinggiMm);
+        pdf.addImage(dataUrl, 'PNG', 0, 0, lebarMm, tinggiMm);
         pdf.save(`${namaFile}.pdf`);
       }
     } catch (err) {
@@ -138,9 +146,16 @@ export default function InfografisClient({
         <button
           onClick={() => unduh('jpeg')}
           disabled={!data || sedangUnduh !== null}
-          className="rounded-control bg-teal px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          className="rounded-control border border-border px-4 py-2 text-sm font-semibold text-ink hover:bg-bg disabled:opacity-50"
         >
           {sedangUnduh === 'jpeg' ? 'Menyiapkan…' : '⬇ Unduh JPEG'}
+        </button>
+        <button
+          onClick={() => unduh('png')}
+          disabled={!data || sedangUnduh !== null}
+          className="rounded-control bg-teal px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {sedangUnduh === 'png' ? 'Menyiapkan…' : '⬇ Unduh PNG'}
         </button>
         <button
           onClick={() => unduh('pdf')}

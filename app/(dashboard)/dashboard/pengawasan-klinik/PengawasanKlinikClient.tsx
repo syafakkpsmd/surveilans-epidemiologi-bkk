@@ -5,7 +5,10 @@ import dynamic from 'next/dynamic';
 const PetaKlinik = dynamic(() => import('@/components/pengawasan-klinik/PetaKlinik'), { ssr: false });
 import { Fragment, useState } from 'react';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
+import { Download } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
+import { bangunBarisExcel } from '@/lib/pengawasan-klinik/labelKolomExport';
 
 type RingkasanStatus = {
   memenuhi_syarat: number;
@@ -17,6 +20,7 @@ type BreakdownKategori = { kategori: string; persentase: number };
 
 type BarisKlinik = {
   id: string;
+  klinikId: string;
   namaKlinik: string;
   jenisFasilitas: string;
   tanggalTerakhir: string;
@@ -53,7 +57,8 @@ type Props = {
   rataRataKategori: BreakdownKategori[];
   tabelKlinik: BarisKlinik[];
   totalKlinikDiawasi: number;
-  titikPeta: TitikKlinik[]; // tambahan
+  titikPeta: TitikKlinik[];
+  dataLengkapUntukExport: Record<string, any>[]; // tambahan
 };
 
 export default function PengawasanKlinikClient({
@@ -61,7 +66,8 @@ export default function PengawasanKlinikClient({
   rataRataKategori,
   tabelKlinik,
   totalKlinikDiawasi,
-  titikPeta, // tambahan
+  titikPeta,
+  dataLengkapUntukExport, // tambahan
 }: Props) {
   const [klinikDibuka, setKlinikDibuka] = useState<string | null>(null);
 
@@ -71,11 +77,47 @@ export default function PengawasanKlinikClient({
     warna: WARNA_STATUS[key],
   }));
 
+  function unduhExcel(rows: Record<string, any>[], namaFile: string) {
+    if (rows.length === 0) {
+      alert('Tidak ada data untuk diunduh.');
+      return;
+    }
+    const dataSiapExport = rows.map(bangunBarisExcel);
+    const worksheet = XLSX.utils.json_to_sheet(dataSiapExport);
+
+    const lebarKolom = Object.keys(dataSiapExport[0] ?? {}).map((key) => ({
+      wch: Math.min(Math.max(key.length, 12), 40),
+    }));
+    worksheet['!cols'] = lebarKolom;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Pengawasan');
+    XLSX.writeFile(workbook, namaFile);
+  }
+
+  function handleDownloadSemua() {
+    const tanggalFile = new Date().toISOString().split('T')[0];
+    unduhExcel(dataLengkapUntukExport, `pengawasan-klinik-semua-${tanggalFile}.xlsx`);
+  }
+
+  function handleDownloadPerKlinik(klinikId: string, namaKlinik: string) {
+    const rowsKlinikIni = dataLengkapUntukExport.filter((r) => r.klinik_id === klinikId);
+    const namaFileAman = namaKlinik.replace(/[^a-zA-Z0-9]/g, '-');
+    unduhExcel(rowsKlinikIni, `pengawasan-${namaFileAman}.xlsx`);
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Pengawasan Klinik Binaan</h1>
         <div className="flex gap-2">
+          <button
+            onClick={handleDownloadSemua}
+            className="flex items-center gap-1.5 border px-4 py-2 rounded text-sm hover:bg-gray-50"
+          >
+            <Download size={14} />
+            Download Semua (Excel)
+          </button>
           <Link
             href="/dashboard/pengawasan-klinik/klinik"
             className="border px-4 py-2 rounded text-sm"
@@ -149,60 +191,74 @@ export default function PengawasanKlinikClient({
       </div>
 
       {/* Tabel klinik */}
-      <div className="border rounded-lg overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="text-left px-4 py-2">Nama Klinik</th>
-              <th className="text-left px-4 py-2">Jenis</th>
-              <th className="text-left px-4 py-2">Tanggal Terakhir</th>
-              <th className="text-left px-4 py-2">Kepatuhan</th>
-              <th className="text-left px-4 py-2">Status</th>
-              <th className="text-left px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tabelKlinik.map((k) => (
+      <div>
+        <h2 className="font-medium mb-2">Daftar Klinik</h2>
+        <div className="border rounded-lg overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="text-left px-4 py-2">Nama Klinik</th>
+                <th className="text-left px-4 py-2">Jenis</th>
+                <th className="text-left px-4 py-2">Tanggal Terakhir</th>
+                <th className="text-left px-4 py-2">Kepatuhan</th>
+                <th className="text-left px-4 py-2">Status</th>
+                <th className="text-left px-4 py-2"></th>
+                <th className="text-left px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tabelKlinik.map((k) => (
                 <Fragment key={k.id}>
-                    <tr className="border-t">
+                  <tr className="border-t">
                     <td className="px-4 py-2">{k.namaKlinik}</td>
                     <td className="px-4 py-2">{k.jenisFasilitas}</td>
                     <td className="px-4 py-2">{new Date(k.tanggalTerakhir).toLocaleDateString('id-ID')}</td>
                     <td className="px-4 py-2">{k.persentase}%</td>
                     <td className="px-4 py-2">
-                        <span
+                      <span
                         className="px-2 py-1 rounded text-xs font-medium text-white"
                         style={{ backgroundColor: WARNA_STATUS[k.status] }}
-                        >
+                      >
                         {LABEL_STATUS[k.status] ?? k.status}
-                        </span>
+                      </span>
                     </td>
                     <td className="px-4 py-2">
-                        {k.itemBermasalah.length > 0 && (
+                      {k.itemBermasalah.length > 0 && (
                         <button
-                            onClick={() => setKlinikDibuka(klinikDibuka === k.id ? null : k.id)}
-                            className="text-blue-600 text-xs underline"
+                          onClick={() => setKlinikDibuka(klinikDibuka === k.id ? null : k.id)}
+                          className="text-blue-600 text-xs underline"
                         >
-                            {klinikDibuka === k.id ? 'Tutup' : `${k.itemBermasalah.length} item bermasalah`}
+                          {klinikDibuka === k.id ? 'Tutup' : `${k.itemBermasalah.length} item bermasalah`}
                         </button>
-                        )}
+                      )}
                     </td>
-                    </tr>
-                    {klinikDibuka === k.id && (
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => handleDownloadPerKlinik(k.klinikId, k.namaKlinik)}
+                        className="flex items-center gap-1 text-blue-600 text-xs underline"
+                        title="Download data lengkap klinik ini"
+                      >
+                        <Download size={12} />
+                        Excel
+                      </button>
+                    </td>
+                  </tr>
+                  {klinikDibuka === k.id && (
                     <tr className="bg-gray-50">
-                        <td colSpan={6} className="px-4 py-2">
+                      <td colSpan={7} className="px-4 py-2">
                         <ul className="list-disc list-inside text-xs text-gray-700">
-                            {k.itemBermasalah.map((item) => (
+                          {k.itemBermasalah.map((item) => (
                             <li key={item}>{item}</li>
-                            ))}
+                          ))}
                         </ul>
-                        </td>
+                      </td>
                     </tr>
-                    )}
+                  )}
                 </Fragment>
-            ))}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

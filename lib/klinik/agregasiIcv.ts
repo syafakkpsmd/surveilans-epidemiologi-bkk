@@ -20,6 +20,37 @@ function kategoriUmur(umur: number | null): 'Balita' | 'Anak' | 'Dewasa' | 'Lans
   return 'Lansia';
 }
 
+// Normalisasi Jenis Kelamin -- menangani variasi L/P, spasi, kapitalisasi
+function normalisasiJenisKelamin(nilai: any): string {
+  if (nilai === null || nilai === undefined) return 'Tidak diketahui';
+  const n = String(nilai).trim().toLowerCase();
+  if (!n) return 'Tidak diketahui';
+  if (n === 'l' || n.startsWith('laki')) return 'Laki-laki';
+  if (n === 'p' || n.startsWith('perempuan')) return 'Perempuan';
+  return 'Tidak diketahui'; // nilai lain yang tidak dikenali, digabung ke sini (bukan bikin kategori baru)
+}
+
+// Normalisasi nama vaksin -- 1 label kanonik per jenis, tidak peduli variasi kapitalisasi/spasi
+const LABEL_VAKSIN_KANONIK: Record<string, string> = {
+  meningitis: 'Meningitis',
+  flu: 'Flu',
+  influenza: 'Influenza',
+  polio: 'Polio',
+  yellowfever: 'Yellow Fever',
+  yf: 'Yellow Fever',
+  pneumokokus: 'Pneumokokus',
+  tdap: 'Tdap',
+  tifoid: 'Tifoid',
+  varicella: 'Varicella',
+  mmr: 'MMR',
+};
+
+function normalisasiNamaVaksin(nilai: any): string {
+  if (!nilai) return 'Tidak diketahui';
+  const kunci = String(nilai).trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return LABEL_VAKSIN_KANONIK[kunci] ?? String(nilai).trim();
+}
+
 function hitungDistribusi<T extends string>(rows: BarisIcv[], ambilKategori: (row: BarisIcv) => T) {
   const map = new Map<string, number>();
   for (const row of rows) {
@@ -47,8 +78,8 @@ export function ringkasanKartuIcv(rows: BarisIcv[]) {
 
   return {
     total_layanan: rows.length,
-    laki_laki: rows.filter((r) => r['Jenis Kelamin'] === 'Laki-laki').length,
-    perempuan: rows.filter((r) => r['Jenis Kelamin'] === 'Perempuan').length,
+    laki_laki: rows.filter((r) => normalisasiJenisKelamin(r['Jenis Kelamin']) === 'Laki-laki').length,
+    perempuan: rows.filter((r) => normalisasiJenisKelamin(r['Jenis Kelamin']) === 'Perempuan').length,
     meningitis,
     flu,
     polio,
@@ -57,7 +88,7 @@ export function ringkasanKartuIcv(rows: BarisIcv[]) {
 }
 
 export function donutJenisKelamin(rows: BarisIcv[]) {
-  return hitungDistribusi(rows, (r) => (r['Jenis Kelamin'] as string) ?? 'Tidak diketahui');
+  return hitungDistribusi(rows, (r) => normalisasiJenisKelamin(r['Jenis Kelamin']));
 }
 
 export function donutUmur(rows: BarisIcv[]) {
@@ -65,14 +96,18 @@ export function donutUmur(rows: BarisIcv[]) {
 }
 
 export function donutJenisDokumenIcv(rows: BarisIcv[]) {
-  // 1 baris ICV bisa terbit lebih dari 1 jenis vaksin -> dihitung per-dokumen, bukan per-orang
   const semuaVaksin = rows.flatMap((r) =>
     [r['Jenis Vaksin 1'], r['Jenis Vaksin 2'], r['Jenis Vaksin 3']].filter(Boolean)
   );
-  return hitungDistribusi(semuaVaksin.map((v) => ({ __v: v })) as any, (r: any) => r.__v);
+  return hitungDistribusi(
+    semuaVaksin.map((v) => ({ __v: normalisasiNamaVaksin(v) })) as any,
+    (r: any) => r.__v
+  );
 }
 
 export function donutWus(rows: BarisIcv[]) {
-  const perempuan = rows.filter((r) => r['Jenis Kelamin'] === 'Perempuan');
-  return hitungDistribusi(perempuan, (r) => (r['Hasil WUS'] as string) || 'Tidak diisi');
+  const wusYa = rows.filter((r) => 
+    (r['Jenis Kelamin'] as string) === 'Perempuan' && r['WUS'] === 'Ya'
+  );
+  return hitungDistribusi(wusYa, (r) => (r['Hasil WUS'] as string) || 'Belum Diperiksa');
 }

@@ -35,7 +35,7 @@ export const BAKU_MUTU_UDARA = {
   kelembapan: { min: 40, max: 60 },
 } as const;
 
-export type StatusEvaluasi = 'MS' | 'TMS' | 'BELUM_DIUJI';
+export type StatusEvaluasi = 'MS' | 'TMS' | 'BELUM_DIUJI' | 'TIDAK_LENGKAP';
 
 interface DataUdara {
   pm25?: number | null; pm10?: number | null; suhu?: number | null;
@@ -44,7 +44,9 @@ interface DataUdara {
 
 export function hitungStatusEvaluasi(data: DataUdara): StatusEvaluasi {
   const nilai = [data.pm25, data.pm10, data.suhu, data.hcho, data.tvoc, data.kelembapan];
+
   if (nilai.every((v) => v === null || v === undefined)) return 'BELUM_DIUJI';
+  if (nilai.some((v) => v === null || v === undefined)) return 'TIDAK_LENGKAP';
 
   const bm = BAKU_MUTU_UDARA;
   const lewatBatas =
@@ -62,6 +64,7 @@ export const LABEL_STATUS: Record<StatusEvaluasi, string> = {
   MS: 'Memenuhi Syarat (MS)',
   TMS: 'Tidak Memenuhi Syarat (TMS)',
   BELUM_DIUJI: 'Belum Diuji',
+  TIDAK_LENGKAP: 'Data Belum Lengkap',
 };
 
 export const NAMA_WILKER: Record<string, string> = {

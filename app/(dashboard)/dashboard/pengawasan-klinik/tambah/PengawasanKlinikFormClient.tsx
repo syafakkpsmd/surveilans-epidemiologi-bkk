@@ -45,21 +45,45 @@ const ITEM_CHECKLIST: { key: string; label: string; kategori: 'Administrasi' | '
   { key: 'printer_passbook', label: 'Printer passbook', kategori: 'Peralatan' },
 ];
 
+type FotoInfo = { url: string; publicId: string };
+
 export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKlinik: Klinik[] }) {
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
-  const [fotoUploaded, setFotoUploaded] = useState<Record<string, { url: string; publicId: string }>>({});
+  const [fotoUploaded, setFotoUploaded] = useState<Record<string, FotoInfo>>({});
+  const [sedangUpload, setSedangUpload] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [namaKlinikTerpilih, setNamaKlinikTerpilih] = useState('klinik');
 
   async function handleUploadFoto(jenisDokumen: string, file: File) {
-    const hasil = await uploadFotoKlinik(file, jenisDokumen, namaKlinikTerpilih);
-    setFotoUploaded((prev) => ({ ...prev, [jenisDokumen]: { url: hasil.url, publicId: hasil.publicId } }));
+    setSedangUpload((prev) => ({ ...prev, [jenisDokumen]: true }));
+    try {
+      const hasil = await uploadFotoKlinik(file, jenisDokumen, namaKlinikTerpilih);
+      setFotoUploaded((prev) => ({ ...prev, [jenisDokumen]: { url: hasil.url, publicId: hasil.publicId } }));
+    } catch (err) {
+      alert(`Gagal upload foto: ${(err as Error).message}`);
+    } finally {
+      setSedangUpload((prev) => ({ ...prev, [jenisDokumen]: false }));
+    }
+  }
+
+  function toggleChecklist(key: string, checked: boolean) {
+    setChecklist((prev) => ({ ...prev, [key]: checked }));
+    // kalau item di-uncheck lagi, foto yang sudah terupload untuk item itu
+    // tidak perlu ikut dikirim -- tapi tetap dibiarkan di state (tidak dihapus),
+    // supaya kalau user re-check tidak perlu upload ulang.
   }
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
     Object.entries(checklist).forEach(([key, val]) => formData.set(key, String(val)));
+
+    // sertakan url & public_id foto per item checklist yang sudah terupload
+    Object.entries(fotoUploaded).forEach(([key, info]) => {
+      formData.set(`foto_url_${key}`, info.url);
+      formData.set(`foto_public_id_${key}`, info.publicId);
+    });
+
     const hasil = await simpanPengawasanKlinik(formData);
     setLoading(false);
     if (hasil.error) {
@@ -124,22 +148,74 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
       {(['Administrasi', 'Sarana', 'Peralatan'] as const).map((kategori) => (
         <fieldset key={kategori} className="border rounded p-3">
           <legend className="font-semibold px-2">{kategori}</legend>
-          {ITEM_CHECKLIST.filter((i) => i.kategori === kategori).map((item) => (
-            <label key={item.key} className="flex items-center gap-2 py-1">
-              <input
-                type="checkbox"
-                checked={checklist[item.key] ?? false}
-                onChange={(e) => setChecklist((prev) => ({ ...prev, [item.key]: e.target.checked }))}
-              />
-              {item.label}
-            </label>
-          ))}
+          {ITEM_CHECKLIST.filter((i) => i.kategori === kategori).map((item) => {
+            const sudahDicek = checklist[item.key] ?? false;
+            const foto = fotoUploaded[item.key];
+            const uploadBerjalan = sedangUpload[item.key] ?? false;
+
+            return (
+              <div key={item.key} className="py-1 border-b border-gray-100 last:border-b-0">
+                <label className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={sudahDicek}
+                    onChange={(e) => toggleChecklist(item.key, e.target.checked)}
+                  />
+                  {item.label}
+                </label>
+
+                {sudahDicek && (
+                <div className="ml-6 mb-2">
+                  <label className="inline-flex items-center gap-2 cursor-pointer rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100">
+                    📷 {foto ? 'Ganti Foto' : 'Ambil/Pilih Foto'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadFoto(item.key, file);
+                      }}
+                    />
+                  </label>
+
+                  {uploadBerjalan && (
+                    <p className="text-xs text-gray-500 mt-1">Mengupload…</p>
+                  )}
+                  {foto && !uploadBerjalan && (
+                    <p className="text-xs text-green-600 mt-1">Foto terupload ✓</p>
+                  )}
+                </div>
+              )}
+              </div>
+            );
+          })}
         </fieldset>
       ))}
 
-      <div>
+      <div className="space-y-2">
         <label className="block font-medium">Nama Petugas</label>
-        <input name="nama_petugas_1" className="border rounded px-3 py-2 w-full" />
+        <input
+          name="nama_petugas_1"
+          placeholder="Nama Petugas BKK Kelas I Samarinda"
+          className="border rounded px-3 py-2 w-full"
+        />
+        <input
+          name="nama_petugas_2"
+          placeholder="Nama Petugas BKK Kelas I Samarinda"
+          className="border rounded px-3 py-2 w-full"
+        />
+        <input
+          name="nama_petugas_3"
+          placeholder="Nama Petugas BKK Kelas I Samarinda"
+          className="border rounded px-3 py-2 w-full"
+        />
+        <input
+          name="nama_petugas_klinik"
+          placeholder="Nama Petugas Klinik yang di wawancarai"
+          className="border rounded px-3 py-2 w-full"
+        />
       </div>
 
       <div>

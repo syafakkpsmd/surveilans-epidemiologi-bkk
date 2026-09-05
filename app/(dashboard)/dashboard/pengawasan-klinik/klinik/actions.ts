@@ -1,7 +1,7 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/klinik/actions.ts
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { revalidatePath } from 'next/cache';
 
@@ -39,6 +39,7 @@ function bangunPayload(formData: FormData, namaKlinik: string) {
     penanggung_jawab: getString(formData, 'penanggung_jawab'),
     latitude: getNumber(formData, 'latitude'),
     longitude: getNumber(formData, 'longitude'),
+    spreadsheet_id: getString(formData, 'spreadsheet_id'),
   };
 }
 
@@ -51,7 +52,7 @@ export async function tambahKlinikBaru(formData: FormData): Promise<HasilAksi> {
 
   const payload = bangunPayload(formData, namaKlinik);
 
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
   const { error } = await supabase.from('klinik_binaan').insert(payload);
 
   if (error) return { error: error.message };
@@ -68,7 +69,7 @@ export async function updateKlinik(id: string, formData: FormData): Promise<Hasi
 
   const payload = bangunPayload(formData, namaKlinik);
 
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
   const { error } = await supabase.from('klinik_binaan').update(payload).eq('id', id);
 
   if (error) return { error: error.message };
@@ -80,7 +81,7 @@ export async function hapusKlinik(id: string): Promise<HasilAksi> {
   const gate = await pastikanAdmin();
   if (gate) return gate;
 
-  const supabase = await createClient();
+  const supabase = createServiceRoleClient();
   const { error } = await supabase.from('klinik_binaan').delete().eq('id', id);
   if (error) return { error: error.message };
   revalidatePath('/dashboard/pengawasan-klinik/klinik');

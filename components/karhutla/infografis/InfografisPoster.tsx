@@ -1,6 +1,6 @@
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import PetaMiniHotspot from './PetaMiniHotspot';
-import { LABEL_STATUS, type StatusEvaluasi } from '@/lib/karhutla/constants';
+import { LABEL_STATUS, BAKU_MUTU_UDARA, type StatusEvaluasi } from '@/lib/karhutla/constants';
 import type { RingkasanInfografisHarian } from '@/lib/supabase/queries-karhutla-server';
 
 /**
@@ -56,7 +56,18 @@ function warnaStatusIspu(status: string | null): string {
 function warnaStatusEvaluasi(status: StatusEvaluasi): string {
   if (status === 'MS') return WARNA.hijau;
   if (status === 'TMS') return WARNA.merah;
-  return WARNA.muted;
+  if (status === 'TIDAK_LENGKAP') return WARNA.kuning;
+  return WARNA.muted; // BELUM_DIUJI
+}
+
+/** Warna angka mentah tiap parameter, berdasar BAKU_MUTU_UDARA yang sama
+ *  persis dipakai hitungStatusEvaluasi() -- satu sumber kebenaran, supaya
+ *  warna sel tabel selalu konsisten dengan badge status MS/TMS. */
+function warnaBakuMutu(param: keyof typeof BAKU_MUTU_UDARA, nilai: number | null): string {
+  if (nilai == null) return WARNA.muted;
+  const bm = BAKU_MUTU_UDARA[param] as { min?: number; max?: number };
+  const lewatBatas = (bm.min != null && nilai < bm.min) || (bm.max != null && nilai > bm.max);
+  return lewatBatas ? WARNA.merah : WARNA.hijau;
 }
 
 export const LEBAR_POSTER = 1080;
@@ -215,13 +226,13 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
       {/* ---------- PETA MINI + TREN 7 HARI ---------- */}
       <div style={{ display: 'flex', gap: 16, padding: '28px 48px 0' }}>
         <div style={{ flex: '0 0 300px' }}>
-          <JudulSeksi>Sebaran Titik Panas</JudulSeksi>
+          <JudulSeksi>Sebaran Titik Panas di Kalimantan Timur</JudulSeksi>
           <div style={{ marginTop: 12, height: 460, borderRadius: 16, overflow: 'hidden', border: `1px solid ${WARNA.border}` }}>
             <PetaMiniHotspot hotspots={data.hotspotPoints} />
           </div>
         </div>
         <div style={{ flex: 1 }}>
-          <JudulSeksi>Tren 7 Hari Terakhir</JudulSeksi>
+          <JudulSeksi>Tren Kasus Ispa dan Titik Panas 7 Hari Terakhir</JudulSeksi>
           <div
             style={{
               marginTop: 12,
@@ -290,7 +301,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
 
       {/* ---------- TABEL KUALITAS UDARA PER WILAYAH KERJA ---------- */}
       <div style={{ padding: '28px 48px 0' }}>
-        <JudulSeksi>Kualitas Udara per Wilayah Kerja</JudulSeksi>
+        <JudulSeksi>Distribusi Kualitas Udara dalam Ruangan di Wilayah Kerja BKK Kelas I Samarinda</JudulSeksi>
         <div
           style={{
             marginTop: 12,
@@ -300,7 +311,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
             background: GRADASI_KARTU,
           }}
         >
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: 'rgba(34,211,238,0.08)' }}>
                 <ThKualitasUdara align="left">WILKER</ThKualitasUdara>
@@ -319,12 +330,12 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
                   <TdKualitasUdara align="left" bold>
                     {w.nama}
                   </TdKualitasUdara>
-                  <TdKualitasUdara>{w.pm25Rerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara>{w.pm10Rerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara>{w.suhuRerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara>{w.hchoRerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara>{w.tvocRerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara>{w.kelembapanRerata ?? '—'}</TdKualitasUdara>
+                  <TdKualitasUdara warna={warnaBakuMutu('pm25', w.pm25Rerata)}>{w.pm25Rerata ?? '—'}</TdKualitasUdara>
+                  <TdKualitasUdara warna={warnaBakuMutu('pm10', w.pm10Rerata)}>{w.pm10Rerata ?? '—'}</TdKualitasUdara>
+                  <TdKualitasUdara warna={warnaBakuMutu('suhu', w.suhuRerata)}>{w.suhuRerata ?? '—'}</TdKualitasUdara>
+                  <TdKualitasUdara warna={warnaBakuMutu('hcho', w.hchoRerata)}>{w.hchoRerata ?? '—'}</TdKualitasUdara>
+                  <TdKualitasUdara warna={warnaBakuMutu('tvoc', w.tvocRerata)}>{w.tvocRerata ?? '—'}</TdKualitasUdara>
+                  <TdKualitasUdara warna={warnaBakuMutu('kelembapan', w.kelembapanRerata)}>{w.kelembapanRerata ?? '—'}</TdKualitasUdara>
                   <td style={{ padding: '9px 14px', textAlign: 'center' }}>
                     <span
                       style={{
@@ -349,7 +360,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
 
       {/* ---------- SKDR MINGGUAN PER WILAYAH ---------- */}
       <div style={{ padding: '28px 48px 0' }}>
-        <JudulSeksi>Perbandingan SKDR Mingguan (ISPA) per Wilayah</JudulSeksi>
+        <JudulSeksi>Distribusi Kasus ISPA dalam SKDR Mingguan di Wilayah Kerja BKK Kelas I Samarinda</JudulSeksi>
         <div
           style={{
             marginTop: 12,
@@ -373,7 +384,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
                   height={86}
                 />
                 <YAxis tick={{ fontSize: 11, fill: WARNA.muted }} allowDecimals={false} />
-                <Bar dataKey="Minggu Lalu" fill="rgba(45,212,191,0.35)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Minggu Lalu" fill="#38bdf8" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Minggu Ini" fill={WARNA.teal} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -487,9 +498,19 @@ function ThKualitasUdara({ children, align = 'center' }: { children: React.React
   );
 }
 
-function TdKualitasUdara({ children, align = 'center', bold = false }: { children: React.ReactNode; align?: 'left' | 'center'; bold?: boolean }) {
+function TdKualitasUdara({
+  children,
+  align = 'center',
+  bold = false,
+  warna,
+}: {
+  children: React.ReactNode;
+  align?: 'left' | 'center';
+  bold?: boolean;
+  warna?: string;
+}) {
   return (
-    <td style={{ padding: '9px 14px', textAlign: align, fontWeight: bold ? 700 : 500, color: bold ? '#ffffff' : WARNA.ink }}>
+    <td style={{ padding: '9px 14px', textAlign: align, fontWeight: warna ? 700 : bold ? 700 : 500, color: warna ?? (bold ? '#ffffff' : WARNA.ink) }}>
       {children}
     </td>
   );

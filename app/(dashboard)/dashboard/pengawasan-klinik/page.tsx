@@ -2,17 +2,14 @@
 import { createClient } from '@/lib/supabase/server';
 import { hitungBreakdownKategori } from '@/lib/pengawasan-klinik/hitungKepatuhan';
 import PengawasanKlinikClient from './PengawasanKlinikClient';
-import { error } from 'console';
 
 export default async function PengawasanKlinikPage() {
   const supabase = await createClient();
 
   const { data: rows } = await supabase
-  .from('pengawasan_klinik')
-  .select('*, klinik_binaan(nama_klinik, jenis_fasilitas, alamat_klinik, kabupaten_kota, telepon, latitude, longitude)')
-  .order('tanggal_kegiatan', { ascending: false });
-
-    console.log('DEBUG rows:', rows?.length, 'error:', error);
+    .from('pengawasan_klinik')
+    .select('*, klinik_binaan(nama_klinik, jenis_fasilitas, alamat_klinik, kabupaten_kota, telepon, latitude, longitude)')
+    .order('tanggal_kegiatan', { ascending: false });
 
   const semuaData = rows ?? [];
 
@@ -32,7 +29,7 @@ export default async function PengawasanKlinikPage() {
 
   const breakdownPerKlinik = dataTerbaru.map((r) =>
     hitungBreakdownKategori(r as unknown as Record<string, boolean | null>)
-    );
+  );
   const kategoriList = ['Administrasi', 'Sarana', 'Peralatan'] as const;
   const rataRataKategori = kategoriList.map((kategori) => {
     const nilaiSemua = breakdownPerKlinik.map(
@@ -57,12 +54,21 @@ export default async function PengawasanKlinikPage() {
 
   const tabelKlinik = dataTerbaru.map((r) => ({
     id: r.id,
+    klinikId: r.klinik_id,   // <-- pastikan baris ini ada
     namaKlinik: r.klinik_binaan?.nama_klinik ?? '-',
     jenisFasilitas: r.klinik_binaan?.jenis_fasilitas ?? '-',
     tanggalTerakhir: r.tanggal_kegiatan,
     status: r.status_kepatuhan as string,
     persentase: r.persentase_kepatuhan as number,
     itemBermasalah: (r.item_bermasalah as string[] | null) ?? [],
+  }));
+
+  // data mentah LENGKAP (semua submission, semua kolom) untuk keperluan download Excel
+  const dataLengkapUntukExport = semuaData.map((r) => ({
+    ...r,
+    nama_klinik: r.klinik_binaan?.nama_klinik ?? '-',
+    jenis_fasilitas: r.klinik_binaan?.jenis_fasilitas ?? '-',
+    kabupaten_kota: r.klinik_binaan?.kabupaten_kota ?? '-',
   }));
 
   return (
@@ -72,6 +78,7 @@ export default async function PengawasanKlinikPage() {
       tabelKlinik={tabelKlinik}
       totalKlinikDiawasi={dataTerbaru.length}
       titikPeta={titikPeta}
+      dataLengkapUntukExport={dataLengkapUntukExport}
     />
   );
 }

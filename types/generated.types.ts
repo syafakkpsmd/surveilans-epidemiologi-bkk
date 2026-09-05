@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -691,6 +691,7 @@ export type Database = {
           id: string
           jenis_fasilitas: string | null
           kabupaten_kota: string | null
+          kategori: string
           latitude: number | null
           longitude: number | null
           nama_klinik: string
@@ -705,6 +706,7 @@ export type Database = {
           id?: string
           jenis_fasilitas?: string | null
           kabupaten_kota?: string | null
+          kategori?: string
           latitude?: number | null
           longitude?: number | null
           nama_klinik: string
@@ -719,6 +721,7 @@ export type Database = {
           id?: string
           jenis_fasilitas?: string | null
           kabupaten_kota?: string | null
+          kategori?: string
           latitude?: number | null
           longitude?: number | null
           nama_klinik?: string

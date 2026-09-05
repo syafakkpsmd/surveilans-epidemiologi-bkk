@@ -18,6 +18,7 @@ type Klinik = {
   penanggung_jawab: string | null;
   latitude: number | null;
   longitude: number | null;
+  spreadsheet_id: string | null;
 };
 
 export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Klinik[] }) {
@@ -146,6 +147,19 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
             className="border rounded px-3 py-2 w-full"
           />
 
+                    <input
+            name="penanggung_jawab"
+            placeholder="Penanggung Jawab"
+            defaultValue={klinikSedangDiedit?.penanggung_jawab ?? ''}
+            className="border rounded px-3 py-2 w-full"
+          />
+          <input
+            name="spreadsheet_id"
+            placeholder="ID Google Spreadsheet (dari URL sheet)"
+            defaultValue={klinikSedangDiedit?.spreadsheet_id ?? ''}
+            className="border rounded px-3 py-2 w-full font-mono text-xs"
+          />
+
           <div className="flex gap-2">
             <input
               name="latitude"
@@ -183,14 +197,20 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
           <div className="border rounded-lg divide-y">
             {klinikList.map((k) => {
               const dataBelumLengkap = !k.pemilik_pimpinan || !k.penanggung_jawab || !k.latitude;
+              const belumAdaSheet = !k.spreadsheet_id;
               return (
                 <div key={k.id} className="flex items-center justify-between px-4 py-3">
                   <div>
-                    <p className="font-medium">
+                                        <p className="font-medium">
                       {k.nama_klinik}
                       {dataBelumLengkap && (
                         <span className="ml-2 text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">
                           Data belum lengkap
+                        </span>
+                      )}
+                      {belumAdaSheet && (
+                        <span className="ml-2 text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded">
+                          Belum ada Sheet
                         </span>
                       )}
                     </p>

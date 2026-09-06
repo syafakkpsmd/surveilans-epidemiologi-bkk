@@ -140,8 +140,9 @@ export async function ambilHotspotKaltim(
   let response: Response;
   try {
     response = await fetch(url, {
-      // FIRMS data update per ~3 jam untuk NRT; cache 1 jam cukup aman
-      next: { revalidate: 3600 },
+      // Dipanggil cron 1x/hari & tombol sync manual -- selalu butuh data
+      // fresh saat itu, tidak ada skenario di mana cache basi diinginkan.
+      cache: 'no-store',
     });
   } catch (err) {
     const errorAsli = err as Error & { cause?: unknown };

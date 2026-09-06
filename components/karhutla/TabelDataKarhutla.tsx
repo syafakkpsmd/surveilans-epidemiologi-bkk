@@ -9,6 +9,7 @@ import {
   NAMA_WILKER,
   hitungStatusEvaluasi,
   LABEL_STATUS,
+  type StatusEvaluasi,
 } from '@/lib/karhutla/constants';
 import { simpanIspaHarian, simpanKualitasUdaraHarian, hapusIspaHarian, hapusKualitasUdaraHarian } from '@/lib/supabase/queries-karhutla-client';
 import type {
@@ -695,7 +696,7 @@ export default function TabelDataKarhutla({
                             : 'bg-gray-100 text-gray-600'
                         }`}
                       >
-                    const supabase = createServiceRoleClient();
+                      {LABEL_STATUS[(d.status_evaluasi ?? 'BELUM_DIUJI') as StatusEvaluasi]}
                       </span>
                     </td>
                     {bolehKelola && (

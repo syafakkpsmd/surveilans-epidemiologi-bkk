@@ -395,7 +395,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
           )}
         </div>
         <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: WARNA.muted }}>
-          <LegendaGaris warna="rgba(45,212,191,0.6)" label={`Minggu Lalu (${data.skdrMingguLalu.label})`} />
+          <LegendaGaris warna="rgba(56,189,248,0.6)" label={`Minggu Lalu (${data.skdrMingguLalu.label})`} />
           <LegendaGaris warna={WARNA.teal} label={`Minggu Ini (${data.skdrMingguIni.label})`} />
         </div>
       </div>

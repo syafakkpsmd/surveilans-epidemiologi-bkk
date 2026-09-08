@@ -330,13 +330,13 @@ export default function MasterTabelClient({
   return (
     <div className="space-y-5">
       {/* Toolbar: tahun + wilayah */}
-      <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-3 rounded-card border border-border bg-surface px-4 py-3 shadow-sm">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-[var(--color-muted)]">Tahun</span>
+          <span className="text-xs font-medium text-muted">Tahun</span>
           <select
             value={tahun}
             onChange={(e) => router.push(`/dashboard/master-tabel?tahun=${e.target.value}`)}
-            className="rounded-[var(--radius-control)] border border-[var(--color-border)] bg-white px-2.5 py-1.5 text-sm font-medium text-[var(--color-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]/40"
+            className="rounded-control border border-border bg-white px-2.5 py-1.5 text-sm font-medium text-(--color-ink) focus:outline-none focus:ring-2 focus:ring-teal/40"
           >
             {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
               <option key={y} value={y}>
@@ -347,11 +347,11 @@ export default function MasterTabelClient({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-[var(--color-muted)]">Wilayah Kerja</span>
+          <span className="text-xs font-medium text-muted">Wilayah Kerja</span>
           <select
             value={wilayah}
             onChange={(e) => setWilayah(e.target.value)}
-            className="rounded-[var(--radius-control)] border border-[var(--color-border)] bg-white px-2.5 py-1.5 text-sm font-medium text-[var(--color-ink)] focus:outline-none focus:ring-2 focus:ring-[var(--color-teal)]/40"
+            className="rounded-control border border-border bg-white px-2.5 py-1.5 text-sm font-medium text-(--color-ink) focus:outline-none focus:ring-2 focus:ring-teal/40"
           >
             <option value="Semua">Semua Wilayah</option>
             {daftarWilayahGabungan.map((w) => (
@@ -362,16 +362,16 @@ export default function MasterTabelClient({
           </select>
         </div>
 
-        <div className="ml-auto flex items-center gap-1 rounded-[var(--radius-pill)] bg-[#f0f2f4] p-1">
+        <div className="ml-auto flex items-center gap-1 rounded-pill bg-[#f0f2f4] p-1">
           {(["sanitasi", "vektor"] as Kategori[]).map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => pilihKategori(k)}
-              className={`rounded-[var(--radius-pill)] px-4 py-1.5 text-xs font-semibold capitalize transition ${
+              className={`rounded-pill px-4 py-1.5 text-xs font-semibold capitalize transition ${
                 kategori === k
-                  ? "bg-[var(--color-navy)] text-white shadow-sm"
-                  : "text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+                  ? "bg-navy text-white shadow-sm"
+                  : "text-muted hover:text-(--color-ink)"
               }`}
             >
               {k}
@@ -387,10 +387,10 @@ export default function MasterTabelClient({
             key={t.id}
             type="button"
             onClick={() => setDataset(t.id)}
-            className={`flex items-center gap-1.5 rounded-[var(--radius-control)] border px-3 py-1.5 text-xs font-medium transition ${
+            className={`flex items-center gap-1.5 rounded-control border px-3 py-1.5 text-xs font-medium transition ${
               dataset === t.id
-                ? "border-[var(--color-teal)] bg-[var(--color-teal)]/10 text-[var(--color-teal)]"
-                : "border-[var(--color-border)] bg-white text-[var(--color-muted)] hover:border-[var(--color-teal)]/40 hover:text-[var(--color-ink)]"
+                ? "border-teal bg-teal/10 text-teal"
+                : "border-border bg-white text-muted hover:border-teal/40 hover:text-(--color-ink)"
             }`}
           >
             <span>{t.ikon}</span>

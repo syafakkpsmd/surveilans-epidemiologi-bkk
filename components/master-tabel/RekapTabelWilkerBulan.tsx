@@ -121,7 +121,7 @@ export default function RekapTabelWilkerBulan({
     ];
 
     const aoa = [[judul], subjudul ? [subjudul] : [], [], baris1, baris2, ...dataRows, barisJumlah];
-    const offset = subjudul ? 4 : 3; // baris index (0-based) tempat baris1 berada
+    const offset = 3; // baris1 SELALU di index 3 (judul→0, baris-subjudul→1, baris-kosong→2, baris1→3) // baris index (0-based) tempat baris1 berada
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
@@ -149,7 +149,7 @@ export default function RekapTabelWilkerBulan({
   }
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
+    <div className="overflow-hidden rounded-card border border-border bg-surface shadow-sm">
       {/* Header kartu */}
       <div
         className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
@@ -164,7 +164,7 @@ export default function RekapTabelWilkerBulan({
             <button
               type="button"
               onClick={() => setTampilkanDetail((v) => !v)}
-              className="rounded-[var(--radius-pill)] border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
+              className="rounded-pill border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
             >
               {tampilkanDetail ? "Sembunyikan detail" : "Tampilkan detail"}
             </button>
@@ -173,7 +173,7 @@ export default function RekapTabelWilkerBulan({
             <button
               type="button"
               onClick={unduhExcel}
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
+              className="inline-flex items-center gap-1.5 rounded-pill border border-white/30 bg-white/10 px-3 py-1 text-[11px] font-medium text-white transition hover:bg-white/20"
             >
               📥 Unduh Excel
             </button>
@@ -182,18 +182,18 @@ export default function RekapTabelWilkerBulan({
       </div>
 
       {!adaData ? (
-        <div className="px-5 py-10 text-center text-sm text-[var(--color-muted)]">
+        <div className="px-5 py-10 text-center text-sm text-muted">
           Belum ada data untuk periode &amp; filter yang dipilih.
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] border-collapse text-[11.5px]">
+          <table className="w-full min-w-275 border-collapse text-[11.5px]">
             <thead>
               {/* Baris grup bulan */}
               <tr>
                 <th
                   rowSpan={2}
-                  className="sticky left-0 z-20 min-w-[168px] border-b border-r border-[var(--color-border)] bg-[#f4f6f8] px-3 py-2 text-left align-bottom text-[11px] font-semibold uppercase tracking-wide text-[var(--color-muted)]"
+                  className="sticky left-0 z-20 min-w-42 border-b border-r border-border bg-[#f4f6f8] px-3 py-2 text-left align-bottom text-[11px] font-semibold uppercase tracking-wide text-muted"
                 >
                   Wilayah Kerja
                 </th>
@@ -201,7 +201,7 @@ export default function RekapTabelWilkerBulan({
                   <th
                     key={bln}
                     colSpan={metrikAktif.length}
-                    className="border-b border-l border-[var(--color-border)] bg-[#f4f6f8] px-2 py-1.5 text-center text-[11px] font-semibold text-[var(--color-ink)]"
+                    className="border-b border-l border-border bg-[#f4f6f8] px-2 py-1.5 text-center text-[11px] font-semibold text-(--color-ink)"
                   >
                     {bln}
                   </th>
@@ -209,7 +209,7 @@ export default function RekapTabelWilkerBulan({
                 <th
                   rowSpan={2}
                   colSpan={metrikAktif.length}
-                  className="border-b border-l border-[var(--color-border)] bg-[#e7ecef] px-2 py-2 text-center align-bottom text-[11px] font-semibold uppercase tracking-wide text-[var(--color-ink)]"
+                  className="border-b border-l border-border bg-[#e7ecef] px-2 py-2 text-center align-bottom text-[11px] font-semibold uppercase tracking-wide text-(--color-ink)"
                 >
                   Total
                 </th>
@@ -219,7 +219,7 @@ export default function RekapTabelWilkerBulan({
                   metrikAktif.map((m) => (
                     <th
                       key={`${bln}-${m.key}`}
-                      className="border-b border-l border-[var(--color-border)] bg-white px-1.5 py-1 text-center text-[10px] font-medium text-[var(--color-muted)]"
+                      className="border-b border-l border-border bg-white px-1.5 py-1 text-center text-[10px] font-medium text-muted"
                       title={m.label}
                     >
                       {m.singkat}
@@ -234,7 +234,7 @@ export default function RekapTabelWilkerBulan({
                   key={b.label}
                   className={idxBaris % 2 === 0 ? "bg-white" : "bg-[#fafbfc]"}
                 >
-                  <td className="sticky left-0 z-10 border-b border-r border-[var(--color-border)] bg-inherit px-3 py-1.5 font-medium text-[var(--color-ink)]">
+                  <td className="sticky left-0 z-10 border-b border-r border-border bg-inherit px-3 py-1.5 font-medium text-(--color-ink)">
                     {b.label}
                   </td>
                   {b.monthly.map((bulanData, idxBulan) =>
@@ -243,8 +243,8 @@ export default function RekapTabelWilkerBulan({
                       return (
                         <td
                           key={`${idxBulan}-${m.key}`}
-                          className={`border-b border-l border-[var(--color-border)] px-1.5 py-1.5 text-center tabular-nums ${
-                            v === 0 ? "text-[var(--color-muted)]/50" : warnaNada(m.nada)
+                          className={`border-b border-l border-border px-1.5 py-1.5 text-center tabular-nums ${
+                            v === 0 ? "text-muted/50" : warnaNada(m.nada)
                           }`}
                         >
                           {formatAngka(v, m.desimal)}
@@ -255,7 +255,7 @@ export default function RekapTabelWilkerBulan({
                   {metrikAktif.map((m) => (
                     <td
                       key={`total-${m.key}`}
-                      className={`border-b border-l border-[var(--color-border)] bg-[#f4f6f8] px-1.5 py-1.5 text-center font-semibold tabular-nums ${warnaNada(
+                      className={`border-b border-l border-border bg-[#f4f6f8] px-1.5 py-1.5 text-center font-semibold tabular-nums ${warnaNada(
                         m.nada
                       )}`}
                     >
@@ -267,14 +267,14 @@ export default function RekapTabelWilkerBulan({
 
               {/* Baris JUMLAH keseluruhan */}
               <tr className="bg-[#0f4c5c]/10 font-semibold">
-                <td className="sticky left-0 z-10 border-t-2 border-r border-[var(--color-border)] bg-[#e6f0f2] px-3 py-2 text-[var(--color-navy)]">
+                <td className="sticky left-0 z-10 border-t-2 border-r border-border bg-[#e6f0f2] px-3 py-2 text-navy">
                   JUMLAH
                 </td>
                 {NAMA_BULAN.map((_, idxBulan) =>
                   metrikAktif.map((m) => (
                     <td
                       key={`grand-${idxBulan}-${m.key}`}
-                      className="border-t-2 border-l border-[var(--color-border)] bg-[#e6f0f2] px-1.5 py-2 text-center tabular-nums text-[var(--color-navy)]"
+                      className="border-t-2 border-l border-border bg-[#e6f0f2] px-1.5 py-2 text-center tabular-nums text-navy"
                     >
                       {formatAngka(totalGrandKolom(baris, idxBulan, m), m.desimal)}
                     </td>
@@ -283,7 +283,7 @@ export default function RekapTabelWilkerBulan({
                 {metrikAktif.map((m) => (
                   <td
                     key={`grand-total-${m.key}`}
-                    className="border-t-2 border-l border-[var(--color-border)] bg-[#d7e6ea] px-1.5 py-2 text-center tabular-nums text-[var(--color-navy)]"
+                    className="border-t-2 border-l border-border bg-[#d7e6ea] px-1.5 py-2 text-center tabular-nums text-navy"
                   >
                     {formatAngka(totalGrandTotal(baris, m), m.desimal)}
                   </td>
@@ -295,10 +295,10 @@ export default function RekapTabelWilkerBulan({
       )}
 
       {/* Legenda metrik */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-[var(--color-border)] bg-[#fafbfc] px-5 py-2.5 text-[11px] text-[var(--color-muted)]">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border bg-[#fafbfc] px-5 py-2.5 text-[11px] text-muted">
         {metrikAktif.map((m) => (
           <span key={m.key}>
-            <span className="font-semibold text-[var(--color-ink)]">{m.singkat}</span> = {m.label}
+            <span className="font-semibold text-(--color-ink)">{m.singkat}</span> = {m.label}
             {m.satuan ? ` (${m.satuan})` : ""}
           </span>
         ))}

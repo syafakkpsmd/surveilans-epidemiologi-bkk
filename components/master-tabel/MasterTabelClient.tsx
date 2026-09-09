@@ -54,6 +54,35 @@ const TAB_VEKTOR: { id: DatasetId; label: string; ikon: string }[] = [
   { id: "diare_kecoa", label: "Vektor Diare — Kecoa", ikon: "🪳" },
 ];
 
+// ----------------------------------------------------------------
+// Normalisasi nama wilayah kerja.
+//
+// Modul Sanitasi (TTU/PAB/TPP/Rat Guard) pakai kolom `wilayah_kerja`
+// teks bebas TANPA prefix ("Samarinda", "APT Pranoto", dst).
+// Modul Vektor pakai `kode_wilker` yang di-resolve ke `wilker_ref.nama`,
+// dan nilai itu PAKAI prefix ("Pelabuhan Samarinda", "Bandara APT
+// Pranoto", dst). Supaya keduanya bisa digabung & difilter dengan
+// konsisten di Master Tabel, semua nama dari wilker_ref dilewatkan
+// fungsi ini dulu untuk membuang prefix "Pelabuhan"/"Bandara".
+// ----------------------------------------------------------------
+function normalisasiNamaWilayah(nama: string): string {
+  return nama.replace(/^(Pelabuhan|Bandara)\s+/i, "").trim();
+}
+
+// Entri di wilker_ref yang BUKAN lokasi lapangan aktif untuk modul
+// Sanitasi/Vektor gabungan (2 bandara non-aktif + kantor induk) —
+// disingkirkan dari dropdown & label Master Tabel supaya tidak
+// membanjiri pilihan dengan lokasi yang datanya memang tidak pernah ada.
+const WILKER_DIKECUALIKAN = [
+  "PT. Badak LNG Bontang",
+  "Tanjung Bara Sangatta",
+  "Induk BKK Kelas I Samarinda",
+];
+
+function apakahWilkerDikecualikan(namaSudahDinormalisasi: string): boolean {
+  return WILKER_DIKECUALIKAN.some((x) => namaSudahDinormalisasi.includes(x));
+}
+
 function susunBaris(opts: {
   raw: any[];
   bulanKey: string;
@@ -104,9 +133,12 @@ export default function MasterTabelClient({
   const [dataset, setDataset] = useState<DatasetId>("ttu");
   const [wilayah, setWilayah] = useState<string>("Semua");
 
+  // Peta kode_wilker -> nama SUDAH DINORMALISASI (tanpa prefix
+  // Pelabuhan/Bandara), supaya baris tabel Vektor pakai label yang
+  // sama persis dengan yang dipakai modul Sanitasi & dropdown filter.
   const petaKodeKeNama = useMemo(() => {
     const m = new Map<string, string>();
-    daftarWilker.forEach((w) => m.set(w.kode, w.nama));
+    daftarWilker.forEach((w) => m.set(w.kode, normalisasiNamaWilayah(w.nama)));
     return m;
   }, [daftarWilker]);
 
@@ -114,10 +146,20 @@ export default function MasterTabelClient({
 
   const daftarWilayahGabungan = useMemo(() => {
     const set = new Set<string>();
+
+    // Nama dari modul Sanitasi: sudah tanpa prefix, pakai apa adanya.
     [...ttu, ...pab, ...tpp, ...ratGuard].forEach((r) => {
       if (r.wilayah_kerja) set.add(r.wilayah_kerja);
     });
-    daftarWilker.forEach((w) => set.add(w.nama));
+
+    // Nama dari wilker_ref (modul Vektor): normalisasi dulu + buang
+    // entri yang dikecualikan (bandara non-aktif, kantor induk).
+    daftarWilker.forEach((w) => {
+      const nama = normalisasiNamaWilayah(w.nama);
+      if (apakahWilkerDikecualikan(nama)) return;
+      set.add(nama);
+    });
+
     return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
   }, [ttu, pab, tpp, ratGuard, daftarWilker]);
 

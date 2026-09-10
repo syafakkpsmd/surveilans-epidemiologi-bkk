@@ -273,6 +273,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   let dataMentah: KegiatanCopEnriched[] = [];
   let kategoriRbaMingguIni: { nilai: string; jumlah: number }[] = [];
   let dataRbaBulanan: DataRbaBulanan[] = [];
+  let dataRbaTrenMingguan: DataRbaBulanan[] = [];
   let trenNegaraData: Array<Record<string, string | number>> = [];
   let seriesNegara: SeriesNegara[] = [];
   let hasilAI: Record<string, HasilAIStruktur | null> = {};
@@ -318,6 +319,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
       rowsRbaMingguIni,
       rowsRbaSemuaBulan,
       dataMentahHasil,
+      rowsRbaTrenMingguan,
     ] = await Promise.all([
       mode === "mingguan"
         ? getRingkasanMingguan("cop", tahun)
@@ -363,11 +365,18 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
             kategori: "rba",
           })
         : Promise.resolve([]),
-      getKegiatanCopEnriched({
-        wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
-        limit: 50,
-      }),
-    ]);
+        getKegiatanCopEnriched({
+            wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+            limit: 50,
+          }),
+          mode === "mingguan"
+            ? getKategoriBreakdown("cop", "mingguan", {
+                tahun_epid: tahun,
+                wilayah_kerja: wilayah === "Semua" ? undefined : wilayah,
+                kategori: "rba",
+              })
+            : Promise.resolve([]),
+        ]);
 
     // ----- olah ringkasanTren -> trenData -----
     {
@@ -483,6 +492,32 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
     }
 
     dataMentah = dataMentahHasil;
+        // ----- olah rowsRbaTrenMingguan -> dataRbaTrenMingguan (mingguan saja, tren per minggu) -----
+    if (mode === "mingguan") {
+      const petaRbaMingguan = new Map<number, DataRbaBulanan>();
+      rowsRbaTrenMingguan.forEach((r) => {
+        const urutan = (r as { minggu_epid: number }).minggu_epid;
+        if (urutan < batasAwal || urutan > batasAkhir) return;
+        const existing = petaRbaMingguan.get(urutan) ?? {
+          bulanLabel: `Mg ${urutan}`,
+          risikoTinggi: 0,
+          risikoSedang: 0,
+          risikoRendah: 0,
+          tidakDiisi: 0,
+        };
+        const kategori = normalisasiRba(r.nilai);
+        if (kategori === "Risiko Tinggi") existing.risikoTinggi += r.jumlah;
+        else if (kategori === "Risiko Sedang") existing.risikoSedang += r.jumlah;
+        else if (kategori === "Risiko Rendah") existing.risikoRendah += r.jumlah;
+        else existing.tidakDiisi += r.jumlah;
+        petaRbaMingguan.set(urutan, existing);
+      });
+      dataRbaTrenMingguan = Array.from(petaRbaMingguan.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, v]) => v);
+    }
+
+    dataMentah = dataMentahHasil;
   } catch (err) {
     errorMuat = err instanceof Error ? err.message : "Gagal mengambil data COP.";
   }
@@ -535,6 +570,11 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   const dataTrenPerWilker = Array.from(petaTrenWilker.values()).sort(
     (a, b) => (a.urutan as number) - (b.urutan as number)
   );
+
+    const dataRbaTrenBulanan =
+    mode === "bulanan"
+      ? dataRbaBulanan.filter((_, idx) => idx + 1 >= batasAwal && idx + 1 <= batasAkhir)
+      : [];
 
   const seriesWilker: SeriesWilker[] = WILAYAH_URUTAN.map((w, i) => ({
     key: w,
@@ -906,6 +946,23 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 hasilAwal={hasilPrediksiNegaraTren}
               />
             </div>
+          </div>
+
+                    {/* ============================================================
+              SECTION 5C -- TREN RBA (BARU): distribusi Risk Based
+              Assessment per minggu (mode mingguan) atau per bulan
+              (mode bulanan), ikut filter mode+wilayah+rentang -- sama
+              seperti Section 5 & 5B. Ini melengkapi donut RBA di
+              Section 6 (yang snapshot 1 periode saja) dengan tampilan
+              trennya.
+             ============================================================ */}
+          <div className="rounded-card bg-surface p-6">
+            <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Distribusi Risk Based Assessment (RBA) {mode === "mingguan"
+                ? `Mingguan (Mg ${mingguAwal}–${mingguAkhir})`
+                : `Bulanan (${NAMA_BULAN[bulanAwal - 1]}–${NAMA_BULAN[bulanAkhir - 1]})`} Tahun {tahun}
+            </h2>
+            <RbaBarBulanan data={mode === "mingguan" ? dataRbaTrenMingguan : dataRbaTrenBulanan} />
           </div>
 
           {/* ============================================================

@@ -1268,7 +1268,7 @@ const MAP_WILAYAH_DB_PHQC: Record<string, string> = {
   TanjungLaut: 'Pelabuhan Tanjung Laut',
   Sangkulirang: 'Pelabuhan Laut Sangkulirang',
   Sangatta: 'Pelabuhan Laut Sangatta',
-  Lhoktuan: 'Pelabuhan Lhok Tuan',
+  Lhoktuan: 'Pelabuhan Lhoktuan',
   TanjungSantan: 'Pelabuhan Laut Tanjung Santan',
 };
 

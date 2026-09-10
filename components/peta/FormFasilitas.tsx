@@ -93,7 +93,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
               <option value="WK01">WK01 - Samarinda</option>
               <option value="WK02">WK02 - Tanjung Santan</option>
               <option value="WK03">WK03 - Tanjung Laut</option>
-              <option value="WK04">WK04 - Lhok Tuan</option>
+              <option value="WK04">WK04 - Lhoktuan</option>
               <option value="WK05">WK05 - Sangatta</option>
               <option value="WK06">WK06 - Sangkulirang</option>
               <option value="WK07">WK07 - Bandara APT Pranoto</option>

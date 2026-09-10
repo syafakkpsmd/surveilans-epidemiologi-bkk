@@ -8,7 +8,7 @@ const WILKER_LIST = [
   { kode: "WK01", nama: "Samarinda" },
   { kode: "WK02", nama: "Tanjung Santan" },
   { kode: "WK03", nama: "Tanjung Laut" },
-  { kode: "WK04", nama: "Lhok Tuan" },
+  { kode: "WK04", nama: "Lhoktuan" },
   { kode: "WK05", nama: "Sangatta" },
   { kode: "WK06", nama: "Sangkulirang" },
   { kode: "WK07", nama: "Bandara APT Pranoto" },

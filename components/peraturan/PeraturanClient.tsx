@@ -62,30 +62,30 @@ export default function PeraturanClient({ bolehKelola }: { bolehKelola: boolean 
   return (
     <div className="min-h-screen bg-slate-50 p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-  <div>
-    <h1 className="text-2xl font-semibold text-slate-800">Kumpulan Peraturan</h1>
-    <p className="text-slate-500 text-sm">BKK Kelas I Samarinda -- dapat diakses dan diunduh siapa saja</p>
-  </div>
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-800">Kumpulan Peraturan</h1>
+          <p className="text-slate-500 text-sm">BKK Kelas I Samarinda -- dapat diakses dan diunduh siapa saja</p>
+        </div>
         <div className="flex items-center gap-2">
-            {bolehKelola && (
+          {bolehKelola && (
             <button
-                onClick={() => { setSedangEdit(null); setFormTerbuka(true); }}
-                className="px-4 py-2 rounded-lg bg-teal text-white text-sm font-medium hover:opacity-90"
+              onClick={() => { setSedangEdit(null); setFormTerbuka(true); }}
+              className="px-4 py-2 rounded-lg bg-teal text-white text-sm font-medium hover:opacity-90"
             >
-                + Tambah Peraturan
+              + Tambah Peraturan
             </button>
-            )}
-            <Link
+          )}
+          <Link
             href="/dashboard/"
             className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-400 px-3 py-1.5 text-xs font-medium text-amber-950 shadow-sm transition hover:bg-amber-500"
-            >
+          >
             Kembali ke Dashboard
-            </Link>
+          </Link>
         </div>
-        </div>
+      </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-wrap gap-3 items-end">
-        <form onSubmit={handleSubmitCari} className="flex gap-2 flex-1 min-w-[240px]">
+        <form onSubmit={handleSubmitCari} className="flex gap-2 flex-1 min-w-60">
           <input
             type="text"
             placeholder="Cari judul peraturan..."
@@ -219,6 +219,33 @@ function FormPeraturan({
   const [menyimpan, setMenyimpan] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  async function uploadKeCloudinary(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
+
+    const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`,
+      { method: "POST", body: formData }
+    );
+
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      throw new Error(j?.error?.message ?? "Gagal mengunggah file ke Cloudinary");
+    }
+
+    const json = await res.json();
+    return json as { secure_url: string; original_filename: string; format: string };
+  }
+
+  function tentukanFileType(namaFile: string): "pdf" | "docx" | "xlsx" {
+    const ext = namaFile.split(".").pop()?.toLowerCase();
+    if (ext === "pdf") return "pdf";
+    if (ext === "xlsx" || ext === "xls") return "xlsx";
+    return "docx";
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMenyimpan(true);
@@ -243,14 +270,23 @@ function FormPeraturan({
         }
       } else {
         if (!file) throw new Error("Pilih file terlebih dahulu");
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("judul", judul);
-        formData.append("deskripsi", deskripsi);
-        formData.append("kategori", kategori);
-        formData.append("nomor_peraturan", nomorPeraturan);
-        formData.append("tahun", tahun);
-        const res = await fetch("/api/peraturan", { method: "POST", body: formData });
+
+        const hasilUpload = await uploadKeCloudinary(file);
+
+        const res = await fetch("/api/peraturan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            judul,
+            deskripsi: deskripsi || null,
+            kategori,
+            nomor_peraturan: nomorPeraturan || null,
+            tahun: tahun ? Number(tahun) : null,
+            file_url: hasilUpload.secure_url,
+            file_type: tentukanFileType(file.name),
+            nama_file_asli: file.name,
+          }),
+        });
         if (!res.ok) {
           const j = await res.json();
           throw new Error(j.error ?? "Gagal mengunggah");
@@ -331,12 +367,24 @@ function FormPeraturan({
 
         {!data && (
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">File (PDF/DOCX/XLSX) *</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              File (PDF/DOCX/XLSX) * <span className="font-normal">— ukuran file maksimal 10MB</span>
+            </label>
             <input
               required
               type="file"
               accept=".pdf,.docx,.doc,.xlsx,.xls"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (f && f.size > 10 * 1024 * 1024) {
+                  setError("Ukuran file maksimal 10MB. File Anda: " + (f.size / 1024 / 1024).toFixed(1) + "MB");
+                  setFile(null);
+                  e.target.value = "";
+                  return;
+                }
+                setError(null);
+                setFile(f);
+              }}
               className="w-full text-sm"
             />
           </div>

@@ -10,7 +10,7 @@ const PetaNegaraKedatangan = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[400px] items-center justify-center text-sm text-muted">
+      <div className="flex h-100 items-center justify-center text-sm text-muted">
         Memuat peta...
       </div>
     ),

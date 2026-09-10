@@ -13,11 +13,11 @@ import FormFasilitas from "./FormFasilitas";
 const WILKER_META: Record<string, { nama: string; pusat: { lat: number; lng: number }; zoomDetail: number }> = {
   INDUK: { nama: "Kantor Induk BKK Kelas I Samarinda", pusat: { lat: -0.524379, lng: 117.171117 }, zoomDetail: 16 },
   WK01: { nama: "Samarinda", pusat: { lat: -0.5022, lng: 117.1536 }, zoomDetail: 13 },
-  WK02: { nama: "Tanjung Santan", pusat: { lat: -0.08, lng: 117.45 }, zoomDetail: 14 },
-  WK03: { nama: "Tanjung Laut", pusat: { lat: 0.35, lng: 117.55 }, zoomDetail: 13 },
+  WK02: { nama: "Tanjung Santan", pusat: { lat: -0.088364, lng: 117.445010 }, zoomDetail: 14 },
+  WK03: { nama: "Tanjung Laut", pusat: { lat: 0.139905, lng: 117.494248 }, zoomDetail: 13 },
   WK04: { nama: "Lhok Tuan", pusat: { lat: 0.144479, lng: 117.452530 }, zoomDetail: 13 },
-  WK05: { nama: "Sangatta", pusat: { lat: 0.50, lng: 117.55 }, zoomDetail: 13 },
-  WK06: { nama: "Sangkulirang", pusat: { lat: 1.00, lng: 118.00 }, zoomDetail: 13 },
+  WK05: { nama: "Sangatta", pusat: { lat: 0.533514, lng: 117.566455 }, zoomDetail: 13 },
+  WK06: { nama: "Sangkulirang", pusat: { lat: 0.991061, lng: 117.979325 }, zoomDetail: 13 },
   WK07: { nama: "Bandara APT Pranoto", pusat: { lat: -0.3746, lng: 117.2506 }, zoomDetail: 15 },
 };
 

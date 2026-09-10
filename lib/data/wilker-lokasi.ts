@@ -51,7 +51,7 @@ export const WILKER_LOKASI: WilkerLokasi[] = [
   },
   {
     kode: "WK04",
-    nama: "Pelabuhan Lhok Tuan",
+    nama: "Pelabuhan Lhoktuan",
     pusat: { lat: 0.165029, lng: 117.487204 },
     zoomDetail: 13,
     fasilitas: [
@@ -68,7 +68,6 @@ export const WILKER_LOKASI: WilkerLokasi[] = [
     fasilitas: [
       { nama: "Pelabuhan TBCT", tipe: "pelabuhan", lat: 0.529576, lng: 117.645222 },
       { nama: "Pelabuhan Umum", tipe: "pelabuhan", lat: 0.535536, lng: 117.643032 },
-      { nama: "Pelabuhan PT. Indexim", tipe: "pelabuhan", lat: 0.813120, lng: 117.871091 },
       { nama: "Bandara PT. KPC", tipe: "bandara", lat: 0.558745, lng: 117.641639 },
     ],
   },

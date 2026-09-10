@@ -71,7 +71,7 @@ ATURAN CAKUPAN (WAJIB DIIKUTI PERSIS):
      -- format kegiatan_phqc (BEDA total, jangan diasumsikan sama pola)
      ('Pelabuhan Laut Tanjung Santan', 'WK02'),
      ('Pelabuhan Tanjung Laut', 'WK03'),
-     ('Pelabuhan Lhok Tuan', 'WK04'),
+     ('Pelabuhan Lhoktuan', 'WK04'),
      ('Pelabuhan Laut Sangatta', 'WK05'),
      ('Pelabuhan Laut Sangkulirang', 'WK06')
    on conflict (wilayah_kerja_teks) do nothing;

@@ -962,7 +962,10 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 ? `Mingguan (Mg ${mingguAwal}–${mingguAkhir})`
                 : `Bulanan (${NAMA_BULAN[bulanAwal - 1]}–${NAMA_BULAN[bulanAkhir - 1]})`} Tahun {tahun}
             </h2>
-            <RbaBarBulanan data={mode === "mingguan" ? dataRbaTrenMingguan : dataRbaTrenBulanan} />
+            <RbaBarBulanan
+              data={mode === "mingguan" ? dataRbaTrenMingguan : dataRbaTrenBulanan}
+              tipe={mode === "mingguan" ? "garis" : "batang"}
+            />
           </div>
 
           {/* ============================================================

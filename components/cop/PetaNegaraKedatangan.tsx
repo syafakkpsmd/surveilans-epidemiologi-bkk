@@ -163,8 +163,8 @@ export function PetaNegaraKedatangan({ data }: { data: DataNegara[] }) {
       <div className="relative isolate h-105 w-full overflow-hidden rounded-xl border">
         <MapContainer center={PUSAT_PETA} zoom={ZOOM_AWAL} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
           <TileLayer
-            attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <GeoJSON data={geoJson} style={gayaNegara} onEachFeature={saatEachFeature} />
         </MapContainer>

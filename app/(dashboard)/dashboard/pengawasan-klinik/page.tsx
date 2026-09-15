@@ -1,6 +1,6 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/page.tsx
 import { createClient } from '@/lib/supabase/server';
-import { hitungBreakdownKategori } from '@/lib/pengawasan-klinik/hitungKepatuhan';
+import { hitungBreakdownKategori, hitungStatusKepatuhan } from '@/lib/pengawasan-klinik/hitungKepatuhan';
 import PengawasanKlinikClient from './PengawasanKlinikClient';
 
 export default async function PengawasanKlinikPage() {
@@ -11,7 +11,24 @@ export default async function PengawasanKlinikPage() {
     .select('*, klinik_binaan(nama_klinik, jenis_fasilitas, alamat_klinik, kabupaten_kota, telepon, latitude, longitude)')
     .order('tanggal_kegiatan', { ascending: false });
 
-  const semuaData = rows ?? [];
+  // seluruh klinik binaan — supaya klinik yang BELUM pernah diperiksa tetap muncul di tabel dengan angka 0
+  const { data: klinikRows } = await supabase
+    .from('klinik_binaan')
+    .select('id, nama_klinik, jenis_fasilitas, alamat_klinik, kabupaten_kota, telepon, latitude, longitude')
+    // .eq('kategori', 'klinik')   // aktifkan kalau baris kategori 'bkk' tidak boleh ikut tampil
+    .order('nama_klinik');
+
+  const semuaDataMentah = rows ?? [];
+
+  // Keterangan "item bermasalah" DIHITUNG ULANG dari kolom checklist mentah tiap baris
+  // (bukan dipercaya dari kolom item_bermasalah yang tersimpan), supaya perbaikan
+  // wording di hitungKepatuhan.ts (mis. label positif -> negatif) otomatis berlaku
+  // untuk data yang sudah lama tersimpan juga, tanpa perlu migrasi database.
+  const semuaData = semuaDataMentah.map((r) => ({
+    ...r,
+    item_bermasalah: hitungStatusKepatuhan(r as unknown as Record<string, boolean | null>).itemBermasalah,
+  }));
+  const semuaKlinik = klinikRows ?? [];
 
   // ambil pengawasan TERBARU per klinik (data sudah diurutkan tanggal desc)
   const terlihat = new Set<string>();
@@ -52,16 +69,51 @@ export default async function PengawasanKlinikPage() {
     statusTerbaru: r.status_kepatuhan as string | null,
   }));
 
-  const tabelKlinik = dataTerbaru.map((r) => ({
-    id: r.id,
-    klinikId: r.klinik_id,   // <-- pastikan baris ini ada
-    namaKlinik: r.klinik_binaan?.nama_klinik ?? '-',
-    jenisFasilitas: r.klinik_binaan?.jenis_fasilitas ?? '-',
-    tanggalTerakhir: r.tanggal_kegiatan,
-    status: r.status_kepatuhan as string,
-    persentase: r.persentase_kepatuhan as number,
-    itemBermasalah: (r.item_bermasalah as string[] | null) ?? [],
-  }));
+  // riwayat lengkap: satu baris per kunjungan — dipakai grafik tren & detail kolom "Jumlah Pengawasan"
+  const riwayatPengawasan = semuaData.map((r) => {
+    const daftarItemBermasalah = (r.item_bermasalah as string[] | null) ?? [];
+    return {
+      id: r.id as string,
+      klinikId: r.klinik_id as string,
+      namaKlinik: r.klinik_binaan?.nama_klinik ?? '-',
+      tanggal: r.tanggal_kegiatan as string,
+      persentase: (r.persentase_kepatuhan as number) ?? 0,
+      status: (r.status_kepatuhan as string) ?? '',
+      jumlahItemBermasalah: daftarItemBermasalah.length,
+      itemBermasalah: daftarItemBermasalah,
+    };
+  });
+
+  // jumlah pengawasan per klinik
+  const jumlahPerKlinik = new Map<string, number>();
+  semuaData.forEach((r) => {
+    jumlahPerKlinik.set(r.klinik_id, (jumlahPerKlinik.get(r.klinik_id) ?? 0) + 1);
+  });
+
+  // tabel dibangun dari SELURUH klinik binaan, lalu digabung dengan pengawasan terbarunya
+  const terbaruPerKlinik = new Map(dataTerbaru.map((r) => [r.klinik_id as string, r]));
+  const tabelKlinik = semuaKlinik.map((klinik) => {
+    const terakhir = terbaruPerKlinik.get(klinik.id);
+    return {
+      id: klinik.id,
+      klinikId: klinik.id,
+      namaKlinik: klinik.nama_klinik ?? '-',
+      jenisFasilitas: klinik.jenis_fasilitas ?? '-',
+      tanggalTerakhir: (terakhir?.tanggal_kegiatan as string | undefined) ?? null,
+      status: (terakhir?.status_kepatuhan as string | undefined) ?? null,
+      persentase: (terakhir?.persentase_kepatuhan as number | undefined) ?? null,
+      itemBermasalah: (terakhir?.item_bermasalah as string[] | null) ?? [],
+      jumlahPengawasan: jumlahPerKlinik.get(klinik.id) ?? 0,
+    };
+  });
+
+  // urutkan: yang sudah diperiksa dulu (terbaru di atas), klinik belum diperiksa di bawah
+  tabelKlinik.sort((a, b) => {
+    if (!a.tanggalTerakhir && !b.tanggalTerakhir) return a.namaKlinik.localeCompare(b.namaKlinik);
+    if (!a.tanggalTerakhir) return 1;
+    if (!b.tanggalTerakhir) return -1;
+    return new Date(b.tanggalTerakhir).getTime() - new Date(a.tanggalTerakhir).getTime();
+  });
 
   // data mentah LENGKAP (semua submission, semua kolom) untuk keperluan download Excel
   const dataLengkapUntukExport = semuaData.map((r) => ({
@@ -78,6 +130,7 @@ export default async function PengawasanKlinikPage() {
       tabelKlinik={tabelKlinik}
       totalKlinikDiawasi={dataTerbaru.length}
       titikPeta={titikPeta}
+      riwayatPengawasan={riwayatPengawasan}
       dataLengkapUntukExport={dataLengkapUntukExport}
     />
   );

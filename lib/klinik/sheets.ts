@@ -1,7 +1,6 @@
 // lib/klinik/sheets.ts
 import { google } from 'googleapis';
 import path from 'path';
-import { unstable_cache } from 'next/cache';
 
 function getGoogleAuth(scopes: string[]) {
   const clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -22,14 +21,29 @@ function getGoogleAuth(scopes: string[]) {
   });
 }
 
+// Auth client & Sheets/Drive client dibuat SEKALI per proses (module-level singleton),
+// bukan setiap kali dipanggil. Sebelumnya setiap fetch spreadsheet yang cache-nya
+// kosong ikut menukar token OAuth baru ke Google terlebih dulu — kerja ganda yang
+// menambah latensi dan request tak perlu, apalagi saat 5-20 klinik di-fetch beruntun.
+let authDrive: ReturnType<typeof getGoogleAuth> | null = null;
+let authSheets: ReturnType<typeof getGoogleAuth> | null = null;
+let clientDrive: ReturnType<typeof google.drive> | null = null;
+let clientSheets: ReturnType<typeof google.sheets> | null = null;
+
 function getDriveClient() {
-  const auth = getGoogleAuth(['https://www.googleapis.com/auth/drive.readonly']);
-  return google.drive({ version: 'v3', auth });
+  if (!clientDrive) {
+    authDrive = getGoogleAuth(['https://www.googleapis.com/auth/drive.readonly']);
+    clientDrive = google.drive({ version: 'v3', auth: authDrive });
+  }
+  return clientDrive;
 }
 
 function getSheetsClient() {
-  const auth = getGoogleAuth(['https://www.googleapis.com/auth/spreadsheets.readonly']);
-  return google.sheets({ version: 'v4', auth });
+  if (!clientSheets) {
+    authSheets = getGoogleAuth(['https://www.googleapis.com/auth/spreadsheets.readonly']);
+    clientSheets = google.sheets({ version: 'v4', auth: authSheets });
+  }
+  return clientSheets;
 }
 
 export async function listFilesInFolder() {
@@ -41,18 +55,51 @@ export async function listFilesInFolder() {
   return response.data.files ?? [];
 }
 
-const CACHE_TTL_MS = 15 * 60 * 1000;
-const cacheWorkbook = new Map<string, { data: Awaited<ReturnType<typeof readKlinikWorkbook>>; kedaluwarsa: number }>();
+const CACHE_TTL_MS = 60 * 60 * 1000;
 
+type HasilWorkbook = Awaited<ReturnType<typeof readKlinikWorkbook>>;
+type EntriCache = {
+  data: HasilWorkbook;
+  diambilPada: number; // kapan data ini terakhir BERHASIL diambil dari Google
+};
+
+const cacheWorkbook = new Map<string, EntriCache>();
+
+/**
+ * Ambil data workbook klinik, dengan strategi stale-while-revalidate:
+ * - Cache masih segar (< 15 menit)  -> langsung kembalikan, TIDAK panggil Google sama sekali.
+ * - Cache sudah basi (> 15 menit)   -> coba ambil data baru.
+ *      - Kalau BERHASIL  -> perbarui cache, kembalikan data baru.
+ *      - Kalau GAGAL (mis. 429)  -> jangan lempar error; kembalikan data LAMA yang basi
+ *        itu (lebih baik data agak lawas daripada dashboard error/lambat), sambil
+ *        mencatat warning ke log supaya kelihatan di Vercel Logs klinik mana yang gagal
+ *        diperbarui.
+ * - Tidak ada cache sama sekali (pertama kali / baru cold start) -> tidak ada yang bisa
+ *   di-fallback, error dilempar apa adanya ke pemanggil (dataset.ts sudah menangani ini
+ *   per-klinik supaya tidak menjatuhkan seluruh dashboard).
+ */
 export async function readKlinikWorkbookCached(spreadsheetId: string) {
   const cached = cacheWorkbook.get(spreadsheetId);
-  if (cached && cached.kedaluwarsa > Date.now()) return cached.data;
+  const masihSegar = cached && Date.now() - cached.diambilPada < CACHE_TTL_MS;
+  if (masihSegar) return cached!.data;
 
-  const data = await readKlinikWorkbook(spreadsheetId);
-  cacheWorkbook.set(spreadsheetId, { data, kedaluwarsa: Date.now() + CACHE_TTL_MS });
-  return data;
+  try {
+    const data = await readKlinikWorkbook(spreadsheetId);
+    cacheWorkbook.set(spreadsheetId, { data, diambilPada: Date.now() });
+    return data;
+  } catch (err) {
+    if (cached) {
+      const umurMenit = Math.round((Date.now() - cached.diambilPada) / 60000);
+      console.warn(
+        `[readKlinikWorkbookCached] Gagal perbarui ${spreadsheetId} (${(err as Error).message}). ` +
+        `Memakai cache lama berumur ~${umurMenit} menit sebagai fallback.`
+      );
+      return cached.data;
+    }
+    // Tidak ada cache sama sekali untuk di-fallback — lempar apa adanya.
+    throw err;
+  }
 }
-
 
 const SHEET_TABS = [
   'Data ICV / e-ICV',
@@ -70,11 +117,27 @@ const SHEET_TABS = [
 export async function readKlinikWorkbook(spreadsheetId: string) {
   const sheets = getSheetsClient();
 
-  const res = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId,
-    ranges: [...SHEET_TABS],
-    valueRenderOption: 'UNFORMATTED_VALUE', // angka mentah, rumus tetap ke-resolve jadi hasil akhir
-  });
+  const res = await sheets.spreadsheets.values.batchGet(
+    {
+      spreadsheetId,
+      ranges: [...SHEET_TABS],
+      valueRenderOption: 'UNFORMATTED_VALUE', // angka mentah, rumus tetap ke-resolve jadi hasil akhir
+    },
+    {
+      // Retry bawaan gaxios sebelumnya TANPA batas atas (maxRetryDelay & totalTimeout
+      // default-nya nyaris tak terhingga) — saat kena 429, satu request bisa menunggu
+      // backoff yang terus membesar sampai puluhan detik. Di-cap eksplisit di sini:
+      // maksimal 2x percobaan ulang, delay antar-percobaan dibatasi <= 3 detik. Kalau
+      // dalam 2x percobaan masih gagal, biarkan gagal cepat — readKlinikWorkbookCached
+      // di atas akan menangkapnya dan fallback ke data cache lama.
+      retryConfig: {
+        retry: 2,
+        retryDelayMultiplier: 2,
+        maxRetryDelay: 3000,
+        totalTimeout: 15000,
+      },
+    }
+  );
 
   const [icv, faskes, stokEicv, stokIcv, stokMM, stokYF, stokPolio, stokFlu, rekap] =
     res.data.valueRanges ?? [];

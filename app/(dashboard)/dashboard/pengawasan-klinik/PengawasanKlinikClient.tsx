@@ -3,12 +3,13 @@
 
 import dynamic from 'next/dynamic';
 const PetaKlinik = dynamic(() => import('@/components/pengawasan-klinik/PetaKlinik'), { ssr: false });
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import { Download } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { bangunBarisExcel } from '@/lib/pengawasan-klinik/labelKolomExport';
+import GrafikPengawasanKlinik, { type RiwayatPengawasan } from './GrafikPengawasanKlinik';
 
 type RingkasanStatus = {
   memenuhi_syarat: number;
@@ -23,10 +24,11 @@ type BarisKlinik = {
   klinikId: string;
   namaKlinik: string;
   jenisFasilitas: string;
-  tanggalTerakhir: string;
-  status: string;
-  persentase: number;
+  tanggalTerakhir: string | null;
+  status: string | null;
+  persentase: number | null;
   itemBermasalah: string[];
+  jumlahPengawasan: number;
 };
 
 const WARNA_STATUS: Record<string, string> = {
@@ -58,8 +60,14 @@ type Props = {
   tabelKlinik: BarisKlinik[];
   totalKlinikDiawasi: number;
   titikPeta: TitikKlinik[];
-  dataLengkapUntukExport: Record<string, any>[]; // tambahan
+  riwayatPengawasan: RiwayatPengawasan[];
+  dataLengkapUntukExport: Record<string, any>[];
 };
+
+function formatTanggal(nilai: string) {
+  const d = new Date(nilai);
+  return Number.isNaN(d.getTime()) ? nilai : d.toLocaleDateString('id-ID');
+}
 
 export default function PengawasanKlinikClient({
   ringkasanStatus,
@@ -67,15 +75,32 @@ export default function PengawasanKlinikClient({
   tabelKlinik,
   totalKlinikDiawasi,
   titikPeta,
-  dataLengkapUntukExport, // tambahan
+  riwayatPengawasan,
+  dataLengkapUntukExport,
 }: Props) {
   const [klinikDibuka, setKlinikDibuka] = useState<string | null>(null);
+  const [riwayatDibuka, setRiwayatDibuka] = useState<string | null>(null);
+  const [itemRiwayatDibuka, setItemRiwayatDibuka] = useState<string | null>(null);
 
   const dataPie = Object.entries(ringkasanStatus).map(([key, value]) => ({
     name: LABEL_STATUS[key],
     value,
     warna: WARNA_STATUS[key],
   }));
+
+  // riwayat dikelompokkan per klinik, terbaru di atas
+  const riwayatPerKlinik = useMemo(() => {
+    const peta = new Map<string, RiwayatPengawasan[]>();
+    riwayatPengawasan.forEach((r) => {
+      const arr = peta.get(r.klinikId) ?? [];
+      arr.push(r);
+      peta.set(r.klinikId, arr);
+    });
+    peta.forEach((arr) =>
+      arr.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())
+    );
+    return peta;
+  }, [riwayatPengawasan]);
 
   function unduhExcel(rows: Record<string, any>[], namaFile: string) {
     if (rows.length === 0) {
@@ -185,6 +210,9 @@ export default function PengawasanKlinikClient({
         </div>
       </div>
 
+      {/* Tren bulanan (Bar) & mingguan (Line) — tepat sebelum peta */}
+      <GrafikPengawasanKlinik riwayat={riwayatPengawasan} />
+
       <div>
         <h2 className="font-medium mb-2">Peta Lokasi Klinik</h2>
         <PetaKlinik daftarKlinik={titikPeta} />
@@ -202,60 +230,185 @@ export default function PengawasanKlinikClient({
                 <th className="text-left px-4 py-2">Tanggal Terakhir</th>
                 <th className="text-left px-4 py-2">Kepatuhan</th>
                 <th className="text-left px-4 py-2">Status</th>
-                <th className="text-left px-4 py-2"></th>
-                <th className="text-left px-4 py-2"></th>
+                <th className="text-center px-4 py-2">Jumlah Pengawasan</th>
+                <th className="text-left px-4 py-2">Keterangan</th>
+                <th className="text-left px-4 py-2">Download</th>
               </tr>
             </thead>
             <tbody>
-              {tabelKlinik.map((k) => (
-                <Fragment key={k.id}>
-                  <tr className="border-t">
-                    <td className="px-4 py-2">{k.namaKlinik}</td>
-                    <td className="px-4 py-2">{k.jenisFasilitas}</td>
-                    <td className="px-4 py-2">{new Date(k.tanggalTerakhir).toLocaleDateString('id-ID')}</td>
-                    <td className="px-4 py-2">{k.persentase}%</td>
-                    <td className="px-4 py-2">
-                      <span
-                        className="px-2 py-1 rounded text-xs font-medium text-white"
-                        style={{ backgroundColor: WARNA_STATUS[k.status] }}
-                      >
-                        {LABEL_STATUS[k.status] ?? k.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">
-                      {k.itemBermasalah.length > 0 && (
+              {tabelKlinik.map((k) => {
+                const daftarRiwayat = riwayatPerKlinik.get(k.klinikId) ?? [];
+                const belumPernahDiawasi = k.jumlahPengawasan === 0;
+
+                return (
+                  <Fragment key={k.id}>
+                    <tr className="border-t">
+                      <td className="px-4 py-2">{k.namaKlinik}</td>
+                      <td className="px-4 py-2">{k.jenisFasilitas}</td>
+                      <td className="px-4 py-2">
+                        {k.tanggalTerakhir ? formatTanggal(k.tanggalTerakhir) : '-'}
+                      </td>
+                      <td className="px-4 py-2">{k.persentase != null ? `${k.persentase}%` : '-'}</td>
+                      <td className="px-4 py-2">
+                        {k.status ? (
+                          <span
+                            className="px-2 py-1 rounded text-xs font-medium text-white"
+                            style={{ backgroundColor: WARNA_STATUS[k.status] }}
+                          >
+                            {LABEL_STATUS[k.status] ?? k.status}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-gray-200 text-gray-600">
+                            Belum Diperiksa
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Jumlah pengawasan — klik untuk lihat riwayat */}
+                      <td className="px-4 py-2 text-center">
                         <button
-                          onClick={() => setKlinikDibuka(klinikDibuka === k.id ? null : k.id)}
-                          className="text-blue-600 text-xs underline"
+                          type="button"
+                          disabled={belumPernahDiawasi}
+                          aria-expanded={riwayatDibuka === k.id}
+                          onClick={() => {
+                            setRiwayatDibuka(riwayatDibuka === k.id ? null : k.id);
+                            setKlinikDibuka(null);
+                            setItemRiwayatDibuka(null);
+                          }}
+                          className={`min-w-8 px-2 py-1 rounded text-sm font-semibold ${
+                            belumPernahDiawasi
+                              ? 'bg-gray-100 text-gray-400 cursor-default'
+                              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          }`}
+                          title={belumPernahDiawasi ? 'Belum pernah diawasi' : 'Lihat riwayat pengawasan'}
                         >
-                          {klinikDibuka === k.id ? 'Tutup' : `${k.itemBermasalah.length} item bermasalah`}
+                          {k.jumlahPengawasan}
                         </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-2">
-                      <button
-                        onClick={() => handleDownloadPerKlinik(k.klinikId, k.namaKlinik)}
-                        className="flex items-center gap-1 text-blue-600 text-xs underline"
-                        title="Download data lengkap klinik ini"
-                      >
-                        <Download size={12} />
-                        Excel
-                      </button>
-                    </td>
-                  </tr>
-                  {klinikDibuka === k.id && (
-                    <tr className="bg-gray-50">
-                      <td colSpan={7} className="px-4 py-2">
-                        <ul className="list-disc list-inside text-xs text-gray-700">
-                          {k.itemBermasalah.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
+                      </td>
+
+                      <td className="px-4 py-2">
+                        {k.itemBermasalah.length > 0 ? (
+                          <button
+                            onClick={() => {
+                              setKlinikDibuka(klinikDibuka === k.id ? null : k.id);
+                              setRiwayatDibuka(null);
+                              setItemRiwayatDibuka(null);
+                            }}
+                            className="text-blue-600 text-xs underline"
+                          >
+                            {klinikDibuka === k.id ? 'Tutup' : `${k.itemBermasalah.length} item bermasalah`}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">-</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-2">
+                        {belumPernahDiawasi ? (
+                          <span className="text-xs text-gray-400">-</span>
+                        ) : (
+                          <button
+                            onClick={() => handleDownloadPerKlinik(k.klinikId, k.namaKlinik)}
+                            className="flex items-center gap-1 text-blue-600 text-xs underline"
+                            title="Download data lengkap klinik ini"
+                          >
+                            <Download size={12} />
+                            Excel
+                          </button>
+                        )}
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
+
+                    {/* Detail item bermasalah */}
+                    {klinikDibuka === k.id && (
+                      <tr className="bg-gray-50">
+                        <td colSpan={8} className="px-4 py-2">
+                          <ul className="list-disc list-inside text-xs text-gray-700">
+                            {k.itemBermasalah.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Detail riwayat pengawasan */}
+                    {riwayatDibuka === k.id && (
+                      <tr className="bg-gray-50">
+                        <td colSpan={8} className="px-4 py-3">
+                          <p className="text-xs font-medium text-gray-600 mb-2">
+                            Riwayat pengawasan {k.namaKlinik}
+                          </p>
+                          <table className="w-full text-xs bg-white border rounded">
+                            <thead className="bg-gray-100">
+                              <tr>
+                                <th className="text-left px-3 py-1.5">Tanggal</th>
+                                <th className="text-left px-3 py-1.5">Kepatuhan</th>
+                                <th className="text-left px-3 py-1.5">Status</th>
+                                <th className="text-left px-3 py-1.5">Keterangan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {daftarRiwayat.map((r) => (
+                                <Fragment key={r.id}>
+                                  <tr className="border-t">
+                                    <td className="px-3 py-1.5">{formatTanggal(r.tanggal)}</td>
+                                    <td className="px-3 py-1.5">{r.persentase}%</td>
+                                    <td className="px-3 py-1.5">
+                                      <span
+                                        className="px-2 py-0.5 rounded text-white"
+                                        style={{ backgroundColor: WARNA_STATUS[r.status] ?? '#6b7280' }}
+                                      >
+                                        {LABEL_STATUS[r.status] ?? r.status}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-1.5">
+                                      {r.jumlahItemBermasalah > 0 ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setItemRiwayatDibuka(itemRiwayatDibuka === r.id ? null : r.id)
+                                          }
+                                          className="text-blue-600 underline"
+                                        >
+                                          {itemRiwayatDibuka === r.id
+                                            ? 'Tutup'
+                                            : `${r.jumlahItemBermasalah} item bermasalah`}
+                                        </button>
+                                      ) : (
+                                        <span className="text-gray-600">Tidak ada temuan</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                  {itemRiwayatDibuka === r.id && (
+                                    <tr className="bg-gray-50 border-t">
+                                      <td colSpan={4} className="px-3 py-2">
+                                        <ul className="list-disc list-inside text-gray-700">
+                                          {r.itemBermasalah.map((item) => (
+                                            <li key={item}>{item}</li>
+                                          ))}
+                                        </ul>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </Fragment>
+                              ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+
+              {tabelKlinik.length === 0 && (
+                <tr className="border-t">
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                    Belum ada klinik binaan yang terdaftar.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

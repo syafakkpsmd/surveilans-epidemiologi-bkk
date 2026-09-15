@@ -17,6 +17,10 @@ type Props = {
   daftarKlinikNama: string[];
   daftarBkkNama: string[];
   rekapGabungan: any;
+  /** Nama klinik/BKK yang gagal dimuat pada request ini (mis. kena rate limit Google
+   *  Sheets) — kalau tidak kosong, tampilkan peringatan bahwa rekap sementara belum
+   *  lengkap. */
+  klinikGagalDimuat: string[];
   role: string;
   tahunBerjalan: number;
   bulanBerjalan: number;
@@ -26,7 +30,7 @@ type Props = {
 };
 
 export default function KlinikDashboardClient({
-  dataMingguanAll, dataBulananAll, daftarKlinikNama, daftarBkkNama, rekapGabungan,
+  dataMingguanAll, dataBulananAll, daftarKlinikNama, daftarBkkNama, rekapGabungan, klinikGagalDimuat,
   role, tahunBerjalan, bulanBerjalan, tahunEpidBerjalan, mingguEpidBerjalan, standarHariVaksin,
 }: Props) {
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("mingguan");
@@ -59,6 +63,22 @@ export default function KlinikDashboardClient({
           </button>
         </div>
       </div>
+
+      {klinikGagalDimuat.length > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <span aria-hidden className="mt-0.5">⚠️</span>
+          <div>
+            <p className="font-medium">
+              Data {klinikGagalDimuat.length} klinik/wilker belum bisa dimuat sementara
+            </p>
+            <p className="mt-1 text-amber-700">
+              {klinikGagalDimuat.join(', ')} — kemungkinan ada gangguan sesaat saat mengambil data dari
+              Google Sheets. Angka rekap di bawah untuk sementara TIDAK termasuk klinik ini. Coba muat
+              ulang halaman dalam beberapa menit.
+            </p>
+          </div>
+        </div>
+      )}
 
       <KartuRekap data={rekapGabungan.kartu} />
 

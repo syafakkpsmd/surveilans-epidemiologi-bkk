@@ -33,6 +33,13 @@ export default async function KlinikPage() {
     donutWus: donutWus(semuaIcv),
   };
 
+  // Klinik yang gagal dimuat (mis. kena rate limit Google Sheets saat fetch) —
+  // ditampilkan sebagai peringatan di dashboard supaya user tahu angka rekap
+  // sementara belum termasuk klinik-klinik ini, bukan berarti datanya nol.
+  const klinikGagalDimuat = dataset
+    .filter((d) => d.gagalDimuat)
+    .map((d) => d.klinik.nama_klinik as string);
+
   const daftarKlinikNama = (daftarKlinikRow ?? []).filter((k) => kategoriEfektif(k) === 'klinik').map((k) => k.nama_klinik);
   const daftarBkkNama = (daftarKlinikRow ?? []).filter((k) => kategoriEfektif(k) === 'bkk').map((k) => k.nama_klinik);
 
@@ -47,6 +54,7 @@ export default async function KlinikPage() {
       daftarKlinikNama={daftarKlinikNama}
       daftarBkkNama={daftarBkkNama}
       rekapGabungan={rekapGabungan}
+      klinikGagalDimuat={klinikGagalDimuat}
       role={profile?.role ?? 'publik'}
       tahunBerjalan={periodeBulanSekarang.tahun}
       bulanBerjalan={periodeBulanSekarang.bulan}

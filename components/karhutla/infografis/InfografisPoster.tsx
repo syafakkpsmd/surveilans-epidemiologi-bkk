@@ -1,3 +1,5 @@
+import React from 'react';
+import { labelTampilanLokasi } from '@/lib/karhutla/infografis-utils';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import PetaMiniHotspot from './PetaMiniHotspot';
 import { LABEL_STATUS, BAKU_MUTU_UDARA, type StatusEvaluasi } from '@/lib/karhutla/constants';
@@ -183,11 +185,17 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
         <KartuKpi label="Titik Panas" nilai={data.totalHotspot} satuan="titik" warna={data.totalHotspot > 0 ? WARNA.merah : WARNA.hijau} />
         <KartuKpi label="Kasus ISPA" nilai={totalIspa} satuan="kasus" warna={WARNA.cyan} />
         <KartuKpi
-          label="PM2.5 Rerata"
-          nilai={data.pm25Rerata ?? '—'}
-          satuan={data.pm25Rerata != null ? 'µg/m³' : ''}
-          warna={warnaStatusIspu(data.statusIspuDominan)}
-          keterangan={data.statusIspuDominan ?? 'Belum ada data'}
+          label="PM2.5 Tertinggi"
+          nilai={data.pm25Tertinggi ?? '—'}
+          satuan={data.pm25Tertinggi != null ? 'µg/m³' : ''}
+          warna={warnaBakuMutu('pm25', data.pm25Tertinggi)}
+          keterangan={
+            data.lokasiPm25Tertinggi
+              ? data.statusIspuDominan
+                ? `${data.lokasiPm25Tertinggi} · ${data.statusIspuDominan}`
+                : data.lokasiPm25Tertinggi
+              : 'Belum ada data'
+          }
         />
         <KartuKpi label="Wilayah Terdampak" nilai={`${wilayahTerdampak}/7`} satuan="wilker" warna={WARNA.teal} />
       </div>
@@ -325,34 +333,96 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
               </tr>
             </thead>
             <tbody>
-              {data.perWilker.map((w, i) => (
-                <tr key={w.kode_wilker} style={{ borderTop: `1px solid ${WARNA.border}`, background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
-                  <TdKualitasUdara align="left" bold>
-                    {w.nama}
-                  </TdKualitasUdara>
-                  <TdKualitasUdara warna={warnaBakuMutu('pm25', w.pm25Rerata)}>{w.pm25Rerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara warna={warnaBakuMutu('pm10', w.pm10Rerata)}>{w.pm10Rerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara warna={warnaBakuMutu('suhu', w.suhuRerata)}>{w.suhuRerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara warna={warnaBakuMutu('hcho', w.hchoRerata)}>{w.hchoRerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara warna={warnaBakuMutu('tvoc', w.tvocRerata)}>{w.tvocRerata ?? '—'}</TdKualitasUdara>
-                  <TdKualitasUdara warna={warnaBakuMutu('kelembapan', w.kelembapanRerata)}>{w.kelembapanRerata ?? '—'}</TdKualitasUdara>
-                  <td style={{ padding: '9px 14px', textAlign: 'center' }}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '3px 10px',
-                        borderRadius: 999,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: warnaStatusEvaluasi(w.statusEvaluasi),
-                        background: `${warnaStatusEvaluasi(w.statusEvaluasi)}22`,
-                      }}
-                    >
-                      {LABEL_STATUS[w.statusEvaluasi]}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {data.perWilker.map((w, i) => {
+                const adaBreakdown = !!w.lokasiDetail && w.lokasiDetail.length > 0;
+                return (
+                  <React.Fragment key={w.kode_wilker}>
+                    <tr style={{ borderTop: `1px solid ${WARNA.border}`, background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                      <TdKualitasUdara align="left" bold>
+                        {w.nama}
+                      </TdKualitasUdara>
+                      {adaBreakdown ? (
+                        <>
+                          <TdKualitasUdara warna={WARNA.muted}>{null}</TdKualitasUdara>
+                          <TdKualitasUdara warna={WARNA.muted}>{null}</TdKualitasUdara>
+                          <TdKualitasUdara warna={WARNA.muted}>{null}</TdKualitasUdara>
+                          <TdKualitasUdara warna={WARNA.muted}>{null}</TdKualitasUdara>
+                          <TdKualitasUdara warna={WARNA.muted}>{null}</TdKualitasUdara>
+                          <TdKualitasUdara warna={WARNA.muted}>{null}</TdKualitasUdara>
+                          <td style={{ padding: '9px 14px', textAlign: 'center' }} />
+                        </>
+                      ) : (
+                        <>
+                          <TdKualitasUdara warna={warnaBakuMutu('pm25', w.pm25Rerata)}>{w.pm25Rerata ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('pm10', w.pm10Rerata)}>{w.pm10Rerata ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('suhu', w.suhuRerata)}>{w.suhuRerata ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('hcho', w.hchoRerata)}>{w.hchoRerata ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('tvoc', w.tvocRerata)}>{w.tvocRerata ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('kelembapan', w.kelembapanRerata)}>{w.kelembapanRerata ?? '—'}</TdKualitasUdara>
+                          <td style={{ padding: '9px 14px', textAlign: 'center' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 10px',
+                                borderRadius: 999,
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: warnaStatusEvaluasi(w.statusEvaluasi),
+                                background: `${warnaStatusEvaluasi(w.statusEvaluasi)}22`,
+                              }}
+                            >
+                              {LABEL_STATUS[w.statusEvaluasi]}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                    {w.lokasiDetail?.map((lok, j) => {
+                      return (
+                        <tr key={`${w.kode_wilker}-${j}`} style={{ borderTop: `1px solid ${WARNA.border}`, background: 'rgba(0,0,0,0.12)' }}>
+                          <TdKualitasUdara align="left">
+                            <span style={{ display: 'inline-flex', alignItems: 'center', paddingLeft: 14 }}>
+                              <span
+                                aria-hidden
+                                style={{
+                                  width: 8,
+                                  height: 8,
+                                  borderLeft: `2px solid ${WARNA.muted}`,
+                                  borderBottom: `2px solid ${WARNA.muted}`,
+                                  marginRight: 8,
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <span style={{ color: WARNA.muted, fontSize: 11.5 }}>{labelTampilanLokasi(lok.lokasi)}</span>
+                            </span>
+                          </TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('pm25', lok.pm25)}>{lok.pm25 ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('pm10', lok.pm10)}>{lok.pm10 ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('suhu', lok.suhu)}>{lok.suhu ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('hcho', lok.hcho)}>{lok.hcho ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('tvoc', lok.tvoc)}>{lok.tvoc ?? '—'}</TdKualitasUdara>
+                          <TdKualitasUdara warna={warnaBakuMutu('kelembapan', lok.kelembapan)}>{lok.kelembapan ?? '—'}</TdKualitasUdara>
+                          <td style={{ padding: '9px 14px', textAlign: 'center' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 10px',
+                                borderRadius: 999,
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                color: warnaStatusEvaluasi(lok.statusEvaluasi),
+                                background: `${warnaStatusEvaluasi(lok.statusEvaluasi)}22`,
+                              }}
+                            >
+                              {LABEL_STATUS[lok.statusEvaluasi]}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

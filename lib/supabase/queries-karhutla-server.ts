@@ -678,6 +678,21 @@ export interface RingkasanWilker {
   kelembapanRerata: number | null;
   statusIspu: string | null;
   statusEvaluasi: StatusEvaluasi;
+  /** Detail per lokasi pengukuran, HANYA diisi kalau wilker ini punya
+   *  >1 titik pengukuran (mis. APT Pranoto: Kedatangan & Keberangkatan).
+   *  null/undefined berarti wilker ini cuma 1 lokasi -- tabel infografis
+   *  render baris biasa tanpa breakdown tambahan. */
+  lokasiDetail?: {
+    lokasi: string;
+    pm25: number | null;
+    pm10: number | null;
+    suhu: number | null;
+    hcho: number | null;
+    tvoc: number | null;
+    kelembapan: number | null;
+    statusIspu: string | null;
+    statusEvaluasi: StatusEvaluasi;
+  }[];
 }
 
 export interface TitikTren7Hari {
@@ -697,14 +712,16 @@ export interface RingkasanSkdrPerWilayah {
   mingguIni: number;
 }
 
-export interface RingkasanInfografisHarian {
+export type RingkasanInfografisHarian = {
   tanggalDiminta: string;
-  tanggalDitampilkan: string; // bisa beda dari tanggalDiminta kalau fallback dipakai
+  tanggalDitampilkan: string;
   pakaiFallback: boolean;
   totalHotspot: number;
   totalIspaAnak: number;
   totalIspaDewasa: number;
-  pm25Rerata: number | null; // rerata regional (semua lokasi)
+  pm25Rerata: number | null;
+  pm25Tertinggi: number | null;        // <- baru
+  lokasiPm25Tertinggi: string | null;  // <- baru
   statusIspuDominan: string | null;
   perWilker: RingkasanWilker[];
   hotspotPoints: { latitude: number; longitude: number }[];
@@ -774,7 +791,7 @@ export async function ambilRingkasanInfografisHarian(
 
   // --- 3. Susun breakdown per wilker (7 wilker, selalu lengkap walau 0) ---
   const perWilkerMap = new Map<string, RingkasanWilker>();
-  for (const kode of DAFTAR_KODE_WILKER) {
+    for (const kode of DAFTAR_KODE_WILKER) {
     perWilkerMap.set(kode, {
       kode_wilker: kode,
       nama: NAMA_WILKER[kode] ?? kode,
@@ -789,6 +806,7 @@ export async function ambilRingkasanInfografisHarian(
       kelembapanRerata: null,
       statusIspu: null,
       statusEvaluasi: 'BELUM_DIUJI',
+      lokasiDetail: undefined, // <- baru
     });
   }
 
@@ -804,6 +822,8 @@ export async function ambilRingkasanInfografisHarian(
   const PARAM_UDARA = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'] as const;
   const akumulasiUdara = new Map<string, Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>>();
   const statusIspuPerWilker = new Map<string, string>();
+  const lokasiPerWilker = new Map<string, RingkasanWilker['lokasiDetail']>();
+
   for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
     const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
     if (!kode || !perWilkerMap.has(kode)) continue;
@@ -829,7 +849,52 @@ export async function ambilRingkasanInfografisHarian(
     if (b.ispu_status && !statusIspuPerWilker.has(kode)) {
       statusIspuPerWilker.set(kode, b.ispu_status as string);
     }
+
+    // Simpan baris mentah lokasi ini -- dipakai nanti hanya kalau wilker
+    // punya >1 lokasi (breakdown tabel).
+    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
+    const nilaiLokasiIni = {
+      pm25: (b.pm25 as number | null) ?? null,
+      pm10: (b.pm10 as number | null) ?? null,
+      suhu: (b.suhu as number | null) ?? null,
+      hcho: (b.hcho as number | null) ?? null,
+      tvoc: (b.tvoc as number | null) ?? null,
+      kelembapan: (b.kelembapan as number | null) ?? null,
+    };
+    daftarLokasi.push({
+      lokasi: b.lokasi as string,
+      ...nilaiLokasiIni,
+      statusIspu: (b.ispu_status as string | null) ?? null,
+      statusEvaluasi: hitungStatusEvaluasi(nilaiLokasiIni),
+    });
+    lokasiPerWilker.set(kode, daftarLokasi);
   }
+
+  for (const [kode, akum] of akumulasiUdara) {
+    const w = perWilkerMap.get(kode);
+    if (!w) continue;
+    if (akum.pm25.jml > 0) w.pm25Rerata = Number((akum.pm25.total / akum.pm25.jml).toFixed(1));
+    if (akum.pm10.jml > 0) w.pm10Rerata = Number((akum.pm10.total / akum.pm10.jml).toFixed(1));
+    if (akum.suhu.jml > 0) w.suhuRerata = Number((akum.suhu.total / akum.suhu.jml).toFixed(1));
+    if (akum.hcho.jml > 0) w.hchoRerata = Number((akum.hcho.total / akum.hcho.jml).toFixed(2));
+    if (akum.tvoc.jml > 0) w.tvocRerata = Number((akum.tvoc.total / akum.tvoc.jml).toFixed(2));
+    if (akum.kelembapan.jml > 0) w.kelembapanRerata = Number((akum.kelembapan.total / akum.kelembapan.jml).toFixed(1));
+    w.statusEvaluasi = hitungStatusEvaluasi({
+      pm25: w.pm25Rerata,
+      pm10: w.pm10Rerata,
+      suhu: w.suhuRerata,
+      hcho: w.hchoRerata,
+      tvoc: w.tvocRerata,
+      kelembapan: w.kelembapanRerata,
+    });
+
+    // Breakdown ditampilkan HANYA kalau wilker ini benar >1 lokasi.
+    const daftarLokasi = lokasiPerWilker.get(kode);
+    if (daftarLokasi && daftarLokasi.length > 1) {
+      w.lokasiDetail = daftarLokasi;
+    }
+  }
+
   for (const [kode, akum] of akumulasiUdara) {
     const w = perWilkerMap.get(kode);
     if (!w) continue;
@@ -861,19 +926,30 @@ export async function ambilRingkasanInfografisHarian(
 
   const perWilker = DAFTAR_KODE_WILKER.map((k) => perWilkerMap.get(k)!);
 
-  // --- 4. Total & rerata regional (semua lokasi, tanpa breakdown) ---
+    // --- 4. Total & rerata regional (semua lokasi, tanpa breakdown) ---
   const totalIspaAnak = perWilker.reduce((s, w) => s + w.kasusIspaAnak, 0);
   const totalIspaDewasa = perWilker.reduce((s, w) => s + w.kasusIspaDewasa, 0);
   const totalHotspot = perWilker.reduce((s, w) => s + w.jumlahHotspot, 0);
-  const nilaiPm25Semua = (dataUdara ?? [])
-    .map((b) => b.pm25)
-    .filter((v): v is number => v != null)
-    .map(Number);
+
+  const bacaanPm25 = (dataUdara ?? [])
+    .filter((b): b is typeof b & { pm25: number } => b.pm25 != null)
+    .map((b) => ({ lokasi: b.lokasi as string, pm25: Number(b.pm25), statusIspu: (b.ispu_status as string | null) ?? null }));
+
   const pm25RerataRegional =
-    nilaiPm25Semua.length > 0
-      ? Number((nilaiPm25Semua.reduce((a, b) => a + b, 0) / nilaiPm25Semua.length).toFixed(1))
+    bacaanPm25.length > 0
+      ? Number((bacaanPm25.reduce((s, b) => s + b.pm25, 0) / bacaanPm25.length).toFixed(1))
       : null;
-  const statusIspuDominan = (dataUdara ?? []).find((b) => b.ispu_status)?.ispu_status ?? null;
+
+  // Titik terparah hari itu -- dipakai sbg angka utama kartu KPI infografis,
+  // supaya wilker yang sedang berkabut tidak "diencerkan" rata-rata gabungan 7 wilker.
+  const bacaanPm25Tertinggi = bacaanPm25.length > 0
+    ? bacaanPm25.reduce((tertinggi, b) => (b.pm25 > tertinggi.pm25 ? b : tertinggi))
+    : null;
+  const pm25Tertinggi = bacaanPm25Tertinggi?.pm25 ?? null;
+  const lokasiPm25Tertinggi = bacaanPm25Tertinggi?.lokasi ?? null;
+  // Status ISPU diambil dari bacaan yg SAMA dgn titik pm25 tertinggi --
+  // sebelumnya "baris pertama yang kebetulan punya ispu_status" (bug, sudah diperbaiki).
+  const statusIspuDominan = bacaanPm25Tertinggi?.statusIspu ?? null;
 
   // --- 5. Tren 7 hari terakhir (berakhir di tanggalDitampilkan) ---
   const tanggalAwalTren = mundurkanTanggal(tanggalDitampilkan, 6);
@@ -976,7 +1052,7 @@ const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
       mingguIni: mapSkdrIniPerWilayah.get(wilayah) ?? 0,
     }));
 
-  return {
+    return {
     tanggalDiminta,
     tanggalDitampilkan,
     pakaiFallback,
@@ -984,6 +1060,8 @@ const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
     totalIspaAnak,
     totalIspaDewasa,
     pm25Rerata: pm25RerataRegional,
+    pm25Tertinggi,
+    lokasiPm25Tertinggi,
     statusIspuDominan,
     perWilker,
     hotspotPoints: (dataHotspot ?? []).map((b) => ({ latitude: b.latitude, longitude: b.longitude })),
@@ -1092,6 +1170,7 @@ export async function ambilRingkasanLaporanKarhutla(
   const PARAM_UDARA = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'] as const;
   const akumulasiUdara = new Map<string, Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>>();
   const statusIspuPerWilker = new Map<string, string>();
+  const lokasiPerWilker = new Map<string, RingkasanWilker['lokasiDetail']>(); // <- tambahkan baris ini
   for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
     const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
     if (!kode || !perWilkerMap.has(kode)) continue;
@@ -1110,6 +1189,23 @@ export async function ambilRingkasanLaporanKarhutla(
     }
     akumulasiUdara.set(kode, akum);
     if (b.ispu_status && !statusIspuPerWilker.has(kode)) statusIspuPerWilker.set(kode, b.ispu_status as string);
+
+    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
+    const nilaiLokasiIni = {
+      pm25: (b.pm25 as number | null) ?? null,
+      pm10: (b.pm10 as number | null) ?? null,
+      suhu: (b.suhu as number | null) ?? null,
+      hcho: (b.hcho as number | null) ?? null,
+      tvoc: (b.tvoc as number | null) ?? null,
+      kelembapan: (b.kelembapan as number | null) ?? null,
+    };
+    daftarLokasi.push({
+      lokasi: b.lokasi as string,
+      ...nilaiLokasiIni,
+      statusIspu: (b.ispu_status as string | null) ?? null,
+      statusEvaluasi: hitungStatusEvaluasi(nilaiLokasiIni),
+    });
+    lokasiPerWilker.set(kode, daftarLokasi);
   }
   for (const [kode, akum] of akumulasiUdara) {
     const w = perWilkerMap.get(kode);
@@ -1124,6 +1220,11 @@ export async function ambilRingkasanLaporanKarhutla(
       pm25: w.pm25Rerata, pm10: w.pm10Rerata, suhu: w.suhuRerata,
       hcho: w.hchoRerata, tvoc: w.tvocRerata, kelembapan: w.kelembapanRerata,
     });
+
+    const daftarLokasi = lokasiPerWilker.get(kode);
+    if (daftarLokasi && daftarLokasi.length > 1) {
+      w.lokasiDetail = daftarLokasi;
+    }
   }
   for (const [kode, status] of statusIspuPerWilker) {
     const w = perWilkerMap.get(kode);

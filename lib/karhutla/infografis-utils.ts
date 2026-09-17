@@ -33,6 +33,15 @@ const KATA_KUNCI_WILKER: { kode_wilker: string; kataKunci: string[] }[] = [
   { kode_wilker: 'WK07', kataKunci: ['pranoto'] },
 ];
 
+const LABEL_TAMPILAN_LOKASI: Record<string, string> = {
+  'APT Pranoto (Keberangkatan)': 'Terminal Keberangkatan',
+  'APT Pranoto (Kedatangan)': 'Terminal Kedatangan',
+};
+
+export function labelTampilanLokasi(lokasi: string): string {
+  return LABEL_TAMPILAN_LOKASI[lokasi] ?? lokasi;
+}
+
 /** Cocokkan nama lokasi kualitas udara (mis. "APT Pranoto (Kedatangan)") ke kode_wilker. */
 export function petakanLokasiUdaraKeWilker(lokasi: string): string | null {
   const teks = lokasi.toLowerCase();

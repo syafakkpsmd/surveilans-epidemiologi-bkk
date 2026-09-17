@@ -36,7 +36,8 @@ import {
   AlertTriangle,
   Flame,
   Droplet,
-  BellRing
+  BellRing,
+  Package
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -133,7 +134,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Klinik Binaan", href: "/dashboard/klinik", icon: Building2, prefetch: false },
       { label: "Pengawasan Klinik", href: "/dashboard/pengawasan-klinik", icon: ClipboardCheck, prefetch: false },
-
+      { label: "Stok Vaksin", href: "/dashboard/stok-vaksin", icon: Package, prefetch: false },
     ],
   },
 

@@ -28,14 +28,9 @@ export interface StatusAkses {
 
 export async function getStatusAkses(): Promise<StatusAkses> {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
 
   if (authError || !user) {
-    console.log("[DEBUG getStatusAkses] tidak ada user / authError:", authError);
     return { sudahLogin: false, role: null };
   }
 
@@ -44,10 +39,6 @@ export async function getStatusAkses(): Promise<StatusAkses> {
     .select("role")
     .eq("id", user.id)
     .single();
-
-  console.log("[DEBUG getStatusAkses] user.id =", user.id);
-  console.log("[DEBUG getStatusAkses] profile =", profile);
-  console.log("[DEBUG getStatusAkses] profileError =", profileError);
 
   const role: PeranUser | null =
     profile?.role === "petugas" || profile?.role === "admin" ? profile.role : null;

@@ -89,7 +89,7 @@ export default function KlinikDashboardClient({
         <DonutChart judul="Proporsi Menurut Hasil WUS (Perempuan)" data={rekapGabungan.donutWus} />
       </div>
 
-      <PencarianIcv />
+      {role !== 'publik' && <PencarianIcv />}
 
       {/* 1. TOTAL GABUNGAN */}
       <GrafikTotalGabungan

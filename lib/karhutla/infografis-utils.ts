@@ -73,7 +73,14 @@ function jarakHaversineKm(lat1: number, lng1: number, lat2: number, lng2: number
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-export function cariWilkerTerdekatDariTitik(lat: number, lng: number): string {
+/** Titik hotspot lebih jauh dari ini (km) dianggap di luar wilayah kerja
+ *  BKK sama sekali -- tidak dipaksa masuk ke wilker manapun. Nilai ini
+ *  konservatif (lebih lebar dari radius kabupaten terkecil) supaya titik
+ *  yang genuinely dekat tetap tertangkap, tapi titik lintas-provinsi
+ *  (mis. Kalteng/Kalsel) tidak salah dihitung sebagai milik Samarinda dst. */
+const JARAK_MAKS_WILKER_KM = 100;
+
+export function cariWilkerTerdekatDariTitik(lat: number, lng: number): string | null {
   let terdekat = WILKER_LOKASI[0];
   let jarakTerdekat = Infinity;
   for (const w of WILKER_LOKASI) {
@@ -83,7 +90,7 @@ export function cariWilkerTerdekatDariTitik(lat: number, lng: number): string {
       terdekat = w;
     }
   }
-  return terdekat.kode;
+  return jarakTerdekat <= JARAK_MAKS_WILKER_KM ? terdekat.kode : null;
 }
 
 /** Daftar 7 wilker urut kode, dipakai utk breakdown grid di Info Grafis. */

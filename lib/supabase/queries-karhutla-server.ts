@@ -920,6 +920,7 @@ export async function ambilRingkasanInfografisHarian(
 
   for (const b of dataHotspot ?? []) {
     const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude);
+    if (!kode) continue; // titik di luar jangkauan wilker manapun
     const w = perWilkerMap.get(kode);
     if (w) w.jumlahHotspot += 1;
   }
@@ -1233,6 +1234,7 @@ export async function ambilRingkasanLaporanKarhutla(
 
   for (const b of dataHotspot ?? []) {
     const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude);
+    if (!kode) continue; // titik di luar jangkauan wilker manapun
     const w = perWilkerMap.get(kode);
     if (w) w.jumlahHotspot += 1;
   }

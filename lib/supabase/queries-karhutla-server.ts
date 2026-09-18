@@ -764,11 +764,12 @@ export async function ambilRingkasanInfografisHarian(
     }
   }
 
-  // --- 2. Ambil data mentah untuk tanggal efektif ---
+   // --- 2. Ambil data mentah untuk tanggal efektif ---
   const [
     { data: dataIspa, error: errIspa },
     { data: dataUdara, error: errUdara },
     { data: dataHotspot, error: errHotspot },
+    daftarLokasiLengkap,
   ] = await Promise.all([
     supabase
       .from('ispa_harian')
@@ -783,6 +784,7 @@ export async function ambilRingkasanInfografisHarian(
       .select('latitude, longitude')
       .eq('tanggal_deteksi', tanggalDitampilkan)
       .gt('confidence', 80),
+    ambilDaftarLokasiUdara(),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
@@ -824,6 +826,23 @@ export async function ambilRingkasanInfografisHarian(
   const statusIspuPerWilker = new Map<string, string>();
   const lokasiPerWilker = new Map<string, RingkasanWilker['lokasiDetail']>();
 
+    // Pre-isi semua lokasi TERDAFTAR (bukan cuma yang kebetulan ada data hari
+  // ini) per wilker -- supaya lokasi yang belum sempat diinput tetap tampil
+  // eksplisit sebagai baris "Belum Diuji", bukan hilang diam-diam sehingga
+  // angka wilker terlihat seolah "menyalin" dari lokasi lain yang melapor.
+  for (const lok of daftarLokasiLengkap) {
+    const kode = petakanLokasiUdaraKeWilker(lok.nama);
+    if (!kode || !perWilkerMap.has(kode)) continue;
+    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
+    daftarLokasi.push({
+      lokasi: lok.nama,
+      pm25: null, pm10: null, suhu: null, hcho: null, tvoc: null, kelembapan: null,
+      statusIspu: null,
+      statusEvaluasi: 'BELUM_DIUJI',
+    });
+    lokasiPerWilker.set(kode, daftarLokasi);
+  }
+
   for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
     const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
     if (!kode || !perWilkerMap.has(kode)) continue;
@@ -850,8 +869,8 @@ export async function ambilRingkasanInfografisHarian(
       statusIspuPerWilker.set(kode, b.ispu_status as string);
     }
 
-    // Simpan baris mentah lokasi ini -- dipakai nanti hanya kalau wilker
-    // punya >1 lokasi (breakdown tabel).
+    // Timpa placeholder "Belum Diuji" untuk lokasi ini dengan data aktual
+    // (bukan selalu push baris baru, supaya tidak duplikat dgn pre-isi di atas).
     const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
     const nilaiLokasiIni = {
       pm25: (b.pm25 as number | null) ?? null,
@@ -861,12 +880,18 @@ export async function ambilRingkasanInfografisHarian(
       tvoc: (b.tvoc as number | null) ?? null,
       kelembapan: (b.kelembapan as number | null) ?? null,
     };
-    daftarLokasi.push({
+    const entriBaru = {
       lokasi: b.lokasi as string,
       ...nilaiLokasiIni,
       statusIspu: (b.ispu_status as string | null) ?? null,
       statusEvaluasi: hitungStatusEvaluasi(nilaiLokasiIni),
-    });
+    };
+    const idxAda = daftarLokasi.findIndex((l) => l.lokasi === b.lokasi);
+    if (idxAda !== -1) {
+      daftarLokasi[idxAda] = entriBaru;
+    } else {
+      daftarLokasi.push(entriBaru);
+    }
     lokasiPerWilker.set(kode, daftarLokasi);
   }
 
@@ -1117,6 +1142,7 @@ export async function ambilRingkasanLaporanKarhutla(
     { data: dataIspa, error: errIspa },
     { data: dataUdara, error: errUdara },
     { data: dataHotspot, error: errHotspot },
+    daftarLokasiLengkap,
   ] = await Promise.all([
     supabase
       .from('ispa_harian')
@@ -1135,6 +1161,7 @@ export async function ambilRingkasanLaporanKarhutla(
       .gte('tanggal_deteksi', periodeAwal)
       .lte('tanggal_deteksi', periodeAkhir)
       .gt('confidence', 80),
+    ambilDaftarLokasiUdara(),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
@@ -1172,6 +1199,24 @@ export async function ambilRingkasanLaporanKarhutla(
   const akumulasiUdara = new Map<string, Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>>();
   const statusIspuPerWilker = new Map<string, string>();
   const lokasiPerWilker = new Map<string, RingkasanWilker['lokasiDetail']>(); // <- tambahkan baris ini
+
+    // Pre-isi semua lokasi TERDAFTAR (bukan cuma yang kebetulan ada data hari
+  // ini) per wilker -- supaya lokasi yang belum sempat diinput tetap tampil
+  // eksplisit sebagai baris "Belum Diuji", bukan hilang diam-diam sehingga
+  // angka wilker terlihat seolah "menyalin" dari lokasi lain yang melapor.
+  for (const lok of daftarLokasiLengkap) {
+    const kode = petakanLokasiUdaraKeWilker(lok.nama);
+    if (!kode || !perWilkerMap.has(kode)) continue;
+    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
+    daftarLokasi.push({
+      lokasi: lok.nama,
+      pm25: null, pm10: null, suhu: null, hcho: null, tvoc: null, kelembapan: null,
+      statusIspu: null,
+      statusEvaluasi: 'BELUM_DIUJI',
+    });
+    lokasiPerWilker.set(kode, daftarLokasi);
+  }
+  
   for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
     const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
     if (!kode || !perWilkerMap.has(kode)) continue;

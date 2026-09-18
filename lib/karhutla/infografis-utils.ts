@@ -36,6 +36,8 @@ const KATA_KUNCI_WILKER: { kode_wilker: string; kataKunci: string[] }[] = [
 const LABEL_TAMPILAN_LOKASI: Record<string, string> = {
   'APT Pranoto (Keberangkatan)': 'Terminal Keberangkatan',
   'APT Pranoto (Kedatangan)': 'Terminal Kedatangan',
+  'Samarinda (Pelabuhan Umum)': 'Pelabuhan Umum',
+  'Samarinda (Pelabuhan Palaran)': 'Pelabuhan Palaran',
 };
 
 export function labelTampilanLokasi(lokasi: string): string {

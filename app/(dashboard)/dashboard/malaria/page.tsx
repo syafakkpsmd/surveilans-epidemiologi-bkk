@@ -21,7 +21,7 @@ import BreakdownList from '@/components/vektor/BreakdownList';
 import MultiSelectBarList from '@/components/vektor/MultiSelectBarList';
 import DonutChart from '@/components/vektor/DonutChart';
 import KpiCard from '@/components/vektor/KpiCard';
-import { TombolAnalisisAI } from '@/components/TombolAnalisisAI';
+import { AnalisisPrediksiMalaria } from '@/components/AnalisisPrediksiMalaria';
 
 type SearchParams = {
   wilker?: string;
@@ -51,6 +51,10 @@ export default async function MalariaPage({
   const bulanSampai = sp.bulanSampai ? parseInt(sp.bulanSampai.split('-')[1], 10) : 12;
 
   const [role, daftarWilker] = await Promise.all([getUserRole(), getWilkerRef()]);
+  const sudahLogin = role !== null;
+  const labelWilayahTerpilih = kodeWilker
+    ? daftarWilker.find((w) => w.kode === kodeWilker)?.nama ?? kodeWilker
+    : 'Semua Wilayah Kerja';
 
   const [
     ringkasan,
@@ -88,8 +92,6 @@ export default async function MalariaPage({
     getBreakdownKapalPesawat({ tahun, bulanDari, bulanSampai, kodeWilker }),
   ]);
 
-  const periodeKey = `${tahun}-W${String(mingguBerjalan).padStart(2, '0')}`;
-
   return (
     <div className="space-y-6 p-4 pt-6 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -102,13 +104,6 @@ export default async function MalariaPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FilterWilker daftarWilker={daftarWilker} />
-          <TombolAnalisisAI
-            sudahLogin
-            role={role as any}
-            konteks="malaria-mingguan"
-            periodeKey={periodeKey}
-            wilayahKerja={kodeWilker}
-          />
         </div>
       </div>
 
@@ -253,6 +248,15 @@ export default async function MalariaPage({
           </div>
         </>
       )}
+
+      {/* Analisis & Prediksi AI — selalu di paling bawah, bisa dilihat siapa saja */}
+      <AnalisisPrediksiMalaria
+        role={role as any}
+        sudahLogin={sudahLogin}
+        tahun={tahun}
+        kodeWilker={kodeWilker}
+        labelWilayah={labelWilayahTerpilih}
+      />
     </div>
   );
 }

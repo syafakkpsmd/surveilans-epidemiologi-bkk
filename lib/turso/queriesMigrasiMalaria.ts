@@ -117,6 +117,7 @@ const PETA_NORMALISASI_KATEGORI: Partial<Record<KolomKategoriMigrasi, Record<str
     'sarjana/diploma': 'Sarjana/Diploma',
   },
 };
+
 /** Menyamakan varian typo/kapitalisasi ke satu label baku, kalau kolomnya punya kamus normalisasi. */
 function normalisasiKategori(kolom: KolomKategoriMigrasi, nilaiMentah: string): string {
   const nilaiTrim = nilaiMentah.trim();
@@ -159,11 +160,34 @@ function urutkanBreakdown(kolom: KolomKategoriMigrasi, data: BreakdownItem[]): B
   });
 }
 
+/**
+ * FilterWilker (komponen bersama) mengirim KODE wilker (WK01, WK06, dst — lihat
+ * @/lib/status-laporan/core.ts:DAFTAR_WILKER), tapi kolom `wilayah_kerja` di
+ * migrasi_malaria berisi NAMA TEKS bebas hasil entri manual di form (kadang
+ * tidak lengkap, mis. "Sangkulirang" bukan "Pelabuhan Sangkulirang"). Jadi
+ * pencocokan pakai kata kunci nama tempat yang khas + LIKE, bukan '=' persis.
+ */
+const KODE_KE_KATA_KUNCI_WILKER: Record<string, string> = {
+  WK01: 'Samarinda',
+  WK02: 'Tanjung Santan',
+  WK03: 'Tanjung Laut',
+  WK04: 'Lhoktuan',
+  WK05: 'Sangatta',
+  WK06: 'Sangkulirang',
+  WK07: 'APT Pranoto',
+};
+
 function buildFilterWilker(kodeWilker?: string): { klausa: string; args: InValue[] } {
   if (!kodeWilker || kodeWilker === 'Semua') {
     return { klausa: '', args: [] };
   }
-  return { klausa: ' AND wilayah_kerja = ?', args: [kodeWilker] };
+  const kataKunci = KODE_KE_KATA_KUNCI_WILKER[kodeWilker];
+  if (!kataKunci) {
+    // Kode tidak dikenal (bukan salah satu WK01–WK07) — fallback cocokkan persis
+    // supaya tidak diam-diam menampilkan semua data kalau kodenya salah/berubah.
+    return { klausa: ' AND wilayah_kerja = ?', args: [kodeWilker] };
+  }
+  return { klausa: ' AND wilayah_kerja LIKE ?', args: [`%${kataKunci}%`] };
 }
 
 function isoTanggal(d: Date): string {

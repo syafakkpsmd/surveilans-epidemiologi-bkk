@@ -1,11 +1,9 @@
-/// app/(dashboard)/dashboard/pengawasan-klinik/klinik/KelolaKlinikClient.tsx
 'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { tambahKlinikBaru, updateKlinik, hapusKlinik } from './actions';
-
 
 type Klinik = {
   id: string;
@@ -21,10 +19,20 @@ type Klinik = {
   spreadsheet_id: string | null;
 };
 
+type KlinikBelumTerdaftar = {
+  spreadsheetId: string;
+  namaKlinik: string;
+};
+
 export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Klinik[] }) {
   const [formTerbuka, setFormTerbuka] = useState<'tambah' | string | null>(null);
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
+  const [prefillTambah, setPrefillTambah] = useState<{ namaKlinik: string; spreadsheetId: string } | null>(null);
+
+  // BARU: state untuk fitur "Cek Klinik Baru" (versi Turso)
+  const [daftarBelumTerdaftar, setDaftarBelumTerdaftar] = useState<KlinikBelumTerdaftar[] | null>(null);
+  const [mengecek, setMengecek] = useState(false);
 
   const klinikSedangDiedit = daftarKlinik.find((k) => k.id === formTerbuka) ?? null;
 
@@ -34,14 +42,16 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
     return acc;
   }, {});
 
-  function bukaFormTambah() {
+  function bukaFormTambah(prefill?: { namaKlinik: string; spreadsheetId: string }) {
     setFormTerbuka('tambah');
+    setPrefillTambah(prefill ?? null);
     setLat('');
     setLng('');
   }
 
   function bukaFormEdit(k: Klinik) {
     setFormTerbuka(k.id);
+    setPrefillTambah(null);
     setLat(k.latitude != null ? String(k.latitude) : '');
     setLng(k.longitude != null ? String(k.longitude) : '');
   }
@@ -66,14 +76,40 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
         ? await tambahKlinikBaru(formData)
         : await updateKlinik(formTerbuka as string, formData);
 
-    if (hasil.error) alert(hasil.error);
-    else setFormTerbuka(null);
+    if (hasil.error) {
+      alert(hasil.error);
+      return;
+    }
+
+    setFormTerbuka(null);
+    // Kalau tadi tambah dari hasil "Cek Klinik Baru", hapus dari daftar supaya tidak muncul lagi
+    if (prefillTambah) {
+      setDaftarBelumTerdaftar((prev) => prev?.filter((k) => k.spreadsheetId !== prefillTambah.spreadsheetId) ?? null);
+      setPrefillTambah(null);
+    }
   }
 
   async function handleHapus(id: string, nama: string) {
     if (!confirm(`Hapus "${nama}" dari daftar klinik binaan?`)) return;
     const hasil = await hapusKlinik(id);
     if (hasil.error) alert(hasil.error);
+  }
+
+  async function handleCekKlinikBaru() {
+    setMengecek(true);
+    try {
+      const resp = await fetch('/api/klinik/cek-baru');
+      const json = await resp.json();
+      if (json.error) {
+        alert(json.error);
+        return;
+      }
+      setDaftarBelumTerdaftar(json.daftar ?? []);
+    } catch {
+      alert('Gagal mengecek klinik baru.');
+    } finally {
+      setMengecek(false);
+    }
   }
 
   return (
@@ -85,10 +121,49 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
 
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Master Klinik Binaan</h1>
-        <button onClick={bukaFormTambah} className="bg-blue-600 text-white px-4 py-2 rounded text-sm">
-          + Tambah Klinik
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleCekKlinikBaru}
+            disabled={mengecek}
+            className="border border-gray-300 px-4 py-2 rounded text-sm disabled:opacity-50"
+          >
+            {mengecek ? 'Mengecek...' : '🔍 Cek Klinik Baru'}
+          </button>
+          <button onClick={() => bukaFormTambah()} className="bg-blue-600 text-white px-4 py-2 rounded text-sm">
+            + Tambah Klinik
+          </button>
+        </div>
       </div>
+
+      {daftarBelumTerdaftar !== null && (
+        <div className="border rounded-lg p-4 bg-amber-50 border-amber-200">
+          {daftarBelumTerdaftar.length === 0 ? (
+            <p className="text-sm text-amber-800">✓ Tidak ada klinik baru yang belum terdaftar.</p>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-amber-900 mb-2">
+                Ditemukan {daftarBelumTerdaftar.length} spreadsheet dengan data di Turso yang belum terdaftar di Master Klinik:
+              </p>
+              <div className="space-y-1">
+                {daftarBelumTerdaftar.map((k) => (
+                  <div key={k.spreadsheetId} className="flex items-center justify-between bg-white rounded px-3 py-2 text-sm">
+                    <div>
+                      <span className="font-medium">{k.namaKlinik}</span>
+                      <span className="ml-2 text-xs text-gray-400 font-mono">{k.spreadsheetId}</span>
+                    </div>
+                    <button
+                      onClick={() => bukaFormTambah({ namaKlinik: k.namaKlinik, spreadsheetId: k.spreadsheetId })}
+                      className="text-blue-600 text-xs underline"
+                    >
+                      + Tambahkan
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {formTerbuka && (
         <form action={handleSimpan} className="border rounded-lg p-4 space-y-3 max-w-lg">
@@ -100,7 +175,7 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
             name="nama_klinik"
             placeholder="Nama Klinik"
             required
-            defaultValue={klinikSedangDiedit?.nama_klinik ?? ''}
+            defaultValue={klinikSedangDiedit?.nama_klinik ?? prefillTambah?.namaKlinik ?? ''}
             className="border rounded px-3 py-2 w-full"
           />
           <input
@@ -146,17 +221,10 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
             defaultValue={klinikSedangDiedit?.penanggung_jawab ?? ''}
             className="border rounded px-3 py-2 w-full"
           />
-
-                    <input
-            name="penanggung_jawab"
-            placeholder="Penanggung Jawab"
-            defaultValue={klinikSedangDiedit?.penanggung_jawab ?? ''}
-            className="border rounded px-3 py-2 w-full"
-          />
           <input
             name="spreadsheet_id"
             placeholder="ID Google Spreadsheet (dari URL sheet)"
-            defaultValue={klinikSedangDiedit?.spreadsheet_id ?? ''}
+            defaultValue={klinikSedangDiedit?.spreadsheet_id ?? prefillTambah?.spreadsheetId ?? ''}
             className="border rounded px-3 py-2 w-full font-mono text-xs"
           />
 
@@ -201,7 +269,7 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
               return (
                 <div key={k.id} className="flex items-center justify-between px-4 py-3">
                   <div>
-                                        <p className="font-medium">
+                    <p className="font-medium">
                       {k.nama_klinik}
                       {dataBelumLengkap && (
                         <span className="ml-2 text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">

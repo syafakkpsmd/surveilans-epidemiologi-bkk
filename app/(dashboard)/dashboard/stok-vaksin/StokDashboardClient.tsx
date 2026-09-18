@@ -1,5 +1,6 @@
 'use client';
 
+import { DaftarKlinikSyncManual } from '@/components/klinik/DaftarKlinikSyncManual';
 import { RingkasanStokKlinik } from '@/lib/klinik/agregasiStok';
 import { KartuRingkasanStok } from '@/components/stok/KartuRingkasanStok';
 import { TabelStokPerKlinik } from '@/components/stok/TabelStokPerKlinik';
@@ -7,7 +8,7 @@ import { DaftarPeringatanStok } from '@/components/stok/DaftarPeringatanStok';
 import { GrafikTerbitVsRusak } from '@/components/stok/GrafikTerbitVsRusak';
 import { TombolSyncStok } from '@/components/klinik/TombolSyncStok';
 
-type OpsiKlinik = { id: string; nama_klinik: string; kategori: string | null };
+type OpsiKlinik = { id: string; nama_klinik: string; kategori: string | null; spreadsheet_id: string | null };
 
 type Props = {
   ringkasan: RingkasanStokKlinik[];
@@ -45,6 +46,10 @@ export default function StokDashboardClient({ ringkasan, gagalDimuat, role, daft
 
       {/* GANTI dari <GrafikTerbitVsRusak ringkasan={ringkasan} /> jadi ini: */}
       <GrafikTerbitVsRusak daftarKlinikOpsi={daftarKlinikOpsi} />
+
+      {(role === 'admin' || role === 'petugas') && (
+        <DaftarKlinikSyncManual daftarKlinik={daftarKlinikOpsi} />
+      )}
     </div>
   );
 }

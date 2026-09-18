@@ -14,7 +14,7 @@ export default async function StokVaksinPage() {
   // BARU: daftar klinik+BKK untuk opsi filter di grafik Pemakaian vs Kerusakan
   const { data: daftarKlinikOpsi } = await supabase
     .from('klinik_binaan')
-    .select('id, nama_klinik, kategori')
+    .select('id, nama_klinik, kategori, spreadsheet_id')
     .order('nama_klinik');
 
   return (

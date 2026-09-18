@@ -1,28 +1,8 @@
 'use client';
 
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
 const PALET_DEFAULT = ['#0F4C5C', '#B71C1C', '#EF6C00', '#2F9E44', '#7C3AED', '#0D9488', '#EA580C', '#6D28D9'];
-
-function renderLabel(props: any) {
-  const kategori = props?.payload?.kategori ?? props?.name ?? '';
-  const jumlah = props?.payload?.jumlah ?? props?.value ?? 0;
-  const persen = props?.percent ?? 0;
-  const teks = `${kategori}: ${jumlah} (${(persen * 100).toFixed(0)}%)`;
-
-  return (
-    <text
-      x={props.x}
-      y={props.y}
-      textAnchor={props.textAnchor}
-      dominantBaseline="central"
-      fontSize={10}
-      fill="#334155"
-    >
-      {teks}
-    </text>
-  );
-}
 
 export default function DonutChart({
   judul,
@@ -50,29 +30,35 @@ export default function DonutChart({
     <div className="rounded-xl bg-white p-4 shadow-sm overflow-visible">
       <h3 className="mb-1 text-center text-sm font-semibold text-gray-700">{judul}</h3>
       <p className="mb-2 text-center text-xs text-gray-400">Total: {total} kegiatan</p>
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
-          <Pie
-            data={data}
-            dataKey="jumlah"
-            nameKey="kategori"
-            innerRadius={35}
-            outerRadius={75}
-            paddingAngle={2}
-            label={renderLabel}
-            labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
-          >
+
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie data={data} dataKey="jumlah" nameKey="kategori" innerRadius={45} outerRadius={85} paddingAngle={2}>
             {data.map((_, i) => (
               <Cell key={i} fill={warnaPalet[i % warnaPalet.length]} stroke="#ffffff" strokeWidth={2} />
             ))}
           </Pie>
           <Tooltip formatter={(value: any, name: any) => [`${value} kegiatan`, name] as [string, string]} />
-          <Legend
-            wrapperStyle={{ fontSize: 12 }}
-            formatter={(value: string, entry: any) => `${value} (${entry?.payload?.jumlah ?? ''})`}
-          />
         </PieChart>
       </ResponsiveContainer>
+
+      <ul className="mt-5 space-y-2 border-t border-gray-100 pt-4">
+        {data.map((d, i) => {
+          const persen = total > 0 ? ((d.jumlah / total) * 100).toFixed(0) : '0';
+          return (
+            <li key={d.kategori} className="flex items-center gap-2 text-xs text-gray-600">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: warnaPalet[i % warnaPalet.length] }}
+              />
+              <span>{d.kategori}</span>
+              <span className="font-semibold text-gray-800">
+                {d.jumlah} ({persen}%)
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

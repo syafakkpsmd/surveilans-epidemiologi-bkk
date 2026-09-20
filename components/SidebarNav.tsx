@@ -37,7 +37,8 @@ import {
   Flame,
   Droplet,
   BellRing,
-  Package
+  Package,
+  FileText,
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -157,6 +158,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "CDC", href: "https://www.cdc.gov", icon: ShieldAlert },
       { label: "WHO", href: "https://www.who.int/", icon: Globe },
       { label: "Status Laporan", href: "/dashboard/status-laporan", icon: ClipboardCheck, prefetch: false },
+      { label: "Laporan Bulanan", href: "/dashboard/laporan-bulanan", icon: FileText, prefetch: false },
     ],
   },
   {

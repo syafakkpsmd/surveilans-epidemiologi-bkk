@@ -1,0 +1,37 @@
+From 947af494f195e414fefb87d484040d838ce6d62a Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Sat, 19 Sep 2026 13:58:51 +0000
+Subject: [PATCH] Perbaiki bug data Anopheles Dewasa mingguan: agregasi antar
+ wilayah, dulu cuma ambil wilayah pertama
+
+---
+ lib/ai/data.ts | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/lib/ai/data.ts b/lib/ai/data.ts
+index 2d5c936..24fb35f 100644
+--- a/lib/ai/data.ts
++++ b/lib/ai/data.ts
+@@ -1477,10 +1477,17 @@ async function ambilAnophelesRingkasan(
+ 
+   const cocok =
+     granularitas === 'mingguan'
+-      ? (rows as any[]).find((r) => Number(r.minggu_epid) === periodeUrutan)
++      // FIX: dulu pakai .find() yang cuma ambil baris PERTAMA yang cocok --
++      // salah waktu wilayahKerja=undefined ("Semua Wilayah Kerja") karena
++      // view_vektor_anopheles_mingguan (tipe dewasa) punya banyak baris per
++      // minggu_epid (1 per wilayah kerja), jadi baris wilayah lain diam-diam
++      // hilang. Sekarang filter SEMUA baris minggu itu lalu digabung lewat
++      // agregasiAnophelesRentang (sum utk kolom hitungan, rata-rata utk
++      // mhd/mbr/suhu/kelembaban) -- benar utk 1 wilayah MAUPUN semua wilayah.
++      ? agregasiAnophelesRentang((rows as any[]).filter((r) => Number(r.minggu_epid) === periodeUrutan))
+       : rows[periodeUrutan - 1];
+ 
+-  if (!cocok) return {};
++  if (!cocok || Object.keys(cocok).length === 0) return {};
+   const hasil: Record<string, number> = {};
+   for (const [k, v] of Object.entries(cocok)) {
+     if (typeof v === 'number') hasil[k] = v;
+-- 
+2.43.0
+

@@ -247,6 +247,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   const permintaanAI: PermintaanHasilAI[] = [
     { konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "analisis" },
     { konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "prediksi" },
+    { konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "analisis" },
+    { konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "prediksi" },
     { konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "analisis" },
     { konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "prediksi" },
     { konteks: "cop-negara-tren", periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-negara-kedatangan", tipe: "analisis" },
@@ -647,6 +649,9 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   const hasilAnalisisPerWilker = hasilAI[kunciAI({ konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "analisis" })];
   const hasilPrediksiPerWilker = hasilAI[kunciAI({ konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "prediksi" })];
 
+  const hasilAnalisisRisikoWilker = hasilAI[kunciAI({ konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "analisis" })];
+  const hasilPrediksiRisikoWilker = hasilAI[kunciAI({ konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "prediksi" })];
+
   const hasilAnalisisTren = hasilAI[kunciAI({ konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "analisis" })];
   const hasilPrediksiTren = hasilAI[kunciAI({ konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "prediksi" })];
 
@@ -817,6 +822,47 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                 wilayahKerja={wilayahKerjaAi}
                 metrik="perbandingan-kapal-per-wilayah"
                 hasilAwal={hasilPrediksiPerWilker}
+              />
+            </div>
+          </div>
+
+          {/* ============================================================
+              SECTION 4C -- ANALISIS RISIKO ANTAR WILAYAH KERJA (BARU)
+              BEDA dari Section 4 di atas: Section 4 bandingkan BEBAN
+              KERJA (jumlah kapal) untuk alokasi petugas. Section ini
+              bandingkan RISIKO KESEHATAN (volume + asal daerah
+              terjangkit + RBA Merah) untuk cari wilayah kerja mana yang
+              paling perlu diwaspadai. SELALU mencakup SEMUA wilayah
+              kerja sekaligus -- makanya wajibWilayahKerja={false} dan
+              wilayahKerja TIDAK ikut filter dropdown "wilayah" di atas
+              (beda dari box lain di halaman ini yang mewajibkan 1
+              wilayah kerja tertentu dipilih dulu).
+             ============================================================ */}
+          <div className="rounded-card bg-surface p-6">
+            <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
+              Analisis Risiko Kesehatan Antar Wilayah Kerja (Kegiatan COP)
+            </h2>
+            <p className="mb-4 text-center text-xs text-muted">
+              Membandingkan seluruh wilayah kerja sekaligus -- volume kapal/ABK, asal daerah terjangkit, dan klasifikasi RBA -- untuk periode {periodeKeyMingguanSelalu}.
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <BoxAnalisisAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks="cop-risiko-wilker"
+                periodeKey={periodeKeyMingguanSelalu}
+                wilayahKerja={undefined}
+                wajibWilayahKerja={false}
+                hasilAwal={hasilAnalisisRisikoWilker}
+              />
+              <BoxPrediksiAI
+                sudahLogin={sudahLogin}
+                role={roleAI}
+                konteks="cop-risiko-wilker"
+                periodeKey={periodeKeyMingguanSelalu}
+                wilayahKerja={undefined}
+                wajibWilayahKerja={false}
+                hasilAwal={hasilPrediksiRisikoWilker}
               />
             </div>
           </div>

@@ -1,0 +1,90 @@
+From d440a9bf23ed055d7ff0e10fc7a15c8b62625ae1 Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Sun, 20 Sep 2026 06:35:18 +0000
+Subject: [PATCH] Perbaiki bug lama cop-per-wilker: kategori 'wilayah_kerja'
+ tidak pernah ada di database, breakdown selalu kosong dari dulu
+
+---
+ lib/ai/data.ts | 59 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 54 insertions(+), 5 deletions(-)
+
+diff --git a/lib/ai/data.ts b/lib/ai/data.ts
+index b6883fd..735ec10 100644
+--- a/lib/ai/data.ts
++++ b/lib/ai/data.ts
+@@ -3344,6 +3344,59 @@ export async function ambilDataBreakdownAnalisis(
+     return ambilDataBreakdownPelabuhanPhqc(periodeKey, wilayahKerja);
+   }
+ 
++  // cop-per-wilker: SENGAJA ditangani terpisah lewat helper
++  // breakdownWilayahMingguan/Bulanan (bukan getKategoriBreakdown biasa
++  // di bawah) -- BUG LAMA yang ditemukan: KATEGORI_PER_KONTEKS_BREAKDOWN
++  // konteks ini menunjuk ke kategori 'wilayah_kerja', padahal kategori
++  // itu TIDAK PERNAH ada di view_mingguan_kategori/view_bulanan_kategori
++  // (lihat KategoriCop di types/domain.types.ts -- tidak ada
++  // 'wilayah_kerja' di situ). Akibatnya breakdown SELALU kosong dari
++  // dulu, cuma baru kelihatan waktu wilayah="Semua" (waktu 1 wilayah
++  // dipilih, totalKapal dari jalur lain tetap benar jadi tidak
++  // kelihatan kosongnya).
++  if (konteks === 'cop-per-wilker') {
++    const labelWilayah = wilayahKerja
++      ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
++      : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
++    const isMingguanPerWilker = /^\d{4}-W\d{1,2}$/.test(periodeKey);
++
++    if (isMingguanPerWilker) {
++      const p = parsePeriodeMingguan(periodeKey);
++      const [ringkasan, breakdownMentah] = await Promise.all([
++        ambilCopMingguan(p, wilayahKerja),
++        breakdownWilayahMingguan('cop', p.tahun, p.minggu, false),
++      ]);
++      const breakdown = (wilayahKerja
++        ? breakdownMentah.filter((b) => b.wilayah === wilayahKerja)
++        : breakdownMentah
++      ).map((b) => ({ nilai: b.wilayah, jumlah: b.jumlah }));
++      return {
++        labelKonteks: LABEL_PER_KONTEKS_BREAKDOWN['cop-per-wilker'],
++        labelWilayah,
++        labelPeriode: labelPeriodeMingguan(p),
++        totalKapal: ringkasan.jumlah_kapal ?? 0,
++        breakdown,
++      };
++    }
++
++    const p = parsePeriodeBulanan(periodeKey);
++    const [ringkasan, breakdownMentah] = await Promise.all([
++      ambilCopBulanan(p, wilayahKerja),
++      breakdownWilayahBulanan('cop', p.tahun, p.bulan, false),
++    ]);
++    const breakdown = (wilayahKerja
++      ? breakdownMentah.filter((b) => b.wilayah === wilayahKerja)
++      : breakdownMentah
++    ).map((b) => ({ nilai: b.wilayah, jumlah: b.jumlah }));
++    return {
++      labelKonteks: LABEL_PER_KONTEKS_BREAKDOWN['cop-per-wilker'],
++      labelWilayah,
++      labelPeriode: labelPeriodeBulanan(p),
++      totalKapal: ringkasan.jumlah_kapal ?? 0,
++      breakdown,
++    };
++  }
++
+   // KUMULATIF khusus phqc-daerah-asal/phqc-daerah-tujuan untuk tipe="analisis"
+   // (sama seperti pola kumulatif di ambilDataAnalisisPhqc/ambilDataAnalisisSanitasi) --
+   // "prediksi" TETAP periode tunggal seperti semula, tidak berubah.
+@@ -3418,11 +3471,7 @@ export async function ambilDataBreakdownAnalisis(
+   const tabel = TABEL_PER_KONTEKS_BREAKDOWN[konteks];
+   const wilayahUntukQuery = tabel === 'phqc' ? resolveWilayahPhqcDb(wilayahKerja) : wilayahKerja;
+   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
+-
+-  // cop-per-wilker SENGAJA dikecualikan dari kumulatif -- itu memang
+-  // didesain selalu snapshot 1 minggu terkini, tidak ikut filter
+-  // rentang (lihat dokumentasi Section 4 di app/cop/page.tsx).
+-  const pakaiKumulatif = tipe === 'analisis' && konteks !== 'cop-per-wilker';
++  const pakaiKumulatif = tipe === 'analisis';
+ 
+   let labelPeriode: string;
+   let baris: { kategori: string; nilai: string; jumlah: number }[];
+-- 
+2.43.0
+

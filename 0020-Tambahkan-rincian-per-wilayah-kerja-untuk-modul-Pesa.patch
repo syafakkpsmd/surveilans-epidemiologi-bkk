@@ -1,0 +1,212 @@
+From 9c1bfb30cb3da891502f6b27336ee471b012c0b9 Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Sun, 20 Sep 2026 00:19:59 +0000
+Subject: [PATCH] Tambahkan rincian per wilayah kerja untuk modul Pesawat
+ (crew/penumpang/sertifikat)
+
+---
+ lib/ai/dataPesawat.ts          | 72 ++++++++++++++++++++++++++++++++++
+ lib/ai/prompt.ts               |  6 ++-
+ lib/supabase/queriesPesawat.ts |  2 +-
+ 3 files changed, 77 insertions(+), 3 deletions(-)
+
+diff --git a/lib/ai/dataPesawat.ts b/lib/ai/dataPesawat.ts
+index a5668b3..32c3e6f 100644
+--- a/lib/ai/dataPesawat.ts
++++ b/lib/ai/dataPesawat.ts
+@@ -33,6 +33,7 @@ import {
+   getRingkasanMaskapaiKedatanganBulanan,
+   getRingkasanKotaAsalMingguan,
+   getRingkasanKotaAsalBulanan,
++  ambilBarisFinal,
+   type RingkasanMingguanPesawat,
+   type RingkasanBulananPesawat,
+ } from '@/lib/supabase/queriesPesawat';
+@@ -417,6 +418,57 @@ async function ambilKotaAsalPesawat(
+  *   -> pola LAMA: satu periode tunggal vs satu periode tunggal
+  *      sebelumnya (dipakai untuk proyeksi ke depan, TIDAK berubah).
+  */
++async function breakdownWilayahPesawatMingguan(
++  tahun: number,
++  minggu: number,
++  kolom: string
++): Promise<{ wilayah: string; jumlah: number }[]> {
++  const baris = await ambilBarisFinal({ tahun });
++  const peta = new Map<string, number>();
++  for (const b of baris) {
++    if (b.epi_week !== minggu || !b.nama_wilker) continue;
++    peta.set(b.nama_wilker, (peta.get(b.nama_wilker) ?? 0) + (Number((b as any)[kolom]) || 0));
++  }
++  return Array.from(peta.entries())
++    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
++    .sort((a, b) => b.jumlah - a.jumlah);
++}
++
++async function breakdownWilayahPesawatMingguanRentang(
++  tahun: number,
++  mgAwal: number,
++  mgAkhir: number,
++  kolom: string
++): Promise<{ wilayah: string; jumlah: number }[]> {
++  const baris = await ambilBarisFinal({ tahun });
++  const peta = new Map<string, number>();
++  for (const b of baris) {
++    if (b.epi_week < mgAwal || b.epi_week > mgAkhir || !b.nama_wilker) continue;
++    peta.set(b.nama_wilker, (peta.get(b.nama_wilker) ?? 0) + (Number((b as any)[kolom]) || 0));
++  }
++  return Array.from(peta.entries())
++    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
++    .sort((a, b) => b.jumlah - a.jumlah);
++}
++
++async function breakdownWilayahPesawatBulanan(
++  tahun: number,
++  bulanAwal: number,
++  bulanAkhir: number,
++  kolom: string
++): Promise<{ wilayah: string; jumlah: number }[]> {
++  const baris = await ambilBarisFinal({ tahun });
++  const peta = new Map<string, number>();
++  for (const b of baris) {
++    const bulanBaris = Number(String(b.tanggal).slice(5, 7));
++    if (bulanBaris < bulanAwal || bulanBaris > bulanAkhir || !b.nama_wilker) continue;
++    peta.set(b.nama_wilker, (peta.get(b.nama_wilker) ?? 0) + (Number((b as any)[kolom]) || 0));
++  }
++  return Array.from(peta.entries())
++    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
++    .sort((a, b) => b.jumlah - a.jumlah);
++}
++
+ export async function ambilDataAnalisisPesawat(
+   periodeKey: string,
+   kodeWilker: string | undefined,
+@@ -455,6 +507,10 @@ export async function ambilDataAnalisisPesawat(
+     const barisSebelumnya =
+       sebelumAkhir >= 1 ? semua.filter((r) => r.minggu_epid >= sebelumAwal && r.minggu_epid <= sebelumAkhir) : [];
+ 
++    const breakdownWilayahSaatIni = kodeWilker
++      ? undefined
++      : await breakdownWilayahPesawatMingguanRentang(tahun, awal, akhir, kunci[0]);
++
+     return {
+       labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Mingguan`,
+       labelWilayah,
+@@ -466,6 +522,7 @@ export async function ambilDataAnalisisPesawat(
+       ringkasanSaatIni: saring(jumlahkanKolom(barisSaatIni, kunci), kunci),
+       ringkasanSebelumnya: saring(jumlahkanKolom(barisSebelumnya, kunci), kunci),
+       topKategori: [],
++      breakdownWilayahSaatIni,
+     };
+   }
+ 
+@@ -488,6 +545,10 @@ export async function ambilDataAnalisisPesawat(
+           })
+         : [];
+ 
++    const breakdownWilayahSaatIni = kodeWilker
++      ? undefined
++      : await breakdownWilayahPesawatBulanan(tahun, awal, akhir, kunci[0]);
++
+     return {
+       labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Bulanan`,
+       labelWilayah,
+@@ -499,6 +560,7 @@ export async function ambilDataAnalisisPesawat(
+       ringkasanSaatIni: saring(jumlahkanKolom(barisSaatIni, kunci), kunci),
+       ringkasanSebelumnya: saring(jumlahkanKolom(barisSebelumnya, kunci), kunci),
+       topKategori: [],
++      breakdownWilayahSaatIni,
+     };
+   }
+ 
+@@ -532,6 +594,10 @@ export async function ambilDataAnalisisPesawat(
+     const rowSaatIni = barisSaatIni.find((r: RingkasanMingguanPesawat) => r.minggu_epid === p.minggu);
+     const rowSebelumnya = barisSebelumnya.find((r: RingkasanMingguanPesawat) => r.minggu_epid === sebelumnya.minggu);
+ 
++    const breakdownWilayahSaatIni = kodeWilker
++      ? undefined
++      : await breakdownWilayahPesawatMingguan(p.tahun, p.minggu, kunci[0]);
++
+     return {
+       labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Mingguan`,
+       labelWilayah,
+@@ -540,6 +606,7 @@ export async function ambilDataAnalisisPesawat(
+       ringkasanSaatIni: saring(keRecord(rowSaatIni, kunci), kunci),
+       ringkasanSebelumnya: saring(keRecord(rowSebelumnya, kunci), kunci),
+       topKategori: [],
++      breakdownWilayahSaatIni,
+     };
+   }
+ 
+@@ -562,6 +629,10 @@ export async function ambilDataAnalisisPesawat(
+   const rowSaatIni = barisSaatIni.find((r: RingkasanBulananPesawat) => r.bulan === bulanKeySaatIni);
+   const rowSebelumnya = barisSebelumnya.find((r: RingkasanBulananPesawat) => r.bulan === bulanKeySebelumnya);
+ 
++  const breakdownWilayahSaatIni = kodeWilker
++    ? undefined
++    : await breakdownWilayahPesawatBulanan(p.tahun, p.bulan, p.bulan, kunci[0]);
++
+   return {
+     labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Bulanan`,
+     labelWilayah,
+@@ -570,5 +641,6 @@ export async function ambilDataAnalisisPesawat(
+     ringkasanSaatIni: saring(keRecord(rowSaatIni, kunci), kunci),
+     ringkasanSebelumnya: saring(keRecord(rowSebelumnya, kunci), kunci),
+     topKategori: [],
++    breakdownWilayahSaatIni,
+   };
+ }
+\ No newline at end of file
+diff --git a/lib/ai/prompt.ts b/lib/ai/prompt.ts
+index d0e6eeb..2351f69 100644
+--- a/lib/ai/prompt.ts
++++ b/lib/ai/prompt.ts
+@@ -978,7 +978,7 @@ ${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
+ ${adaBreakdown ? `
+ BREAKDOWN KATEGORI TERBANYAK (top ${data.topKategori.length}, periode berjalan):
+ ${formatTopKategori(data.topKategori)}
+-` : ''}
++` : ''}${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ ATURAN WAJIB:
+ - FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- JANGAN membahas indikator lain yang tidak tercantum di sana (mis. kalau datanya cuma soal Sertifikat, JANGAN membahas jumlah crew/penumpang).
+ - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+@@ -987,6 +987,7 @@ ${adaBreakdown ? '- Kalau ada "BREAKDOWN KATEGORI TERBANYAK", sebut secara spesi
+ - Kalau metriknya maskapai kedatangan atau kota asal, kaitkan konsentrasi pada maskapai/kota tertentu dengan implikasi prioritas pengawasan kesehatan penerbangan (mis. maskapai/rute dengan volume tinggi perlu skrining lebih ketat).
+ - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
+ - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
++${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING TINGGI dan mana yang paling rendah untuk metrik ini.' : ''}
+ 
+ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+ {
+@@ -1006,7 +1007,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
+ 
+ DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+ ${formatRingkasan(data.ringkasanSebelumnya)}
+-
++${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ ATURAN WAJIB:
+ - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model time-series canggih.
+ - FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- jangan membahas indikator lain yang tidak tercantum di sana.
+@@ -1014,6 +1015,7 @@ ATURAN WAJIB:
+ - Kaitkan proyeksi kenaikan (bila ada) dengan kebutuhan kesiapan operasional yang sesuai jenis metriknya (jumlah petugas skrining kesehatan untuk crew/penumpang, atau kapasitas pemeriksaan sertifikat kesehatan penerbangan untuk metrik sertifikat).
+ - SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+ - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
++${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan.' : ''}
+ 
+ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+ {
+diff --git a/lib/supabase/queriesPesawat.ts b/lib/supabase/queriesPesawat.ts
+index 48f71e3..6cbd9f2 100644
+--- a/lib/supabase/queriesPesawat.ts
++++ b/lib/supabase/queriesPesawat.ts
+@@ -80,7 +80,7 @@ interface BarisRekapPesawat {
+ // ---------------------------------------------------------------------
+ // HELPER INTERNAL: Ambil baris final dengan limit yang aman untuk data besar
+ // ---------------------------------------------------------------------
+-async function ambilBarisFinal({
++export async function ambilBarisFinal({
+   tahun,
+   kodeWilker,
+ }: {
+-- 
+2.43.0
+

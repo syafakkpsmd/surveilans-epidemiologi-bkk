@@ -230,3 +230,55 @@ export async function getHasilPengamatanBulanan(
       tidakMemenuhi: Math.max(v.total - v.memenuhi, 0),
     }));
 }
+
+/**
+ * getHasilPengamatanPerWilkerBulanan
+ * -------------------------------------
+ * Versi BULANAN dari getHasilPengamatanPerWilker() di atas (yang
+ * sudah ada tapi mingguan-only) -- dipakai untuk mengisi
+ * DataAnalisis.breakdownWilayahSaatIni pada konteks
+ * vektor-diare-lalat/kecoa-bulanan waktu mode "Semua Wilayah Kerja"
+ * dipilih. TANPA filter kode_wilker supaya dapat baris SEMUA
+ * wilayah, dikelompokkan per kode_wilker lalu dipetakan ke nama
+ * wilayah kerja lewat getWilkerRef() (pola sama persis dengan
+ * getHasilPengamatanPerWilker mingguan di atas).
+ */
+export async function getHasilPengamatanPerWilkerBulanan(
+  tahun: number,
+  jenis: 'lalat' | 'kecoa',
+  bulanAwal: number,
+  bulanAkhir: number
+) {
+  const supabase = await createClient();
+  const [resData, daftarWilker] = await Promise.all([
+    supabase
+      .from('view_vektor_diare_bulanan')
+      .select('kode_wilker, bulan, jml_memenuhi_syarat, jml_pengamatan')
+      .eq('tahun', tahun)
+      .eq('jenis_kegiatan', jenis)
+      .gte('bulan', bulanAwal)
+      .lte('bulan', bulanAkhir),
+    getWilkerRef(),
+  ]);
+
+  if (resData.error) throw resData.error;
+  const data = resData.data;
+  if (!data || data.length === 0) return [];
+
+  const wilkerMap = new Map<string, string>();
+  (daftarWilker ?? []).forEach((w: any) => {
+    const kode = w.kode_wilker || w.kode || w.id;
+    const nama = w.nama_wilker || w.nama_wilayah || w.nama;
+    if (kode && nama) wilkerMap.set(kode, nama);
+  });
+
+  const perWilker = new Map<string, number>();
+  for (const r of data) {
+    if (!r.kode_wilker) continue;
+    perWilker.set(r.kode_wilker, (perWilker.get(r.kode_wilker) ?? 0) + (r.jml_pengamatan ?? 0));
+  }
+
+  return Array.from(perWilker.entries())
+    .map(([kode, jumlah]) => ({ wilayah: wilkerMap.get(kode) || kode, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}

@@ -1,0 +1,367 @@
+From 7afbf0cfd9ac8486e1804820b6e4952b158b58fb Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Fri, 18 Sep 2026 10:41:56 +0000
+Subject: [PATCH] Tambah fitur Analisis Risiko Antar Wilayah Kerja COP
+ (cop-risiko-wilker)
+
+---
+ app/(dashboard)/cop/page.tsx |  46 ++++++++++++++
+ app/api/analisis-ai/route.ts |  17 ++++-
+ lib/ai/data.ts               | 119 +++++++++++++++++++++++++++++++++++
+ lib/ai/prompt.ts             |  62 +++++++++++++++++-
+ 4 files changed, 242 insertions(+), 2 deletions(-)
+
+diff --git a/app/(dashboard)/cop/page.tsx b/app/(dashboard)/cop/page.tsx
+index 25ead9e..03ff598 100644
+--- a/app/(dashboard)/cop/page.tsx
++++ b/app/(dashboard)/cop/page.tsx
+@@ -247,6 +247,8 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
+   const permintaanAI: PermintaanHasilAI[] = [
+     { konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "analisis" },
+     { konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "prediksi" },
++    { konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "analisis" },
++    { konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "prediksi" },
+     { konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "analisis" },
+     { konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "prediksi" },
+     { konteks: "cop-negara-tren", periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-negara-kedatangan", tipe: "analisis" },
+@@ -647,6 +649,9 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
+   const hasilAnalisisPerWilker = hasilAI[kunciAI({ konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "analisis" })];
+   const hasilPrediksiPerWilker = hasilAI[kunciAI({ konteks: "cop-per-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: wilayahKerjaAi, metrik: "perbandingan-kapal-per-wilayah", tipe: "prediksi" })];
+ 
++  const hasilAnalisisRisikoWilker = hasilAI[kunciAI({ konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "analisis" })];
++  const hasilPrediksiRisikoWilker = hasilAI[kunciAI({ konteks: "cop-risiko-wilker", periodeKey: periodeKeyMingguanSelalu, wilayahKerja: undefined, tipe: "prediksi" })];
++
+   const hasilAnalisisTren = hasilAI[kunciAI({ konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "analisis" })];
+   const hasilPrediksiTren = hasilAI[kunciAI({ konteks: `cop-${mode}`, periodeKey, wilayahKerja: wilayahKerjaAi, metrik: "tren-abk-kapal", tipe: "prediksi" })];
+ 
+@@ -821,6 +826,47 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
+             </div>
+           </div>
+ 
++          {/* ============================================================
++              SECTION 4C -- ANALISIS RISIKO ANTAR WILAYAH KERJA (BARU)
++              BEDA dari Section 4 di atas: Section 4 bandingkan BEBAN
++              KERJA (jumlah kapal) untuk alokasi petugas. Section ini
++              bandingkan RISIKO KESEHATAN (volume + asal daerah
++              terjangkit + RBA Merah) untuk cari wilayah kerja mana yang
++              paling perlu diwaspadai. SELALU mencakup SEMUA wilayah
++              kerja sekaligus -- makanya wajibWilayahKerja={false} dan
++              wilayahKerja TIDAK ikut filter dropdown "wilayah" di atas
++              (beda dari box lain di halaman ini yang mewajibkan 1
++              wilayah kerja tertentu dipilih dulu).
++             ============================================================ */}
++          <div className="rounded-card bg-surface p-6">
++            <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
++              Analisis Risiko Kesehatan Antar Wilayah Kerja (Kegiatan COP)
++            </h2>
++            <p className="mb-4 text-center text-xs text-muted">
++              Membandingkan seluruh wilayah kerja sekaligus -- volume kapal/ABK, asal daerah terjangkit, dan klasifikasi RBA -- untuk periode {periodeKeyMingguanSelalu}.
++            </p>
++            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
++              <BoxAnalisisAI
++                sudahLogin={sudahLogin}
++                role={roleAI}
++                konteks="cop-risiko-wilker"
++                periodeKey={periodeKeyMingguanSelalu}
++                wilayahKerja={undefined}
++                wajibWilayahKerja={false}
++                hasilAwal={hasilAnalisisRisikoWilker}
++              />
++              <BoxPrediksiAI
++                sudahLogin={sudahLogin}
++                role={roleAI}
++                konteks="cop-risiko-wilker"
++                periodeKey={periodeKeyMingguanSelalu}
++                wilayahKerja={undefined}
++                wajibWilayahKerja={false}
++                hasilAwal={hasilPrediksiRisikoWilker}
++              />
++            </div>
++          </div>
++
+           {/* ============================================================
+               SECTION 4B -- CHART BARU: DISTRIBUSI KEDATANGAN ABK PER
+               WILAYAH. Sama persis pola Section 4 (kapal), tapi metrik
+diff --git a/app/api/analisis-ai/route.ts b/app/api/analisis-ai/route.ts
+index 57b180b..282c2ca 100644
+--- a/app/api/analisis-ai/route.ts
++++ b/app/api/analisis-ai/route.ts
+@@ -23,6 +23,7 @@ import {
+   isKonteksSkdrTren,
+   ambilDataAnalisisKarhutlaIspaHotspot,
+   ambilDataAnalisisKarhutlaSkdrHotspot,
++  ambilDataAnalisisRisikoWilker,
+ } from '@/lib/ai/data';
+ import {
+   susunPrompt,
+@@ -76,7 +77,9 @@ import {
+   susunPromptSkdrTren,
+   susunPromptPrediksiSkdrTren,
+   susunPromptKarhutlaIspaHotspot,
+-  susunPromptPrediksiKarhutlaIspaHotspot
++  susunPromptPrediksiKarhutlaIspaHotspot,
++  susunPromptRisikoWilker,
++  susunPromptPrediksiRisikoWilker,
+ } from '@/lib/ai/prompt';
+ import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
+ import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
+@@ -232,6 +235,7 @@ export async function POST(request: Request) {
+   const konteksSkdr = konteks === 'skdr-mingguan';
+   const konteksSkdrTren = isKonteksSkdrTren(konteks);
+   const konteksAbkCrewPenumpang = konteks.startsWith('abk-crew-penumpang-');
++  const konteksRisikoWilker = konteks === 'cop-risiko-wilker';
+   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
+   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
+   const metrikUntukCache: string | null = konteksVektor
+@@ -333,6 +337,11 @@ export async function POST(request: Request) {
+     wilayahKerja = undefined;
+   } else if (konteksAbkCrewPenumpang) {
+     wilayahKerja = undefined;
++  } else if (konteksRisikoWilker) {
++    // cop-risiko-wilker SELALU membandingkan SEMUA wilayah kerja
++    // sekaligus (itu memang tujuannya -- cari wilayah kerja dengan
++    // risiko tertinggi), jadi wilayah_kerja dari client diabaikan.
++    wilayahKerja = undefined;
+   } else {
+     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
+       return NextResponse.json({ error: `wilayah_kerja "${wilayah_kerja}" tidak dikenal.` }, { status: 400 });
+@@ -462,6 +471,12 @@ export async function POST(request: Request) {
+       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+ 
++    } else if (konteks === 'cop-risiko-wilker') {
++      const data = await ambilDataAnalisisRisikoWilker(periodeKey);
++      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRisikoWilker(data) : susunPromptRisikoWilker(data);
++      labelPeriodeSaatIni = data.labelPeriode;
++      labelPeriodeSebelumnya = undefined;
++
+     } else if (konteks === 'cop-negara-tren') {
+     const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+     promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNegaraTren(data) : susunPromptNegaraTren(data);
+diff --git a/lib/ai/data.ts b/lib/ai/data.ts
+index 06d231e..a3bd0d6 100644
+--- a/lib/ai/data.ts
++++ b/lib/ai/data.ts
+@@ -53,6 +53,7 @@ export const KONTEKS_TREN = [
+   'phqc-mingguan',
+   'phqc-bulanan',
+   'cop-negara-tren', 
++  'cop-risiko-wilker',
+   'penumpang-mingguan',
+   'penumpang-bulanan',
+   'pesawat-mingguan',
+@@ -115,6 +116,7 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
+   'cop-negara-asal',
+   'cop-negara-tren',        
+   'cop-per-wilker', 
++  'cop-risiko-wilker',
+   'cop-mingguan',    // <-- tambah
+   'cop-bulanan',     // <-- tambah
+   'cop-faktor-risiko',
+@@ -488,6 +490,123 @@ export async function ambilDataAnalisisCop(
+   };
+ }
+ 
++export type DataRisikoWilker = {
++  labelKonteks: string;
++  labelPeriode: string;
++  daftarWilayah: {
++    wilayah: string;
++    jumlahKapal: number;
++    totalAbk: number;
++    jumlahDariDaerahTerjangkit: number;
++    jumlahRbaTinggi: number;
++  }[];
++};
++
++/**
++ * gabungkanRisikoWilker
++ * ----------------------
++ * Menggabungkan 3 sumber data (ringkasan kapal/ABK per wilayah dari
++ * view_..._ringkasan, breakdown kategori "daerah_terjangkit", dan
++ * breakdown kategori "rba" dari view_..._kategori -- SEMUA diambil
++ * TANPA filter wilayah_kerja supaya hasilnya 1 baris per wilayah
++ * kerja, bukan 1 baris gabungan) jadi 1 tabel risiko per wilayah.
++ */
++function gabungkanRisikoWilker(
++  ringkasanBaris: { wilayah_kerja: string; jumlah_kapal: number; total_abk: number }[],
++  barisTerjangkit: { wilayah_kerja: string; nilai: string; jumlah: number }[],
++  barisRba: { wilayah_kerja: string; nilai: string; jumlah: number }[]
++): DataRisikoWilker['daftarWilayah'] {
++  const daftarWilayahMuncul = new Set<string>();
++  ringkasanBaris.forEach((b) => b.wilayah_kerja && daftarWilayahMuncul.add(b.wilayah_kerja));
++  barisTerjangkit.forEach((b) => b.wilayah_kerja && daftarWilayahMuncul.add(b.wilayah_kerja));
++  barisRba.forEach((b) => b.wilayah_kerja && daftarWilayahMuncul.add(b.wilayah_kerja));
++
++  return Array.from(daftarWilayahMuncul)
++    .map((wilayah) => {
++      const kapal = ringkasanBaris.find((b) => b.wilayah_kerja === wilayah);
++      const jumlahDariDaerahTerjangkit = barisTerjangkit
++        .filter((b) => b.wilayah_kerja === wilayah && b.nilai?.toLowerCase() === 'ya')
++        .reduce((t, b) => t + (b.jumlah ?? 0), 0);
++      const jumlahRbaTinggi = barisRba
++        .filter((b) => b.wilayah_kerja === wilayah && b.nilai?.toLowerCase() === 'merah')
++        .reduce((t, b) => t + (b.jumlah ?? 0), 0);
++      return {
++        wilayah,
++        jumlahKapal: kapal?.jumlah_kapal ?? 0,
++        totalAbk: kapal?.total_abk ?? 0,
++        jumlahDariDaerahTerjangkit,
++        jumlahRbaTinggi,
++      };
++    })
++    .sort((a, b) => b.jumlahKapal - a.jumlahKapal);
++}
++
++/**
++ * ambilDataAnalisisRisikoWilker
++ * -------------------------------
++ * Titik masuk untuk konteks "cop-risiko-wilker" -- BEDA dari
++ * cop-per-wilker (yang cuma bandingkan JUMLAH KAPAL antar wilayah
++ * untuk alokasi petugas). Fungsi ini menggabungkan jumlah kapal,
++ * total ABK, jumlah kapal dari daerah terjangkit, dan jumlah RBA
++ * Merah PER WILAYAH KERJA sekaligus, supaya AI bisa menyimpulkan
++ * wilayah kerja mana yang risikonya paling tinggi (bukan cuma paling
++ * sibuk). SELALU snapshot 1 periode terkini (sama seperti
++ * cop-per-wilker), TIDAK kumulatif, dan SELALU mencakup SEMUA
++ * wilayah kerja (parameter wilayahKerja sengaja tidak ada -- lihat
++ * BoxAnalisisAI wajibWilayahKerja={false} di app/cop/page.tsx).
++ */
++export async function ambilDataAnalisisRisikoWilker(
++  periodeKey: string
++): Promise<DataRisikoWilker> {
++  const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
++
++  if (isMingguan) {
++    const p = parsePeriodeMingguan(periodeKey);
++    const [ringkasanTahun, barisTerjangkit, barisRba] = await Promise.all([
++      getRingkasanMingguan('cop', p.tahun),
++      getKategoriBreakdown('cop', 'mingguan', {
++        tahun_epid: p.tahun,
++        minggu_epid: p.minggu,
++        kategori: 'daerah_terjangkit',
++      }),
++      getKategoriBreakdown('cop', 'mingguan', {
++        tahun_epid: p.tahun,
++        minggu_epid: p.minggu,
++        kategori: 'rba',
++      }),
++    ]);
++    const ringkasanMinggu = ringkasanTahun.filter((b) => b.minggu_epid === p.minggu);
++
++    return {
++      labelKonteks: 'Risiko Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
++      labelPeriode: labelPeriodeMingguan(p),
++      daftarWilayah: gabungkanRisikoWilker(ringkasanMinggu, barisTerjangkit, barisRba),
++    };
++  }
++
++  const p = parsePeriodeBulanan(periodeKey);
++  const [ringkasanTahun, barisTerjangkit, barisRba] = await Promise.all([
++    getRingkasanBulanan('cop', p.tahun),
++    getKategoriBreakdown('cop', 'bulanan', {
++      tahun: p.tahun,
++      bulan: p.bulan,
++      kategori: 'daerah_terjangkit',
++    }),
++    getKategoriBreakdown('cop', 'bulanan', {
++      tahun: p.tahun,
++      bulan: p.bulan,
++      kategori: 'rba',
++    }),
++  ]);
++  const ringkasanBulan = ringkasanTahun.filter((b) => b.bulan === p.bulan);
++
++  return {
++    labelKonteks: 'Risiko Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
++    labelPeriode: labelPeriodeBulanan(p),
++    daftarWilayah: gabungkanRisikoWilker(ringkasanBulan, barisTerjangkit, barisRba),
++  };
++}
++
+ const KOLOM_ANGKA_RATGUARD = ['jumlah_kapal', 'pasang', 'tidak_pasang'] as const;
+ // CATATAN: persentase_kepatuhan SENGAJA tidak dimasukkan ke sini — kalau ikut disum
+ // mentah (via jumlahkanRingkasan/jumlahkanRentang) hasilnya salah waktu ada >1 wilayah
+diff --git a/lib/ai/prompt.ts b/lib/ai/prompt.ts
+index bda1d3b..ced215e 100644
+--- a/lib/ai/prompt.ts
++++ b/lib/ai/prompt.ts
+@@ -72,7 +72,7 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick, tanpa teks lain d
+ }`;
+ }
+ 
+-import type { DataBreakdownAnalisis } from './data';
++import type { DataBreakdownAnalisis, DataRisikoWilker } from './data';
+ 
+ function formatBreakdownList(breakdown: { nilai: string; jumlah: number }[], satuan = 'kapal'): string {
+   if (breakdown.length === 0) return '(tidak ada data untuk periode ini)';
+@@ -238,6 +238,66 @@ TUGAS KHUSUS untuk field "rekomendasi": langkah antisipasi konkret (rotasi/penam
+ ${ATURAN_UMUM_BREAKDOWN}`;
+ }
+ 
++function formatRisikoWilker(daftarWilayah: {
++  wilayah: string;
++  jumlahKapal: number;
++  totalAbk: number;
++  jumlahDariDaerahTerjangkit: number;
++  jumlahRbaTinggi: number;
++}[]): string {
++  if (daftarWilayah.length === 0) return '(tidak ada data untuk periode ini)';
++  return daftarWilayah
++    .map(
++      (w) =>
++        `- ${w.wilayah}: ${w.jumlahKapal} kapal, ${w.totalAbk} ABK, ${w.jumlahDariDaerahTerjangkit} kapal dari daerah/negara terjangkit, ${w.jumlahRbaTinggi} kapal RBA Merah (Risiko Tinggi)`
++    )
++    .join('\n');
++}
++
++export function susunPromptRisikoWilker(data: DataRisikoWilker): string {
++  return `${PERSONA_EPIDEMIOLOG}
++
++TUGAS SAAT INI: membandingkan RISIKO KESEHATAN (bukan sekadar beban kerja) kedatangan kapal dari luar negeri antar SELURUH wilayah kerja BKK Kelas I Samarinda untuk periode ${data.labelPeriode}.
++
++${DAFTAR_SUMBER_RUJUKAN}
++
++DATA PER WILAYAH KERJA (${data.labelPeriode}):
++${formatRisikoWilker(data.daftarWilayah)}
++
++DEFINISI "RISIKO" untuk tugas ini -- gabungan 3 indikator per wilayah kerja (SEMUA berasal dari data di atas, jangan tambah indikator lain):
++1. Volume kedatangan kapal dan ABK (semakin tinggi, semakin besar paparan potensial).
++2. Jumlah kapal yang berasal dari daerah/negara berstatus TERJANGKIT (indikator paling menentukan -- ini yang membawa risiko penyakit menular sesungguhnya, bukan cuma volume).
++3. Jumlah kapal dengan klasifikasi RBA Merah (Risiko Tinggi) hasil pemeriksaan petugas.
++
++TUGAS KHUSUS untuk field "ringkasan": sebutkan SECARA EKSPLISIT 1 wilayah kerja dengan risiko GABUNGAN tertinggi periode ini (bukan cuma yang volumenya terbanyak), dan jelaskan indikator mana yang paling mendasari kesimpulan itu (volume, asal daerah terjangkit, atau RBA Merah).
++TUGAS KHUSUS untuk field "anomali": soroti kalau ada wilayah kerja dengan volume kapal RENDAH tapi proporsi kapal dari daerah terjangkit atau RBA Merah TINGGI (pola ini sering terlewat kalau hanya melihat volume) -- kalau tidak ada pola begini, katakan apa adanya.
++TUGAS KHUSUS untuk field "rekomendasi": prioritas penguatan pengawasan (mis. pemeriksaan lebih ketat, koordinasi rujukan kesehatan pelabuhan) untuk wilayah kerja berisiko tertinggi tersebut, urutkan berdasar prioritas.
++
++${ATURAN_UMUM_BREAKDOWN}`;
++}
++
++export function susunPromptPrediksiRisikoWilker(data: DataRisikoWilker): string {
++  return `${PERSONA_EPIDEMIOLOG}
++
++TUGAS SAAT INI: membuat PROYEKSI wilayah kerja mana yang berpotensi menjadi TITIK RISIKO kesehatan tertinggi pada periode mendatang, berdasarkan pola kedatangan kapal per wilayah kerja BKK Kelas I Samarinda periode ${data.labelPeriode}.
++
++${DAFTAR_SUMBER_RUJUKAN}
++
++DATA PER WILAYAH KERJA (${data.labelPeriode}):
++${formatRisikoWilker(data.daftarWilayah)}
++
++DEFINISI "RISIKO" untuk tugas ini -- gabungan 3 indikator per wilayah kerja (SEMUA berasal dari data di atas, jangan tambah indikator lain):
++1. Volume kedatangan kapal dan ABK.
++2. Jumlah kapal yang berasal dari daerah/negara berstatus TERJANGKIT.
++3. Jumlah kapal dengan klasifikasi RBA Merah (Risiko Tinggi).
++
++TUGAS KHUSUS untuk field "ringkasan": identifikasi wilayah kerja dengan kombinasi indikator risiko yang PALING BERPOTENSI berlanjut/meningkat ke periode berikutnya jika polanya tidak berubah.
++TUGAS KHUSUS untuk field "anomali": nyatakan EKSPLISIT ini proyeksi KUALITATIF berbasis pola 1 periode snapshot (BUKAN prediksi statistik pasti), dan sebutkan wilayah mana yang berisiko "terlewat" pengawasan kalau sumber daya hanya difokuskan ke wilayah dengan volume kapal terbanyak.
++TUGAS KHUSUS untuk field "rekomendasi": langkah antisipasi konkret (mis. penambahan/rotasi petugas pemeriksa, koordinasi rujukan kesehatan pelabuhan) untuk wilayah kerja berisiko tertinggi tersebut.
++
++${ATURAN_UMUM_BREAKDOWN}`;
++}
++
+ export function susunPromptNegaraTren(data: DataAnalisis): string {
+   const daftarNegara = Object.keys(data.ringkasanSaatIni);
+   const barisPerbandingan = daftarNegara
+-- 
+2.43.0
+

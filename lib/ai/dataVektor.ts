@@ -81,15 +81,16 @@ function rerata(arr: number[]): number {
 async function ringkasVektorDbdRentang(
   tglMulai: string,
   tglSelesai: string,
-  kodeWilker: string
+  kodeWilker: string | undefined
 ): Promise<Record<string, number>> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('vektor_dbd')
     .select(KOLOM_VEKTOR_DBD)
-    .eq('kode_wilker', kodeWilker)
     .gte('tgl_survei', tglMulai)
     .lte('tgl_survei', tglSelesai);
+  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
+  const { data, error } = await query;
 
   if (error) throw new Error(`Gagal ambil data vektor_dbd untuk analisis AI: ${error.message}`);
 
@@ -106,13 +107,65 @@ async function ringkasVektorDbdRentang(
   return hasil;
 }
 
+/**
+ * breakdownWilayahVektorDbd
+ * ---------------------------
+ * Rata-rata indeks HI (House Index -- indikator DBD yang paling umum
+ * dipakai untuk membandingkan tingkat risiko antar wilayah) PER
+ * WILAYAH KERJA untuk 1 rentang tanggal, TANPA filter kode_wilker
+ * (supaya dapat baris SEMUA wilayah kerja). Dipakai untuk mengisi
+ * DataAnalisis.breakdownWilayahSaatIni pada vektor-dbd-mingguan/
+ * bulanan waktu mode "Semua Wilayah Kerja" dipilih.
+ *
+ * SENGAJA pakai rata-rata HI per wilayah (bukan dijumlahkan!) --
+ * HI/CI/BI/ABJ adalah indeks persentase, menjumlahkannya antar
+ * wilayah tidak bermakna epidemiologis. Rata-rata per wilayah inilah
+ * yang bisa dibandingkan apa adanya untuk menentukan wilayah kerja
+ * mana yang paling berisiko.
+ */
+async function breakdownWilayahVektorDbd(
+  tglMulai: string,
+  tglSelesai: string
+): Promise<{ wilayah: string; jumlah: number }[]> {
+  const supabase = await createClient();
+  const [{ data, error }, daftarWilker] = await Promise.all([
+    supabase
+      .from('vektor_dbd')
+      .select('kode_wilker, hi')
+      .gte('tgl_survei', tglMulai)
+      .lte('tgl_survei', tglSelesai),
+    getWilkerRef(),
+  ]);
+  if (error) throw new Error(`Gagal ambil breakdown HI vektor_dbd per wilayah: ${error.message}`);
+
+  const wilkerMap = new Map<string, string>();
+  (daftarWilker ?? []).forEach((w) => { if (w.kode && w.nama) wilkerMap.set(w.kode, w.nama); });
+
+  const perWilker = new Map<string, number[]>();
+  for (const r of (data ?? []) as { kode_wilker: string | null; hi: number | null }[]) {
+    if (!r.kode_wilker || r.hi === null || r.hi === undefined) continue;
+    if (!perWilker.has(r.kode_wilker)) perWilker.set(r.kode_wilker, []);
+    perWilker.get(r.kode_wilker)!.push(r.hi);
+  }
+
+  return Array.from(perWilker.entries())
+    .map(([kode, nilai]) => ({
+      wilayah: wilkerMap.get(kode) ?? kode,
+      jumlah: Number(rerata(nilai).toFixed(2)),
+    }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
 async function namaWilker(kodeWilker: string): Promise<string> {
   const daftar = await getWilkerRef();
   return daftar.find((w) => w.kode === kodeWilker)?.nama ?? kodeWilker;
 }
 
 /**
- * kodeWilker WAJIB diisi. metrik menentukan kolom mana yang dikirim ke
+ * kodeWilker OPSIONAL (undefined = "Semua Wilayah Kerja", aggregat +
+ * breakdownWilayahSaatIni berisi rata-rata HI per wilayah -- lihat
+ * breakdownWilayahVektorDbd di atas untuk alasan kenapa dirata-rata,
+ * bukan dijumlahkan). metrik menentukan kolom mana yang dikirim ke
  * prompt AI -- supaya tombol Analisis AI di tiap grafik (poin #6) hanya
  * membahas data grafik itu, bukan seluruh indikator vektor sekaligus.
  * Default 'hi-ci-abj' untuk kompatibilitas mundur (dipakai Prediksi AI
@@ -123,13 +176,9 @@ export async function ambilDataAnalisisVektorDbd(
   kodeWilker: string | undefined,
   metrik: MetrikVektor = 'hi-ci-abj'
 ): Promise<DataAnalisis> {
-  if (!kodeWilker) {
-    throw new Error(
-      'Analisis/Prediksi AI untuk data vektor DBD wajib memilih satu Wilayah Kerja tertentu, tidak berlaku untuk rekap "Semua Wilayah Kerja".'
-    );
-  }
-
-  const labelWilayah = await namaWilker(kodeWilker);
+  const labelWilayah = kodeWilker
+    ? await namaWilker(kodeWilker)
+    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
   const kunci = KUNCI_PER_METRIK[metrik];
   const labelMetrik = LABEL_PER_METRIK[metrik];
@@ -140,7 +189,7 @@ export async function ambilDataAnalisisVektorDbd(
     const rentangSaatIni = getRentangMingguEpid(p.tahun, p.minggu);
     const rentangSebelumnya = getRentangMingguEpid(sebelumnya.tahun, sebelumnya.minggu);
 
-    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona] = await Promise.all([
+    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona, breakdownWilayahSaatIni] = await Promise.all([
       ringkasVektorDbdRentang(rentangSaatIni.mulai, rentangSaatIni.selesai, kodeWilker),
       ringkasVektorDbdRentang(rentangSebelumnya.mulai, rentangSebelumnya.selesai, kodeWilker),
       getBreakdownKategori({
@@ -151,6 +200,7 @@ export async function ambilDataAnalisisVektorDbd(
         tglSelesai: rentangSaatIni.selesai,
         kodeWilker,
       }),
+      kodeWilker ? Promise.resolve(undefined) : breakdownWilayahVektorDbd(rentangSaatIni.mulai, rentangSaatIni.selesai),
     ]);
 
     return {
@@ -161,6 +211,7 @@ export async function ambilDataAnalisisVektorDbd(
       ringkasanSaatIni: saring(saatIniPenuh, kunci),
       ringkasanSebelumnya: saring(sebelumnyaPenuh, kunci),
       topKategori: breakdownZona.map((k) => ({ kategori: 'zona', nilai: k.kategori, jumlah: k.jumlah })),
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -173,7 +224,7 @@ export async function ambilDataAnalisisVektorDbd(
     .toISOString()
     .split('T')[0];
 
-  const [saatIniPenuh, sebelumnyaPenuh, breakdownZona] = await Promise.all([
+  const [saatIniPenuh, sebelumnyaPenuh, breakdownZona, breakdownWilayahSaatIni] = await Promise.all([
     ringkasVektorDbdRentang(tglMulaiSaatIni, tglSelesaiSaatIni, kodeWilker),
     ringkasVektorDbdRentang(tglMulaiSebelumnya, tglSelesaiSebelumnya, kodeWilker),
     getBreakdownKategori({
@@ -184,6 +235,7 @@ export async function ambilDataAnalisisVektorDbd(
       tglSelesai: tglSelesaiSaatIni,
       kodeWilker,
     }),
+    kodeWilker ? Promise.resolve(undefined) : breakdownWilayahVektorDbd(tglMulaiSaatIni, tglSelesaiSaatIni),
   ]);
 
   return {
@@ -194,6 +246,7 @@ export async function ambilDataAnalisisVektorDbd(
     ringkasanSaatIni: saring(saatIniPenuh, kunci),
     ringkasanSebelumnya: saring(sebelumnyaPenuh, kunci),
     topKategori: breakdownZona.map((k) => ({ kategori: 'zona', nilai: k.kategori, jumlah: k.jumlah })),
+    breakdownWilayahSaatIni,
   };
 }
 
@@ -202,13 +255,9 @@ export async function ambilDataAnalisisVektorDbdRentang(
   kodeWilker: string | undefined,
   metrik: MetrikVektor = 'hi-ci-abj'
 ): Promise<DataAnalisis> {
-  if (!kodeWilker) {
-    throw new Error(
-      'Analisis AI untuk data vektor DBD wajib memilih satu Wilayah Kerja tertentu, tidak berlaku untuk rekap "Semua Wilayah Kerja".'
-    );
-  }
-
-  const labelWilayah = await namaWilker(kodeWilker);
+  const labelWilayah = kodeWilker
+    ? await namaWilker(kodeWilker)
+    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
   const kunci = KUNCI_PER_METRIK[metrik];
   const labelMetrik = LABEL_PER_METRIK[metrik];
 
@@ -221,7 +270,7 @@ export async function ambilDataAnalisisVektorDbdRentang(
     const rentangSebelumnyaAkhir = adaSebelumnya ? getRentangMingguEpid(r.tahun, r.mingguAwal - 1) : null;
     const rentangSebelumnyaAwal = adaSebelumnya ? getRentangMingguEpid(r.tahun, 1) : null;
 
-    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona] = await Promise.all([
+    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona, breakdownWilayahSaatIni] = await Promise.all([
       ringkasVektorDbdRentang(rentangAwal.mulai, rentangAkhir.selesai, kodeWilker),
       adaSebelumnya
         ? ringkasVektorDbdRentang(rentangSebelumnyaAwal!.mulai, rentangSebelumnyaAkhir!.selesai, kodeWilker)
@@ -234,6 +283,7 @@ export async function ambilDataAnalisisVektorDbdRentang(
         tglSelesai: rentangAkhir.selesai,
         kodeWilker,
       }),
+      kodeWilker ? Promise.resolve(undefined) : breakdownWilayahVektorDbd(rentangAwal.mulai, rentangAkhir.selesai),
     ]);
 
     return {
@@ -246,6 +296,7 @@ export async function ambilDataAnalisisVektorDbdRentang(
       ringkasanSaatIni: saring(saatIniPenuh, kunci),
       ringkasanSebelumnya: saring(sebelumnyaPenuh, kunci),
       topKategori: breakdownZona.map((k) => ({ kategori: 'zona', nilai: k.kategori, jumlah: k.jumlah })),
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -260,7 +311,7 @@ export async function ambilDataAnalisisVektorDbdRentang(
       ? new Date(Date.UTC(r.tahun, r.bulanAwal - 1, 0)).toISOString().split('T')[0]
       : '';
 
-    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona] = await Promise.all([
+    const [saatIniPenuh, sebelumnyaPenuh, breakdownZona, breakdownWilayahSaatIni] = await Promise.all([
       ringkasVektorDbdRentang(tglMulai, tglSelesai, kodeWilker),
       adaSebelumnya
         ? ringkasVektorDbdRentang(tglMulaiSebelumnya, tglSelesaiSebelumnya, kodeWilker)
@@ -273,6 +324,7 @@ export async function ambilDataAnalisisVektorDbdRentang(
         tglSelesai,
         kodeWilker,
       }),
+      kodeWilker ? Promise.resolve(undefined) : breakdownWilayahVektorDbd(tglMulai, tglSelesai),
     ]);
 
     return {
@@ -285,6 +337,7 @@ export async function ambilDataAnalisisVektorDbdRentang(
       ringkasanSaatIni: saring(saatIniPenuh, kunci),
       ringkasanSebelumnya: saring(sebelumnyaPenuh, kunci),
       topKategori: breakdownZona.map((k) => ({ kategori: 'zona', nilai: k.kategori, jumlah: k.jumlah })),
+      breakdownWilayahSaatIni,
     };
   }
 

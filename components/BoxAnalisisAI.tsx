@@ -40,7 +40,7 @@ type HasilAnalisis = {
 // Tombol generate hanya aktif kalau: (1) role admin/petugas, DAN (2) sudah
 // dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
 // untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
-const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = true) =>
+const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = false) =>
   (role === "admin" || role === "petugas") && (!wajibWilayahKerja || !!wilayahKerja);
 
 export function BoxAnalisisAI({
@@ -50,7 +50,7 @@ export function BoxAnalisisAI({
   periodeKey,
   wilayahKerja,
   metrik,
-  wajibWilayahKerja = true,
+  wajibWilayahKerja = false,
   hasilAwal,
 }: BoxAnalisisAIProps) {
   // sudahDikasihServer: true kalau halaman ini SUDAH dimigrasi ke pola

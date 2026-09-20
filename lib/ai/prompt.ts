@@ -42,13 +42,24 @@ function formatRingkasan(r: Record<string, number>): string {
     .join(', ');
 }
 
+function formatBreakdownWilayah(daftar?: { wilayah: string; jumlah: number }[]): string {
+  if (!daftar || daftar.length === 0) return '';
+  const baris = daftar.map((d) => `- ${d.wilayah}: ${d.jumlah}`).join('\n');
+  return `
+
+RINCIAN PER WILAYAH KERJA UNTUK PERIODE BERJALAN (karena mode "Semua Wilayah Kerja" dipilih; angka = jumlah kapal, urut dari yang tertinggi):
+${baris}`;
+}
+
 export function susunPrompt(data: DataAnalisis): string {
+  const bagianBreakdownWilayah = formatBreakdownWilayah(data.breakdownWilayahSaatIni);
   return `${PERSONA_EPIDEMIOLOG}
 
 TUGAS SAAT INI: menganalisis data pengawasan kapal (bukan menulis narasi bebas) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}.
 
 DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
 ${formatRingkasan(data.ringkasanSaatIni)}
+${bagianBreakdownWilayah}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
@@ -60,6 +71,7 @@ ATURAN WAJIB:
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka, nama kapal, negara, atau klaim lain yang tidak didukung data di atas.
 - Kalau data periode berjalan kosong/nol, katakan itu apa adanya (mis. "tidak ada kegiatan tercatat"), jangan dikarang seolah ada aktivitas.
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau berapa unit) untuk bagian anomali.
+${bagianBreakdownWilayah ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING SIBUK (jumlah kapal tertinggi) dan mana yang PALING SEPI, jangan cuma melaporkan total gabungan saja.' : ''}
 - Tulis dalam Bahasa Indonesia, istilah kesehatan masyarakat baku (KLB, RBA, minggu epidemiologi) bila relevan.
 - WAJIB sebutkan rentang periode secara EKSPLISIT dan PERSIS sesuai teks "${data.labelPeriodeSaatIni}" di bagian pembuka field "ringkasan" (contoh gaya: "Pada rentang ${data.labelPeriodeSaatIni}, terdapat..."). JANGAN menyingkat rentang jadi cuma menyebut 1 angka minggu/bulan terakhir saja (mis. jangan tulis "pada minggu ke-20" kalau labelnya adalah rentang minggu 1 s.d. 20).
 - rekomendasi harus singkat, actionable, dan berbasis angka di atas -- semangat seperti bagian "Rekomendasi" pada poster SIGAP SKDR, TAPI jangan mengarang rekomendasi yang tidak nyambung dengan data yang diberikan.
@@ -72,7 +84,7 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick, tanpa teks lain d
 }`;
 }
 
-import type { DataBreakdownAnalisis } from './data';
+import type { DataBreakdownAnalisis, DataRisikoWilker } from './data';
 
 function formatBreakdownList(breakdown: { nilai: string; jumlah: number }[], satuan = 'kapal'): string {
   if (breakdown.length === 0) return '(tidak ada data untuk periode ini)';
@@ -238,6 +250,66 @@ TUGAS KHUSUS untuk field "rekomendasi": langkah antisipasi konkret (rotasi/penam
 ${ATURAN_UMUM_BREAKDOWN}`;
 }
 
+function formatRisikoWilker(daftarWilayah: {
+  wilayah: string;
+  jumlahKapal: number;
+  totalAbk: number;
+  jumlahDariDaerahTerjangkit: number;
+  jumlahRbaTinggi: number;
+}[]): string {
+  if (daftarWilayah.length === 0) return '(tidak ada data untuk periode ini)';
+  return daftarWilayah
+    .map(
+      (w) =>
+        `- ${w.wilayah}: ${w.jumlahKapal} kapal, ${w.totalAbk} ABK, ${w.jumlahDariDaerahTerjangkit} kapal dari daerah/negara terjangkit, ${w.jumlahRbaTinggi} kapal RBA Merah (Risiko Tinggi)`
+    )
+    .join('\n');
+}
+
+export function susunPromptRisikoWilker(data: DataRisikoWilker): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membandingkan RISIKO KESEHATAN (bukan sekadar beban kerja) kedatangan kapal dari luar negeri antar SELURUH wilayah kerja BKK Kelas I Samarinda untuk periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PER WILAYAH KERJA (${data.labelPeriode}):
+${formatRisikoWilker(data.daftarWilayah)}
+
+DEFINISI "RISIKO" untuk tugas ini -- gabungan 3 indikator per wilayah kerja (SEMUA berasal dari data di atas, jangan tambah indikator lain):
+1. Volume kedatangan kapal dan ABK (semakin tinggi, semakin besar paparan potensial).
+2. Jumlah kapal yang berasal dari daerah/negara berstatus TERJANGKIT (indikator paling menentukan -- ini yang membawa risiko penyakit menular sesungguhnya, bukan cuma volume).
+3. Jumlah kapal dengan klasifikasi RBA Merah (Risiko Tinggi) hasil pemeriksaan petugas.
+
+TUGAS KHUSUS untuk field "ringkasan": sebutkan SECARA EKSPLISIT 1 wilayah kerja dengan risiko GABUNGAN tertinggi periode ini (bukan cuma yang volumenya terbanyak), dan jelaskan indikator mana yang paling mendasari kesimpulan itu (volume, asal daerah terjangkit, atau RBA Merah).
+TUGAS KHUSUS untuk field "anomali": soroti kalau ada wilayah kerja dengan volume kapal RENDAH tapi proporsi kapal dari daerah terjangkit atau RBA Merah TINGGI (pola ini sering terlewat kalau hanya melihat volume) -- kalau tidak ada pola begini, katakan apa adanya.
+TUGAS KHUSUS untuk field "rekomendasi": prioritas penguatan pengawasan (mis. pemeriksaan lebih ketat, koordinasi rujukan kesehatan pelabuhan) untuk wilayah kerja berisiko tertinggi tersebut, urutkan berdasar prioritas.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiRisikoWilker(data: DataRisikoWilker): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PROYEKSI wilayah kerja mana yang berpotensi menjadi TITIK RISIKO kesehatan tertinggi pada periode mendatang, berdasarkan pola kedatangan kapal per wilayah kerja BKK Kelas I Samarinda periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PER WILAYAH KERJA (${data.labelPeriode}):
+${formatRisikoWilker(data.daftarWilayah)}
+
+DEFINISI "RISIKO" untuk tugas ini -- gabungan 3 indikator per wilayah kerja (SEMUA berasal dari data di atas, jangan tambah indikator lain):
+1. Volume kedatangan kapal dan ABK.
+2. Jumlah kapal yang berasal dari daerah/negara berstatus TERJANGKIT.
+3. Jumlah kapal dengan klasifikasi RBA Merah (Risiko Tinggi).
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi wilayah kerja dengan kombinasi indikator risiko yang PALING BERPOTENSI berlanjut/meningkat ke periode berikutnya jika polanya tidak berubah.
+TUGAS KHUSUS untuk field "anomali": nyatakan EKSPLISIT ini proyeksi KUALITATIF berbasis pola 1 periode snapshot (BUKAN prediksi statistik pasti), dan sebutkan wilayah mana yang berisiko "terlewat" pengawasan kalau sumber daya hanya difokuskan ke wilayah dengan volume kapal terbanyak.
+TUGAS KHUSUS untuk field "rekomendasi": langkah antisipasi konkret (mis. penambahan/rotasi petugas pemeriksa, koordinasi rujukan kesehatan pelabuhan) untuk wilayah kerja berisiko tertinggi tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
 export function susunPromptNegaraTren(data: DataAnalisis): string {
   const daftarNegara = Object.keys(data.ringkasanSaatIni);
   const barisPerbandingan = daftarNegara
@@ -294,7 +366,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 BREAKDOWN ZONA PERIODE BERJALAN (konteks tambahan, bukan fokus utama):
 ${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} titik survei`).join('\n') : '(tidak ada data zona untuk periode ini)'}
 
@@ -304,7 +376,7 @@ ATURAN WAJIB:
 - Kalau metrik yang relevan menyertakan HI/CI/BI/ABJ, bandingkan dengan standar baku mutu di atas -- sebutkan AMAN/WASPADA/BAHAYA. Kalau metrik bukan HI/CI/BI/ABJ (mis. Larvasida, Rumah Diperiksa), fokus pada tren naik/turun & efektivitas cakupan kegiatan, bukan ambang batas baku mutu yang tidak relevan untuk metrik itu.
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
-- Analisis ini KHUSUS wilayah kerja ${data.labelWilayah} -- jangan digeneralisasi ke wilker lain.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian HI rata-rata per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang HI-nya PALING TINGGI (paling berisiko) dan mana yang paling rendah -- INGAT: HI antar wilayah dibandingkan APA ADANYA (rata-rata per wilayah), JANGAN dijumlahkan.' : `- Analisis ini KHUSUS wilayah kerja ${data.labelWilayah} -- jangan digeneralisasi ke wilker lain.`}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -326,7 +398,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 BREAKDOWN ZONA PERIODE BERJALAN (konteks tambahan, bukan fokus utama):
 ${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} titik survei`).join('\n') : '(tidak ada data zona untuk periode ini)'}
 
@@ -337,6 +409,7 @@ ATURAN WAJIB:
 - Kalau metrik yang relevan menyertakan HI/CI/BI/ABJ, kaitkan proyeksi dengan ambang batas baku mutu di atas (apakah proyeksinya akan AMAN/WASPADA/BAHAYA kalau tren berlanjut).
 - SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit di field "anomali" (data cuma 2 titik, bukan model statistik formal).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian HI rata-rata per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diwaspadai duluan kalau tren memburuk.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -488,13 +561,14 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Data ini KHUSUS penumpang KEBERANGKATAN (PHQC diterbitkan saat kapal akan berlayar) -- JANGAN membahas atau mengasumsikan ada data penumpang kedatangan, karena itu tidak tersedia di sistem saat ini.
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit), termasuk komposisi WNA vs WNI bila datanya ada.
 - Kaitkan lonjakan volume penumpang (bila ada) dengan implikasi operasional kekarantinaan kesehatan: beban kerja pemeriksaan dokumen/skrining sebelum keberangkatan, risiko penumpukan/kerumunan yang mempermudah penularan penyakit menular langsung (mis. droplet), dan kebutuhan sumber daya petugas -- TANPA mengklaim ada kejadian penularan aktual yang tidak didukung data.
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang volume penumpangnya PALING TINGGI dan mana yang paling rendah.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -514,7 +588,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Data ini KHUSUS penumpang KEBERANGKATAN -- JANGAN membahas/mengasumsikan data kedatangan, karena tidak tersedia.
 - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model time-series canggih.
@@ -522,6 +596,7 @@ ATURAN WAJIB:
 - Kaitkan proyeksi kenaikan volume (bila ada) dengan kebutuhan kesiapan operasional (jumlah petugas skrining sebelum keberangkatan, potensi antrean/kerumunan yang meningkatkan risiko penularan penyakit menular langsung).
 - SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diwaspadai duluan kalau tren volume terus naik.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -552,7 +627,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - PENTING soal satuan: angka "*_positif" adalah JUMLAH INDIVIDU TIKUS yang positif per penyakit (bisa lebih dari 1 ekor per survei), sedangkan angka "*_negatif" adalah JUMLAH SURVEI berstatus negatif (bukan jumlah individu tikus). JANGAN membandingkan keduanya seolah unit yang sama -- selalu sebutkan satuan yang benar saat mengutip angka ini.
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
@@ -560,6 +635,7 @@ ATURAN WAJIB:
 - Kaitkan temuan kasus positif (Leptospirosis, Pes, dan/atau Hantavirus) dengan implikasi kesehatan masyarakat: risiko penularan ke manusia (Leptospirosis lewat urin tikus mengontaminasi air/lingkungan, Pes lewat pinjal, Hantavirus lewat kontak langsung/inhalasi ekskreta tikus), dan kebutuhan tindak lanjut kekarantinaan kesehatan (pengendalian vektor, edukasi warga sekitar area survei, koordinasi dengan fasilitas kesehatan setempat).
 - Kalau tidak ada kasus positif periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah diuji lab per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang aktivitas ujinya PALING TINGGI.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -579,7 +655,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - PENTING soal satuan: angka "*_positif" adalah JUMLAH INDIVIDU TIKUS positif per penyakit, sedangkan "*_negatif" adalah JUMLAH SURVEI berstatus negatif -- JANGAN membandingkan keduanya seolah unit yang sama.
 - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
@@ -587,6 +663,7 @@ ATURAN WAJIB:
 - Kaitkan proyeksi kenaikan kasus positif (bila ada) dengan potensi eskalasi risiko penularan ke manusia dan kebutuhan intensifikasi pengendalian vektor (pemasangan trap tambahan, larvasida/rodentisida bila relevan, edukasi warga area terdampak).
 - SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik, dan hasil lab bisa dipengaruhi banyak faktor musiman/lingkungan yang tidak tertangkap tren linear).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah diuji lab per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan pengawasannya.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -608,8 +685,8 @@ ${formatRingkasanKeyValue(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
 ${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
-
-TUGAS KHUSUS untuk field "ringkasan": jelaskan jumlah trap dipasang/tertangkap, TSI (Trap Success Index) dan Index Pinjal periode ini, serta spesies tikus dominan yang tertangkap (Rattus tanezumi/Rattus norvegicus/Mus musculus/lainnya).
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+TUGAS KHUSUS untuk field "ringkasan": jelaskan jumlah trap dipasang/tertangkap, TSI (Trap Success Index) dan Index Pinjal periode ini, serta spesies tikus dominan yang tertangkap (Rattus tanezumi/Rattus norvegicus/Mus musculus/lainnya).${data.breakdownWilayahSaatIni ? ' KARENA rincian jumlah trap tertangkap per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang tangkapannya PALING TINGGI.' : ''}
 TUGAS KHUSUS untuk field "anomali": bandingkan dengan periode sebelumnya -- soroti kenaikan TSI/Index Pinjal yang signifikan (indikator kepadatan vektor & risiko penularan penyakit tular tikus seperti leptospirosis/pes/hantavirus).
 TUGAS KHUSUS untuk field "rekomendasi": langkah pengendalian vektor tikus yang relevan berdasarkan tren TSI/Index Pinjal (mis. penambahan titik trap, rodentisida, edukasi sanitasi lingkungan) di wilayah dengan angka tertinggi.
 
@@ -628,10 +705,10 @@ ${formatRingkasanKeyValue(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
 ${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 TUGAS KHUSUS untuk field "ringkasan": identifikasi arah tren TSI/Index Pinjal (naik/turun/stabil) dan spesies dominan yang berpotensi berlanjut.
 TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF penularan penyakit tular tikus jika tren kepadatan vektor terus naik tanpa intervensi. Nyatakan EKSPLISIT ini proyeksi kualitatif berbasis indikator kepadatan vektor, BUKAN prediksi statistik pasti dan BUKAN klaim ada kasus aktual.
-TUGAS KHUSUS untuk field "rekomendasi": langkah pengendalian vektor yang perlu diprioritaskan untuk mengantisipasi tren tersebut.
+TUGAS KHUSUS untuk field "rekomendasi": langkah pengendalian vektor yang perlu diprioritaskan untuk mengantisipasi tren tersebut.${data.breakdownWilayahSaatIni ? ' Sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan berdasarkan rincian per wilayah di atas.' : ''}
 
 ${ATURAN_UMUM_BREAKDOWN}`;
 }
@@ -901,7 +978,7 @@ ${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
 ${adaBreakdown ? `
 BREAKDOWN KATEGORI TERBANYAK (top ${data.topKategori.length}, periode berjalan):
 ${formatTopKategori(data.topKategori)}
-` : ''}
+` : ''}${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- JANGAN membahas indikator lain yang tidak tercantum di sana (mis. kalau datanya cuma soal Sertifikat, JANGAN membahas jumlah crew/penumpang).
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
@@ -910,6 +987,7 @@ ${adaBreakdown ? '- Kalau ada "BREAKDOWN KATEGORI TERBANYAK", sebut secara spesi
 - Kalau metriknya maskapai kedatangan atau kota asal, kaitkan konsentrasi pada maskapai/kota tertentu dengan implikasi prioritas pengawasan kesehatan penerbangan (mis. maskapai/rute dengan volume tinggi perlu skrining lebih ketat).
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING TINGGI dan mana yang paling rendah untuk metrik ini.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -929,7 +1007,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model time-series canggih.
 - FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- jangan membahas indikator lain yang tidak tercantum di sana.
@@ -937,6 +1015,7 @@ ATURAN WAJIB:
 - Kaitkan proyeksi kenaikan (bila ada) dengan kebutuhan kesiapan operasional yang sesuai jenis metriknya (jumlah petugas skrining kesehatan untuk crew/penumpang, atau kapasitas pemeriksaan sertifikat kesehatan penerbangan untuk metrik sertifikat).
 - SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1014,13 +1093,14 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit atau persen).
 - Kalau data berisi MHD (Man Hour Density) dan/atau MBR (Man Biting Rate): kaitkan kepadatan/perilaku menggigit nyamuk Anopheles dengan risiko penularan malaria di area survei, dan pengaruh suhu/kelembaban terhadap dinamika populasi vektor bila datanya tersedia.
 - Kalau data berisi jumlah cidukan dan/atau larva: kaitkan kepadatan larva dengan potensi tempat perindukan aktif dan urgensi pengendalian sebelum menjadi nyamuk dewasa.
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING TINGGI (MHD rata-rata untuk data dewasa, atau jumlah larva untuk data larva) -- INGAT: untuk MHD, angka dibandingkan APA ADANYA per wilayah (rata-rata), JANGAN dijumlahkan.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1040,13 +1120,14 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
 - Hitung arah & besar perubahan dari 2 titik itu, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
 - Kaitkan proyeksi kenaikan kepadatan vektor (MHD/MBR/larva, bila ada) dengan potensi eskalasi risiko malaria dan kebutuhan intensifikasi pengendalian (fogging, larvasida, kelambu, edukasi warga).
 - SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik, dipengaruhi faktor musiman/cuaca yang tidak sepenuhnya tertangkap tren linear).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan pengendaliannya.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1075,7 +1156,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 BREAKDOWN LOKASI PENGAMATAN (konteks tambahan, bukan fokus utama):
 ${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah}`).join('\n') : '(tidak ada data lokasi untuk periode ini)'}
 
@@ -1086,6 +1167,7 @@ ATURAN WAJIB:
 - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
 - Kaitkan temuan kepadatan tinggi (bila ada) dengan risiko kesehatan masyarakat: penyakit diare, disentri, tifoid melalui kontaminasi makanan/permukaan, terutama di area dengan aktivitas pangan (mis. dekat TPP/kantin pelabuhan-bandara).
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah titik pengamatan per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan wilayah kerja mana yang PALING BANYAK dipantau periode ini (catatan: ini angka VOLUME pengamatan, bukan indeks kepadatan vektor per wilayah -- jangan menyimpulkan wilayah itu "paling berisiko" hanya dari volume ini).' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1107,7 +1189,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi sederhana dari data historis di atas, BUKAN model time-series canggih.
 - Hitung arah & besar perubahan dari data di atas, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
@@ -1140,7 +1222,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 CATATAN ISTILAH:
 - "jumlah_tpp_diperiksa" = jumlah TPP yang diinspeksi periode ini. "total_sampel" = jumlah seluruh sampel uji laboratorium yang diambil (formaldehyde, borax, metyl_yellow, rodamin_b, bakteriologis, hy_rise), TIDAK termasuk Inspeksi Kesehatan Lingkungan (IKL).
 - "ikl_ms"/"ikl_tms" = hasil IKL (komponen fisik/lingkungan TPP) yang Memenuhi/Tidak Memenuhi Syarat.
@@ -1153,6 +1235,7 @@ ATURAN WAJIB:
 - Kaitkan temuan TMS dengan risiko kesehatan masyarakat yang relevan: formaldehyde/borax/rodamin B/metyl yellow terkait bahan tambahan pangan berbahaya (risiko keracunan kronis/karsinogenik), bakteriologis terkait risiko foodborne illness, IKL terkait higiene sanitasi dasar tempat pengolahan.
 - Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah TPP diperiksa per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang paling banyak diperiksa.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1172,7 +1255,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
 - Hitung arah & besar perubahan dari 2 titik itu untuk tiap parameter TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
@@ -1198,7 +1281,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 CATATAN ISTILAH:
 - "jumlah_diperiksa" = jumlah TTU yang diinspeksi periode ini. "jumlah_ms"/"jumlah_tms" = hasil keseluruhan (kesimpulan akhir) Memenuhi/Tidak Memenuhi Syarat.
 - "tms_*" = JUMLAH TTU dengan komponen tersebut berstatus Tidak Memenuhi Syarat (lingkungan_luar_halaman, ruang_bangunan, penyehatan_air, penyehatan_udara_ruang, pengelolaan_limbah, pencahayaan, kebisingan, getaran_diruang_kerja, pengendalian_vektor_penyakit, instalasi, pemeliharaan_jamban_kamar_mandi).
@@ -1210,6 +1293,7 @@ ATURAN WAJIB:
 - Kaitkan temuan komponen bermasalah dengan risiko kesehatan masyarakat yang relevan (mis. penyehatan air/limbah terkait risiko penularan penyakit berbasis air & lingkungan, pengendalian vektor terkait risiko DBD/leptospirosis, jamban/kamar mandi terkait risiko penyakit diare).
 - Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah TTU diperiksa per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang paling banyak diperiksa.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1229,7 +1313,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
 - Hitung arah & besar perubahan dari 2 titik itu untuk tiap komponen TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
@@ -1255,7 +1339,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 CATATAN ISTILAH:
 - "jumlah_pemeriksaan" = jumlah kegiatan pemeriksaan PAB periode ini. "total_pab_diperiksa" = jumlah titik/sarana PAB yang diperiksa.
 - "tms_fisik"/"tms_kimia"/"tms_bakteriologis" = JUMLAH pemeriksaan dengan hasil Tidak Memenuhi Syarat untuk parameter tersebut.
@@ -1267,6 +1351,7 @@ ATURAN WAJIB:
 - Kaitkan temuan TMS bakteriologis dengan risiko penyakit berbasis air (diare, kolera, hepatitis A) dan TMS fisik/kimia dengan risiko kualitas air minum jangka panjang -- termasuk kebutuhan koordinasi dengan penyedia air setempat.
 - Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah pemeriksaan per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang paling banyak diperiksa.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1286,7 +1371,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 ATURAN WAJIB:
 - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
 - Hitung arah & besar perubahan dari 2 titik itu untuk tiap parameter TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
@@ -1318,7 +1403,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 CATATAN ISTILAH:
 - "jumlah_kapal" = jumlah kapal yang diperiksa kelengkapan rat guard-nya periode ini.
 - "pasang"/"tidak_pasang" = jumlah kapal yang terpasang/tidak terpasang rat guard.
@@ -1335,6 +1420,7 @@ ATURAN WAJIB:
 - Kalau ada wilayah kerja dengan kepatuhan rendah dibanding wilayah lain, soroti sebagai prioritas pembinaan.
 - Kalau kepatuhan 100% dan stabil, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
 - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah kapal diperiksa per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang jumlah pemeriksaannya PALING TINGGI dan mana yang paling rendah.' : ''}
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
@@ -1354,7 +1440,7 @@ ${formatRingkasan(data.ringkasanSaatIni)}
 
 DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
 ${formatRingkasan(data.ringkasanSebelumnya)}
-
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
 CATATAN ISTILAH:
 - "jumlah_kapal" = jumlah kapal yang diperiksa kelengkapan rat guard-nya periode ini.
 - "pasang"/"tidak_pasang" = jumlah kapal yang terpasang/tidak terpasang rat guard.

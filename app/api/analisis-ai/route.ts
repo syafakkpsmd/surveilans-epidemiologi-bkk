@@ -23,7 +23,9 @@ import {
   isKonteksSkdrTren,
   ambilDataAnalisisKarhutlaIspaHotspot,
   ambilDataAnalisisKarhutlaSkdrHotspot,
+  ambilDataAnalisisRisikoWilker,
 } from '@/lib/ai/data';
+import { ambilDataAnalisisKlinik } from '@/lib/ai/dataKlinik';
 import {
   susunPrompt,
   susunPromptRba,
@@ -76,7 +78,11 @@ import {
   susunPromptSkdrTren,
   susunPromptPrediksiSkdrTren,
   susunPromptKarhutlaIspaHotspot,
-  susunPromptPrediksiKarhutlaIspaHotspot
+  susunPromptPrediksiKarhutlaIspaHotspot,
+  susunPromptRisikoWilker,
+  susunPromptPrediksiRisikoWilker,
+  susunPromptKlinikKepatuhan,
+  susunPromptPrediksiKlinikKepatuhan,
 } from '@/lib/ai/prompt';
 import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
 import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
@@ -232,6 +238,8 @@ export async function POST(request: Request) {
   const konteksSkdr = konteks === 'skdr-mingguan';
   const konteksSkdrTren = isKonteksSkdrTren(konteks);
   const konteksAbkCrewPenumpang = konteks.startsWith('abk-crew-penumpang-');
+  const konteksRisikoWilker = konteks === 'cop-risiko-wilker';
+  const konteksKlinik = konteks === 'klinik-kepatuhan-mingguan' || konteks === 'klinik-kepatuhan-bulanan';
   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
   const metrikUntukCache: string | null = konteksVektor
@@ -276,16 +284,13 @@ export async function POST(request: Request) {
   let wilayahKerja: string | undefined;
 
   if (konteksVektor) {
-    if (!isKodeWilkerValid(wilayah_kerja)) {
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
-        {
-          error:
-            'Analisis/Prediksi AI untuk data vektor wajib memilih satu Wilayah Kerja tertentu (format kode: WK01-WK07), tidak berlaku untuk "Semua Wilayah Kerja".',
-        },
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor DBD (format kode: WK01-WK07).` },
         { status: 400 }
       );
     }
-    wilayahKerja = wilayah_kerja;
+    wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
   } else if (konteksPesawat) {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
@@ -333,6 +338,18 @@ export async function POST(request: Request) {
     wilayahKerja = undefined;
   } else if (konteksAbkCrewPenumpang) {
     wilayahKerja = undefined;
+  } else if (konteksRisikoWilker) {
+    // cop-risiko-wilker SELALU membandingkan SEMUA wilayah kerja
+    // sekaligus (itu memang tujuannya -- cari wilayah kerja dengan
+    // risiko tertinggi), jadi wilayah_kerja dari client diabaikan.
+    wilayahKerja = undefined;
+  } else if (konteksKlinik) {
+    // Klinik Kepatuhan: "wilayah_kerja" di sini sebenarnya NAMA KLINIK
+    // (bukan wilayah kerja geografis WK01-07/Samarinda dst), jadi
+    // JANGAN divalidasi lewat isWilayahValid (daftar 6 wilayah COP/PHQC)
+    // -- itu pasti akan menolaknya sebagai "tidak dikenal". Terima apa
+    // adanya (string bebas) atau undefined ("Semua Klinik").
+    wilayahKerja = typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0 ? wilayah_kerja : undefined;
   } else {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
       return NextResponse.json({ error: `wilayah_kerja "${wilayah_kerja}" tidak dikenal.` }, { status: 400 });
@@ -462,6 +479,12 @@ export async function POST(request: Request) {
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
 
+    } else if (konteks === 'cop-risiko-wilker') {
+      const data = await ambilDataAnalisisRisikoWilker(periodeKey);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRisikoWilker(data) : susunPromptRisikoWilker(data);
+      labelPeriodeSaatIni = data.labelPeriode;
+      labelPeriodeSebelumnya = undefined;
+
     } else if (konteks === 'cop-negara-tren') {
     const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
     promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNegaraTren(data) : susunPromptNegaraTren(data);
@@ -584,6 +607,11 @@ export async function POST(request: Request) {
         });
       }
 
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'klinik-kepatuhan-mingguan' || konteks === 'klinik-kepatuhan-bulanan') {
+      const data = await ambilDataAnalisisKlinik(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKlinikKepatuhan(data) : susunPromptKlinikKepatuhan(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
     } else if (konteks === 'cop-mingguan' || konteks === 'cop-bulanan') {

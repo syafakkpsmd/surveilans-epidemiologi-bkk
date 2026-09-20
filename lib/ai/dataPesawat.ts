@@ -33,6 +33,7 @@ import {
   getRingkasanMaskapaiKedatanganBulanan,
   getRingkasanKotaAsalMingguan,
   getRingkasanKotaAsalBulanan,
+  ambilBarisFinal,
   type RingkasanMingguanPesawat,
   type RingkasanBulananPesawat,
 } from '@/lib/supabase/queriesPesawat';
@@ -417,6 +418,57 @@ async function ambilKotaAsalPesawat(
  *   -> pola LAMA: satu periode tunggal vs satu periode tunggal
  *      sebelumnya (dipakai untuk proyeksi ke depan, TIDAK berubah).
  */
+async function breakdownWilayahPesawatMingguan(
+  tahun: number,
+  minggu: number,
+  kolom: string
+): Promise<{ wilayah: string; jumlah: number }[]> {
+  const baris = await ambilBarisFinal({ tahun });
+  const peta = new Map<string, number>();
+  for (const b of baris) {
+    if (b.epi_week !== minggu || !b.nama_wilker) continue;
+    peta.set(b.nama_wilker, (peta.get(b.nama_wilker) ?? 0) + (Number((b as any)[kolom]) || 0));
+  }
+  return Array.from(peta.entries())
+    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
+async function breakdownWilayahPesawatMingguanRentang(
+  tahun: number,
+  mgAwal: number,
+  mgAkhir: number,
+  kolom: string
+): Promise<{ wilayah: string; jumlah: number }[]> {
+  const baris = await ambilBarisFinal({ tahun });
+  const peta = new Map<string, number>();
+  for (const b of baris) {
+    if (b.epi_week < mgAwal || b.epi_week > mgAkhir || !b.nama_wilker) continue;
+    peta.set(b.nama_wilker, (peta.get(b.nama_wilker) ?? 0) + (Number((b as any)[kolom]) || 0));
+  }
+  return Array.from(peta.entries())
+    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
+async function breakdownWilayahPesawatBulanan(
+  tahun: number,
+  bulanAwal: number,
+  bulanAkhir: number,
+  kolom: string
+): Promise<{ wilayah: string; jumlah: number }[]> {
+  const baris = await ambilBarisFinal({ tahun });
+  const peta = new Map<string, number>();
+  for (const b of baris) {
+    const bulanBaris = Number(String(b.tanggal).slice(5, 7));
+    if (bulanBaris < bulanAwal || bulanBaris > bulanAkhir || !b.nama_wilker) continue;
+    peta.set(b.nama_wilker, (peta.get(b.nama_wilker) ?? 0) + (Number((b as any)[kolom]) || 0));
+  }
+  return Array.from(peta.entries())
+    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
 export async function ambilDataAnalisisPesawat(
   periodeKey: string,
   kodeWilker: string | undefined,
@@ -455,6 +507,10 @@ export async function ambilDataAnalisisPesawat(
     const barisSebelumnya =
       sebelumAkhir >= 1 ? semua.filter((r) => r.minggu_epid >= sebelumAwal && r.minggu_epid <= sebelumAkhir) : [];
 
+    const breakdownWilayahSaatIni = kodeWilker
+      ? undefined
+      : await breakdownWilayahPesawatMingguanRentang(tahun, awal, akhir, kunci[0]);
+
     return {
       labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Mingguan`,
       labelWilayah,
@@ -466,6 +522,7 @@ export async function ambilDataAnalisisPesawat(
       ringkasanSaatIni: saring(jumlahkanKolom(barisSaatIni, kunci), kunci),
       ringkasanSebelumnya: saring(jumlahkanKolom(barisSebelumnya, kunci), kunci),
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -488,6 +545,10 @@ export async function ambilDataAnalisisPesawat(
           })
         : [];
 
+    const breakdownWilayahSaatIni = kodeWilker
+      ? undefined
+      : await breakdownWilayahPesawatBulanan(tahun, awal, akhir, kunci[0]);
+
     return {
       labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Bulanan`,
       labelWilayah,
@@ -499,6 +560,7 @@ export async function ambilDataAnalisisPesawat(
       ringkasanSaatIni: saring(jumlahkanKolom(barisSaatIni, kunci), kunci),
       ringkasanSebelumnya: saring(jumlahkanKolom(barisSebelumnya, kunci), kunci),
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -532,6 +594,10 @@ export async function ambilDataAnalisisPesawat(
     const rowSaatIni = barisSaatIni.find((r: RingkasanMingguanPesawat) => r.minggu_epid === p.minggu);
     const rowSebelumnya = barisSebelumnya.find((r: RingkasanMingguanPesawat) => r.minggu_epid === sebelumnya.minggu);
 
+    const breakdownWilayahSaatIni = kodeWilker
+      ? undefined
+      : await breakdownWilayahPesawatMingguan(p.tahun, p.minggu, kunci[0]);
+
     return {
       labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Mingguan`,
       labelWilayah,
@@ -540,6 +606,7 @@ export async function ambilDataAnalisisPesawat(
       ringkasanSaatIni: saring(keRecord(rowSaatIni, kunci), kunci),
       ringkasanSebelumnya: saring(keRecord(rowSebelumnya, kunci), kunci),
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -562,6 +629,10 @@ export async function ambilDataAnalisisPesawat(
   const rowSaatIni = barisSaatIni.find((r: RingkasanBulananPesawat) => r.bulan === bulanKeySaatIni);
   const rowSebelumnya = barisSebelumnya.find((r: RingkasanBulananPesawat) => r.bulan === bulanKeySebelumnya);
 
+  const breakdownWilayahSaatIni = kodeWilker
+    ? undefined
+    : await breakdownWilayahPesawatBulanan(p.tahun, p.bulan, p.bulan, kunci[0]);
+
   return {
     labelKonteks: `Alat Angkut Pesawat — ${labelMetrik} — Bulanan`,
     labelWilayah,
@@ -570,5 +641,6 @@ export async function ambilDataAnalisisPesawat(
     ringkasanSaatIni: saring(keRecord(rowSaatIni, kunci), kunci),
     ringkasanSebelumnya: saring(keRecord(rowSebelumnya, kunci), kunci),
     topKategori: [],
+    breakdownWilayahSaatIni,
   };
 }

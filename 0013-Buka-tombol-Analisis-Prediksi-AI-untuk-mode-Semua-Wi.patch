@@ -1,0 +1,159 @@
+From a8377af9461c56fab292182649259d069090ca52 Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Fri, 18 Sep 2026 15:14:51 +0000
+Subject: [PATCH] Buka tombol Analisis/Prediksi AI untuk mode Semua Wilayah
+ Kerja di seluruh modul (kecuali vektor DBD)
+
+---
+ app/(dashboard)/dashboard/vektor/aedes/page.tsx | 12 ++++++++++++
+ components/BoxAnalisisAI.tsx                    |  4 ++--
+ components/BoxPrediksiAI.tsx                    |  4 ++--
+ 3 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/app/(dashboard)/dashboard/vektor/aedes/page.tsx b/app/(dashboard)/dashboard/vektor/aedes/page.tsx
+index 6394f08..35143a3 100644
+--- a/app/(dashboard)/dashboard/vektor/aedes/page.tsx
++++ b/app/(dashboard)/dashboard/vektor/aedes/page.tsx
+@@ -253,6 +253,7 @@ export default async function VektorAedesPage({
+                 />
+                 <div className="mt-4 grid gap-4 md:grid-cols-2">
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksMingguan}
+@@ -262,6 +263,7 @@ export default async function VektorAedesPage({
+                     hasilAwal={hasilAnalisisMingguanHiCiAbj}
+                   />
+                   <BoxPrediksiAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksMingguan}
+@@ -281,6 +283,7 @@ export default async function VektorAedesPage({
+                 />
+                 <div className="mt-4">
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksMingguan}
+@@ -300,6 +303,7 @@ export default async function VektorAedesPage({
+                 />
+                 <div className="mt-4">
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksMingguan}
+@@ -324,6 +328,7 @@ export default async function VektorAedesPage({
+                 />
+                 <div className="mt-4">
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksMingguan}
+@@ -350,6 +355,7 @@ export default async function VektorAedesPage({
+ 
+                 <div className="mt-4 grid gap-4 md:grid-cols-2">
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksBulanan}
+@@ -359,6 +365,7 @@ export default async function VektorAedesPage({
+                     hasilAwal={hasilAnalisisBulananHiCiAbj}
+                   />
+                   <BoxPrediksiAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksBulanan}
+@@ -378,6 +385,7 @@ export default async function VektorAedesPage({
+                     seriesList={[{ key: 'rumah_diperiksa', label: 'Rumah Diperiksa', warna: '#0F4C5C' }]}
+                   />
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksBulanan}
+@@ -395,6 +403,7 @@ export default async function VektorAedesPage({
+                     seriesList={[{ key: 'container_diperiksa', label: 'Container Diperiksa', warna: '#2563EB' }]}
+                   />
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksBulanan}
+@@ -415,6 +424,7 @@ export default async function VektorAedesPage({
+                     ]}
+                   />
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksBulanan}
+@@ -432,6 +442,7 @@ export default async function VektorAedesPage({
+                     seriesList={[{ key: 'larvasida_gram', label: 'Larvasida (gram)', warna: '#7C3AED' }]}
+                   />
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksBulanan}
+@@ -452,6 +463,7 @@ export default async function VektorAedesPage({
+                     ]}
+                   />
+                   <BoxAnalisisAI
++                    wajibWilayahKerja={true}
+                     sudahLogin={sudahLogin}
+                     role={roleAI}
+                     konteks={konteksBulanan}
+diff --git a/components/BoxAnalisisAI.tsx b/components/BoxAnalisisAI.tsx
+index e49c614..f23623c 100644
+--- a/components/BoxAnalisisAI.tsx
++++ b/components/BoxAnalisisAI.tsx
+@@ -40,7 +40,7 @@ type HasilAnalisis = {
+ // Tombol generate hanya aktif kalau: (1) role admin/petugas, DAN (2) sudah
+ // dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
+ // untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
+-const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = true) =>
++const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = false) =>
+   (role === "admin" || role === "petugas") && (!wajibWilayahKerja || !!wilayahKerja);
+ 
+ export function BoxAnalisisAI({
+@@ -50,7 +50,7 @@ export function BoxAnalisisAI({
+   periodeKey,
+   wilayahKerja,
+   metrik,
+-  wajibWilayahKerja = true,
++  wajibWilayahKerja = false,
+   hasilAwal,
+ }: BoxAnalisisAIProps) {
+   // sudahDikasihServer: true kalau halaman ini SUDAH dimigrasi ke pola
+diff --git a/components/BoxPrediksiAI.tsx b/components/BoxPrediksiAI.tsx
+index 92edccc..eef60c5 100644
+--- a/components/BoxPrediksiAI.tsx
++++ b/components/BoxPrediksiAI.tsx
+@@ -32,7 +32,7 @@ type HasilPrediksi = {
+ // Tombol generate hanya aktif kalau: (1) role admin/petugas, DAN (2) sudah
+ // dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
+ // untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
+-const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = true) =>
++const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = false) =>
+   (role === "admin" || role === "petugas") && (!wajibWilayahKerja || !!wilayahKerja);
+ 
+ export function BoxPrediksiAI({
+@@ -42,7 +42,7 @@ export function BoxPrediksiAI({
+   periodeKey,
+   wilayahKerja,
+   metrik,
+-  wajibWilayahKerja = true,
++  wajibWilayahKerja = false,
+   hasilAwal,
+ }: BoxPrediksiAIProps) {
+   const sudahDikasihServer = hasilAwal !== undefined;
+-- 
+2.43.0
+

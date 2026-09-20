@@ -8,6 +8,8 @@
   getUjiLabVektorTikusBulanan,
   getTrenAnophelesDewasa,
   getTrenLarva,
+  getBreakdownWilayahAnophelesMingguan,
+  getBreakdownWilayahAnophelesBulanan,
   getRingkasanTppBulanan,
   getRingkasanTtuBulanan,
   getRingkasanPabBulanan,
@@ -17,7 +19,7 @@
   getRingkasanRatGuardMingguan, 
   getRingkasanRatGuardBulanan,
 } from '@/lib/supabase/queries';
-import { getTrenDiareMultiVariabel, getTrenDiareBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
+import { getTrenDiareMultiVariabel, getTrenDiareBulanan, getHasilPengamatanPerWilker, getHasilPengamatanPerWilkerBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
 import type { KategoriCop } from "@/types/domain.types";
 import {
   parsePeriodeMingguan,
@@ -53,6 +55,7 @@ export const KONTEKS_TREN = [
   'phqc-mingguan',
   'phqc-bulanan',
   'cop-negara-tren', 
+  'cop-risiko-wilker',
   'penumpang-mingguan',
   'penumpang-bulanan',
   'pesawat-mingguan',
@@ -115,6 +118,7 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'cop-negara-asal',
   'cop-negara-tren',        
   'cop-per-wilker', 
+  'cop-risiko-wilker',
   'cop-mingguan',    // <-- tambah
   'cop-bulanan',     // <-- tambah
   'cop-faktor-risiko',
@@ -295,7 +299,106 @@ export type DataAnalisis = {
   ringkasanSaatIni: Record<string, number>;
   ringkasanSebelumnya: Record<string, number>;
   topKategori: { kategori: string; nilai: string; jumlah: number }[];
+  // BARU: breakdown jumlah kapal per wilayah kerja untuk periode
+  // BERJALAN saja -- HANYA diisi kalau wilayahKerja yang diminta
+  // adalah undefined (mode "Semua Wilayah Kerja"). Kalau user sudah
+  // pilih 1 wilayah kerja tertentu, field ini dibiarkan undefined
+  // karena tidak relevan (datanya sudah otomatis 1 wilayah itu saja).
+  // Tanpa ini, AI tidak tahu rincian per wilayah sama sekali waktu
+  // mode "Semua Wilayah Kerja" dipakai -- lihat susunPrompt().
+  breakdownWilayahSaatIni?: { wilayah: string; jumlah: number }[];
 };
+
+/**
+ * breakdownWilayahMingguan / breakdownWilayahBulanan
+ * -----------------------------------------------------
+ * Hitung jumlah_kapal per wilayah kerja dari view ringkasan
+ * mingguan/bulanan (COP atau PHQC), TANPA filter wilayah_kerja --
+ * dipakai untuk mengisi DataAnalisis.breakdownWilayahSaatIni waktu
+ * mode "Semua Wilayah Kerja" dipilih. `kumulatif=true` menjumlahkan
+ * dari minggu/bulan 1 s.d. periode saat ini (selaras dengan makna
+ * "kumulatif" yang sudah dipakai di ambilCopKumulatifMingguan dkk),
+ * `kumulatif=false` cuma 1 periode snapshot (dipakai untuk tipe
+ * "prediksi", selaras dengan ambilCopMingguan/ambilCopBulanan yang
+ * juga snapshot 1 periode).
+ */
+async function breakdownWilayahMingguan(
+  modul: 'cop' | 'phqc',
+  tahun: number,
+  minggu: number,
+  kumulatif: boolean,
+  kolom: 'jumlah_kapal' | 'total_penumpang' = 'jumlah_kapal'
+): Promise<{ wilayah: string; jumlah: number }[]> {
+  const semua = modul === 'cop'
+    ? await getRingkasanMingguan('cop', tahun)
+    : await getRingkasanMingguan('phqc', tahun);
+  const relevan = kumulatif
+    ? semua.filter((b) => b.minggu_epid <= minggu)
+    : semua.filter((b) => b.minggu_epid === minggu);
+  const peta = new Map<string, number>();
+  for (const b of relevan) {
+    if (!b.wilayah_kerja) continue;
+    peta.set(b.wilayah_kerja, (peta.get(b.wilayah_kerja) ?? 0) + ((b as any)[kolom] ?? 0));
+  }
+  return Array.from(peta.entries())
+    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
+async function breakdownWilayahBulanan(
+  modul: 'cop' | 'phqc',
+  tahun: number,
+  bulan: number,
+  kumulatif: boolean,
+  kolom: 'jumlah_kapal' | 'total_penumpang' = 'jumlah_kapal'
+): Promise<{ wilayah: string; jumlah: number }[]> {
+  const semua = modul === 'cop'
+    ? await getRingkasanBulanan('cop', tahun)
+    : await getRingkasanBulanan('phqc', tahun);
+  const relevan = kumulatif
+    ? semua.filter((b) => b.bulan <= bulan)
+    : semua.filter((b) => b.bulan === bulan);
+  const peta = new Map<string, number>();
+  for (const b of relevan) {
+    if (!b.wilayah_kerja) continue;
+    peta.set(b.wilayah_kerja, (peta.get(b.wilayah_kerja) ?? 0) + ((b as any)[kolom] ?? 0));
+  }
+  return Array.from(peta.entries())
+    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
+/**
+ * breakdownWilayahDariBaris
+ * ---------------------------
+ * Versi generik dari breakdownWilayahMingguan/Bulanan di atas, untuk
+ * modul-modul LAIN yang punya query "ambil semua baris 1 tahun tanpa
+ * filter wilayah" sendiri (Vektor Tikus, TPP/TTU/PAB, Rat Guard --
+ * masing-masing viewnya beda tapi bentuknya sama: 1 baris = 1
+ * (periode, wilayah_kerja), dengan kolom_periode = 'minggu_epid'/
+ * 'minggu'/'bulan' tergantung viewnya). `ambilSemuaBaris` dipanggil
+ * TANPA argumen wilayahKerja supaya dapat baris utk SEMUA wilayah.
+ */
+async function breakdownWilayahDariBaris(
+  ambilSemuaBaris: () => Promise<any[]>,
+  kolomPeriode: string,
+  nilaiPeriodeMin: number,
+  nilaiPeriodeMax: number,
+  kolomNilai: string
+): Promise<{ wilayah: string; jumlah: number }[]> {
+  const semua = await ambilSemuaBaris();
+  const peta = new Map<string, number>();
+  for (const b of semua) {
+    const p = Number(b[kolomPeriode]);
+    if (Number.isNaN(p) || p < nilaiPeriodeMin || p > nilaiPeriodeMax) continue;
+    const wilayah = b.wilayah_kerja;
+    if (!wilayah) continue;
+    peta.set(wilayah, (peta.get(wilayah) ?? 0) + (Number(b[kolomNilai]) || 0));
+  }
+  return Array.from(peta.entries())
+    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
 
 function jumlahkanRingkasan<T extends Record<string, unknown>>(
   baris: T[],
@@ -407,7 +510,7 @@ export async function ambilDataAnalisisCop(
 
     if (tipe === 'prediksi') {
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya, topKategori] = await Promise.all([
+      const [saatIni, sebelumnya, topKategori, breakdownWilayahSaatIni] = await Promise.all([
         ambilCopMingguan(periodeSaatIni, wilayahKerja),
         ambilCopMingguan(periodeSebelumnya, wilayahKerja),
         topKategoriUmum(
@@ -415,6 +518,9 @@ export async function ambilDataAnalisisCop(
           { tahun_epid: periodeSaatIni.tahun, minggu_epid: periodeSaatIni.minggu },
           wilayahKerja
         ),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : breakdownWilayahMingguan('cop', periodeSaatIni.tahun, periodeSaatIni.minggu, false),
       ]);
       return {
         labelKonteks: 'Kegiatan COP (Certificate of Pratique)',
@@ -424,12 +530,16 @@ export async function ambilDataAnalisisCop(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori,
+        breakdownWilayahSaatIni,
       };
     }
 
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilCopKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu, wilayahKerja),
       ambilCopKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu - 1, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahMingguan('cop', periodeSaatIni.tahun, periodeSaatIni.minggu, true),
     ]);
     return {
       labelKonteks: 'Kegiatan COP (Certificate of Pratique)',
@@ -442,6 +552,7 @@ export async function ambilDataAnalisisCop(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -450,7 +561,7 @@ export async function ambilDataAnalisisCop(
 
   if (tipe === 'prediksi') {
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya, topKategori] = await Promise.all([
+    const [saatIni, sebelumnya, topKategori, breakdownWilayahSaatIni] = await Promise.all([
       ambilCopBulanan(periodeSaatIni, wilayahKerja),
       ambilCopBulanan(periodeSebelumnya, wilayahKerja),
       topKategoriUmum(
@@ -458,6 +569,9 @@ export async function ambilDataAnalisisCop(
         { tahun: periodeSaatIni.tahun, bulan: periodeSaatIni.bulan },
         wilayahKerja
       ),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahBulanan('cop', periodeSaatIni.tahun, periodeSaatIni.bulan, false),
     ]);
     return {
       labelKonteks: 'Kegiatan COP (Certificate of Pratique)',
@@ -467,12 +581,16 @@ export async function ambilDataAnalisisCop(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori,
+      breakdownWilayahSaatIni,
     };
   }
 
-  const [saatIni, sebelumnya] = await Promise.all([
+  const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
     ambilCopKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan, wilayahKerja),
     ambilCopKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan - 1, wilayahKerja),
+    wilayahKerja
+      ? Promise.resolve(undefined)
+      : breakdownWilayahBulanan('cop', periodeSaatIni.tahun, periodeSaatIni.bulan, true),
   ]);
   return {
     labelKonteks: 'Kegiatan COP (Certificate of Pratique)',
@@ -485,6 +603,124 @@ export async function ambilDataAnalisisCop(
     ringkasanSaatIni: saatIni,
     ringkasanSebelumnya: sebelumnya,
     topKategori: [],
+    breakdownWilayahSaatIni,
+  };
+}
+
+export type DataRisikoWilker = {
+  labelKonteks: string;
+  labelPeriode: string;
+  daftarWilayah: {
+    wilayah: string;
+    jumlahKapal: number;
+    totalAbk: number;
+    jumlahDariDaerahTerjangkit: number;
+    jumlahRbaTinggi: number;
+  }[];
+};
+
+/**
+ * gabungkanRisikoWilker
+ * ----------------------
+ * Menggabungkan 3 sumber data (ringkasan kapal/ABK per wilayah dari
+ * view_..._ringkasan, breakdown kategori "daerah_terjangkit", dan
+ * breakdown kategori "rba" dari view_..._kategori -- SEMUA diambil
+ * TANPA filter wilayah_kerja supaya hasilnya 1 baris per wilayah
+ * kerja, bukan 1 baris gabungan) jadi 1 tabel risiko per wilayah.
+ */
+function gabungkanRisikoWilker(
+  ringkasanBaris: { wilayah_kerja: string; jumlah_kapal: number; total_abk: number }[],
+  barisTerjangkit: { wilayah_kerja: string; nilai: string; jumlah: number }[],
+  barisRba: { wilayah_kerja: string; nilai: string; jumlah: number }[]
+): DataRisikoWilker['daftarWilayah'] {
+  const daftarWilayahMuncul = new Set<string>();
+  ringkasanBaris.forEach((b) => b.wilayah_kerja && daftarWilayahMuncul.add(b.wilayah_kerja));
+  barisTerjangkit.forEach((b) => b.wilayah_kerja && daftarWilayahMuncul.add(b.wilayah_kerja));
+  barisRba.forEach((b) => b.wilayah_kerja && daftarWilayahMuncul.add(b.wilayah_kerja));
+
+  return Array.from(daftarWilayahMuncul)
+    .map((wilayah) => {
+      const kapal = ringkasanBaris.find((b) => b.wilayah_kerja === wilayah);
+      const jumlahDariDaerahTerjangkit = barisTerjangkit
+        .filter((b) => b.wilayah_kerja === wilayah && b.nilai?.toLowerCase() === 'ya')
+        .reduce((t, b) => t + (b.jumlah ?? 0), 0);
+      const jumlahRbaTinggi = barisRba
+        .filter((b) => b.wilayah_kerja === wilayah && b.nilai?.toLowerCase() === 'merah')
+        .reduce((t, b) => t + (b.jumlah ?? 0), 0);
+      return {
+        wilayah,
+        jumlahKapal: kapal?.jumlah_kapal ?? 0,
+        totalAbk: kapal?.total_abk ?? 0,
+        jumlahDariDaerahTerjangkit,
+        jumlahRbaTinggi,
+      };
+    })
+    .sort((a, b) => b.jumlahKapal - a.jumlahKapal);
+}
+
+/**
+ * ambilDataAnalisisRisikoWilker
+ * -------------------------------
+ * Titik masuk untuk konteks "cop-risiko-wilker" -- BEDA dari
+ * cop-per-wilker (yang cuma bandingkan JUMLAH KAPAL antar wilayah
+ * untuk alokasi petugas). Fungsi ini menggabungkan jumlah kapal,
+ * total ABK, jumlah kapal dari daerah terjangkit, dan jumlah RBA
+ * Merah PER WILAYAH KERJA sekaligus, supaya AI bisa menyimpulkan
+ * wilayah kerja mana yang risikonya paling tinggi (bukan cuma paling
+ * sibuk). SELALU snapshot 1 periode terkini (sama seperti
+ * cop-per-wilker), TIDAK kumulatif, dan SELALU mencakup SEMUA
+ * wilayah kerja (parameter wilayahKerja sengaja tidak ada -- lihat
+ * BoxAnalisisAI wajibWilayahKerja={false} di app/cop/page.tsx).
+ */
+export async function ambilDataAnalisisRisikoWilker(
+  periodeKey: string
+): Promise<DataRisikoWilker> {
+  const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
+
+  if (isMingguan) {
+    const p = parsePeriodeMingguan(periodeKey);
+    const [ringkasanTahun, barisTerjangkit, barisRba] = await Promise.all([
+      getRingkasanMingguan('cop', p.tahun),
+      getKategoriBreakdown('cop', 'mingguan', {
+        tahun_epid: p.tahun,
+        minggu_epid: p.minggu,
+        kategori: 'daerah_terjangkit',
+      }),
+      getKategoriBreakdown('cop', 'mingguan', {
+        tahun_epid: p.tahun,
+        minggu_epid: p.minggu,
+        kategori: 'rba',
+      }),
+    ]);
+    const ringkasanMinggu = ringkasanTahun.filter((b) => b.minggu_epid === p.minggu);
+
+    return {
+      labelKonteks: 'Risiko Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
+      labelPeriode: labelPeriodeMingguan(p),
+      daftarWilayah: gabungkanRisikoWilker(ringkasanMinggu, barisTerjangkit, barisRba),
+    };
+  }
+
+  const p = parsePeriodeBulanan(periodeKey);
+  const [ringkasanTahun, barisTerjangkit, barisRba] = await Promise.all([
+    getRingkasanBulanan('cop', p.tahun),
+    getKategoriBreakdown('cop', 'bulanan', {
+      tahun: p.tahun,
+      bulan: p.bulan,
+      kategori: 'daerah_terjangkit',
+    }),
+    getKategoriBreakdown('cop', 'bulanan', {
+      tahun: p.tahun,
+      bulan: p.bulan,
+      kategori: 'rba',
+    }),
+  ]);
+  const ringkasanBulan = ringkasanTahun.filter((b) => b.bulan === p.bulan);
+
+  return {
+    labelKonteks: 'Risiko Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
+    labelPeriode: labelPeriodeBulanan(p),
+    daftarWilayah: gabungkanRisikoWilker(ringkasanBulan, barisTerjangkit, barisRba),
   };
 }
 
@@ -543,9 +779,15 @@ export async function ambilDataAnalisisRatGuard(
     if (isMingguan) {
       const periodeSaatIni = parsePeriodeMingguan(periodeKey);
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya] = await Promise.all([
+      const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
         ambilRatGuardMingguan(periodeSaatIni, wilayahKerja),
         ambilRatGuardMingguan(periodeSebelumnya, wilayahKerja),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : breakdownWilayahDariBaris(
+              () => getRingkasanRatGuardMingguan(periodeSaatIni.tahun),
+              'minggu', periodeSaatIni.minggu, periodeSaatIni.minggu, 'jumlah_kapal'
+            ),
       ]);
       return {
         labelKonteks: labelModul,
@@ -555,14 +797,21 @@ export async function ambilDataAnalisisRatGuard(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori: [],
+        breakdownWilayahSaatIni,
       };
     }
 
     const periodeSaatIni = parsePeriodeBulanan(periodeKey);
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilRatGuardBulanan(periodeSaatIni, wilayahKerja),
       ambilRatGuardBulanan(periodeSebelumnya, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahDariBaris(
+            () => getRingkasanRatGuardBulanan(periodeSaatIni.tahun),
+            'bulan', periodeSaatIni.bulan, periodeSaatIni.bulan, 'jumlah_kapal'
+          ),
     ]);
     return {
       labelKonteks: labelModul,
@@ -572,14 +821,21 @@ export async function ambilDataAnalisisRatGuard(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
   if (isMingguan) {
     const periodeSaatIni = parsePeriodeMingguan(periodeKey);
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilRatGuardKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu, wilayahKerja),
       ambilRatGuardKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu - 1, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahDariBaris(
+            () => getRingkasanRatGuardMingguan(periodeSaatIni.tahun),
+            'minggu', 1, periodeSaatIni.minggu, 'jumlah_kapal'
+          ),
     ]);
     return {
       labelKonteks: labelModul,
@@ -592,13 +848,20 @@ export async function ambilDataAnalisisRatGuard(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
   const periodeSaatIni = parsePeriodeBulanan(periodeKey);
-  const [saatIni, sebelumnya] = await Promise.all([
+  const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
     ambilRatGuardKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan, wilayahKerja),
     ambilRatGuardKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan - 1, wilayahKerja),
+    wilayahKerja
+      ? Promise.resolve(undefined)
+      : breakdownWilayahDariBaris(
+          () => getRingkasanRatGuardBulanan(periodeSaatIni.tahun),
+          'bulan', 1, periodeSaatIni.bulan, 'jumlah_kapal'
+        ),
   ]);
 
   return {
@@ -612,6 +875,7 @@ export async function ambilDataAnalisisRatGuard(
     ringkasanSaatIni: saatIni,
     ringkasanSebelumnya: sebelumnya,
     topKategori: [],
+    breakdownWilayahSaatIni,
   };
 }
 
@@ -683,7 +947,7 @@ export async function ambilDataAnalisisPhqc(
 
     if (tipe === 'prediksi') {
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya, topKategori] = await Promise.all([
+      const [saatIni, sebelumnya, topKategori, breakdownWilayahSaatIni] = await Promise.all([
         ambilPhqcMingguan(periodeSaatIni, wilayahKerja),
         ambilPhqcMingguan(periodeSebelumnya, wilayahKerja),
         topKategoriUmum(
@@ -691,6 +955,9 @@ export async function ambilDataAnalisisPhqc(
           { tahun_epid: periodeSaatIni.tahun, minggu_epid: periodeSaatIni.minggu },
           wilayahKerja
         ),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : breakdownWilayahMingguan('phqc', periodeSaatIni.tahun, periodeSaatIni.minggu, false),
       ]);
       return {
         labelKonteks: 'Kegiatan PHQC (Port Health Quarantine Clearance)',
@@ -700,12 +967,16 @@ export async function ambilDataAnalisisPhqc(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori,
+        breakdownWilayahSaatIni,
       };
     }
 
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilPhqcKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu, wilayahKerja),
       ambilPhqcKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu - 1, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahMingguan('phqc', periodeSaatIni.tahun, periodeSaatIni.minggu, true),
     ]);
     return {
       labelKonteks: 'Kegiatan PHQC (Port Health Quarantine Clearance)',
@@ -718,6 +989,7 @@ export async function ambilDataAnalisisPhqc(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -726,7 +998,7 @@ export async function ambilDataAnalisisPhqc(
 
   if (tipe === 'prediksi') {
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya, topKategori] = await Promise.all([
+    const [saatIni, sebelumnya, topKategori, breakdownWilayahSaatIni] = await Promise.all([
       ambilPhqcBulanan(periodeSaatIni, wilayahKerja),
       ambilPhqcBulanan(periodeSebelumnya, wilayahKerja),
       topKategoriUmum(
@@ -734,6 +1006,9 @@ export async function ambilDataAnalisisPhqc(
         { tahun: periodeSaatIni.tahun, bulan: periodeSaatIni.bulan },
         wilayahKerja
       ),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahBulanan('phqc', periodeSaatIni.tahun, periodeSaatIni.bulan, false),
     ]);
     return {
       labelKonteks: 'Kegiatan PHQC (Port Health Quarantine Clearance)',
@@ -743,12 +1018,16 @@ export async function ambilDataAnalisisPhqc(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori,
+      breakdownWilayahSaatIni,
     };
   }
 
-  const [saatIni, sebelumnya] = await Promise.all([
+  const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
     ambilPhqcKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan, wilayahKerja),
     ambilPhqcKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan - 1, wilayahKerja),
+    wilayahKerja
+      ? Promise.resolve(undefined)
+      : breakdownWilayahBulanan('phqc', periodeSaatIni.tahun, periodeSaatIni.bulan, true),
   ]);
   return {
     labelKonteks: 'Kegiatan PHQC (Port Health Quarantine Clearance)',
@@ -761,6 +1040,7 @@ export async function ambilDataAnalisisPhqc(
     ringkasanSaatIni: saatIni,
     ringkasanSebelumnya: sebelumnya,
     topKategori: [],
+    breakdownWilayahSaatIni,
   };
 }
 
@@ -783,9 +1063,12 @@ export async function ambilDataAnalisisPenumpang(
 
     if (tipe === 'prediksi') {
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya] = await Promise.all([
+      const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
         ambilPenumpangMingguan(periodeSaatIni, wilayahKerja),
         ambilPenumpangMingguan(periodeSebelumnya, wilayahKerja),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : breakdownWilayahMingguan('phqc', periodeSaatIni.tahun, periodeSaatIni.minggu, false, 'total_penumpang'),
       ]);
       return {
         labelKonteks: 'Volume Penumpang PHQC (tiba/berangkat) — Mingguan',
@@ -795,12 +1078,16 @@ export async function ambilDataAnalisisPenumpang(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori: [],
+        breakdownWilayahSaatIni,
       };
     }
 
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilPenumpangKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu, wilayahKerja),
       ambilPenumpangKumulatifMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu - 1, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahMingguan('phqc', periodeSaatIni.tahun, periodeSaatIni.minggu, true, 'total_penumpang'),
     ]);
     return {
       labelKonteks: 'Volume Penumpang PHQC (tiba/berangkat) — Mingguan',
@@ -813,6 +1100,7 @@ export async function ambilDataAnalisisPenumpang(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -821,9 +1109,12 @@ export async function ambilDataAnalisisPenumpang(
 
   if (tipe === 'prediksi') {
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilPenumpangBulanan(periodeSaatIni, wilayahKerja),
       ambilPenumpangBulanan(periodeSebelumnya, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahBulanan('phqc', periodeSaatIni.tahun, periodeSaatIni.bulan, false, 'total_penumpang'),
     ]);
     return {
       labelKonteks: 'Volume Penumpang PHQC (tiba/berangkat) — Bulanan',
@@ -833,12 +1124,16 @@ export async function ambilDataAnalisisPenumpang(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
-  const [saatIni, sebelumnya] = await Promise.all([
+  const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
     ambilPenumpangKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan, wilayahKerja),
     ambilPenumpangKumulatifBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan - 1, wilayahKerja),
+    wilayahKerja
+      ? Promise.resolve(undefined)
+      : breakdownWilayahBulanan('phqc', periodeSaatIni.tahun, periodeSaatIni.bulan, true, 'total_penumpang'),
   ]);
   return {
     labelKonteks: 'Volume Penumpang PHQC (tiba/berangkat) — Bulanan',
@@ -851,9 +1146,37 @@ export async function ambilDataAnalisisPenumpang(
     ringkasanSaatIni: saatIni,
     ringkasanSebelumnya: sebelumnya,
     topKategori: [],
+    breakdownWilayahSaatIni,
   };
 }
 
+
+/**
+ * breakdownWilayahKodeWilker
+ * ----------------------------
+ * Sama seperti breakdownWilayahDariBaris, tapi untuk sumber data yang
+ * kolom wilayahnya bernama `kode_wilker` dan berisi KODE (mis. "WK01"),
+ * bukan nama wilayah langsung -- dipetakan ke nama tampilan lewat
+ * NAMA_WILKER (peta yang sama dipakai untuk labelWilayah di seluruh
+ * file ini). Dipakai untuk modul Tikus Lab.
+ */
+function breakdownWilayahKodeWilker(
+  baris: { kode_wilker?: string; periode?: number; [k: string]: any }[],
+  nilaiPeriode: number,
+  kolomNilai: string
+): { wilayah: string; jumlah: number }[] {
+  const peta = new Map<string, number>();
+  for (const b of baris) {
+    if (b.periode !== nilaiPeriode) continue;
+    const kode = b.kode_wilker;
+    if (!kode || kode === '—') continue;
+    const wilayah = NAMA_WILKER[kode] ?? kode;
+    peta.set(wilayah, (peta.get(wilayah) ?? 0) + (Number(b[kolomNilai]) || 0));
+  }
+  return Array.from(peta.entries())
+    .map(([wilayah, jumlah]) => ({ wilayah, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
 
 async function ambilTikusLabMingguan(
   p: PeriodeMingguan,
@@ -1156,10 +1479,17 @@ async function ambilAnophelesRingkasan(
 
   const cocok =
     granularitas === 'mingguan'
-      ? (rows as any[]).find((r) => Number(r.minggu_epid) === periodeUrutan)
+      // FIX: dulu pakai .find() yang cuma ambil baris PERTAMA yang cocok --
+      // salah waktu wilayahKerja=undefined ("Semua Wilayah Kerja") karena
+      // view_vektor_anopheles_mingguan (tipe dewasa) punya banyak baris per
+      // minggu_epid (1 per wilayah kerja), jadi baris wilayah lain diam-diam
+      // hilang. Sekarang filter SEMUA baris minggu itu lalu digabung lewat
+      // agregasiAnophelesRentang (sum utk kolom hitungan, rata-rata utk
+      // mhd/mbr/suhu/kelembaban) -- benar utk 1 wilayah MAUPUN semua wilayah.
+      ? agregasiAnophelesRentang((rows as any[]).filter((r) => Number(r.minggu_epid) === periodeUrutan))
       : rows[periodeUrutan - 1];
 
-  if (!cocok) return {};
+  if (!cocok || Object.keys(cocok).length === 0) return {};
   const hasil: Record<string, number> = {};
   for (const [k, v] of Object.entries(cocok)) {
     if (typeof v === 'number') hasil[k] = v;
@@ -2034,9 +2364,15 @@ export async function ambilDataAnalisis(
       }
       const periodeSaatIni = parsePeriodeMingguan(periodeKey);
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya] = await Promise.all([
+      const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
         ambilVektorTikusMingguan(periodeSaatIni, wilayahKerja),
         ambilVektorTikusMingguan(periodeSebelumnya, wilayahKerja),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : breakdownWilayahDariBaris(
+              () => getRingkasanVektorTikus(periodeSaatIni.tahun) as any,
+              'minggu_epid', periodeSaatIni.minggu, periodeSaatIni.minggu, 'jml_trap_tertangkap'
+            ),
       ]);
       return {
         labelKonteks: 'Surveilans Vektor Tikus — Trap & Distribusi Spesies',
@@ -2046,6 +2382,7 @@ export async function ambilDataAnalisis(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori: [],
+        breakdownWilayahSaatIni,
       };
     }
 
@@ -2073,9 +2410,15 @@ export async function ambilDataAnalisis(
 
     const periodeSaatIni = parsePeriodeBulanan(periodeKey);
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilVektorTikusBulanan(periodeSaatIni, wilayahKerja),
       ambilVektorTikusBulanan(periodeSebelumnya, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahDariBaris(
+            () => getRingkasanVektorTikusBulanan(periodeSaatIni.tahun) as any,
+            'bulan', periodeSaatIni.bulan, periodeSaatIni.bulan, 'jml_trap_tertangkap'
+          ),
     ]);
     return {
       labelKonteks: 'Surveilans Vektor Tikus — Trap & Distribusi Spesies',
@@ -2085,6 +2428,7 @@ export async function ambilDataAnalisis(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -2121,10 +2465,14 @@ export async function ambilDataAnalisis(
       }
       const periodeSaatIni = parsePeriodeMingguan(periodeKey);
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya] = await Promise.all([
+      const [saatIni, sebelumnya, breakdownMentah] = await Promise.all([
         ambilVektorDiareMingguan(periodeSaatIni, jenis, wilayahKerja),
         ambilVektorDiareMingguan(periodeSebelumnya, jenis, wilayahKerja),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : getHasilPengamatanPerWilker(periodeSaatIni.tahun, jenis, undefined, periodeSaatIni.minggu, periodeSaatIni.minggu),
       ]);
+      const breakdownWilayahSaatIni = breakdownMentah?.map((b) => ({ wilayah: b.label, jumlah: b.memenuhi + b.tidakMemenuhi }));
       return {
         labelKonteks: `Surveilans Vektor Diare — ${labelJenis}`,
         labelWilayah,
@@ -2133,6 +2481,7 @@ export async function ambilDataAnalisis(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori: [],
+        breakdownWilayahSaatIni,
       };
     }
 
@@ -2160,9 +2509,12 @@ export async function ambilDataAnalisis(
 
     const periodeSaatIni = parsePeriodeBulanan(periodeKey);
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilVektorDiareBulananSatuBulan(periodeSaatIni.tahun, jenis, periodeSaatIni.bulan, wilayahKerja),
       ambilVektorDiareBulananSatuBulan(periodeSebelumnya.tahun, jenis, periodeSebelumnya.bulan, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : getHasilPengamatanPerWilkerBulanan(periodeSaatIni.tahun, jenis, periodeSaatIni.bulan, periodeSaatIni.bulan),
     ]);
     return {
       labelKonteks: `Surveilans Vektor Diare — ${labelJenis}`,
@@ -2172,6 +2524,7 @@ export async function ambilDataAnalisis(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -2200,9 +2553,14 @@ export async function ambilDataAnalisis(
       }
       const periodeSaatIni = parsePeriodeMingguan(periodeKey);
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya] = await Promise.all([
+      const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
         ambilTikusLabMingguan(periodeSaatIni, wilayahKerja),
         ambilTikusLabMingguan(periodeSebelumnya, wilayahKerja),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : getUjiLabVektorTikusMingguan(periodeSaatIni.tahun).then((baris) =>
+              breakdownWilayahKodeWilker(baris as any, periodeSaatIni.minggu, 'diuji_lab')
+            ),
       ]);
       return {
         labelKonteks: 'Surveilans Vektor Tikus — Uji Lab & Hasil Pemeriksaan (Leptospirosis, Pes, Hantavirus)',
@@ -2212,6 +2570,7 @@ export async function ambilDataAnalisis(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori: [],
+        breakdownWilayahSaatIni,
       };
     }
 
@@ -2239,9 +2598,14 @@ export async function ambilDataAnalisis(
 
     const periodeSaatIni = parsePeriodeBulanan(periodeKey);
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilTikusLabBulanan(periodeSaatIni, wilayahKerja),
       ambilTikusLabBulanan(periodeSebelumnya, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : getUjiLabVektorTikusBulanan(periodeSaatIni.tahun).then((baris) =>
+            breakdownWilayahKodeWilker(baris as any, periodeSaatIni.bulan, 'diuji_lab')
+          ),
     ]);
     return {
       labelKonteks: 'Surveilans Vektor Tikus — Uji Lab & Hasil Pemeriksaan (Leptospirosis, Pes, Hantavirus)',
@@ -2251,6 +2615,7 @@ export async function ambilDataAnalisis(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
   
@@ -2288,10 +2653,20 @@ export async function ambilDataAnalisis(
       }
       const periodeSaatIni = parsePeriodeMingguan(periodeKey);
       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
-      const [saatIni, sebelumnya] = await Promise.all([
+      const [saatIni, sebelumnya, breakdownMentah] = await Promise.all([
         ambilAnophelesRingkasan(periodeSaatIni.tahun, wilayahKerja, 'mingguan', tipe, periodeSaatIni.minggu),
         ambilAnophelesRingkasan(periodeSebelumnya.tahun, wilayahKerja, 'mingguan', tipe, periodeSebelumnya.minggu),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : getBreakdownWilayahAnophelesMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu, tipe),
       ]);
+      const breakdownWilayahSaatIni = breakdownMentah
+        ?.filter((b) => b.kode_wilker)
+        .map((b) => ({
+          wilayah: NAMA_WILKER[b.kode_wilker] ?? b.kode_wilker,
+          jumlah: tipe === 'dewasa' ? Number((b.mhd_rerata ?? 0).toFixed(2)) : (b.total_larva ?? 0),
+        }))
+        .sort((a, b) => b.jumlah - a.jumlah);
       return {
         labelKonteks: `Surveilans Vektor — ${labelTipe}`,
         labelWilayah,
@@ -2300,6 +2675,7 @@ export async function ambilDataAnalisis(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori: [],
+        breakdownWilayahSaatIni,
       };
     }
 
@@ -2327,10 +2703,20 @@ export async function ambilDataAnalisis(
 
     const periodeSaatIni = parsePeriodeBulanan(periodeKey);
     const periodeSebelumnya = periodeBulananSebelumnya(periodeSaatIni);
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownMentah] = await Promise.all([
       ambilAnophelesRingkasan(periodeSaatIni.tahun, wilayahKerja, 'bulanan', tipe, periodeSaatIni.bulan),
       ambilAnophelesRingkasan(periodeSebelumnya.tahun, wilayahKerja, 'bulanan', tipe, periodeSebelumnya.bulan),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : getBreakdownWilayahAnophelesBulanan(periodeSaatIni.tahun, periodeSaatIni.bulan, tipe),
     ]);
+    const breakdownWilayahSaatIni = breakdownMentah
+      ?.filter((b) => b.kode_wilker)
+      .map((b) => ({
+        wilayah: NAMA_WILKER[b.kode_wilker] ?? b.kode_wilker,
+        jumlah: tipe === 'dewasa' ? Number((b.mhd_rerata ?? 0).toFixed(2)) : (b.total_larva ?? 0),
+      }))
+      .sort((a, b) => b.jumlah - a.jumlah);
     return {
       labelKonteks: `Surveilans Vektor — ${labelTipe}`,
       labelWilayah,
@@ -2339,6 +2725,7 @@ export async function ambilDataAnalisis(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
     if (
@@ -2678,9 +3065,23 @@ export async function ambilDataAnalisisSanitasi(
         konteks === 'tpp-mingguan' ? ambilTppMingguan
         : konteks === 'ttu-mingguan' ? ambilTtuMingguan
         : ambilPabMingguan;
-      const [saatIni, sebelumnya] = await Promise.all([
+      const ambilBarisMentahMingguan =
+        konteks === 'tpp-mingguan' ? getRingkasanTppMingguan
+        : konteks === 'ttu-mingguan' ? getRingkasanTtuMingguan
+        : getRingkasanPabMingguan;
+      const kolomUtama =
+        konteks === 'tpp-mingguan' ? 'jumlah_tpp_diperiksa'
+        : konteks === 'ttu-mingguan' ? 'jumlah_diperiksa'
+        : 'jumlah_pemeriksaan';
+      const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
         ambil(periodeSaatIni, wilayahKerja),
         ambil(periodeSebelumnya, wilayahKerja),
+        wilayahKerja
+          ? Promise.resolve(undefined)
+          : breakdownWilayahDariBaris(
+              () => ambilBarisMentahMingguan(periodeSaatIni.tahun),
+              'minggu', periodeSaatIni.minggu, periodeSaatIni.minggu, kolomUtama
+            ),
       ]);
       return {
         labelKonteks: labelModul,
@@ -2690,6 +3091,7 @@ export async function ambilDataAnalisisSanitasi(
         ringkasanSaatIni: saatIni,
         ringkasanSebelumnya: sebelumnya,
         topKategori: [],
+        breakdownWilayahSaatIni,
       };
     }
 
@@ -2699,9 +3101,23 @@ export async function ambilDataAnalisisSanitasi(
       konteks === 'tpp-bulanan' ? ambilTppBulanan
       : konteks === 'ttu-bulanan' ? ambilTtuBulanan
       : ambilPabBulanan;
-    const [saatIni, sebelumnya] = await Promise.all([
+    const ambilBarisMentahBulanan =
+      konteks === 'tpp-bulanan' ? getRingkasanTppBulanan
+      : konteks === 'ttu-bulanan' ? getRingkasanTtuBulanan
+      : getRingkasanPabBulanan;
+    const kolomUtama =
+      konteks === 'tpp-bulanan' ? 'jumlah_tpp_diperiksa'
+      : konteks === 'ttu-bulanan' ? 'jumlah_diperiksa'
+      : 'jumlah_pemeriksaan';
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambil(periodeSaatIni, wilayahKerja),
       ambil(periodeSebelumnya, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahDariBaris(
+            () => ambilBarisMentahBulanan(periodeSaatIni.tahun),
+            'bulan', periodeSaatIni.bulan, periodeSaatIni.bulan, kolomUtama
+          ),
     ]);
     return {
       labelKonteks: labelModul,
@@ -2711,6 +3127,7 @@ export async function ambilDataAnalisisSanitasi(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -2720,10 +3137,24 @@ export async function ambilDataAnalisisSanitasi(
       konteks === 'tpp-mingguan' ? ambilTppKumulatifMingguan
       : konteks === 'ttu-mingguan' ? ambilTtuKumulatifMingguan
       : ambilPabKumulatifMingguan;
+    const ambilBarisMentahMingguan =
+      konteks === 'tpp-mingguan' ? getRingkasanTppMingguan
+      : konteks === 'ttu-mingguan' ? getRingkasanTtuMingguan
+      : getRingkasanPabMingguan;
+    const kolomUtama =
+      konteks === 'tpp-mingguan' ? 'jumlah_tpp_diperiksa'
+      : konteks === 'ttu-mingguan' ? 'jumlah_diperiksa'
+      : 'jumlah_pemeriksaan';
 
-    const [saatIni, sebelumnya] = await Promise.all([
+    const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
       ambilKumulatif(periodeSaatIni.tahun, periodeSaatIni.minggu, wilayahKerja),
       ambilKumulatif(periodeSaatIni.tahun, periodeSaatIni.minggu - 1, wilayahKerja),
+      wilayahKerja
+        ? Promise.resolve(undefined)
+        : breakdownWilayahDariBaris(
+            () => ambilBarisMentahMingguan(periodeSaatIni.tahun),
+            'minggu', 1, periodeSaatIni.minggu, kolomUtama
+          ),
     ]);
 
     return {
@@ -2737,6 +3168,7 @@ export async function ambilDataAnalisisSanitasi(
       ringkasanSaatIni: saatIni,
       ringkasanSebelumnya: sebelumnya,
       topKategori: [],
+      breakdownWilayahSaatIni,
     };
   }
 
@@ -2745,10 +3177,24 @@ export async function ambilDataAnalisisSanitasi(
     konteks === 'tpp-bulanan' ? ambilTppKumulatifBulanan
     : konteks === 'ttu-bulanan' ? ambilTtuKumulatifBulanan
     : ambilPabKumulatifBulanan;
+  const ambilBarisMentahBulanan =
+    konteks === 'tpp-bulanan' ? getRingkasanTppBulanan
+    : konteks === 'ttu-bulanan' ? getRingkasanTtuBulanan
+    : getRingkasanPabBulanan;
+  const kolomUtama =
+    konteks === 'tpp-bulanan' ? 'jumlah_tpp_diperiksa'
+    : konteks === 'ttu-bulanan' ? 'jumlah_diperiksa'
+    : 'jumlah_pemeriksaan';
 
-  const [saatIni, sebelumnya] = await Promise.all([
+  const [saatIni, sebelumnya, breakdownWilayahSaatIni] = await Promise.all([
     ambilKumulatif(periodeSaatIni.tahun, periodeSaatIni.bulan, wilayahKerja),
     ambilKumulatif(periodeSaatIni.tahun, periodeSaatIni.bulan - 1, wilayahKerja),
+    wilayahKerja
+      ? Promise.resolve(undefined)
+      : breakdownWilayahDariBaris(
+          () => ambilBarisMentahBulanan(periodeSaatIni.tahun),
+          'bulan', 1, periodeSaatIni.bulan, kolomUtama
+        ),
   ]);
 
   return {
@@ -2762,6 +3208,7 @@ export async function ambilDataAnalisisSanitasi(
     ringkasanSaatIni: saatIni,
     ringkasanSebelumnya: sebelumnya,
     topKategori: [],
+    breakdownWilayahSaatIni,
   };
 }
 
@@ -2897,6 +3344,59 @@ export async function ambilDataBreakdownAnalisis(
     return ambilDataBreakdownPelabuhanPhqc(periodeKey, wilayahKerja);
   }
 
+  // cop-per-wilker: SENGAJA ditangani terpisah lewat helper
+  // breakdownWilayahMingguan/Bulanan (bukan getKategoriBreakdown biasa
+  // di bawah) -- BUG LAMA yang ditemukan: KATEGORI_PER_KONTEKS_BREAKDOWN
+  // konteks ini menunjuk ke kategori 'wilayah_kerja', padahal kategori
+  // itu TIDAK PERNAH ada di view_mingguan_kategori/view_bulanan_kategori
+  // (lihat KategoriCop di types/domain.types.ts -- tidak ada
+  // 'wilayah_kerja' di situ). Akibatnya breakdown SELALU kosong dari
+  // dulu, cuma baru kelihatan waktu wilayah="Semua" (waktu 1 wilayah
+  // dipilih, totalKapal dari jalur lain tetap benar jadi tidak
+  // kelihatan kosongnya).
+  if (konteks === 'cop-per-wilker') {
+    const labelWilayah = wilayahKerja
+      ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
+      : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    const isMingguanPerWilker = /^\d{4}-W\d{1,2}$/.test(periodeKey);
+
+    if (isMingguanPerWilker) {
+      const p = parsePeriodeMingguan(periodeKey);
+      const [ringkasan, breakdownMentah] = await Promise.all([
+        ambilCopMingguan(p, wilayahKerja),
+        breakdownWilayahMingguan('cop', p.tahun, p.minggu, false),
+      ]);
+      const breakdown = (wilayahKerja
+        ? breakdownMentah.filter((b) => b.wilayah === wilayahKerja)
+        : breakdownMentah
+      ).map((b) => ({ nilai: b.wilayah, jumlah: b.jumlah }));
+      return {
+        labelKonteks: LABEL_PER_KONTEKS_BREAKDOWN['cop-per-wilker'],
+        labelWilayah,
+        labelPeriode: labelPeriodeMingguan(p),
+        totalKapal: ringkasan.jumlah_kapal ?? 0,
+        breakdown,
+      };
+    }
+
+    const p = parsePeriodeBulanan(periodeKey);
+    const [ringkasan, breakdownMentah] = await Promise.all([
+      ambilCopBulanan(p, wilayahKerja),
+      breakdownWilayahBulanan('cop', p.tahun, p.bulan, false),
+    ]);
+    const breakdown = (wilayahKerja
+      ? breakdownMentah.filter((b) => b.wilayah === wilayahKerja)
+      : breakdownMentah
+    ).map((b) => ({ nilai: b.wilayah, jumlah: b.jumlah }));
+    return {
+      labelKonteks: LABEL_PER_KONTEKS_BREAKDOWN['cop-per-wilker'],
+      labelWilayah,
+      labelPeriode: labelPeriodeBulanan(p),
+      totalKapal: ringkasan.jumlah_kapal ?? 0,
+      breakdown,
+    };
+  }
+
   // KUMULATIF khusus phqc-daerah-asal/phqc-daerah-tujuan untuk tipe="analisis"
   // (sama seperti pola kumulatif di ambilDataAnalisisPhqc/ambilDataAnalisisSanitasi) --
   // "prediksi" TETAP periode tunggal seperti semula, tidak berubah.
@@ -2971,11 +3471,7 @@ export async function ambilDataBreakdownAnalisis(
   const tabel = TABEL_PER_KONTEKS_BREAKDOWN[konteks];
   const wilayahUntukQuery = tabel === 'phqc' ? resolveWilayahPhqcDb(wilayahKerja) : wilayahKerja;
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
-
-  // cop-per-wilker SENGAJA dikecualikan dari kumulatif -- itu memang
-  // didesain selalu snapshot 1 minggu terkini, tidak ikut filter
-  // rentang (lihat dokumentasi Section 4 di app/cop/page.tsx).
-  const pakaiKumulatif = tipe === 'analisis' && konteks !== 'cop-per-wilker';
+  const pakaiKumulatif = tipe === 'analisis';
 
   let labelPeriode: string;
   let baris: { kategori: string; nilai: string; jumlah: number }[];

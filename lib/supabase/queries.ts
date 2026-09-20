@@ -792,6 +792,89 @@ function labelBulanDariTanggal(tgl: string): { angka: number; label: string } {
 // ----------------------------------------------------------------
 // Tren Anopheles Dewasa
 // ----------------------------------------------------------------
+/**
+ * getBreakdownWilayahAnophelesMingguan
+ * ---------------------------------------
+ * Baris MENTAH per wilayah kerja dari view_vektor_anopheles_mingguan
+ * untuk 1 minggu tertentu, TANPA agregasi lintas-wilayah -- dipakai
+ * untuk mengisi DataAnalisis.breakdownWilayahSaatIni pada konteks
+ * anopheles-dewasa/larva-mingguan waktu mode "Semua Wilayah Kerja"
+ * dipilih. Baris ini sudah 1-per-wilayah-per-minggu di levelnya
+ * sendiri (view sudah dihitung per wilker), jadi tidak perlu
+ * agregasi tambahan di sini -- cukup dikelompokkan per kode_wilker.
+ */
+export async function getBreakdownWilayahAnophelesMingguan(
+  tahun: number,
+  minggu: number,
+  tipe: 'dewasa' | 'larva'
+): Promise<{ kode_wilker: string; mhd_rerata: number | null; total_larva: number | null }[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('view_vektor_anopheles_mingguan')
+    .select('kode_wilker, mhd_rerata, total_larva')
+    .eq('tahun_epid', tahun)
+    .eq('minggu_epid', minggu)
+    .eq('tipe_pengamatan', tipe);
+  if (error) throw error;
+  return (data ?? []) as any[];
+}
+
+/**
+ * getBreakdownWilayahAnophelesBulanan
+ * ---------------------------------------
+ * Versi BULANAN dari getBreakdownWilayahAnophelesMingguan() di atas.
+ * Dewasa & larva bulanan sumbernya beda dari mingguan (tabel mentah
+ * vektor_anopheles, bukan view_vektor_anopheles_mingguan), jadi
+ * dihitung ulang di sini per kode_wilker untuk 1 bulan tertentu:
+ * dewasa -> rata-rata MHD per wilayah, larva -> total jumlah larva
+ * per wilayah.
+ */
+export async function getBreakdownWilayahAnophelesBulanan(
+  tahun: number,
+  bulan: number,
+  tipe: 'dewasa' | 'larva'
+): Promise<{ kode_wilker: string; mhd_rerata: number | null; total_larva: number | null }[]> {
+  const supabase = await createClient();
+  const tglMulai = `${tahun}-${String(bulan).padStart(2, '0')}-01`;
+  const tglSelesai = new Date(Date.UTC(tahun, bulan, 0)).toISOString().split('T')[0];
+
+  const kolom = tipe === 'dewasa' ? 'kode_wilker, mhd' : 'kode_wilker, jumlah_larva';
+  const { data, error } = await supabase
+    .from('vektor_anopheles')
+    .select(kolom)
+    .gte('tgl_survei', tglMulai)
+    .lte('tgl_survei', tglSelesai)
+    .eq('tipe_pengamatan', tipe);
+  if (error) throw error;
+
+  if (tipe === 'dewasa') {
+    const perWilker = new Map<string, { total: number; n: number }>();
+    for (const r of (data ?? []) as any[]) {
+      if (!r.kode_wilker) continue;
+      const b = perWilker.get(r.kode_wilker) ?? { total: 0, n: 0 };
+      b.total += r.mhd ?? 0;
+      b.n += 1;
+      perWilker.set(r.kode_wilker, b);
+    }
+    return Array.from(perWilker.entries()).map(([kode_wilker, b]) => ({
+      kode_wilker,
+      mhd_rerata: b.n ? b.total / b.n : 0,
+      total_larva: null,
+    }));
+  }
+
+  const perWilker = new Map<string, number>();
+  for (const r of (data ?? []) as any[]) {
+    if (!r.kode_wilker) continue;
+    perWilker.set(r.kode_wilker, (perWilker.get(r.kode_wilker) ?? 0) + (r.jumlah_larva ?? 0));
+  }
+  return Array.from(perWilker.entries()).map(([kode_wilker, total]) => ({
+    kode_wilker,
+    mhd_rerata: null,
+    total_larva: total,
+  }));
+}
+
 export async function getTrenAnophelesDewasa(
   tahun: number,
   wilker: string | undefined,
@@ -813,6 +896,7 @@ export async function getTrenAnophelesDewasa(
 
     return (data ?? []).map((r: any) => ({
       minggu_epid: r.minggu_epid,
+      kode_wilker: r.kode_wilker,
       mhd: r.mhd_rerata,
       mbr: r.mbr_rerata,
       suhu: r.suhu_rerata,

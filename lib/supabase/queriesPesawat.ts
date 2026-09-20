@@ -80,7 +80,7 @@ interface BarisRekapPesawat {
 // ---------------------------------------------------------------------
 // HELPER INTERNAL: Ambil baris final dengan limit yang aman untuk data besar
 // ---------------------------------------------------------------------
-async function ambilBarisFinal({
+export async function ambilBarisFinal({
   tahun,
   kodeWilker,
 }: {

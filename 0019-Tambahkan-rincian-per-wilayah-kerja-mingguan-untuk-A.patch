@@ -1,0 +1,139 @@
+From 29ec2fe3087d3a82037eeda6e1c4bf3dc4f4a147 Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Sat, 19 Sep 2026 14:15:55 +0000
+Subject: [PATCH] Tambahkan rincian per wilayah kerja (mingguan) untuk
+ Anopheles Dewasa & Larva
+
+---
+ lib/ai/data.ts          | 14 +++++++++++++-
+ lib/ai/prompt.ts        |  6 ++++--
+ lib/supabase/queries.ts | 28 ++++++++++++++++++++++++++++
+ 3 files changed, 45 insertions(+), 3 deletions(-)
+
+diff --git a/lib/ai/data.ts b/lib/ai/data.ts
+index 24fb35f..935b540 100644
+--- a/lib/ai/data.ts
++++ b/lib/ai/data.ts
+@@ -8,6 +8,7 @@
+   getUjiLabVektorTikusBulanan,
+   getTrenAnophelesDewasa,
+   getTrenLarva,
++  getBreakdownWilayahAnophelesMingguan,
+   getRingkasanTppBulanan,
+   getRingkasanTtuBulanan,
+   getRingkasanPabBulanan,
+@@ -2651,10 +2652,20 @@ export async function ambilDataAnalisis(
+       }
+       const periodeSaatIni = parsePeriodeMingguan(periodeKey);
+       const periodeSebelumnya = periodeMingguanSebelumnya(periodeSaatIni);
+-      const [saatIni, sebelumnya] = await Promise.all([
++      const [saatIni, sebelumnya, breakdownMentah] = await Promise.all([
+         ambilAnophelesRingkasan(periodeSaatIni.tahun, wilayahKerja, 'mingguan', tipe, periodeSaatIni.minggu),
+         ambilAnophelesRingkasan(periodeSebelumnya.tahun, wilayahKerja, 'mingguan', tipe, periodeSebelumnya.minggu),
++        wilayahKerja
++          ? Promise.resolve(undefined)
++          : getBreakdownWilayahAnophelesMingguan(periodeSaatIni.tahun, periodeSaatIni.minggu, tipe),
+       ]);
++      const breakdownWilayahSaatIni = breakdownMentah
++        ?.filter((b) => b.kode_wilker)
++        .map((b) => ({
++          wilayah: NAMA_WILKER[b.kode_wilker] ?? b.kode_wilker,
++          jumlah: tipe === 'dewasa' ? Number((b.mhd_rerata ?? 0).toFixed(2)) : (b.total_larva ?? 0),
++        }))
++        .sort((a, b) => b.jumlah - a.jumlah);
+       return {
+         labelKonteks: `Surveilans Vektor — ${labelTipe}`,
+         labelWilayah,
+@@ -2663,6 +2674,7 @@ export async function ambilDataAnalisis(
+         ringkasanSaatIni: saatIni,
+         ringkasanSebelumnya: sebelumnya,
+         topKategori: [],
++        breakdownWilayahSaatIni,
+       };
+     }
+ 
+diff --git a/lib/ai/prompt.ts b/lib/ai/prompt.ts
+index 276ffaa..d0e6eeb 100644
+--- a/lib/ai/prompt.ts
++++ b/lib/ai/prompt.ts
+@@ -1091,13 +1091,14 @@ ${formatRingkasan(data.ringkasanSaatIni)}
+ 
+ DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+ ${formatRingkasan(data.ringkasanSebelumnya)}
+-
++${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ ATURAN WAJIB:
+ - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+ - Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit atau persen).
+ - Kalau data berisi MHD (Man Hour Density) dan/atau MBR (Man Biting Rate): kaitkan kepadatan/perilaku menggigit nyamuk Anopheles dengan risiko penularan malaria di area survei, dan pengaruh suhu/kelembaban terhadap dinamika populasi vektor bila datanya tersedia.
+ - Kalau data berisi jumlah cidukan dan/atau larva: kaitkan kepadatan larva dengan potensi tempat perindukan aktif dan urgensi pengendalian sebelum menjadi nyamuk dewasa.
+ - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
++${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING TINGGI (MHD rata-rata untuk data dewasa, atau jumlah larva untuk data larva) -- INGAT: untuk MHD, angka dibandingkan APA ADANYA per wilayah (rata-rata), JANGAN dijumlahkan.' : ''}
+ 
+ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+ {
+@@ -1117,13 +1118,14 @@ ${formatRingkasan(data.ringkasanSaatIni)}
+ 
+ DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+ ${formatRingkasan(data.ringkasanSebelumnya)}
+-
++${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ ATURAN WAJIB:
+ - Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+ - Hitung arah & besar perubahan dari 2 titik itu, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+ - Kaitkan proyeksi kenaikan kepadatan vektor (MHD/MBR/larva, bila ada) dengan potensi eskalasi risiko malaria dan kebutuhan intensifikasi pengendalian (fogging, larvasida, kelambu, edukasi warga).
+ - SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik, dipengaruhi faktor musiman/cuaca yang tidak sepenuhnya tertangkap tren linear).
+ - Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
++${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan pengendaliannya.' : ''}
+ 
+ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+ {
+diff --git a/lib/supabase/queries.ts b/lib/supabase/queries.ts
+index 413e884..e48c96a 100644
+--- a/lib/supabase/queries.ts
++++ b/lib/supabase/queries.ts
+@@ -792,6 +792,33 @@ function labelBulanDariTanggal(tgl: string): { angka: number; label: string } {
+ // ----------------------------------------------------------------
+ // Tren Anopheles Dewasa
+ // ----------------------------------------------------------------
++/**
++ * getBreakdownWilayahAnophelesMingguan
++ * ---------------------------------------
++ * Baris MENTAH per wilayah kerja dari view_vektor_anopheles_mingguan
++ * untuk 1 minggu tertentu, TANPA agregasi lintas-wilayah -- dipakai
++ * untuk mengisi DataAnalisis.breakdownWilayahSaatIni pada konteks
++ * anopheles-dewasa/larva-mingguan waktu mode "Semua Wilayah Kerja"
++ * dipilih. Baris ini sudah 1-per-wilayah-per-minggu di levelnya
++ * sendiri (view sudah dihitung per wilker), jadi tidak perlu
++ * agregasi tambahan di sini -- cukup dikelompokkan per kode_wilker.
++ */
++export async function getBreakdownWilayahAnophelesMingguan(
++  tahun: number,
++  minggu: number,
++  tipe: 'dewasa' | 'larva'
++): Promise<{ kode_wilker: string; mhd_rerata: number | null; total_larva: number | null }[]> {
++  const supabase = await createClient();
++  const { data, error } = await supabase
++    .from('view_vektor_anopheles_mingguan')
++    .select('kode_wilker, mhd_rerata, total_larva')
++    .eq('tahun_epid', tahun)
++    .eq('minggu_epid', minggu)
++    .eq('tipe_pengamatan', tipe);
++  if (error) throw error;
++  return (data ?? []) as any[];
++}
++
+ export async function getTrenAnophelesDewasa(
+   tahun: number,
+   wilker: string | undefined,
+@@ -813,6 +840,7 @@ export async function getTrenAnophelesDewasa(
+ 
+     return (data ?? []).map((r: any) => ({
+       minggu_epid: r.minggu_epid,
++      kode_wilker: r.kode_wilker,
+       mhd: r.mhd_rerata,
+       mbr: r.mbr_rerata,
+       suhu: r.suhu_rerata,
+-- 
+2.43.0
+

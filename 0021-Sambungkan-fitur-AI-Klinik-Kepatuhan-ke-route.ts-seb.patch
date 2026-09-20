@@ -1,0 +1,68 @@
+From fa1b2135f56a54597e1b6a162c77a369d89a4159 Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Sun, 20 Sep 2026 00:23:06 +0000
+Subject: [PATCH] Sambungkan fitur AI Klinik Kepatuhan ke route.ts (sebelumnya
+ sudah ada tapi tidak pernah di-wire, bug independen dari isu wilayah kerja)
+
+---
+ app/api/analisis-ai/route.ts | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/app/api/analisis-ai/route.ts b/app/api/analisis-ai/route.ts
+index 13320ae..29cf4dd 100644
+--- a/app/api/analisis-ai/route.ts
++++ b/app/api/analisis-ai/route.ts
+@@ -25,6 +25,7 @@ import {
+   ambilDataAnalisisKarhutlaSkdrHotspot,
+   ambilDataAnalisisRisikoWilker,
+ } from '@/lib/ai/data';
++import { ambilDataAnalisisKlinik } from '@/lib/ai/dataKlinik';
+ import {
+   susunPrompt,
+   susunPromptRba,
+@@ -80,6 +81,8 @@ import {
+   susunPromptPrediksiKarhutlaIspaHotspot,
+   susunPromptRisikoWilker,
+   susunPromptPrediksiRisikoWilker,
++  susunPromptKlinikKepatuhan,
++  susunPromptPrediksiKlinikKepatuhan,
+ } from '@/lib/ai/prompt';
+ import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
+ import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
+@@ -236,6 +239,7 @@ export async function POST(request: Request) {
+   const konteksSkdrTren = isKonteksSkdrTren(konteks);
+   const konteksAbkCrewPenumpang = konteks.startsWith('abk-crew-penumpang-');
+   const konteksRisikoWilker = konteks === 'cop-risiko-wilker';
++  const konteksKlinik = konteks === 'klinik-kepatuhan-mingguan' || konteks === 'klinik-kepatuhan-bulanan';
+   const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
+   const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
+   const metrikUntukCache: string | null = konteksVektor
+@@ -339,6 +343,13 @@ export async function POST(request: Request) {
+     // sekaligus (itu memang tujuannya -- cari wilayah kerja dengan
+     // risiko tertinggi), jadi wilayah_kerja dari client diabaikan.
+     wilayahKerja = undefined;
++  } else if (konteksKlinik) {
++    // Klinik Kepatuhan: "wilayah_kerja" di sini sebenarnya NAMA KLINIK
++    // (bukan wilayah kerja geografis WK01-07/Samarinda dst), jadi
++    // JANGAN divalidasi lewat isWilayahValid (daftar 6 wilayah COP/PHQC)
++    // -- itu pasti akan menolaknya sebagai "tidak dikenal". Terima apa
++    // adanya (string bebas) atau undefined ("Semua Klinik").
++    wilayahKerja = typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0 ? wilayah_kerja : undefined;
+   } else {
+     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
+       return NextResponse.json({ error: `wilayah_kerja "${wilayah_kerja}" tidak dikenal.` }, { status: 400 });
+@@ -596,6 +607,11 @@ export async function POST(request: Request) {
+         });
+       }
+ 
++      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
++      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
++    } else if (konteks === 'klinik-kepatuhan-mingguan' || konteks === 'klinik-kepatuhan-bulanan') {
++      const data = await ambilDataAnalisisKlinik(konteks, periodeKey, wilayahKerja, tipe);
++      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKlinikKepatuhan(data) : susunPromptKlinikKepatuhan(data);
+       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+     } else if (konteks === 'cop-mingguan' || konteks === 'cop-bulanan') {
+-- 
+2.43.0
+

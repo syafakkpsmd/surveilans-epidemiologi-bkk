@@ -114,7 +114,7 @@ const KATEGORI_LIST: { key: KategoriCop; label: string }[] = [
  * Urutan tetap 6 wilayah kerja COP (TIDAK termasuk Bandara APT
  * Pranoto -- itu wilker khusus modul Alat Angkut Pesawat).
  * TAMBAH WILAYAH BARU: tambah nama di sini, lalu tambah 1 warna baru
- * yang senada di PALET_WILAYAH (harus urutannya sinkron/sejajar).
+ * yang senada di getWarnaWilayah() (harus konsisten per nama wilayah).
  */
 const DAFTAR_WILAYAH: Wilayah[] = [
   "Samarinda",
@@ -127,7 +127,6 @@ const DAFTAR_WILAYAH: Wilayah[] = [
 const WILAYAH_URUTAN = DAFTAR_WILAYAH;
 
 /** Warna garis per wilayah di TrenPerWilkerChart -- urutannya SEJAJAR dengan WILAYAH_URUTAN. */
-const PALET_WILAYAH = ["#0F4C5C", "#2F9E44", "#F0A202", "#D62839", "#7C3AED", "#EA580C"];
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -315,7 +314,6 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
     // bisa jadi 1 round trip paralel).
     // ============================================================
     const [
-      ringkasanTren,
       rowsNegaraTren,
       hasilSemuaKategori,
       rowsRbaMingguIni,
@@ -323,9 +321,6 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
       dataMentahHasil,
       rowsRbaTrenMingguan,
     ] = await Promise.all([
-      mode === "mingguan"
-        ? getRingkasanMingguan("cop", tahun)
-        : getRingkasanBulanan("cop", tahun),
       mode === "mingguan"
         ? getKategoriBreakdown("cop", "mingguan", {
             tahun_epid: tahun,
@@ -380,10 +375,18 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
             : Promise.resolve([]),
         ]);
 
-    // ----- olah ringkasanTren -> trenData -----
+    // ----- olah ringkasanMingguanSemuaWilker/ringkasanBulananSemuaWilker -> trenData -----
+    // (SEBELUMNYA fetch ulang lewat query ringkasanTren terpisah -- padahal
+    // datanya SAMA PERSIS dengan ringkasanMingguanSemuaWilker/
+    // ringkasanBulananSemuaWilker yang sudah diambil di Promise.all pertama
+    // di atas, karena `tahun` selalu sama dengan tahunEpidSaatIni (mode
+    // mingguan) atau tahun kalender berjalan (mode bulanan). Dihapus supaya
+    // tidak ada 1 query duplikat di setiap load halaman ini.)
     {
+      const sumberTren: (RingkasanMingguanCop | RingkasanBulananCop)[] =
+        mode === "mingguan" ? ringkasanMingguanSemuaWilker : ringkasanBulananSemuaWilker;
       const terfilter =
-        wilayah === "Semua" ? ringkasanTren : ringkasanTren.filter((r) => r.wilayah_kerja === wilayah);
+        wilayah === "Semua" ? sumberTren : sumberTren.filter((r) => r.wilayah_kerja === wilayah);
       const peta = new Map<number, TitikTrenCop>();
       terfilter.forEach((r) => {
         const urutan = mode === "mingguan" ? (r as RingkasanMingguanCop).minggu_epid : (r as RingkasanBulananCop).bulan;
@@ -527,25 +530,41 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   // ============================================================
   // KARTU RINGKASAN TOTAL (section 3) -- dihitung dari
   // ringkasanMingguanSemuaWilker (SELALU mingguan tahun epid
-  // dipilih, ikut total wilayah/mode di atas).
+  // dipilih), SEKARANG ikut filter wilayah kerja yang dipilih user
+  // (kalau "Semua Wilayah Kerja", tidak difilter -- tetap total semua
+  // seperti sebelumnya).
   // ============================================================
+  const ringkasanMingguanTerfilterWilayah =
+    wilayah === "Semua"
+      ? ringkasanMingguanSemuaWilker
+      : ringkasanMingguanSemuaWilker.filter((r) => r.wilayah_kerja === wilayah);
+  const ringkasanBulananTerfilterWilayah =
+    wilayah === "Semua"
+      ? ringkasanBulananSemuaWilker
+      : ringkasanBulananSemuaWilker.filter((r) => r.wilayah_kerja === wilayah);
+
   const ringkasanUntukTotal =
     mode === "mingguan"
-      ? ringkasanMingguanSemuaWilker.filter((r) => r.minggu_epid <= mingguAkhir)
-      : ringkasanBulananSemuaWilker.filter((r) => r.bulan <= bulanAkhir);
+      ? ringkasanMingguanTerfilterWilayah.filter((r) => r.minggu_epid <= mingguAkhir)
+      : ringkasanBulananTerfilterWilayah.filter((r) => r.bulan <= bulanAkhir);
 
   const totalKapalKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.jumlah_kapal, 0);
   const totalAbkKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.total_abk, 0);
   const totalAbkWnaKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.total_abk_wna, 0);
   const totalAbkWniKeseluruhan = ringkasanUntukTotal.reduce((a, r) => a + r.total_abk_wni, 0);
 
-  const kapalPerWilayah = WILAYAH_URUTAN.map((w) => ({
+  // Daftar wilayah yang ditampilkan di kartu per-wilayah & legenda chart
+  // -- kalau 1 wilayah dipilih, cuma tampilkan wilayah itu saja (bukan
+  // 6 wilayah dengan 5 di antaranya kosong).
+  const wilayahUntukTampilan = wilayah === "Semua" ? WILAYAH_URUTAN : [wilayah as Wilayah];
+
+  const kapalPerWilayah = wilayahUntukTampilan.map((w) => ({
     wilayah: w,
     jumlah: ringkasanUntukTotal
       .filter((r) => r.wilayah_kerja === w)
       .reduce((a, r) => a + r.jumlah_kapal, 0),
   })).sort((a, b) => b.jumlah - a.jumlah);
-  const abkPerWilayah = WILAYAH_URUTAN.map((w) => ({
+  const abkPerWilayah = wilayahUntukTampilan.map((w) => ({
     wilayah: w,
     jumlah: ringkasanUntukTotal
       .filter((r) => r.wilayah_kerja === w)
@@ -558,9 +577,11 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   // DATA CHART PERBANDINGAN ANTAR WILAYAH (section 4) -- 1 baris
   // per minggu epid, kolomnya = jumlah_kapal per wilayah (dipakai
   // sebagai dataKey oleh TrenPerWilkerChart, 1 kolom = 1 garis).
+  // Sekarang ikut filter wilayah -- kalau 1 wilayah dipilih, chart
+  // otomatis cuma menampilkan 1 garis (wilayah itu saja).
   // ============================================================
   const petaTrenWilker = new Map<number, Record<string, number | string>>();
-  ringkasanMingguanSemuaWilker.forEach((r) => {
+  ringkasanMingguanTerfilterWilayah.forEach((r) => {
     if (r.minggu_epid < batasAwal || r.minggu_epid > batasAkhir) return;
     const existing = petaTrenWilker.get(r.minggu_epid) ?? {
       label: `Mg ${r.minggu_epid}`,
@@ -578,20 +599,20 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
       ? dataRbaBulanan.filter((_, idx) => idx + 1 >= batasAwal && idx + 1 <= batasAkhir)
       : [];
 
-  const seriesWilker: SeriesWilker[] = WILAYAH_URUTAN.map((w, i) => ({
+  const seriesWilker: SeriesWilker[] = wilayahUntukTampilan.map((w) => ({
     key: w,
     label: w,
-    warna: PALET_WILAYAH[i],
+    warna: getWarnaWilayah(w),
   }));
 
   // ============================================================
   // DATA CHART PERBANDINGAN ANTAR WILAYAH -- VERSI BULANAN.
-  // Sumbernya ringkasanBulananSemuaWilker (tahun kalender berjalan),
-  // dikelompokkan per bulan, kolomnya = jumlah_kapal per wilayah --
-  // sama persis pola dataTrenPerWilker di atas, cuma per bulan.
+  // Sumbernya ringkasanBulananTerfilterWilayah (ikut filter wilayah,
+  // sama seperti versi mingguan di atas), dikelompokkan per bulan,
+  // kolomnya = jumlah_kapal per wilayah.
   // ============================================================
   const petaTrenWilkerBulanan = new Map<number, Record<string, number | string>>();
-  ringkasanBulananSemuaWilker.forEach((r) => {
+  ringkasanBulananTerfilterWilayah.forEach((r) => {
     if (r.bulan < batasAwal || r.bulan > batasAkhir) return;
     const existing = petaTrenWilkerBulanan.get(r.bulan) ?? {
       label: NAMA_BULAN[r.bulan - 1],
@@ -607,12 +628,11 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
 // ============================================================
   // DATA CHART BARU -- DISTRIBUSI KEDATANGAN ABK PER WILAYAH.
   // Sama persis pola dataTrenPerWilker/dataTrenPerWilkerBulanan di
-  // atas, cuma pakai r.total_abk sebagai ganti r.jumlah_kapal.
-  // Sumbernya SAMA (ringkasanMingguanSemuaWilker /
-  // ringkasanBulananSemuaWilker) -- jadi TIDAK ada query tambahan.
+  // atas, cuma pakai r.total_abk sebagai ganti r.jumlah_kapal. Ikut
+  // filter wilayah juga (sumbernya sudah terfilter di atas).
   // ============================================================
   const petaTrenWilkerAbk = new Map<number, Record<string, number | string>>();
-  ringkasanMingguanSemuaWilker.forEach((r) => {
+  ringkasanMingguanTerfilterWilayah.forEach((r) => {
     if (r.minggu_epid < batasAwal || r.minggu_epid > batasAkhir) return;
     const existing = petaTrenWilkerAbk.get(r.minggu_epid) ?? {
       label: `Mg ${r.minggu_epid}`,
@@ -626,7 +646,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
   );
 
   const petaTrenWilkerAbkBulanan = new Map<number, Record<string, number | string>>();
-  ringkasanBulananSemuaWilker.forEach((r) => {
+  ringkasanBulananTerfilterWilayah.forEach((r) => {
     if (r.bulan < batasAwal || r.bulan > batasAkhir) return;
     const existing = petaTrenWilkerAbkBulanan.get(r.bulan) ?? {
       label: NAMA_BULAN[r.bulan - 1],
@@ -1061,13 +1081,14 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
               </div>
             </div>
           ) : (
-            /* MODE BULANAN */
+            /* MODE BULANAN -- chart bar-nya SENGAJA dihapus (dobel dengan
+               SECTION 5C di atas yang sudah ikut filter rentang bulan).
+               Box Analisis/Prediksi AI RBA tetap dipertahankan di sini. */
             <div className="rounded-card bg-surface p-6">
               <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-                Distribusi Risk Based Assessment (RBA) Bulanan Tahun {tahun}
+                Analisis &amp; Prediksi AI — Risk Based Assessment (RBA) Tahun {tahun}
               </h3>
-              <RbaBarBulanan data={dataRbaBulanan} />
-              
+
               {/* Disandingkan 2 Kolom: Analisis di Kiri, Prediksi di Kanan */}
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <BoxAnalisisAI

@@ -30,6 +30,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Periode belum berjalan, pilih bulan yang sudah ada datanya." }, { status: 400 });
   }
 
-  const hasil = await jalankanModul(DAFTAR_MODUL, { tahun, bulanAkhir });
+  // Batas 25 detik per modul (bawaan 15): modul Klinik membaca ribuan baris ICV, SKDR membaca banyak halaman.
+  const hasil = await jalankanModul(DAFTAR_MODUL, { tahun, bulanAkhir }, { batasMs: 25_000 });
   return NextResponse.json({ tahun, bulanAkhir, dibuat: new Date().toISOString(), hasil }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -18,7 +18,8 @@
  * kena kunci fitur AI-nya -- padahal seharusnya tidak.
  */
 
-import { createClient } from "@/lib/supabase/server";
+import { cache } from "react";
+import { getAuthUser } from "@/lib/auth/getAuthUser";
 import type { PeranUser } from "@/types/database.types";
 
 export interface StatusAkses {
@@ -26,11 +27,23 @@ export interface StatusAkses {
   role: PeranUser | null;
 }
 
-export async function getStatusAkses(): Promise<StatusAkses> {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+/**
+ * Dibungkus React cache() -- alasan sama persis dengan getUserRole()
+ * di get-user-role.ts (lihat komentar di sana): fungsi ini dipanggil
+ * dari Navbar DAN dari halaman itu sendiri di banyak tempat (COP,
+ * PHQC, dst) dalam satu request yang sama. Tanpa cache(), setiap
+ * panggilan jadi round-trip auth.getUser() + query profiles sendiri
+ * -- di beberapa halaman ini bisa terpanggil 2-3x per load, yang
+ * ikut menyumbang rasa "lambat" saat navigasi/login.
+ *
+ * Langkah auth.getUser()-nya lewat getAuthUser() (bersama dengan
+ * getUserRole()) supaya round-trip ke server Auth yang paling mahal
+ * cuma sekali per request, walau dua-duanya dipanggil.
+ */
+export const getStatusAkses = cache(async (): Promise<StatusAkses> => {
+  const { user, supabase } = await getAuthUser();
 
-  if (authError || !user) {
+  if (!user) {
     return { sudahLogin: false, role: null };
   }
 
@@ -44,4 +57,4 @@ export async function getStatusAkses(): Promise<StatusAkses> {
     profile?.role === "petugas" || profile?.role === "admin" ? profile.role : null;
 
   return { sudahLogin: true, role };
-}
+});

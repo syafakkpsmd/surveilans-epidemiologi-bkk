@@ -1,0 +1,307 @@
+From 1c4faf9e57a113d53122d60af245814d21635516 Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Mon, 21 Sep 2026 22:29:28 +0000
+Subject: [PATCH] Perbaiki performa halaman Pesawat: ambilBarisFinal (dipanggil
+ 11x terpisah dengan pagination berat) disatukan lewat cache(), tambah
+ loading.tsx di Pesawat/Beranda/PHQC
+
+---
+ .../dashboard/alat-angkut/pesawat/loading.tsx | 37 ++++++++++++++++
+ app/(dashboard)/dashboard/loading.tsx         | 36 ++++++++++++++++
+ app/(dashboard)/phqc/loading.tsx              | 40 +++++++++++++++++
+ lib/ai/dataPesawat.ts                         |  6 +--
+ lib/supabase/queriesPesawat.ts                | 43 ++++++++++++-------
+ 5 files changed, 143 insertions(+), 19 deletions(-)
+ create mode 100644 app/(dashboard)/dashboard/alat-angkut/pesawat/loading.tsx
+ create mode 100644 app/(dashboard)/dashboard/loading.tsx
+ create mode 100644 app/(dashboard)/phqc/loading.tsx
+
+diff --git a/app/(dashboard)/dashboard/alat-angkut/pesawat/loading.tsx b/app/(dashboard)/dashboard/alat-angkut/pesawat/loading.tsx
+new file mode 100644
+index 0000000..c4e65b2
+--- /dev/null
++++ b/app/(dashboard)/dashboard/alat-angkut/pesawat/loading.tsx
+@@ -0,0 +1,37 @@
++/**
++ * app/(dashboard)/dashboard/alat-angkut/pesawat/loading.tsx
++ * -----------------------------------------------------------------
++ * Sama seperti app/(dashboard)/cop/loading.tsx -- ditampilkan
++ * otomatis oleh Next.js selagi halaman Pesawat mengambil data
++ * (termasuk saat ganti filter wilayah/rentang minggu/bulan lewat
++ * router.push()). Tanpa file ini, halaman lama diam di layar tanpa
++ * tanda apa pun sampai data baru selesai diambil.
++ */
++export default function LoadingPesawat() {
++  return (
++    <div className="space-y-6 p-4 md:p-6">
++      <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm">
++        <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#0F4C5C] border-t-transparent" />
++        <span className="text-sm font-medium text-gray-500">Memuat data Pesawat...</span>
++      </div>
++
++      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
++        {Array.from({ length: 6 }).map((_, i) => (
++          <div key={i} className="animate-pulse rounded-xl bg-white p-4 shadow-sm">
++            <div className="h-3 w-2/3 rounded bg-gray-200" />
++            <div className="mt-3 h-6 w-1/2 rounded bg-gray-200" />
++          </div>
++        ))}
++      </div>
++
++      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
++        {Array.from({ length: 2 }).map((_, i) => (
++          <div key={i} className="animate-pulse rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
++            <div className="mx-auto h-4 w-1/3 rounded bg-gray-200" />
++            <div className="mt-6 h-56 w-full rounded bg-gray-100" />
++          </div>
++        ))}
++      </div>
++    </div>
++  );
++}
+diff --git a/app/(dashboard)/dashboard/loading.tsx b/app/(dashboard)/dashboard/loading.tsx
+new file mode 100644
+index 0000000..bb92888
+--- /dev/null
++++ b/app/(dashboard)/dashboard/loading.tsx
+@@ -0,0 +1,36 @@
++/**
++ * app/(dashboard)/dashboard/loading.tsx
++ * -----------------------------------------------------------------
++ * Sama seperti loading.tsx di cop/ dan alat-angkut/pesawat/ --
++ * halaman Beranda ini juga melakukan banyak fetch data sekaligus
++ * (COP, PHQC, Pesawat) di server, jadi butuh indikator loading
++ * instan yang sama supaya tidak terasa macet.
++ */
++export default function LoadingBeranda() {
++  return (
++    <div className="space-y-6 p-4 md:p-6">
++      <div className="flex items-center gap-3 rounded-xl bg-white p-4 shadow-sm">
++        <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#0F4C5C] border-t-transparent" />
++        <span className="text-sm font-medium text-gray-500">Memuat data Beranda...</span>
++      </div>
++
++      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
++        {Array.from({ length: 4 }).map((_, i) => (
++          <div key={i} className="animate-pulse rounded-xl bg-white p-4 shadow-sm">
++            <div className="h-3 w-2/3 rounded bg-gray-200" />
++            <div className="mt-3 h-6 w-1/2 rounded bg-gray-200" />
++          </div>
++        ))}
++      </div>
++
++      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
++        {Array.from({ length: 4 }).map((_, i) => (
++          <div key={i} className="animate-pulse rounded-xl bg-white p-4 shadow-sm">
++            <div className="mx-auto h-4 w-1/3 rounded bg-gray-200" />
++            <div className="mt-6 h-48 w-full rounded bg-gray-100" />
++          </div>
++        ))}
++      </div>
++    </div>
++  );
++}
+diff --git a/app/(dashboard)/phqc/loading.tsx b/app/(dashboard)/phqc/loading.tsx
+new file mode 100644
+index 0000000..0ea7b82
+--- /dev/null
++++ b/app/(dashboard)/phqc/loading.tsx
+@@ -0,0 +1,40 @@
++/**
++ * app/(dashboard)/phqc/loading.tsx
++ * -----------------------------------------------------------------
++ * Sama seperti app/(dashboard)/cop/loading.tsx -- struktur halaman
++ * PHQC mirip persis COP (Promise.all besar + banyak box AI), jadi
++ * perlakuan loading state-nya disamakan.
++ */
++export default function LoadingPhqc() {
++  return (
++    <div className="space-y-4 p-4">
++      <div className="flex items-center justify-center gap-3 rounded-card bg-surface p-6">
++        <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
++        <span className="text-sm font-medium text-muted">Memuat data PHQC...</span>
++      </div>
++
++      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
++        {Array.from({ length: 4 }).map((_, i) => (
++          <div key={i} className="animate-pulse rounded-card bg-surface p-4">
++            <div className="h-3 w-2/3 rounded bg-black/10" />
++            <div className="mt-3 h-6 w-1/2 rounded bg-black/10" />
++          </div>
++        ))}
++      </div>
++
++      <div className="animate-pulse rounded-card bg-surface p-6">
++        <div className="mx-auto h-4 w-1/3 rounded bg-black/10" />
++        <div className="mt-6 h-64 w-full rounded bg-black/5" />
++      </div>
++
++      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
++        {Array.from({ length: 2 }).map((_, i) => (
++          <div key={i} className="animate-pulse rounded-card bg-surface p-6">
++            <div className="mx-auto h-4 w-1/2 rounded bg-black/10" />
++            <div className="mx-auto mt-6 h-40 w-40 rounded-full bg-black/5" />
++          </div>
++        ))}
++      </div>
++    </div>
++  );
++}
+diff --git a/lib/ai/dataPesawat.ts b/lib/ai/dataPesawat.ts
+index 32c3e6f..2b99188 100644
+--- a/lib/ai/dataPesawat.ts
++++ b/lib/ai/dataPesawat.ts
+@@ -423,7 +423,7 @@ async function breakdownWilayahPesawatMingguan(
+   minggu: number,
+   kolom: string
+ ): Promise<{ wilayah: string; jumlah: number }[]> {
+-  const baris = await ambilBarisFinal({ tahun });
++  const baris = await ambilBarisFinal(tahun, undefined);
+   const peta = new Map<string, number>();
+   for (const b of baris) {
+     if (b.epi_week !== minggu || !b.nama_wilker) continue;
+@@ -440,7 +440,7 @@ async function breakdownWilayahPesawatMingguanRentang(
+   mgAkhir: number,
+   kolom: string
+ ): Promise<{ wilayah: string; jumlah: number }[]> {
+-  const baris = await ambilBarisFinal({ tahun });
++  const baris = await ambilBarisFinal(tahun, undefined);
+   const peta = new Map<string, number>();
+   for (const b of baris) {
+     if (b.epi_week < mgAwal || b.epi_week > mgAkhir || !b.nama_wilker) continue;
+@@ -457,7 +457,7 @@ async function breakdownWilayahPesawatBulanan(
+   bulanAkhir: number,
+   kolom: string
+ ): Promise<{ wilayah: string; jumlah: number }[]> {
+-  const baris = await ambilBarisFinal({ tahun });
++  const baris = await ambilBarisFinal(tahun, undefined);
+   const peta = new Map<string, number>();
+   for (const b of baris) {
+     const bulanBaris = Number(String(b.tanggal).slice(5, 7));
+diff --git a/lib/supabase/queriesPesawat.ts b/lib/supabase/queriesPesawat.ts
+index 6cbd9f2..b1eb5ed 100644
+--- a/lib/supabase/queriesPesawat.ts
++++ b/lib/supabase/queriesPesawat.ts
+@@ -12,6 +12,7 @@
+  * hanya muncul lewat getJadwalAkanDatang().
+  */
+ 
++import { cache } from 'react';
+ import { createClient } from '@/lib/supabase/server';
+ 
+ // ---------------------------------------------------------------------
+@@ -80,13 +81,23 @@ interface BarisRekapPesawat {
+ // ---------------------------------------------------------------------
+ // HELPER INTERNAL: Ambil baris final dengan limit yang aman untuk data besar
+ // ---------------------------------------------------------------------
+-export async function ambilBarisFinal({
+-  tahun,
+-  kodeWilker,
+-}: {
+-  tahun: number;
+-  kodeWilker?: string;
+-}): Promise<BarisRekapPesawat[]> {
++/**
++ * Dibungkus React cache() -- fungsi ini dipanggil TERPISAH oleh
++ * getRingkasanPesawatMingguan() DAN getRingkasanPesawatBulanan()
++ * dengan argumen {tahun, kodeWilker} yang SAMA PERSIS (lihat kedua
++ * fungsi itu di bawah), padahal isinya query mentah yang sama --
++ * cuma diagregasi beda cara (per minggu vs per bulan) di JS setelah
++ * data didapat. Tanpa cache() ini, halaman Pesawat mengambil ULANG
++ * seluruh baris tahun berjalan (dengan pagination 1000 baris/round-
++ * trip) DUA KALI setiap kali dibuka -- salah satu penyebab utama
++ * halaman ini kerasa lambat. Dengan cache(), panggilan kedua dalam
++ * request yang sama otomatis pakai hasil yang sudah diambil di
++ * panggilan pertama, tidak query ulang ke Supabase.
++ */
++export const ambilBarisFinal = cache(async (
++  tahun: number,
++  kodeWilker?: string
++): Promise<BarisRekapPesawat[]> => {
+   const supabase = await createClient();
+ 
+   const UKURAN_HALAMAN = 1000;
+@@ -117,7 +128,7 @@ export async function ambilBarisFinal({
+   }
+ 
+   return semuaBaris;
+-}
++});
+ 
+ // ---------------------------------------------------------------------
+ // RINGKASAN MINGGUAN
+@@ -133,7 +144,7 @@ export async function getRingkasanPesawatMingguan({
+   mgSampai?: number;
+   kodeWilker?: string;
+ }): Promise<RingkasanMingguanPesawat[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+ 
+   const perMinggu = new Map<number, RingkasanMingguanPesawat>();
+ 
+@@ -189,7 +200,7 @@ export async function getRingkasanPesawatBulanan({
+   bulanDari?: string; // 'YYYY-MM'
+   bulanSampai?: string; // 'YYYY-MM'
+ }): Promise<RingkasanBulananPesawat[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+ 
+   const perBulan = new Map<string, RingkasanBulananPesawat>();
+ 
+@@ -241,7 +252,7 @@ export async function getBreakdownMaskapai({
+   tahun: number;
+   kodeWilker?: string;
+ }): Promise<BreakdownItemPesawat[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+ 
+   const perMaskapai = new Map<string, number>();
+   for (const row of baris) {
+@@ -280,7 +291,7 @@ export async function getRingkasanMaskapaiKedatanganMingguan({
+   tahun: number;
+   kodeWilker?: string;
+ }): Promise<RingkasanMaskapaiMingguan[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+   const peta = new Map<string, RingkasanMaskapaiMingguan>();
+ 
+   for (const row of baris) {
+@@ -306,7 +317,7 @@ export async function getRingkasanMaskapaiKedatanganBulanan({
+   tahun: number;
+   kodeWilker?: string;
+ }): Promise<RingkasanMaskapaiBulanan[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+   const peta = new Map<string, RingkasanMaskapaiBulanan>();
+ 
+   for (const row of baris) {
+@@ -351,7 +362,7 @@ export async function getRingkasanKotaAsalMingguan({
+   tahun: number;
+   kodeWilker?: string;
+ }): Promise<RingkasanKotaMingguan[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+   const peta = new Map<string, RingkasanKotaMingguan>();
+ 
+   for (const row of baris) {
+@@ -380,7 +391,7 @@ export async function getRingkasanKotaAsalBulanan({
+   tahun: number;
+   kodeWilker?: string;
+ }): Promise<RingkasanKotaBulanan[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+   const peta = new Map<string, RingkasanKotaBulanan>();
+ 
+   for (const row of baris) {
+@@ -413,7 +424,7 @@ export async function getBreakdownSertifikat({
+   tahun: number;
+   kodeWilker?: string;
+ }): Promise<BreakdownItemPesawat[]> {
+-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
++  const baris = await ambilBarisFinal(tahun, kodeWilker);
+ 
+   const totals = {
+     SKLT: 0,
+-- 
+2.43.0
+

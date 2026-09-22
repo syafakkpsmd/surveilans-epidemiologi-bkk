@@ -12,6 +12,7 @@
  * hanya muncul lewat getJadwalAkanDatang().
  */
 
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 
 // ---------------------------------------------------------------------
@@ -80,13 +81,23 @@ interface BarisRekapPesawat {
 // ---------------------------------------------------------------------
 // HELPER INTERNAL: Ambil baris final dengan limit yang aman untuk data besar
 // ---------------------------------------------------------------------
-export async function ambilBarisFinal({
-  tahun,
-  kodeWilker,
-}: {
-  tahun: number;
-  kodeWilker?: string;
-}): Promise<BarisRekapPesawat[]> {
+/**
+ * Dibungkus React cache() -- fungsi ini dipanggil TERPISAH oleh
+ * getRingkasanPesawatMingguan() DAN getRingkasanPesawatBulanan()
+ * dengan argumen {tahun, kodeWilker} yang SAMA PERSIS (lihat kedua
+ * fungsi itu di bawah), padahal isinya query mentah yang sama --
+ * cuma diagregasi beda cara (per minggu vs per bulan) di JS setelah
+ * data didapat. Tanpa cache() ini, halaman Pesawat mengambil ULANG
+ * seluruh baris tahun berjalan (dengan pagination 1000 baris/round-
+ * trip) DUA KALI setiap kali dibuka -- salah satu penyebab utama
+ * halaman ini kerasa lambat. Dengan cache(), panggilan kedua dalam
+ * request yang sama otomatis pakai hasil yang sudah diambil di
+ * panggilan pertama, tidak query ulang ke Supabase.
+ */
+export const ambilBarisFinal = cache(async (
+  tahun: number,
+  kodeWilker?: string
+): Promise<BarisRekapPesawat[]> => {
   const supabase = await createClient();
 
   const UKURAN_HALAMAN = 1000;
@@ -117,7 +128,7 @@ export async function ambilBarisFinal({
   }
 
   return semuaBaris;
-}
+});
 
 // ---------------------------------------------------------------------
 // RINGKASAN MINGGUAN
@@ -133,7 +144,7 @@ export async function getRingkasanPesawatMingguan({
   mgSampai?: number;
   kodeWilker?: string;
 }): Promise<RingkasanMingguanPesawat[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
 
   const perMinggu = new Map<number, RingkasanMingguanPesawat>();
 
@@ -189,7 +200,7 @@ export async function getRingkasanPesawatBulanan({
   bulanDari?: string; // 'YYYY-MM'
   bulanSampai?: string; // 'YYYY-MM'
 }): Promise<RingkasanBulananPesawat[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
 
   const perBulan = new Map<string, RingkasanBulananPesawat>();
 
@@ -241,7 +252,7 @@ export async function getBreakdownMaskapai({
   tahun: number;
   kodeWilker?: string;
 }): Promise<BreakdownItemPesawat[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
 
   const perMaskapai = new Map<string, number>();
   for (const row of baris) {
@@ -280,7 +291,7 @@ export async function getRingkasanMaskapaiKedatanganMingguan({
   tahun: number;
   kodeWilker?: string;
 }): Promise<RingkasanMaskapaiMingguan[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
   const peta = new Map<string, RingkasanMaskapaiMingguan>();
 
   for (const row of baris) {
@@ -306,7 +317,7 @@ export async function getRingkasanMaskapaiKedatanganBulanan({
   tahun: number;
   kodeWilker?: string;
 }): Promise<RingkasanMaskapaiBulanan[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
   const peta = new Map<string, RingkasanMaskapaiBulanan>();
 
   for (const row of baris) {
@@ -351,7 +362,7 @@ export async function getRingkasanKotaAsalMingguan({
   tahun: number;
   kodeWilker?: string;
 }): Promise<RingkasanKotaMingguan[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
   const peta = new Map<string, RingkasanKotaMingguan>();
 
   for (const row of baris) {
@@ -380,7 +391,7 @@ export async function getRingkasanKotaAsalBulanan({
   tahun: number;
   kodeWilker?: string;
 }): Promise<RingkasanKotaBulanan[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
   const peta = new Map<string, RingkasanKotaBulanan>();
 
   for (const row of baris) {
@@ -413,7 +424,7 @@ export async function getBreakdownSertifikat({
   tahun: number;
   kodeWilker?: string;
 }): Promise<BreakdownItemPesawat[]> {
-  const baris = await ambilBarisFinal({ tahun, kodeWilker });
+  const baris = await ambilBarisFinal(tahun, kodeWilker);
 
   const totals = {
     SKLT: 0,

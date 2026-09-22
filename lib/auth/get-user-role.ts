@@ -24,20 +24,32 @@
  * pertimbangkan menambah baris `profiles` otomatis saat user dibuat.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { cache } from 'react';
+import { getAuthUser } from '@/lib/auth/getAuthUser';
 import type { PeranUser } from '@/types/database.types';
 
 export type PeranAkses = 'tamu' | PeranUser;
 
-export async function getUserRole(): Promise<PeranAkses> {
-  const supabase = await createClient();
+/**
+ * Dibungkus React cache() supaya kalau fungsi ini dipanggil beberapa
+ * kali dalam SATU request yang sama (mis. dari layout.tsx, Navbar,
+ * DAN halaman itu sendiri sekaligus -- ini memang terjadi di banyak
+ * halaman), Supabase cuma benar-benar dihubungi SEKALI. Tanpa ini,
+ * tiap pemanggilan bikin round-trip auth.getUser() + query profiles
+ * sendiri-sendiri -- selain lebih lambat, juga berisiko beda hasil
+ * kalau ada race condition kecil di antara panggilan-panggilan itu
+ * (salah satu bagian halaman bisa kebaca beda status login/role dari
+ * bagian lain). cache() ini otomatis "reset" di setiap request baru,
+ * jadi TIDAK menyebabkan status login basi antar-user/antar-request.
+ *
+ * Langkah auth.getUser()-nya sendiri lewat getAuthUser() (bersama
+ * dengan getStatusAkses()) supaya round-trip ke server Auth yang
+ * paling mahal juga cuma sekali, bukan cuma query profiles-nya saja.
+ */
+export const getUserRole = cache(async (): Promise<PeranAkses> => {
+  const { user, supabase } = await getAuthUser();
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
+  if (!user) {
     return 'tamu';
   }
 
@@ -62,4 +74,4 @@ export async function getUserRole(): Promise<PeranAkses> {
   }
 
   return profile.role;
-}
+});

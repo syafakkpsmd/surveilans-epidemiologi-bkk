@@ -1,0 +1,67 @@
+From 27535d93a17b306f45e2a3af2a60898869df101c Mon Sep 17 00:00:00 2001
+From: Eni <eni@bkk-samarinda.local>
+Date: Mon, 21 Sep 2026 08:45:05 +0000
+Subject: [PATCH] Tambahkan middleware.ts di root -- fungsi updateSession
+ (refresh token & auto-logout) sudah ada di lib/ tapi tidak pernah benar-benar
+ terpasang
+
+---
+ middleware.ts | 46 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 46 insertions(+)
+ create mode 100644 middleware.ts
+
+diff --git a/middleware.ts b/middleware.ts
+new file mode 100644
+index 0000000..12616b4
+--- /dev/null
++++ b/middleware.ts
+@@ -0,0 +1,46 @@
++/**
++ * middleware.ts (ROOT PROJECT)
++ * -----------------------------------------------------------------
++ * SEBELUMNYA FILE INI TIDAK ADA SAMA SEKALI -- akibatnya fungsi
++ * updateSession() di lib/supabase/middleware.ts (yang tugasnya
++ * me-refresh token sesi Supabase di setiap request) tidak pernah
++ * benar-benar dijalankan oleh Next.js, walau sudah lengkap kodenya.
++ *
++ * Next.js HANYA menjalankan middleware kalau filenya bernama persis
++ * "middleware.ts" di root project (sejajar dengan next.config.js) --
++ * TIDAK otomatis mendeteksi fungsi middleware yang ditaruh di dalam
++ * folder lib/ manapun.
++ *
++ * Tanpa file ini:
++ * - Token sesi Supabase tidak pernah di-refresh proaktif di server,
++ *   jadi mendekati kedaluwarsa (default ~1 jam) status login bisa
++ *   jadi lambat/tidak konsisten (kadang berhasil refresh inline,
++ *   kadang tidak, tergantung request mana yang kena duluan).
++ * - Auto-logout karena tidak aktif (15 menit, lihat
++ *   BATAS_INAKTIVITAS_MS di lib/supabase/middleware.ts) tidak pernah
++ *   benar-benar jalan.
++ *
++ * File ini HANYA memanggil updateSession() yang sudah ada -- tidak
++ * ada logika baru di sini, supaya tidak mengubah perilaku yang sudah
++ * didesain di lib/supabase/middleware.ts.
++ */
++import { type NextRequest } from 'next/server';
++import { updateSession } from '@/lib/supabase/middleware';
++
++export async function middleware(request: NextRequest) {
++  return await updateSession(request);
++}
++
++export const config = {
++  matcher: [
++    /*
++     * Jalankan middleware ini untuk SEMUA request KECUALI:
++     * - file statis Next.js internal (_next/static, _next/image)
++     * - favicon.ico
++     * - file gambar/aset umum (svg, png, jpg, jpeg, gif, webp)
++     * Supaya tidak ada overhead menjalankan pengecekan sesi Supabase
++     * untuk aset-aset yang tidak butuh info login sama sekali.
++     */
++    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
++  ],
++};
+-- 
+2.43.0
+

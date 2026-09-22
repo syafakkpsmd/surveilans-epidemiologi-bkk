@@ -423,7 +423,7 @@ async function breakdownWilayahPesawatMingguan(
   minggu: number,
   kolom: string
 ): Promise<{ wilayah: string; jumlah: number }[]> {
-  const baris = await ambilBarisFinal({ tahun });
+  const baris = await ambilBarisFinal(tahun, undefined);
   const peta = new Map<string, number>();
   for (const b of baris) {
     if (b.epi_week !== minggu || !b.nama_wilker) continue;
@@ -440,7 +440,7 @@ async function breakdownWilayahPesawatMingguanRentang(
   mgAkhir: number,
   kolom: string
 ): Promise<{ wilayah: string; jumlah: number }[]> {
-  const baris = await ambilBarisFinal({ tahun });
+  const baris = await ambilBarisFinal(tahun, undefined);
   const peta = new Map<string, number>();
   for (const b of baris) {
     if (b.epi_week < mgAwal || b.epi_week > mgAkhir || !b.nama_wilker) continue;
@@ -457,7 +457,7 @@ async function breakdownWilayahPesawatBulanan(
   bulanAkhir: number,
   kolom: string
 ): Promise<{ wilayah: string; jumlah: number }[]> {
-  const baris = await ambilBarisFinal({ tahun });
+  const baris = await ambilBarisFinal(tahun, undefined);
   const peta = new Map<string, number>();
   for (const b of baris) {
     const bulanBaris = Number(String(b.tanggal).slice(5, 7));

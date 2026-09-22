@@ -4,16 +4,21 @@ import { modulAedes } from "./aedes";
 import { modulAnopheles } from "./anopheles";
 import { modulCop } from "./cop";
 import { modulDiareKecoa, modulDiareLalat } from "./diare";
+import { modulHiv } from "./hiv";
+import { modulKlinik } from "./klinik";
 import { modulKarhutla } from "./karhutla";
 import { modulLaluLintas } from "./lalu-lintas";
 import { modulMalaria } from "./malaria";
 import { modulPab } from "./pab";
+import { modulPengawasanKlinik } from "./pengawasan-klinik";
 import { modulPesawat } from "./pesawat";
 import { modulPieGlobal } from "./pie-global";
 import { modulPieNasional } from "./pie-nasional";
 import { modulPhqc } from "./phqc";
 import { modulRatGuard } from "./ratguard";
 import { modulSkdr } from "./skdr";
+import { modulStokVaksin } from "./stok-vaksin";
+import { modulTb } from "./tb";
 import { modulTikus } from "./tikus";
 import { modulTpp } from "./tpp";
 import { modulTtu } from "./ttu";
@@ -39,6 +44,8 @@ export const DAFTAR_MODUL: ModulLaporan[] = [
   modulDiareKecoa,
   // Surveilans (urutan mengikuti menu samping)
   modulMalaria,
+  modulTb,
+  modulHiv,
   modulTpp,
   modulTtu,
   modulPab,
@@ -46,4 +53,8 @@ export const DAFTAR_MODUL: ModulLaporan[] = [
   modulPieGlobal,
   modulSkdr,
   modulKarhutla,
+  // Klinik Binaan BKK
+  modulKlinik,
+  modulPengawasanKlinik,
+  modulStokVaksin,
 ];

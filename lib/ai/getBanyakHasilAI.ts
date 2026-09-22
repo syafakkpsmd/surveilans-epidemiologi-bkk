@@ -34,11 +34,13 @@ export { kunciAI } from './hasilAiTypes';
 export type { TipeHasilAI, PermintaanHasilAI, HasilAIStruktur } from './hasilAiTypes';
 
 /**
- * Ambil banyak hasil AI sekaligus. Query tetap N panggilan ke
- * Supabase (satu per kombinasi konteks+periode+tipe+wilayah+metrik),
- * TAPI dijalankan paralel via Promise.all dalam SATU siklus render
- * server -- bukan N round-trip terpisah dari browser client. Ini
- * yang menghilangkan waterfall request di Network tab.
+ * Ambil banyak hasil AI sekaligus dalam SATU query batch (bukan N
+ * query terpisah seperti sebelumnya) -- ambil semua baris yang
+ * konteks & periode_key-nya relevan lewat .in(), lalu cocokkan
+ * kombinasi persis (konteks+periode_key+tipe+wilayah_kerja+metrik)
+ * di JS. Data sudah diurutkan terbaru dulu, jadi .find() otomatis
+ * dapat baris TERBARU untuk tiap kombinasi (sama seperti
+ * .order(...).limit(1) per query sebelumnya).
  *
  * Kalau daftar permintaan kosong, langsung balikin objek kosong
  * tanpa menyentuh Supabase sama sekali.
@@ -50,41 +52,44 @@ export async function getBanyakHasilAI(
 
   const supabase = await createClient();
 
-  const hasilArray = await Promise.all(
-    permintaan.map(async (p) => {
-      let query = supabase
-        .from('riwayat_analisis_ai')
-        .select('ringkasan, anomali, rekomendasi, provider_dipakai, dibuat_pada')
-        .eq('konteks', p.konteks)
-        .eq('periode_key', p.periodeKey)
-        .eq('tipe', p.tipe)
-        .order('dibuat_pada', { ascending: false })
-        .limit(1);
+  const daftarKonteks = Array.from(new Set(permintaan.map((p) => p.konteks)));
+  const daftarPeriode = Array.from(new Set(permintaan.map((p) => p.periodeKey)));
 
-      if (p.wilayahKerja) query = query.eq('wilayah_kerja', p.wilayahKerja);
-      if (p.metrik) query = query.eq('metrik', p.metrik);
+  const { data, error } = await supabase
+    .from('riwayat_analisis_ai')
+    .select('konteks, periode_key, tipe, wilayah_kerja, metrik, ringkasan, anomali, rekomendasi, provider_dipakai, dibuat_pada')
+    .in('konteks', daftarKonteks)
+    .in('periode_key', daftarPeriode)
+    .order('dibuat_pada', { ascending: false });
 
-      const { data, error } = await query.maybeSingle();
+  if (error) {
+    console.error('Gagal ambil hasil AI (batch):', error.message);
+    return {};
+  }
 
-      if (error) {
-        console.error(`Gagal ambil hasil AI (${p.konteks}/${p.tipe}/${p.periodeKey}):`, error.message);
-        return null;
-      }
-      if (!data) return null;
-
-      return {
-        ringkasan: data.ringkasan ?? '',
-        anomali: data.anomali ?? '',
-        rekomendasi: data.rekomendasi ?? '',
-        providerDipakai: data.provider_dipakai ?? undefined,
-        dibuatPada: data.dibuat_pada ?? undefined,
-      } satisfies HasilAIStruktur;
-    })
-  );
-
+  const semua = data ?? [];
   const peta: Record<string, HasilAIStruktur | null> = {};
-  permintaan.forEach((p, i) => {
-    peta[buatKunci(p)] = hasilArray[i];
+
+  permintaan.forEach((p) => {
+    const cocok = semua.find(
+      (r) =>
+        r.konteks === p.konteks &&
+        r.periode_key === p.periodeKey &&
+        r.tipe === p.tipe &&
+        (p.wilayahKerja ? r.wilayah_kerja === p.wilayahKerja : !r.wilayah_kerja) &&
+        (p.metrik ? r.metrik === p.metrik : !r.metrik)
+    );
+
+    peta[buatKunci(p)] = cocok
+      ? {
+          ringkasan: cocok.ringkasan ?? '',
+          anomali: cocok.anomali ?? '',
+          rekomendasi: cocok.rekomendasi ?? '',
+          providerDipakai: cocok.provider_dipakai ?? undefined,
+          dibuatPada: cocok.dibuat_pada ?? undefined,
+        }
+      : null;
   });
+
   return peta;
 }

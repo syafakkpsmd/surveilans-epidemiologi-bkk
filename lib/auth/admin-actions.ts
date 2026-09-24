@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getUserRole } from '@/lib/auth/get-user-role'; // sesuaikan path file getUserRole yang sudah ada
 import { revalidatePath } from 'next/cache';
+import type { PeranUser } from '@/types/domain.types';
 
 async function assertAdmin() {
   const role = await getUserRole();
@@ -11,6 +12,21 @@ async function assertAdmin() {
     throw new Error('Tidak diizinkan: hanya Admin.');
   }
 }
+
+   export async function updateUserRole(userId: string, role: PeranUser) {
+     await assertAdmin();
+     const supabase = await createClient();
+     const { data: { user } } = await supabase.auth.getUser();
+     if (user?.id === userId && role !== 'admin') {
+       throw new Error('Tidak bisa mengubah role akun sendiri.');
+     }
+     const { error } = await supabase
+       .from('profiles')
+       .update({ role })
+       .eq('id', userId);
+     if (error) throw new Error(error.message);
+     revalidatePath('/admin/users');
+   }
 
 export async function approveUser(userId: string) {
   await assertAdmin();

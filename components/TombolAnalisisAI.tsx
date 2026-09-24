@@ -21,7 +21,7 @@ type HasilAnalisis = {
   dibuatPada?: string;
 };
 
-const bolehGenerate = (role: PeranUser | null) => role === "admin" || role === "petugas";
+const bolehGenerate = (role: PeranUser | null) => role === "admin" || role === "petugas" || role === "petugas_klinik";
 
 export function TombolAnalisisAI({
   sudahLogin,

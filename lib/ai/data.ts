@@ -45,6 +45,13 @@ import { createClient } from '@/lib/supabase/server';
 import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/supabase/queriesPesawat';
 import { ambilPerbandinganIspaHotspot, ambilPerbandinganSkdrHotspot } from '@/lib/supabase/queries-karhutla-server';
 import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
+import {
+  getTbRawData,
+  hitungTrenMingguanTb,
+  hitungTrenBulananTb,
+  hitungCascadeTb,
+  hitungBreakdownFaktorRisikoTb, 
+} from '@/lib/turso/tb';
 
 
 export const KONTEKS_TREN = [
@@ -98,6 +105,8 @@ export const KONTEKS_TREN = [
   'skdr-ispa-mingguan',
   'klinik-kepatuhan-mingguan',
   'klinik-kepatuhan-bulanan',
+  'tb-mingguan',
+  'tb-bulanan',
 ] as const;
 
 export const KONTEKS_BREAKDOWN = [
@@ -168,6 +177,8 @@ export const KONTEKS_PREDIKSI_NON_VEKTOR = [
   'skdr-ispa-mingguan',
   'klinik-kepatuhan-mingguan',
   'klinik-kepatuhan-bulanan',
+  'tb-mingguan',
+  'tb-bulanan',
 ] as const;
 
 export const KONTEKS_EVENT = [
@@ -232,6 +243,66 @@ export function isKonteksSkdr(konteks: KonteksAnalisis) {
   return konteks === 'skdr-mingguan';
 }
 
+export function isKonteksTb(konteks: KonteksAnalisis): boolean {
+  return konteks === "tb-mingguan" || konteks === "tb-bulanan";
+}
+
+// ============================================================
+// TAMBAHKAN fungsi ini tepat SETELAH fungsi isKonteksTb() yang
+// sudah ada di lib/ai/data.ts
+// ============================================================
+export async function ambilDataAnalisisTb(
+  konteks: 'tb-mingguan' | 'tb-bulanan',
+  periodeKey: string,
+  tipe: 'analisis' | 'prediksi'
+): Promise<DataAnalisis> {
+  const tahun = parseInt(periodeKey.split('-')[0], 10);
+  const rows = await getTbRawData(tahun);
+ 
+  const tren = konteks === 'tb-mingguan' ? hitungTrenMingguanTb(rows) : hitungTrenBulananTb(rows);
+  const idxSaatIni = tren.findIndex((t) => t.periode === periodeKey);
+  const saatIni = idxSaatIni >= 0 ? tren[idxSaatIni] : tren[tren.length - 1];
+  const sebelumnya = idxSaatIni > 0 ? tren[idxSaatIni - 1] : undefined;
+ 
+  const cascade = hitungCascadeTb(rows);
+  const breakdownFaktorRisiko = hitungBreakdownFaktorRisikoTb(rows); // sudah terurut yield tertinggi -> terendah
+ 
+  const ringkasanSaatIni: Record<string, number> = {
+    total_diskrining: saatIni?.totalSkrining ?? 0,
+    total_terduga: saatIni?.totalTerduga ?? 0,
+    total_terkonfirmasi: saatIni?.totalTerkonfirmasi ?? 0,
+    case_detection_rate: Math.round(cascade.caseDetectionRate * 100) / 100,
+  };
+ 
+  const ringkasanSebelumnya: Record<string, number> = sebelumnya
+    ? {
+        total_diskrining: sebelumnya.totalSkrining,
+        total_terduga: sebelumnya.totalTerduga,
+        total_terkonfirmasi: sebelumnya.totalTerkonfirmasi,
+      }
+    : { total_diskrining: 0, total_terduga: 0, total_terkonfirmasi: 0 };
+ 
+  // topKategori: kategori = nama faktor risiko, nilai = yield (%) dalam
+  // bentuk teks, jumlah = jumlah terkonfirmasi TBC pada kelompok itu.
+  const topKategori = breakdownFaktorRisiko
+    .filter((f) => f.totalDiskrining > 0)
+    .slice(0, 5)
+    .map((f) => ({
+      kategori: f.faktor,
+      nilai: `${f.yieldPersen.toFixed(1)}%`,
+      jumlah: f.totalTerkonfirmasi,
+    }));
+ 
+  return {
+    labelKonteks: 'Skrining & Investigasi Kontak TBC',
+    labelWilayah: 'Seluruh area skrining (lintas provinsi/kabupaten-kota)',
+    labelPeriodeSaatIni: saatIni?.periode ?? periodeKey,
+    labelPeriodeSebelumnya: sebelumnya?.periode ?? '(belum ada data periode sebelumnya)',
+    ringkasanSaatIni,
+    ringkasanSebelumnya,
+    topKategori,
+  };
+}
 export async function ambilDataAnalisisSkdr(
   periodeKey: string,
   wilayahKerja?: string

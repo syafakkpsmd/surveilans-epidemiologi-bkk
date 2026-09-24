@@ -1,120 +1,85 @@
-import { getRingkasanTb, getWilkerRef } from '@/lib/supabase/queries';
+// app/(dashboard)/dashboard/tb/page.tsx
+import { getStatusAkses } from '@/lib/auth/getStatusAkses'; // sesuaikan kalau path aslinya beda
 import {
-  getBreakdownKategori,
-  getRentangMingguEpid,
-} from '@/lib/supabase/queriesVektorBreakdown';
-import { getUserRole } from '@/lib/auth/get-user-role';
-import { getMingguEpidSaatIni } from '@/lib/epi-week';
-import FilterWilker from '@/components/vektor/FilterWilker';
-import TrenChartMingguan from '@/components/vektor/TrenChartMingguan';
-import BreakdownList from '@/components/vektor/BreakdownList';
-import { TombolAnalisisAI } from '@/components/TombolAnalisisAI';
+  getTbRawData,
+  hitungCascadeTb,
+  hitungTrenMingguanTb,
+  hitungTrenBulananTb,
+  hitungBreakdownFaktorRisikoTb,
+  hitungBreakdownWilkerTb,
+  hitungDelayDiagnosisTb,
+  hitungDistribusiKabKotaTb,
+  hitungDonutJenisKelaminTb,
+  ambilDaftarBelumTindakLanjutTb,
+  DAFTAR_WILKER_TB,
+} from '@/lib/turso/tb';
+import TbClient from './TbClient';
 
-export default async function TbPage({
+export const dynamic = 'force-dynamic';
+
+export default async function HalamanTb({
   searchParams,
 }: {
-  searchParams: Promise<{ wilker?: string; tahun?: string }>;
+  searchParams: { tahun?: string; wilayah?: string };
 }) {
-  const { wilker, tahun: tahunParam } = await searchParams;
-  const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
+  const tahunBerjalan = new Date().getFullYear();
+  const tahun = searchParams.tahun ? parseInt(searchParams.tahun, 10) : tahunBerjalan;
+  const wilayahKerja =
+    searchParams.wilayah && searchParams.wilayah !== 'semua' ? searchParams.wilayah : undefined;
 
-  const [role, daftarWilker, ringkasan] = await Promise.all([
-    getUserRole(),
-    getWilkerRef(),
-    getRingkasanTb(tahun, wilker),
+  const [{ sudahLogin, role }, rows, rowsSemuaWilker] = await Promise.all([
+    getStatusAkses(),
+    getTbRawData(tahun, wilayahKerja),
+    // Dipakai KHUSUS untuk chart "per Wilayah Kerja" -- selalu semua
+    // wilker (cuma difilter tahun) supaya tetap jadi pembanding walau
+    // user sedang memfilter 1 wilker tertentu. Kalau tidak sedang
+    // memfilter wilker, rows di atas sudah = data semua wilker, jadi
+    // tidak perlu fetch dobel.
+    wilayahKerja ? getTbRawData(tahun) : Promise.resolve(null),
   ]);
+  const dataUntukBreakdownWilker = rowsSemuaWilker ?? rows;
 
-  const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
-  const { mulai, selesai } = getRentangMingguEpid(tahunBerjalan, mingguBerjalan);
+  // roleAI: hanya admin/petugas/petugas_klinik yang boleh menekan
+  // "Generate" di BoxAnalisisAI/BoxPrediksiAI -- pola sama seperti dipakai
+  // di tempat lain di project ini.
+  const roleAI = role === 'admin' || role === 'petugas' || role === 'petugas_klinik' ? role : null;
 
-  const [breakdownSensitivitas, breakdownKategori] = await Promise.all([
-    getBreakdownKategori({
-      tabel: 'tb_data',
-      kolomTanggal: 'tgl_penemuan',
-      kolomKategori: 'sensitivitas_oat',
-      tglMulai: mulai,
-      tglSelesai: selesai,
-      kodeWilker: wilker,
-    }),
-    getBreakdownKategori({
-      tabel: 'tb_data',
-      kolomTanggal: 'tgl_penemuan',
-      kolomKategori: 'kategori_pasien',
-      tglMulai: mulai,
-      tglSelesai: selesai,
-      kodeWilker: wilker,
-    }),
-  ]);
+  const cascade = hitungCascadeTb(rows);
+  const trenMingguan = hitungTrenMingguanTb(rows);
+  const trenBulanan = hitungTrenBulananTb(rows);
+  const breakdownFaktorRisiko = hitungBreakdownFaktorRisikoTb(rows);
+  const breakdownWilker = hitungBreakdownWilkerTb(dataUntukBreakdownWilker);
+  const delayDiagnosis = hitungDelayDiagnosisTb(rows);
+  const distribusiKabKota = hitungDistribusiKabKotaTb(rows); // sudah dibatasi Top 15 + "Lainnya"
+  const donutJenisKelamin = hitungDonutJenisKelaminTb(rows);
 
-  const dataChart = ringkasan.map((r) => ({
-    minggu_epid: r.minggu_epid,
-    suspek: r.total_suspek,
-    positif_tcm: r.total_positif_tcm,
-  }));
-
-  // 1. Ambil status login (pasti true di rute dashboard terproteksi)
-  const sudahLogin = true;
-
-  // 2. Format periodeKey secara dinamis menggunakan minggu epidemiologi (misal: "2026-W28")
-  const periodeKey = `${tahunBerjalan}-W${String(mingguBerjalan).padStart(2, '0')}`;
-
-  // 3. Ambil wilayah kerja secara aman berdasarkan parameter filter URL
-  const wilayahKerja = wilker === "Semua" ? undefined : wilker;
+  // Data individu (nama, dll) terduga/kasus TBC adalah data sensitif --
+  // TIDAK dikirim ke client sama sekali kalau tidak berwenang, supaya
+  // tidak bocor lewat network tab walau di-UI disembunyikan.
+  // Khusus admin & petugas_klinik yang boleh lihat daftar nama.
+  const bolehLihatDaftarSensitif = role === 'admin' || role === 'petugas_klinik';
+  const daftarLengkapBelumTindakLanjut = ambilDaftarBelumTindakLanjutTb(rows);
+  const daftarBelumTindakLanjut = bolehLihatDaftarSensitif ? daftarLengkapBelumTindakLanjut : [];
+  const jumlahBelumTindakLanjut = daftarLengkapBelumTindakLanjut.length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">🫁 Surveilans TB</h1>
-          <p className="text-sm text-gray-500">
-            Deteksi & penelusuran kontak Tuberkulosis pada ABK dan pekerja. (Data yang ada masiih Data DUMMY)
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterWilker daftarWilker={daftarWilker} />
-          
-          {/* Tombol Analisis AI dengan parameter lengkap & terstandarisasi */}
-          <TombolAnalisisAI
-            sudahLogin={sudahLogin}
-            role={role as any}
-            konteks="tb-mingguan"
-            periodeKey={periodeKey}
-            wilayahKerja={wilayahKerja}
-          />
-        </div>
-      </div>
-
-      {ringkasan.length === 0 ? (
-        <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
-          Belum ada kegiatan tercatat untuk tahun {tahun}.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-            <h2 className="mb-2 text-sm font-semibold text-gray-700">
-              Tren Suspek vs Positif TCM — Tahun {tahun}
-            </h2>
-            <TrenChartMingguan
-              data={dataChart}
-              seriesList={[
-                { key: 'suspek', label: 'Suspek', warna: '#607D8B' },
-                { key: 'positif_tcm', label: 'Positif TCM', warna: '#B71C1C' },
-              ]}
-            />
-          </div>
-
-          <BreakdownList
-            judul={`Sensitivitas OAT — Minggu Epid ke-${mingguBerjalan}`}
-            data={breakdownSensitivitas}
-            warna="#37474F"
-          />
-          <BreakdownList
-            judul={`Kategori Pasien — Minggu Epid ke-${mingguBerjalan}`}
-            data={breakdownKategori}
-            warna="#0F4C5C"
-          />
-        </div>
-      )}
-    </div>
+    <TbClient
+      sudahLogin={sudahLogin}
+      roleAI={roleAI}
+      tahunBerjalan={tahun}
+      daftarWilker={DAFTAR_WILKER_TB}
+      wilayahTerpilih={wilayahKerja ?? 'semua'}
+      cascade={cascade}
+      trenMingguan={trenMingguan}
+      trenBulanan={trenBulanan}
+      breakdownFaktorRisiko={breakdownFaktorRisiko}
+      breakdownWilker={breakdownWilker}
+      delayDiagnosis={delayDiagnosis}
+      distribusiKabKota={distribusiKabKota}
+      donutJenisKelamin={donutJenisKelamin}
+      bolehLihatDaftarSensitif={bolehLihatDaftarSensitif}
+      daftarBelumTindakLanjut={daftarBelumTindakLanjut}
+      jumlahBelumTindakLanjut={jumlahBelumTindakLanjut}
+    />
   );
 }

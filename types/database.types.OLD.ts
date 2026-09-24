@@ -17,7 +17,7 @@ export type Wilayah =
 
 export type Rba = 'Hijau' | 'Kuning' | 'Merah';
 
-export type PeranUser = 'petugas' | 'admin';
+export type PeranUser = "petugas" | "admin" | "petugas_klinik" | "tamu";
 
 export type KegiatanCop = {
   wilayah_kerja: Wilayah;

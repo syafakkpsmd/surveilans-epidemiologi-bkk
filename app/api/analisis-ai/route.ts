@@ -24,6 +24,8 @@ import {
   ambilDataAnalisisKarhutlaIspaHotspot,
   ambilDataAnalisisKarhutlaSkdrHotspot,
   ambilDataAnalisisRisikoWilker,
+  isKonteksTb,
+  ambilDataAnalisisTb,   
 } from '@/lib/ai/data';
 import { ambilDataAnalisisKlinik } from '@/lib/ai/dataKlinik';
 import {
@@ -83,6 +85,8 @@ import {
   susunPromptPrediksiRisikoWilker,
   susunPromptKlinikKepatuhan,
   susunPromptPrediksiKlinikKepatuhan,
+  susunPromptTb,             // <-- tambah
+  susunPromptPrediksiTb,     // <-- tambah
 } from '@/lib/ai/prompt';
 import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
 import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
@@ -343,6 +347,9 @@ export async function POST(request: Request) {
     // sekaligus (itu memang tujuannya -- cari wilayah kerja dengan
     // risiko tertinggi), jadi wilayah_kerja dari client diabaikan.
     wilayahKerja = undefined;
+  } else if (isKonteksTb(konteks)) {
+  // TB tidak punya wilayah kerja BKK (data per Provinsi/Kabupaten-Kota)
+  wilayahKerja = undefined;
   } else if (konteksKlinik) {
     // Klinik Kepatuhan: "wilayah_kerja" di sini sebenarnya NAMA KLINIK
     // (bukan wilayah kerja geografis WK01-07/Samarinda dst), jadi
@@ -521,6 +528,12 @@ export async function POST(request: Request) {
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTtu(data) : susunPromptTtu(data);
       labelPeriodeSaatIni = data.labelPeriodeSaatIni;
       labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'tb-mingguan' || konteks === 'tb-bulanan') {
+      const data = await ambilDataAnalisisTb(konteks, periodeKey, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTb(data) : susunPromptTb(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
     } else if (konteks === 'pab-bulanan' || konteks === 'pab-mingguan') {
       const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
       promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPab(data) : susunPromptPab(data);

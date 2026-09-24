@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { PeranAkses } from "@/lib/auth/get-user-role";
 import {
   Compass,
   Ship,
@@ -39,26 +40,9 @@ import {
   BellRing,
   Package,
   FileText,
+  Home,
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
-
-// ----------------------------------------------------------------------------
-// KONFIGURASI NAVIGASI
-// Path disinkronkan dengan KartuKategoriHub di app/(dashboard)/dashboard/page.tsx
-// Tambah/ubah item di sini saja -- tidak perlu sentuh logika render di bawah.
-//
-// KEBIJAKAN PREFETCH -- default AMAN adalah FALSE.
-// Sidebar ini dirender di SETIAP halaman dashboard (lewat layout), jadi
-// tiap link yang prefetch-nya true akan diam-diam dirender di background
-// setiap kali sidebar muncul -- bukan hanya saat user benar-benar
-// mengklik link itu. Untuk halaman Server Component yang query banyak
-// data (hampir semua modul di sini), ini membebani Supabase connection
-// pool dan bikin SEMUA halaman terasa lambat, bukan cuma satu.
-//
-// Karena itu: JANGAN set prefetch: true kecuali halaman tujuannya benar-
-// benar ringan/statis (tidak ada query database berat). Kalau ragu,
-// biarkan tanpa field prefetch sama sekali -- default-nya sudah false.
-// ----------------------------------------------------------------------------
 
 type NavChild = {
   label: string;
@@ -79,18 +63,33 @@ type NavGroup = {
   items: NavItem[];
 };
 
+const menuBeranda = { label: "Beranda", href: "/dashboard", icon: Home, prefetch: false };
+
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: "Faktor Risiko",
+    title: "Surveilans Alat Angkut",
     items: [
-      { label: "Beranda", href: "/dashboard", icon: Compass, prefetch: false },
       { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship, prefetch: false },
       { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff, prefetch: false },
       { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang/", icon: Users, prefetch: false },
     ],
   },
   {
-    title: "Vektor",
+    title: "Surveilans Penyakit",
+    items: [
+      { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
+      { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
+      { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
+      { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
+      { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
+      { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
+      { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
+      { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
+      { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
+    ],
+  },
+  {
+    title: "Surveilans Vektor",
     items: [
       { label: "Vektor Aedes", href: "/dashboard/vektor/aedes", icon: Bug, prefetch: false },
       { label: "Vektor Tikus", href: "/dashboard/vektor/tikus", icon: Rat, prefetch: false },
@@ -114,22 +113,14 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: "Surveilans",
+    title: "Surveilans Lingkungan",
     items: [
-      { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
-      { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
-      { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
       { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2, prefetch: false },
       { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon, prefetch: false },
       { label: "Surveilans PAB", href: "/dashboard/pab", icon: Droplet, prefetch: false },
-      { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
-      { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
-      { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
-      { label: "ISPA KARHUTLA", href: "/dashboard/karhutla", icon: Flame , prefetch: false },
-      { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
+      { label: "ISPA KARHUTLA", href: "/dashboard/karhutla", icon: Flame, prefetch: false },
     ],
   },
-
   {
     title: "Klinik Binaan BKK",
     items: [
@@ -138,9 +129,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Stok Vaksin", href: "/dashboard/stok-vaksin", icon: Package, prefetch: false },
     ],
   },
-
   {
-    title: "Informasi Lainnya",
+    title: "Tautan",
     items: [
       { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper, prefetch: false },
       { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin, prefetch: false },
@@ -158,7 +148,6 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "CDC", href: "https://www.cdc.gov", icon: ShieldAlert },
       { label: "WHO", href: "https://www.who.int/", icon: Globe },
       { label: "Status Laporan", href: "/dashboard/status-laporan", icon: ClipboardCheck, prefetch: false },
-      // { label: "Laporan Bulanan", href: "/dashboard/laporan-bulanan", icon: FileText, prefetch: false },
     ],
   },
   {
@@ -167,12 +156,9 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Kapal", href: "/dashboard/simulasi-wabah/kapal", icon: Ship },
       { label: "Pesawat", href: "/dashboard/simulasi-wabah/pesawat", icon: PlaneTakeoff },
     ],
-},
+  },
 ];
 
-
-
-// Grup khusus Admin -- dirender terpisah, hanya kalau role === 'admin'
 const ADMIN_GROUP: NavGroup = {
   title: "Admin",
   items: [
@@ -181,17 +167,12 @@ const ADMIN_GROUP: NavGroup = {
   ],
 };
 
-type SidebarNavProps = {
-  role?: "tamu" | "petugas" | "admin";
+interface SidebarNavProps {
+  role: PeranAkses;
 };
 
-/**
- * Kumpulkan semua href (item + children, termasuk URL eksternal http/https
- * yang otomatis diabaikan) dari grup nav yang sedang dirender, dalam bentuk
- * basePath (tanpa query string).
- */
 function kumpulkanSemuaHref(groups: NavGroup[]): string[] {
-  const hasil: string[] = [];
+  const hasil: string[] = [menuBeranda.href];
   for (const grup of groups) {
     for (const item of grup.items) {
       if (item.href && item.href.startsWith("/")) {
@@ -209,15 +190,8 @@ function kumpulkanSemuaHref(groups: NavGroup[]): string[] {
   return hasil;
 }
 
-/**
- * Cari href PALING SPESIFIK (paling panjang) yang cocok dengan pathname
- * saat ini. Ini mencegah menu induk (mis. "/dashboard/alat-angkut") ikut
- * ter-highlight ketika yang aktif sebenarnya adalah menu anak yang
- * kebetulan satu prefix folder (mis. "/dashboard/alat-angkut/pesawat").
- */
 function cariHrefPalingCocok(pathname: string, semuaHref: string[]): string | null {
   let terbaik: string | null = null;
-
   for (const href of semuaHref) {
     let cocok = false;
     if (href === "/dashboard") {
@@ -225,12 +199,10 @@ function cariHrefPalingCocok(pathname: string, semuaHref: string[]): string | nu
     } else {
       cocok = pathname === href || pathname.startsWith(href + "/");
     }
-
     if (cocok && (!terbaik || href.length > terbaik.length)) {
       terbaik = href;
     }
   }
-
   return terbaik;
 }
 
@@ -261,6 +233,15 @@ export default function SidebarNav({ role }: SidebarNavProps) {
     return item.children.some((c) => isActive(c.href));
   };
 
+  const HomeIcon = menuBeranda.icon;
+  const isHomeActive = isActive(menuBeranda.href);
+  const homeClasses = [
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+    isHomeActive
+      ? "bg-white/10 text-white ring-1 ring-inset ring-cyan-400/40"
+      : "text-slate-300 hover:bg-white/5 hover:text-white",
+  ].join(" ");
+
   return (
     <>
       {isOpen && (
@@ -279,6 +260,20 @@ export default function SidebarNav({ role }: SidebarNavProps) {
           isOpen ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
+        {/* RENDER MENU BERANDA DI ATAS SENDIRI */}
+        <div className="flex flex-col gap-1">
+          <Link
+            href={menuBeranda.href}
+            onClick={close}
+            prefetch={menuBeranda.prefetch}
+            className={homeClasses}
+          >
+            <HomeIcon size={18} className="shrink-0 opacity-90" />
+            <span className="flex-1 truncate">{menuBeranda.label}</span>
+          </Link>
+        </div>
+
+        {/* RENDER KELOMPOK NAVIGASI LAINNYA */}
         {groupsToRender.map((group) => (
           <div key={group.title} className="flex flex-col gap-1">
             <span className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">

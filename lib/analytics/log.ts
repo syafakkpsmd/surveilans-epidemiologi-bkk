@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { getGeoInfo } from './geo';
+import type { PeranAkses } from "@/lib/auth/get-user-role";
 
 // Helper function untuk cek apakah IP berasal dari localhost
 function isLocalIP(ip: string): boolean {
@@ -14,7 +15,7 @@ function isLocalIP(ip: string): boolean {
   );
 }
 
-export async function catatPageLoad(role: 'tamu' | 'petugas' | 'admin' = 'tamu') {
+export async function catatPageLoad(role: PeranAkses | undefined) {
   // 🛑 PROTEKSI 1: Jika sedang dijalankan di mode 'npm run dev', abaikan!
   if (process.env.NODE_ENV === 'development') {
     console.log('[catatPageLoad] Skipped: Running on Development mode (Localhost)');

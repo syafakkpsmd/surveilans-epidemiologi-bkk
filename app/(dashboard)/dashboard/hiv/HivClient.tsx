@@ -44,7 +44,7 @@ function KartuRingkasan({ ringkasan }: { ringkasan: RingkasanHiv }) {
     { label: 'Non Reaktif', nilai: ringkasan.jumlahNonReaktif, warna: 'bg-emerald-600' },
     { label: '% Reaktif', nilai: `${ringkasan.persenReaktif}%`, warna: 'bg-orange-500' },
     { label: 'Kunjungan Baru', nilai: ringkasan.kunjunganBaru, warna: 'bg-indigo-600' },
-    { label: 'Hubungan Berisiko (Ya)', nilai: ringkasan.hubunganBerisikoYa, warna: 'bg-pink-600' }
+    { label: 'Hubungan Berisiko', nilai: ringkasan.hubunganBerisikoYa, warna: 'bg-pink-600' }
   ];
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

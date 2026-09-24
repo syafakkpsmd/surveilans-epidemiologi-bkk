@@ -1605,3 +1605,32 @@ Dari periode ${data.labelPeriodeSebelumnya} (kepatuhan ${data.ringkasanSebelumny
 Ekstrapolasikan proyeksi persentase kepatuhan dan volume layanan periode berikutnya berdasarkan tren 2 titik data ini.
 Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
 }
+
+export function susunPromptTb(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+Konteks: ${data.labelKonteks}
+Wilayah: ${data.labelWilayah}
+Periode saat ini (${data.labelPeriodeSaatIni}): ${formatRingkasan(data.ringkasanSaatIni)}
+${data.ringkasanSebelumnya ? `Periode sebelumnya (${data.labelPeriodeSebelumnya}): ${formatRingkasan(data.ringkasanSebelumnya)}` : ""}
+
+Ini adalah data program skrining aktif & investigasi kontak TBC (bukan data kasus TBC terkonfirmasi
+di fasilitas kesehatan) — hasil "terkonfirmasi" berasal dari populasi yang diskrining karena punya
+faktor risiko (kontak dengan pasien TBC, gizi kurang, perokok, DM, ODHIV, lansia, ibu hamil).
+
+Tolong berikan analisis dengan memperhatikan:
+1. Case Detection Rate dan yield dari terduga ke terkonfirmasi — apakah program cukup efektif
+   menjaring kasus dari populasi berisiko?
+2. Perubahan tren dibanding periode sebelumnya — kenaikan/penurunan jumlah skrining ATAU jumlah
+   terkonfirmasi, dan implikasinya (mis. penurunan skrining ≠ penurunan risiko, bisa jadi cakupan
+   program yang menurun)
+3. JANGAN mengarang angka yang tidak ada di data ini.
+
+Jawab HANYA dalam format JSON: {"ringkasan": "...", "anomali": "...", "rekomendasi": "..."}`;
+}
+
+export function susunPromptPrediksiTb(data: DataAnalisis): string {
+  // pola sama seperti susunPromptPrediksiX modul lain (linear-extrapolation 2 titik data)
+  return `${PERSONA_EPIDEMIOLOG}
+... (ikuti pola susunPromptPrediksiRatGuard/susunPromptPrediksiTtu yang sudah ada)`;
+}

@@ -46,27 +46,6 @@ function formatTanggalSingkat(tanggal: string): string {
   return new Date(`${tanggal}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 }
 
-/** Breakpoint kategori ISPU berdasar konsentrasi PM2.5 ambien (µg/m³),
- *  dipakai untuk menghitung kategori & warna OTOMATIS dari angka -- bukan
- *  dari dropdown "Status ISPU" manual, yang terbukti sering salah/kosong
- *  saat diinput petugas di lapangan. */
-function kategoriIspuDariPm25(pm25: number | null): string | null {
-  if (pm25 == null) return null;
-  if (pm25 <= 15.5) return 'Baik';
-  if (pm25 <= 55.4) return 'Sedang';
-  if (pm25 <= 150.4) return 'Tidak Sehat';
-  if (pm25 <= 250.4) return 'Sangat Tidak Sehat';
-  return 'Berbahaya';
-}
-
-/** Warna status berdasar tingkat keparahan ISPU/PM2.5 — konsisten dgn token risiko RBA. */
-function warnaStatusIspu(status: string | null): string {
-  if (!status) return WARNA.muted;
-  const t = status.toLowerCase();
-  if (t.includes('baik') || t.includes('sedang')) return WARNA.hijau;
-  if (t.includes('tidak sehat') && !t.includes('sangat') && !t.includes('berbahaya')) return WARNA.kuning;
-  return WARNA.merah;
-}
 
 function warnaStatusEvaluasi(status: StatusEvaluasi): string {
   if (status === 'MS') return WARNA.hijau;
@@ -237,7 +216,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
               <div style={{ display: 'flex', gap: 14, textAlign: 'right', flexShrink: 0 }}>
                 <MiniStat label="Titik Panas" nilai={w.jumlahHotspot} warna={w.jumlahHotspot > 0 ? WARNA.merah : WARNA.muted} />
                 <MiniStat label="ISPA" nilai={w.kasusIspaAnak + w.kasusIspaDewasa} warna={WARNA.cyan} />
-                <MiniStat label="PM2.5" nilai={w.pm25Rerata ?? '—'} warna={warnaStatusIspu(kategoriIspuDariPm25(w.pm25Rerata))} />
+                <MiniStat label="PM2.5" nilai={w.pm25Rerata ?? '—'} warna={warnaBakuMutu('pm25', w.pm25Rerata)} />
               </div>
             </div>
           ))}

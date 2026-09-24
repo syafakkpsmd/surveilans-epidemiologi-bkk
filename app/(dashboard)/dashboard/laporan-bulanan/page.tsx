@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LaporanBulananPage() {
   const role = await getUserRole();
-  const bolehAkses = role === "admin" || role === "petugas";
+  const bolehAkses = role === "admin" || role === "petugas" || role === "petugas_klinik";
 
   if (!bolehAkses) {
     return (

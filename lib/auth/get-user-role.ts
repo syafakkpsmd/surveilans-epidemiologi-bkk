@@ -26,9 +26,8 @@
 
 import { cache } from 'react';
 import { getAuthUser } from '@/lib/auth/getAuthUser';
-import type { PeranUser } from '@/types/database.types';
 
-export type PeranAkses = 'tamu' | PeranUser;
+export type PeranAkses = "admin" | "petugas" | "tamu" | "petugas_klinik";
 
 /**
  * Dibungkus React cache() supaya kalau fungsi ini dipanggil beberapa

@@ -17,4 +17,4 @@ export type KategoriCop =
   | "keberadaan_vektor"
   | "bendera_kapal";
 
-export type PeranUser = "petugas" | "admin";
+export type PeranUser = "petugas" | "admin" | "petugas_klinik" | "tamu";

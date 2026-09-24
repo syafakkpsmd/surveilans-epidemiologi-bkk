@@ -41,7 +41,7 @@ type HasilAnalisis = {
 // dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
 // untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
 const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = false) =>
-  (role === "admin" || role === "petugas") && (!wajibWilayahKerja || !!wilayahKerja);
+  (role === "admin" || role === "petugas" || role === "petugas_klinik") && (!wajibWilayahKerja || !!wilayahKerja);
 
 export function BoxAnalisisAI({
   sudahLogin,

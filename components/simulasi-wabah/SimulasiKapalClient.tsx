@@ -40,7 +40,7 @@ const FORM_AWAL = {
 };
 
 export function SimulasiKapalClient({ sudahLogin, role, daftarPenyakit, daftarWilayah, riwayatSimulasi }: Props) {
-  const bisaGenerate = sudahLogin && (role === "admin" || role === "petugas");
+  const bisaGenerate = sudahLogin && (role === "admin" || role === "petugas" || role === "petugas_klinik");
 
   const [form, setForm] = useState(FORM_AWAL);
   const [kotaTujuan, setKotaTujuan] = useState<KotaTujuan[]>([]); // [BARU]

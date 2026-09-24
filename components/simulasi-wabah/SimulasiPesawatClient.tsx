@@ -19,7 +19,7 @@ interface KotaTujuan {
 }
 
 export function SimulasiPesawatClient({ sudahLogin, role, daftarPenyakit, daftarWilker, riwayatSimulasi }: Props) {
-  const bisaGenerate = sudahLogin && (role === "admin" || role === "petugas");
+  const bisaGenerate = sudahLogin && (role === "admin" || role === "petugas" || role === "petugas_klinik");
 
   const [form, setForm] = useState({
     kodeWilker: "",

@@ -285,7 +285,7 @@ export default async function DashboardHubPage() {
 
         <TombolAnalisisAI
           sudahLogin={!!role}
-          role={role === "admin" || role === "petugas" ? role : null}
+          role={role === "admin" || role === "petugas" || role === "petugas_klinik" ? role : null}
           konteks="surveilans-hub"
           periodeKey={`${tahunEpid}-W${mingguEpid}`}
         />
@@ -303,7 +303,7 @@ export default async function DashboardHubPage() {
         <GaleriFotoKegiatan
           fotoAwal={fotoAwal}
           daftarJenis={daftarJenis}
-          bisaKelola={role === "admin" || role === "petugas"}
+          bisaKelola={role === "admin" || role === "petugas" || role === "petugas_klinik"}
           tampilan="ringkas"
         />
       </div>

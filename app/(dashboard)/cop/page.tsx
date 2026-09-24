@@ -199,7 +199,7 @@ export default async function CopPage({
 
   const { sudahLogin, role } = await getStatusAkses();
   // roleAI: hanya admin/petugas yang boleh menekan "Generate" di semua BoxAnalisisAI/BoxPrediksiAI
-  const roleAI = role === "admin" || role === "petugas" ? role : null;
+  const roleAI = role === "admin" || role === "petugas" || role === "petugas_klinik" ? role : null;
 
   const sekarang = new Date();
   // 1. Ambil minggu & tahun epidemiologi saat ini

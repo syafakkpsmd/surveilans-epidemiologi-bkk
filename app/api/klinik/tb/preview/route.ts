@@ -20,10 +20,10 @@ export async function GET(req: NextRequest) {
   }
   const bulanParam = params.get("bulan");
   const bulan = bulanParam && bulanParam !== "semua" ? Number(bulanParam) : undefined;
-  const kabKotaParam = params.get("kabupatenKota");
-  const kabupatenKota = kabKotaParam && kabKotaParam !== "semua" ? kabKotaParam : undefined;
+  const wilkerParam = params.get("wilker");
+  const wilker = wilkerParam && wilkerParam !== "semua" ? wilkerParam : undefined;
 
-  const baris = await getBarisTb({ tahun, bulan, kabupatenKota });
+  const baris = await getBarisTb({ tahun, bulan, wilker });
 
   return NextResponse.json({ baris, total: baris.length });
 }

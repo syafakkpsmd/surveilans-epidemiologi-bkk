@@ -10,6 +10,7 @@ const NAMA_BULAN = [
 const NAMA_KATIMKER_DEFAULT = "";
 
 interface BarisPreviewTb {
+  wilker: string;
   no_baris: number;
   no_urut: string;
   tanggal_pelaksanaan: string;
@@ -58,15 +59,15 @@ const KOLOM_PREVIEW: [string, keyof BarisPreviewTb][] = [
 ];
 
 type Props = {
-  daftarKabupatenKota: string[];
+  daftarWilker: string[];
   tahunSekarang: number;
 };
 
-export default function TabelTbDownloadClient({ daftarKabupatenKota, tahunSekarang }: Props) {
+export default function TabelTbDownloadClient({ daftarWilker, tahunSekarang }: Props) {
   const [tahun, setTahun] = useState(tahunSekarang);
   const [cakupanWaktu, setCakupanWaktu] = useState<"bulanan" | "setahun">("bulanan");
   const [bulan, setBulan] = useState(new Date().getMonth() + 1);
-  const [kabupatenKota, setKabupatenKota] = useState<string>("semua");
+  const [wilker, setWilker] = useState<string>("semua");
 
   const [namaKatimker, setNamaKatimker] = useState(NAMA_KATIMKER_DEFAULT);
   const [nipKatimker, setNipKatimker] = useState("");
@@ -85,7 +86,7 @@ export default function TabelTbDownloadClient({ daftarKabupatenKota, tahunSekara
     const q = new URLSearchParams();
     q.set("tahun", String(tahun));
     q.set("bulan", cakupanWaktu === "bulanan" ? String(bulan) : "semua");
-    q.set("kabupatenKota", kabupatenKota);
+    q.set("wilker", wilker);
     return q;
   }
 
@@ -110,7 +111,7 @@ export default function TabelTbDownloadClient({ daftarKabupatenKota, tahunSekara
       batal = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tahun, cakupanWaktu, bulan, kabupatenKota]);
+  }, [tahun, cakupanWaktu, bulan, wilker]);
 
   async function unduh() {
     setSedangUnduh("xlsx");
@@ -149,20 +150,20 @@ export default function TabelTbDownloadClient({ daftarKabupatenKota, tahunSekara
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Kabupaten/Kota</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Wilayah Kerja</label>
             <select
-              value={kabupatenKota}
-              onChange={(e) => setKabupatenKota(e.target.value)}
+              value={wilker}
+              onChange={(e) => setWilker(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
             >
-              <option value="semua">Semua Kabupaten/Kota</option>
-              {daftarKabupatenKota.map((k) => (
-                <option key={k} value={k}>{k}</option>
+              <option value="semua">Semua Wilayah Kerja</option>
+              {daftarWilker.map((w) => (
+                <option key={w} value={w}>{w}</option>
               ))}
             </select>
-            {daftarKabupatenKota.length === 0 && (
+            {daftarWilker.length === 0 && (
               <p className="mt-1 text-[11px] text-amber-600">
-                Belum ada data — pastikan sync TB dari sheet sudah pernah dijalankan.
+                Belum ada wilayah kerja terdaftar — pastikan sync TB dari sheet sudah pernah dijalankan.
               </p>
             )}
           </div>
@@ -284,6 +285,7 @@ export default function TabelTbDownloadClient({ daftarKabupatenKota, tahunSekara
               <thead>
                 <tr className="bg-gray-50 text-gray-600">
                   <th className="border px-2 py-1.5 text-left">No</th>
+                  {wilker === "semua" && <th className="border px-2 py-1.5 text-left">Wilker</th>}
                   {KOLOM_PREVIEW.map(([label]) => (
                     <th key={label} className="border px-2 py-1.5 text-left whitespace-nowrap">{label}</th>
                   ))}
@@ -293,6 +295,7 @@ export default function TabelTbDownloadClient({ daftarKabupatenKota, tahunSekara
                 {baris.map((b, idx) => (
                   <tr key={b.no_baris} className={idx % 2 ? "bg-gray-50/50" : ""}>
                     <td className="border px-2 py-1">{idx + 1}</td>
+                    {wilker === "semua" && <td className="border px-2 py-1">{b.wilker}</td>}
                     {KOLOM_PREVIEW.map(([label, key]) => (
                       <td key={label} className="border px-2 py-1 whitespace-nowrap">{b[key]}</td>
                     ))}

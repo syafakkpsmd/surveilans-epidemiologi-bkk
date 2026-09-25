@@ -1,6 +1,7 @@
 import { getTursoClient } from "@/lib/turso/client";
 
 export interface BarisTb {
+  wilker: string;
   no_baris: number;
   no_urut: string;
   tanggal_pelaksanaan: string;
@@ -49,14 +50,14 @@ function tabelBelumAda(err: unknown): boolean {
   return pesan.includes("no such table");
 }
 
-/** Daftar Kabupaten/Kota yang ada datanya, untuk isi dropdown filter (pengganti wilayah kerja). */
-export async function getKabupatenKotaTb(): Promise<string[]> {
+/** Daftar wilayah kerja yang ada datanya, untuk isi dropdown filter. */
+export async function getWilayahKerjaTb(): Promise<string[]> {
   try {
     const hasil = await getTursoClient().execute({
-      sql: `SELECT DISTINCT kabupaten_kota FROM tb_data WHERE kabupaten_kota IS NOT NULL AND kabupaten_kota != '' ORDER BY kabupaten_kota`,
+      sql: `SELECT DISTINCT wilayah_kerja FROM tb_data ORDER BY wilayah_kerja`,
       args: [],
     });
-    return hasil.rows.map((r: any) => String(r.kabupaten_kota));
+    return hasil.rows.map((r: any) => String(r.wilayah_kerja));
   } catch (err) {
     if (tabelBelumAda(err)) return [];
     throw err;
@@ -66,7 +67,7 @@ export async function getKabupatenKotaTb(): Promise<string[]> {
 export interface FilterTb {
   tahun: number;
   bulan?: number;
-  kabupatenKota?: string;
+  wilker?: string;
 }
 
 export async function getBarisTb(filter: FilterTb): Promise<BarisTb[]> {
@@ -77,18 +78,18 @@ export async function getBarisTb(filter: FilterTb): Promise<BarisTb[]> {
     kondisi.push(`strftime('%m', tanggal_pelaksanaan) = ?`);
     args.push(String(filter.bulan).padStart(2, "0"));
   }
-  if (filter.kabupatenKota) {
-    kondisi.push(`kabupaten_kota = ?`);
-    args.push(filter.kabupatenKota);
+  if (filter.wilker) {
+    kondisi.push(`wilayah_kerja = ?`);
+    args.push(filter.wilker);
   }
 
   let hasil;
   try {
     hasil = await getTursoClient().execute({
-      sql: `SELECT ${KOLOM_TB.join(", ")}
+      sql: `SELECT wilayah_kerja AS wilker, ${KOLOM_TB.join(", ")}
             FROM tb_data
             WHERE ${kondisi.join(" AND ")}
-            ORDER BY kabupaten_kota ASC, tanggal_pelaksanaan ASC, no_baris ASC`,
+            ORDER BY wilayah_kerja ASC, tanggal_pelaksanaan ASC, no_baris ASC`,
       args,
     });
   } catch (err) {
@@ -97,7 +98,7 @@ export async function getBarisTb(filter: FilterTb): Promise<BarisTb[]> {
   }
 
   return hasil.rows.map((r: any) => {
-    const baris: any = {};
+    const baris: any = { wilker: String(r.wilker ?? "") };
     KOLOM_TB.forEach((k) => {
       baris[k] = k === "no_baris" ? Number(r[k]) : String(r[k] ?? "");
     });

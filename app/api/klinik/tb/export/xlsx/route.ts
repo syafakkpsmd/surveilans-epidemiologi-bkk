@@ -44,15 +44,15 @@ export async function GET(req: NextRequest) {
   }
   const bulanParam = params.get("bulan");
   const bulan = bulanParam && bulanParam !== "semua" ? Number(bulanParam) : undefined;
-  const kabKotaParam = params.get("kabupatenKota");
-  const kabupatenKota = kabKotaParam && kabKotaParam !== "semua" ? kabKotaParam : undefined;
+  const wilkerParam = params.get("wilker");
+  const wilker = wilkerParam && wilkerParam !== "semua" ? wilkerParam : undefined;
 
   const namaKatimker = params.get("namaKatimker") ?? "";
   const nipKatimker = params.get("nipKatimker") ?? "";
   const namaPetugas = params.get("namaPetugas") ?? "";
   const nipPetugas = params.get("nipPetugas") ?? "";
 
-  const baris = await getBarisTb({ tahun, bulan, kabupatenKota });
+  const baris = await getBarisTb({ tahun, bulan, wilker });
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Data Skrining TBC");
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
   sheet.getCell(2, 1).value = "BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA";
   sheet.mergeCells(3, 1, 3, jumlahKolom);
   const labelPeriode = bulan ? `${NAMA_BULAN[bulan - 1]} ${tahun}` : `Tahun ${tahun}`;
-  const labelLokasi = kabupatenKota ? `KAB/KOTA: ${kabupatenKota.toUpperCase()}` : "SELURUH KAB/KOTA";
+  const labelLokasi = wilker ? `DI: ${wilker.toUpperCase()}` : "SELURUH WILAYAH KERJA";
   sheet.getCell(3, 1).value = `${labelLokasi} — ${labelPeriode}`;
   for (let r = 1; r <= 3; r++) {
     sheet.getCell(r, 1).font = { bold: true, size: r === 1 ? 13 : 11 };
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
   sheet.getCell(baseRow + 5, kolomKanan).value = nipPetugas ? `NIP ${nipPetugas}` : "";
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const namaFile = `data-tb_${kabupatenKota ?? "semua-kabkota"}_${bulan ? NAMA_BULAN[bulan - 1] : "tahun"}-${tahun}.xlsx`;
+  const namaFile = `data-tb_${wilker ?? "semua-wilker"}_${bulan ? NAMA_BULAN[bulan - 1] : "tahun"}-${tahun}.xlsx`;
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

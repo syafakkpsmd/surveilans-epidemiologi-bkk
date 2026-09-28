@@ -137,8 +137,75 @@ export function hitungTrenBulananKunjungan(rows: KunjunganRow[]): TitikTrenKunju
     map.set(key, (map.get(key) ?? 0) + 1);
   }
   return Array.from(map.entries())
-    .map(([periode, totalKunjungan]) => ({ periode, totalKunjungan }))
-    .sort((a, b) => a.periode.localeCompare(b.periode));
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, totalKunjungan]) => ({ periode: formatPeriodeBulanan(key), totalKunjungan }));
+}
+
+// Nama bulan Indonesia dipakai untuk label sumbu-X/legend chart bulanan.
+// Pengurutan tetap dilakukan pada key mentah "YYYY-MM" (sortable), baru
+// diubah ke label "Nama Bulan Tahun" setelah terurut.
+const NAMA_BULAN = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+function formatPeriodeBulanan(key: string): string {
+  const [tahun, bulan] = key.split('-');
+  const namaBulan = NAMA_BULAN[parseInt(bulan, 10) - 1] ?? bulan;
+  return `${namaBulan} ${tahun}`;
+}
+
+// ------------------------------------------------------------
+// 2b) Tren per Wilayah Kerja (Mingguan / Bulanan)
+//
+// Dipakai khusus untuk chart perbandingan antar-wilker di halaman "Semua
+// Wilayah Kerja". Bentuk return: satu baris per periode, dengan satu kolom
+// per nama wilker (nilai = jumlah kunjungan wilker itu pada periode itu).
+// Setiap wilker di DAFTAR_WILKER_POLIKLINIK selalu diberi nilai (default 0)
+// walau tidak ada data pada periode tsb, supaya garis/batang tiap wilker
+// tetap konsisten sepanjang sumbu-X chart.
+// ------------------------------------------------------------
+export type TitikTrenPerWilker = { periode: string } & Record<string, string | number>;
+
+export function hitungTrenPerWilkerMingguan(rows: KunjunganRow[]): TitikTrenPerWilker[] {
+  const map = new Map<string, TitikTrenPerWilker>();
+  for (const r of rows) {
+    if (!r.tanggal_pemeriksaan) continue;
+    const tgl = new Date(r.tanggal_pemeriksaan);
+    if (isNaN(tgl.getTime())) continue;
+    const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(tgl);
+    const periode = `${tahunEpid}-W${String(mingguEpid).padStart(2, '0')}`;
+
+    if (!map.has(periode)) {
+      const baris: TitikTrenPerWilker = { periode };
+      for (const w of DAFTAR_WILKER_POLIKLINIK) baris[w] = 0;
+      map.set(periode, baris);
+    }
+    const baris = map.get(periode)!;
+    baris[r.wilayah_kerja] = (Number(baris[r.wilayah_kerja]) || 0) + 1;
+  }
+  return Array.from(map.values()).sort((a, b) => a.periode.localeCompare(b.periode));
+}
+
+export function hitungTrenPerWilkerBulanan(rows: KunjunganRow[]): TitikTrenPerWilker[] {
+  const map = new Map<string, TitikTrenPerWilker>();
+  for (const r of rows) {
+    if (!r.tanggal_pemeriksaan) continue;
+    const tgl = new Date(r.tanggal_pemeriksaan);
+    if (isNaN(tgl.getTime())) continue;
+    const key = `${tgl.getFullYear()}-${String(tgl.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!map.has(key)) {
+      const baris: TitikTrenPerWilker = { periode: key };
+      for (const w of DAFTAR_WILKER_POLIKLINIK) baris[w] = 0;
+      map.set(key, baris);
+    }
+    const baris = map.get(key)!;
+    baris[r.wilayah_kerja] = (Number(baris[r.wilayah_kerja]) || 0) + 1;
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, baris]) => ({ ...baris, periode: formatPeriodeBulanan(key) }));
 }
 
 // ------------------------------------------------------------

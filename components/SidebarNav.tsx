@@ -41,6 +41,7 @@ import {
   Package,
   FileText,
   Home,
+  PersonStanding,
 } from "lucide-react";
 import { useSidebar } from "@/components/SidebarContext";
 
@@ -81,6 +82,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
       { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
       { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
+      { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
+      { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
       { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },

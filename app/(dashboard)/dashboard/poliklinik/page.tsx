@@ -4,6 +4,8 @@ import {
   hitungRingkasanKunjungan,
   hitungTrenMingguanKunjungan,
   hitungTrenBulananKunjungan,
+  hitungTrenPerWilkerMingguan,
+  hitungTrenPerWilkerBulanan,
   hitungTopDiagnosa,
   hitungDonutJenisKelaminKunjungan,
   hitungDonutKelompokUsia,
@@ -18,11 +20,12 @@ export const dynamic = 'force-dynamic';
 export default async function HalamanPoliklinik({
   searchParams,
 }: {
-  searchParams: { tahun?: string; wilayah?: string };
+  searchParams: Promise<{ tahun?: string; wilayah?: string }>;
 }) {
+  const params = await searchParams;
   const tahunBerjalan = new Date().getFullYear();
-  const tahun = searchParams.tahun ? parseInt(searchParams.tahun, 10) : tahunBerjalan;
-  const wilayahKerja = searchParams.wilayah && searchParams.wilayah !== 'semua' ? searchParams.wilayah : undefined;
+  const tahun = params.tahun ? parseInt(params.tahun, 10) : tahunBerjalan;
+  const wilayahKerja = params.wilayah && params.wilayah !== 'semua' ? params.wilayah : undefined;
 
   // rows: sudah difilter wilker (kalau dipilih) -- dipakai untuk semua
   // chart yang memang seharusnya ikut berubah sesuai filter wilker.
@@ -38,6 +41,11 @@ export default async function HalamanPoliklinik({
   const ringkasan = hitungRingkasanKunjungan(rows);
   const trenMingguan = hitungTrenMingguanKunjungan(rows);
   const trenBulanan = hitungTrenBulananKunjungan(rows);
+  // Chart perbandingan antar-wilker cuma dipakai/dirender saat wilayahKerja
+  // tidak difilter ('semua'), tapi tetap dihitung dari dataUntukBreakdownWilker
+  // supaya konsisten dengan breakdownWilker di bawah.
+  const trenPerWilkerMingguan = hitungTrenPerWilkerMingguan(dataUntukBreakdownWilker);
+  const trenPerWilkerBulanan = hitungTrenPerWilkerBulanan(dataUntukBreakdownWilker);
   const topDiagnosa = hitungTopDiagnosa(rows, 10);
   const donutJenisKelamin = hitungDonutJenisKelaminKunjungan(rows);
   const donutKelompokUsia = hitungDonutKelompokUsia(rows);
@@ -52,6 +60,8 @@ export default async function HalamanPoliklinik({
       ringkasan={ringkasan}
       trenMingguan={trenMingguan}
       trenBulanan={trenBulanan}
+      trenPerWilkerMingguan={trenPerWilkerMingguan}
+      trenPerWilkerBulanan={trenPerWilkerBulanan}
       topDiagnosa={topDiagnosa}
       donutJenisKelamin={donutJenisKelamin}
       donutKelompokUsia={donutKelompokUsia}

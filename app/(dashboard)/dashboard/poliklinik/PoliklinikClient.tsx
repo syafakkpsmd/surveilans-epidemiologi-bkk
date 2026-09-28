@@ -24,6 +24,9 @@ const WARNA_HARI = ['#0d9488', '#0f766e', '#0d9488', '#0f766e', '#0d9488', '#f59
 
 const WARNA_DONUT = ['#0d9488', '#f59e0b', '#134e4a', '#dc2626', '#94a3b8'];
 
+// Palet warna untuk membedakan tiap wilayah kerja pada grafik gabungan
+const WARNA_WILKER = ['#0d9488', '#f59e0b', '#134e4a', '#dc2626', '#6366f1', '#94a3b8', '#ec4899'];
+
 interface Props {
   tahunBerjalan: number;
   wilayahTerpilih: string;
@@ -36,6 +39,10 @@ interface Props {
   };
   trenMingguan: { periode: string; totalKunjungan: number }[];
   trenBulanan: { periode: string; totalKunjungan: number }[];
+  // Data tren per wilayah kerja: tiap baris = { periode, [namaWilker]: jumlah, ... }
+  // Hanya perlu diisi/dipakai saat wilayahTerpilih === 'semua'
+  trenPerWilkerMingguan?: Record<string, number | string>[];
+  trenPerWilkerBulanan?: Record<string, number | string>[];
   topDiagnosa: { diagnosa: string; jumlah: number }[];
   donutJenisKelamin: { label: string; jumlah: number }[];
   donutKelompokUsia: { label: string; jumlah: number }[];
@@ -50,6 +57,8 @@ export default function PoliklinikClient({
   ringkasan,
   trenMingguan,
   trenBulanan,
+  trenPerWilkerMingguan = [],
+  trenPerWilkerBulanan = [],
   topDiagnosa,
   donutJenisKelamin,
   donutKelompokUsia,
@@ -59,6 +68,8 @@ export default function PoliklinikClient({
   const router = useRouter();
   const [granularitas, setGranularitas] = useState<'mingguan' | 'bulanan'>('mingguan');
   const dataTren = granularitas === 'mingguan' ? trenMingguan : trenBulanan;
+  const dataTrenPerWilker = granularitas === 'mingguan' ? trenPerWilkerMingguan : trenPerWilkerBulanan;
+  const tampilkanGrafikPerWilker = wilayahTerpilih === 'semua';
 
   function gantiFilter(tahun: number, wilayah: string) {
     router.push(`/dashboard/poliklinik?tahun=${tahun}&wilayah=${encodeURIComponent(wilayah)}`);
@@ -110,26 +121,86 @@ export default function PoliklinikClient({
         <KartuKpi label="Rata-rata / Hari Aktif" nilai={ringkasan.rataRataPerHari} />
       </div>
 
-      {/* Tren */}
-      <Panel judul={`Tren Kunjungan ${granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}`}>
-        <div className="mb-2 flex gap-2">
-          <ToggleButton aktif={granularitas === 'mingguan'} onClick={() => setGranularitas('mingguan')}>
-            Mingguan
-          </ToggleButton>
-          <ToggleButton aktif={granularitas === 'bulanan'} onClick={() => setGranularitas('bulanan')}>
-            Bulanan
-          </ToggleButton>
-        </div>
+      {/* Tren total */}
+      <Panel
+        judul={`Tren Kunjungan ${granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}`}
+        aksi={
+          <>
+            <ToggleButton aktif={granularitas === 'mingguan'} onClick={() => setGranularitas('mingguan')}>
+              Mingguan
+            </ToggleButton>
+            <ToggleButton aktif={granularitas === 'bulanan'} onClick={() => setGranularitas('bulanan')}>
+              Bulanan
+            </ToggleButton>
+          </>
+        }
+      >
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={dataTren}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="periode" tick={{ fontSize: 11 }} />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="totalKunjungan" name="Kunjungan" stroke="#0d9488" strokeWidth={2} dot={false} />
-          </LineChart>
+          {granularitas === 'mingguan' ? (
+            <LineChart data={dataTren}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="periode" tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="totalKunjungan"
+                name="Kunjungan"
+                stroke="#0d9488"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          ) : (
+            <BarChart data={dataTren}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="periode" tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="totalKunjungan" name="Kunjungan" fill="#0d9488" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          )}
         </ResponsiveContainer>
       </Panel>
+
+      {/* Tren per wilayah kerja -- hanya muncul saat "Semua Wilayah Kerja" dipilih */}
+      {tampilkanGrafikPerWilker && (
+        <Panel judul={`Tren Kunjungan per Wilayah Kerja (${granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'})`}>
+          <ResponsiveContainer width="100%" height={300}>
+            {granularitas === 'mingguan' ? (
+              <LineChart data={dataTrenPerWilker}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="periode" tick={{ fontSize: 11 }} />
+                <YAxis />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {daftarWilker.map((w, i) => (
+                  <Line
+                    key={w}
+                    type="monotone"
+                    dataKey={w}
+                    name={w}
+                    stroke={WARNA_WILKER[i % WARNA_WILKER.length]}
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                ))}
+              </LineChart>
+            ) : (
+              <BarChart data={dataTrenPerWilker}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="periode" tick={{ fontSize: 11 }} />
+                <YAxis />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {daftarWilker.map((w, i) => (
+                  <Bar key={w} dataKey={w} name={w} fill={WARNA_WILKER[i % WARNA_WILKER.length]} radius={[4, 4, 0, 0]} />
+                ))}
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </Panel>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Top diagnosa */}
@@ -147,9 +218,7 @@ export default function PoliklinikClient({
 
         {/* Pola hari kunjungan */}
         <Panel judul="Pola Hari Kunjungan">
-          <p className="mb-2 text-sm text-gray-600">
-            Membantu perencanaan jadwal piket poliklinik — hari mana yang paling ramai.
-          </p>
+          <p className="mb-2 text-center text-sm text-gray-600">Tren Harian Layanan Poliklinik</p>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={polaHari}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -216,7 +285,7 @@ export default function PoliklinikClient({
 
 function KartuKpi({ label, nilai, warna }: { label: string; nilai: string | number; warna?: 'teal' }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
+    <div className="rounded-lg border bg-white p-4 text-center shadow-sm">
       <div className="text-xs text-gray-500">{label}</div>
       <div className={`mt-1 text-2xl font-semibold ${warna === 'teal' ? 'text-teal-700' : 'text-gray-900'}`}>
         {nilai}
@@ -225,10 +294,26 @@ function KartuKpi({ label, nilai, warna }: { label: string; nilai: string | numb
   );
 }
 
-function Panel({ judul, children }: { judul: string; children: React.ReactNode }) {
+function Panel({
+  judul,
+  aksi,
+  children,
+}: {
+  judul: string;
+  aksi?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <h2 className="mb-2 font-medium text-teal-900">{judul}</h2>
+      {aksi ? (
+        <div className="mb-2 grid grid-cols-3 items-center">
+          <div />
+          <h2 className="text-center font-medium text-teal-900">{judul}</h2>
+          <div className="flex justify-end gap-2">{aksi}</div>
+        </div>
+      ) : (
+        <h2 className="mb-2 text-center font-medium text-teal-900">{judul}</h2>
+      )}
       {children}
     </div>
   );

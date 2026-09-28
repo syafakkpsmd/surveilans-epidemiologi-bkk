@@ -54,7 +54,12 @@ export const getStatusAkses = cache(async (): Promise<StatusAkses> => {
     .single();
 
   const role: PeranUser | null =
-    profile?.role === "petugas" || profile?.role === "admin" ? profile.role : null;
+  profile?.role === "petugas" ||
+  profile?.role === "admin" ||
+  profile?.role === "petugas_klinik" ||
+  profile?.role === "tamu"
+    ? profile.role
+    : null;
 
   return { sudahLogin: true, role };
 });

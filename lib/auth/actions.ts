@@ -36,7 +36,12 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
     return { error: 'Akun Anda belum disetujui.' };
   }
 
-  if (profile.role !== 'petugas' && profile.role !== 'admin') {
+  if (
+    profile.role !== 'petugas' &&
+    profile.role !== 'admin' &&
+    profile.role !== 'petugas_klinik'
+  ) {
+    console.error('[login] role tidak dikenali:', profile.role);
     return { error: 'Role akun tidak dikenali.' };
   }
 

@@ -100,7 +100,14 @@ function AreaAuth({ sudahLogin, role }: { sudahLogin: boolean; role: PeranUser |
     );
   }
 
-  const labelRole = role === "admin" ? "Admin" : role === "petugas" ? "Petugas" : "Pengguna";
+  const labelRole =
+  role === "admin"
+    ? "Admin"
+    : role === "petugas"
+    ? "Petugas"
+    : role === "petugas_klinik"
+    ? "Petugas Klinik"
+    : "Pengguna";
 
   return (
     <div className="flex items-center gap-3">

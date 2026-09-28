@@ -1,18 +1,18 @@
 // lib/turso/queriesModulKlinik.ts
 //
-// Query generik untuk Poliklinik, KIER Kesehatan, SIAOS (lihat modulTabelConfig.ts).
+// Query generik untuk Poliklinik, KIER Kesehatan, SIAOS, SKLT (lihat modulTabelConfig.ts).
 // Nama tabel & kolom diambil dari config (hardcode), BUKAN dari input user.
 
 import { getTursoClient } from "@/lib/turso/client";
 import { MODUL_KLINIK, ambilModul, type ModulKey } from "@/lib/klinik/modulTabelConfig";
 
-/** 1 baris = objek polos: { wilker, <kolom config>: string, ... } */
+/** 1 baris = objek polos: { wilker, <key kolom config>: string, ... } */
 export type BarisModul = Record<string, string>;
 
 export interface FilterModul {
   tahun: number;
   bulan?: number; // 1-12, undefined = seluruh tahun
-  wilker?: string; // undefined = semua wilayah kerja
+  wilker?: string; // undefined = semua wilayah kerja (diabaikan kalau modul tanpa wilayah_kerja)
 }
 
 function tabelBelumAda(err: unknown): boolean {
@@ -23,6 +23,8 @@ function tabelBelumAda(err: unknown): boolean {
 /** Daftar wilayah kerja yang ada datanya untuk modul tsb (isi dropdown filter). */
 export async function getWilayahKerjaModul(modul: ModulKey): Promise<string[]> {
   const cfg = MODUL_KLINIK[modul];
+  if (!cfg.punyaWilayahKerja) return [];
+
   try {
     const hasil = await getTursoClient().execute({
       sql: `SELECT DISTINCT wilayah_kerja FROM ${cfg.tabel}
@@ -37,7 +39,7 @@ export async function getWilayahKerjaModul(modul: ModulKey): Promise<string[]> {
   }
 }
 
-/** Ambil baris sesuai filter, urut per wilayah kerja lalu tanggal. */
+/** Ambil baris sesuai filter, urut (per wilayah kerja kalau ada) lalu tanggal. */
 export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promise<BarisModul[]> {
   const cfg = MODUL_KLINIK[modul];
 
@@ -50,20 +52,26 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
     kondisi.push(`substr(${cfg.kolomTanggal}, 6, 2) = ?`);
     args.push(String(filter.bulan).padStart(2, "0"));
   }
-  if (filter.wilker) {
+  if (filter.wilker && cfg.punyaWilayahKerja) {
     kondisi.push(`wilayah_kerja = ?`);
     args.push(filter.wilker);
   }
 
-  const kolomSql = cfg.kolom.map((k) => k.key).join(", ");
+  // Kolom "kosong" tidak di-SELECT; kolom dengan `sumber` di-alias ke key keluarannya.
+  const kolomSql = cfg.kolom
+    .filter((k) => !k.kosong)
+    .map((k) => `${k.sumber ?? k.key} AS ${k.key}`)
+    .join(", ");
+  const selectWilker = cfg.punyaWilayahKerja ? "wilayah_kerja AS wilker" : "'' AS wilker";
+  const urutWilker = cfg.punyaWilayahKerja ? "wilayah_kerja ASC, " : "";
 
   let hasil;
   try {
     hasil = await getTursoClient().execute({
-      sql: `SELECT wilayah_kerja AS wilker, ${kolomSql}
+      sql: `SELECT ${selectWilker}, ${kolomSql}
             FROM ${cfg.tabel}
             WHERE ${kondisi.join(" AND ")}
-            ORDER BY wilayah_kerja ASC, ${cfg.kolomTanggal} ASC, rowid ASC`,
+            ORDER BY ${urutWilker}${cfg.kolomTanggal} ASC, rowid ASC`,
       args,
     });
   } catch (err) {
@@ -75,7 +83,7 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
   return hasil.rows.map((r: any) => {
     const obj: BarisModul = { wilker: String(r.wilker ?? "") };
     cfg.kolom.forEach((k) => {
-      obj[k.key] = String(r[k.key] ?? "");
+      obj[k.key] = k.kosong ? "" : String(r[k.key] ?? "");
     });
     return obj;
   });

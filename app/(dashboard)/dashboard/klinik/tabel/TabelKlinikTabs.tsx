@@ -6,16 +6,16 @@ import { useState } from "react";
 import TabelHivDownloadClient from "./TabelHivDownloadClient";
 import TabelTbDownloadClient from "./TabelTbDownloadClient";
 import TabelModulKlinikClient from "./TabelModulKlinikClient";
-import { MODUL_KLINIK, type ModulKey } from "@/lib/klinik/modulTabelConfig";
+import { MODUL_KLINIK, DAFTAR_MODUL_KLINIK, type ModulKey } from "@/lib/klinik/modulTabelConfig";
 
 type TabKey = "hiv" | "tb" | ModulKey;
 
+// HIV & TBC punya komponen sendiri; sisanya (Poliklinik, KIER, SIAOS, SKLT, dst)
+// otomatis muncul dari MODUL_KLINIK.
 const DAFTAR_TAB: { key: TabKey; label: string }[] = [
   { key: "hiv", label: "HIV" },
   { key: "tb", label: "TBC" },
-  { key: "poliklinik", label: MODUL_KLINIK.poliklinik.labelTab },
-  { key: "kier", label: MODUL_KLINIK.kier.labelTab },
-  { key: "siaos", label: MODUL_KLINIK.siaos.labelTab },
+  ...DAFTAR_MODUL_KLINIK.map((m) => ({ key: m as TabKey, label: MODUL_KLINIK[m].labelTab })),
 ];
 
 type Props = {
@@ -33,7 +33,7 @@ export default function TabelKlinikTabs({
 }: Props) {
   const [tabAktif, setTabAktif] = useState<TabKey>("hiv");
 
-  // Untuk tab generik (poliklinik/kier/siaos); null kalau tab aktif HIV atau TBC
+  // Untuk tab generik; null kalau tab aktif HIV atau TBC
   const modulAktif = tabAktif !== "hiv" && tabAktif !== "tb" ? MODUL_KLINIK[tabAktif] : null;
 
   return (
@@ -55,7 +55,7 @@ export default function TabelKlinikTabs({
 
       {tabAktif === "hiv" && (
         <section>
-          <h2 className="text-lg font-bold text-[#0F2A38] mb-3">Data Individu Mobile VCT PP HIV</h2>
+          <h2 className="text-lg font-bold text-[#0F2A38] mb-3">Data Individu Mobile VCT P2 HIV</h2>
           <TabelHivDownloadClient daftarWilker={daftarWilkerHiv} tahunSekarang={tahunSekarang} />
         </section>
       )}
@@ -73,7 +73,7 @@ export default function TabelKlinikTabs({
           <TabelModulKlinikClient
             key={modulAktif.key}
             modul={modulAktif.key}
-            daftarWilker={daftarWilkerModul[modulAktif.key]}
+            daftarWilker={daftarWilkerModul[modulAktif.key] ?? []}
             tahunSekarang={tahunSekarang}
           />
         </section>

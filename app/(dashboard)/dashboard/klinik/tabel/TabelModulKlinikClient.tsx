@@ -106,7 +106,7 @@ export default function TabelModulKlinikClient({ modul, daftarWilker, tahunSekar
         <h2 className="text-sm font-bold text-[#0F2A38]">Unduh {cfg.judulHalaman}</h2>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
+          <div className={cfg.punyaWilayahKerja ? undefined : "hidden"}>
             <label className="block text-xs font-medium text-gray-600 mb-1">Wilayah Kerja</label>
             <select
               value={wilker}
@@ -242,7 +242,9 @@ export default function TabelModulKlinikClient({ modul, daftarWilker, tahunSekar
               <thead>
                 <tr className="bg-gray-50 text-gray-600">
                   <th className="border px-2 py-1.5 text-left">No</th>
-                  {wilker === "semua" && <th className="border px-2 py-1.5 text-left">Wilker</th>}
+                  {cfg.punyaWilayahKerja && wilker === "semua" && (
+                    <th className="border px-2 py-1.5 text-left">Wilker</th>
+                  )}
                   {cfg.kolom.map((k) => (
                     <th key={k.key} className="border px-2 py-1.5 text-left whitespace-nowrap">{k.label}</th>
                   ))}
@@ -252,7 +254,9 @@ export default function TabelModulKlinikClient({ modul, daftarWilker, tahunSekar
                 {baris.map((b, idx) => (
                   <tr key={idx} className={idx % 2 ? "bg-gray-50/50" : ""}>
                     <td className="border px-2 py-1">{idx + 1}</td>
-                    {wilker === "semua" && <td className="border px-2 py-1">{b.wilker}</td>}
+                    {cfg.punyaWilayahKerja && wilker === "semua" && (
+                      <td className="border px-2 py-1">{b.wilker}</td>
+                    )}
                     {cfg.kolom.map((k) => (
                       <td key={k.key} className="border px-2 py-1 whitespace-nowrap">{b[k.key]}</td>
                     ))}

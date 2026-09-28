@@ -51,11 +51,13 @@ export async function GET(req: NextRequest) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(cfg.judulHalaman.slice(0, 31));
 
-  // Kolom "Wilayah Kerja" hanya muncul kalau tidak difilter 1 wilker (pola sama dengan HIV/TB)
+  // Kolom "Wilayah Kerja" hanya muncul kalau modulnya punya wilayah_kerja DAN tidak
+  // difilter 1 wilker (pola sama dengan HIV/TB)
+  const adaKolomWilker = cfg.punyaWilayahKerja && !wilker;
   const labelKolom = cfg.kolom.map((k) => k.label);
-  const headerValues = wilker
-    ? ["No", ...labelKolom]
-    : ["No", "Wilayah Kerja", ...labelKolom];
+  const headerValues = adaKolomWilker
+    ? ["No", "Wilayah Kerja", ...labelKolom]
+    : ["No", ...labelKolom];
   const jumlahKolom = headerValues.length;
 
   // ---- Judul ----
@@ -64,7 +66,7 @@ export async function GET(req: NextRequest) {
   const barisJudul = [
     cfg.judulLaporan,
     "BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA",
-    `${labelWilker} — ${labelPeriode}`,
+    cfg.punyaWilayahKerja ? `${labelWilker} — ${labelPeriode}` : labelPeriode,
   ];
   barisJudul.forEach((teks, i) => {
     sheet.mergeCells(i + 1, 1, i + 1, jumlahKolom);
@@ -86,9 +88,9 @@ export async function GET(req: NextRequest) {
   // ---- Data ----
   baris.forEach((b, idx) => {
     const nilaiKolom = cfg.kolom.map((k) => b[k.key]);
-    const nilai = wilker
-      ? [idx + 1, ...nilaiKolom]
-      : [idx + 1, b.wilker, ...nilaiKolom];
+    const nilai = adaKolomWilker
+      ? [idx + 1, b.wilker, ...nilaiKolom]
+      : [idx + 1, ...nilaiKolom];
     const row = sheet.addRow(nilai);
     row.eachCell((cell) => {
       cell.border = BORDER_TIPIS;
@@ -117,8 +119,10 @@ export async function GET(req: NextRequest) {
   sheet.getCell(baseRow + 5, kolomKanan).value = nipPetugas ? `NIP ${nipPetugas}` : "";
 
   const buffer = await workbook.xlsx.writeBuffer();
-  const potongNamaWilker = (wilker ?? "semua-wilker").replace(/[^\w.-]+/g, "-");
-  const namaFile = `data-${cfg.slugFile}_${potongNamaWilker}_${bulan ? NAMA_BULAN[bulan - 1] : "tahun"}-${tahun}.xlsx`;
+  const bagianWilker = cfg.punyaWilayahKerja
+    ? `_${(wilker ?? "semua-wilker").replace(/[^\w.-]+/g, "-")}`
+    : "";
+  const namaFile = `data-${cfg.slugFile}${bagianWilker}_${bulan ? NAMA_BULAN[bulan - 1] : "tahun"}-${tahun}.xlsx`;
 
   return new NextResponse(new Uint8Array(buffer), {
     headers: {

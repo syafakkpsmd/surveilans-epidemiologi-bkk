@@ -84,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
       { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
       { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
+      { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
       { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },

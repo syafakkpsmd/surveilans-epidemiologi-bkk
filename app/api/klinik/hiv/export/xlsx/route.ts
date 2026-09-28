@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
   // ---- Judul ----
   sheet.mergeCells(1, 1, 1, jumlahKolom);
-  sheet.getCell(1, 1).value = "DATA INDIVIDU MOBILE VCT PP HIV";
+  sheet.getCell(1, 1).value = "DATA INDIVIDU MOBILE VCT P2 HIV";
   sheet.mergeCells(2, 1, 2, jumlahKolom);
   sheet.getCell(2, 1).value = "BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA";
   sheet.mergeCells(3, 1, 3, jumlahKolom);

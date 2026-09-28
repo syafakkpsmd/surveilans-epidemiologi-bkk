@@ -6,6 +6,7 @@ import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
 import { getWilayahKerjaHiv } from "@/lib/turso/queriesHivVct";
 import { getWilayahKerjaTb } from "@/lib/turso/queriesTb";
 import { getWilayahKerjaModul } from "@/lib/turso/queriesModulKlinik";
+import { DAFTAR_MODUL_KLINIK, type ModulKey } from "@/lib/klinik/modulTabelConfig";
 import TabelKlinikTabs from "./TabelKlinikTabs";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +18,16 @@ export default async function TabelKlinikPage() {
   }
 
   const tahunSekarang = new Date().getFullYear();
-  const [wilkerHiv, wilkerTb, wilkerPoliklinik, wilkerKier, wilkerSiaos] = await Promise.all([
+
+  const [wilkerHiv, wilkerTb, wilkerModulList] = await Promise.all([
     getWilayahKerjaHiv(),
     getWilayahKerjaTb(),
-    getWilayahKerjaModul("poliklinik"),
-    getWilayahKerjaModul("kier"),
-    getWilayahKerjaModul("siaos"),
+    Promise.all(DAFTAR_MODUL_KLINIK.map((m) => getWilayahKerjaModul(m))),
   ]);
+
+  const daftarWilkerModul = Object.fromEntries(
+    DAFTAR_MODUL_KLINIK.map((m, i) => [m, wilkerModulList[i]])
+  ) as Record<ModulKey, string[]>;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -35,7 +39,7 @@ export default async function TabelKlinikPage() {
       <TabelKlinikTabs
         daftarWilkerHiv={wilkerHiv}
         daftarWilkerTb={wilkerTb}
-        daftarWilkerModul={{ poliklinik: wilkerPoliklinik, kier: wilkerKier, siaos: wilkerSiaos }}
+        daftarWilkerModul={daftarWilkerModul}
         tahunSekarang={tahunSekarang}
       />
     </div>

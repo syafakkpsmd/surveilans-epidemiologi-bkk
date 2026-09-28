@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   const labelWilker = wilker ? `DI: ${wilker.toUpperCase()}` : "SELURUH WILAYAH KERJA";
 
   function gambarJudulDanHeader() {
-    doc.fontSize(13).font("Helvetica-Bold").text("DATA INDIVIDU MOBILE VCT PP HIV", { align: "center" });
+    doc.fontSize(13).font("Helvetica-Bold").text("DATA INDIVIDU MOBILE VCT P2 HIV", { align: "center" });
     doc.fontSize(11).text("BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA", { align: "center" });
     doc.fontSize(10).font("Helvetica").text(`${labelWilker} — ${labelPeriode}`, { align: "center" });
     doc.moveDown(0.8);

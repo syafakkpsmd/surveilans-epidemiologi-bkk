@@ -114,7 +114,7 @@ export default function TabelHivDownloadClient({ daftarWilker, tahunSekarang }: 
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm space-y-4">
-        <h2 className="text-sm font-bold text-[#0F2A38]">Unduh Data Individu Mobile VCT PP HIV</h2>
+        <h2 className="text-sm font-bold text-[#0F2A38]">Unduh Data Individu Mobile VCT P2 HIV</h2>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>

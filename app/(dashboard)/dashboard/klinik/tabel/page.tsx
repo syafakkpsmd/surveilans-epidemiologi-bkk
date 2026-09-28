@@ -5,6 +5,7 @@ import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
 import { getWilayahKerjaHiv } from "@/lib/turso/queriesHivVct";
 import { getWilayahKerjaTb } from "@/lib/turso/queriesTb";
+import { getWilayahKerjaModul } from "@/lib/turso/queriesModulKlinik";
 import TabelKlinikTabs from "./TabelKlinikTabs";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +17,12 @@ export default async function TabelKlinikPage() {
   }
 
   const tahunSekarang = new Date().getFullYear();
-  const [daftarWilkerHiv, daftarWilkerTb] = await Promise.all([
+  const [wilkerHiv, wilkerTb, wilkerPoliklinik, wilkerKier, wilkerSiaos] = await Promise.all([
     getWilayahKerjaHiv(),
     getWilayahKerjaTb(),
+    getWilayahKerjaModul("poliklinik"),
+    getWilayahKerjaModul("kier"),
+    getWilayahKerjaModul("siaos"),
   ]);
 
   return (
@@ -29,8 +33,9 @@ export default async function TabelKlinikPage() {
       </div>
 
       <TabelKlinikTabs
-        daftarWilkerHiv={daftarWilkerHiv}
-        daftarWilkerTb={daftarWilkerTb}
+        daftarWilkerHiv={wilkerHiv}
+        daftarWilkerTb={wilkerTb}
+        daftarWilkerModul={{ poliklinik: wilkerPoliklinik, kier: wilkerKier, siaos: wilkerSiaos }}
         tahunSekarang={tahunSekarang}
       />
     </div>

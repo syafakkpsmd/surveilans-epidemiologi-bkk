@@ -46,6 +46,7 @@ interface Props {
   topDiagnosa: { diagnosa: string; jumlah: number }[];
   donutJenisKelamin: { label: string; jumlah: number }[];
   donutKelompokUsia: { label: string; jumlah: number }[];
+  donutKategoriPasien: { label: string; jumlah: number }[];
   breakdownWilker: { wilayahKerja: string; jumlah: number }[];
   polaHari: { hari: string; jumlah: number }[];
 }
@@ -62,6 +63,7 @@ export default function PoliklinikClient({
   topDiagnosa,
   donutJenisKelamin,
   donutKelompokUsia,
+  donutKategoriPasien,
   breakdownWilker,
   polaHari,
 }: Props) {
@@ -235,7 +237,7 @@ export default function PoliklinikClient({
         </Panel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Donut jenis kelamin */}
         <Panel judul="Jenis Kelamin">
           <ResponsiveContainer width="100%" height={220}>
@@ -257,6 +259,21 @@ export default function PoliklinikClient({
             <PieChart>
               <Pie data={donutKelompokUsia} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
                 {donutKelompokUsia.map((_, i) => (
+                  <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        {/* Donut kategori pasien */}
+        <Panel judul="Kategori Pasien">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={donutKategoriPasien} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
+                {donutKategoriPasien.map((_, i) => (
                   <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
                 ))}
               </Pie>

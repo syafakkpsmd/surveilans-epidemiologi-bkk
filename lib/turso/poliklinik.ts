@@ -35,6 +35,7 @@ export interface KunjunganRow {
   nama: string | null;
   jenis_kelamin: string | null;
   usia: number | null;
+  kategori_pasien: string | null;
   diagnosa: string | null;
   keterangan: string | null;
 }
@@ -58,7 +59,7 @@ export async function getKunjunganRawData(tahun?: number, wilayahKerja?: string)
 
   const whereSql = kondisi.length > 0 ? `WHERE ${kondisi.join(' AND ')}` : '';
   const result = await client.execute({
-    sql: `SELECT wilayah_kerja, no_baris, tanggal_pemeriksaan, nama, jenis_kelamin, usia, diagnosa, keterangan
+    sql: `SELECT wilayah_kerja, no_baris, tanggal_pemeriksaan, nama, jenis_kelamin, usia, kategori_pasien, diagnosa, keterangan
           FROM kunjungan_poliklinik ${whereSql}
           ORDER BY tanggal_pemeriksaan ASC`,
     args,
@@ -267,6 +268,24 @@ export function hitungDonutKelompokUsia(rows: KunjunganRow[]): { label: string; 
     { label: 'Lansia (60+ th)', jumlah: kelompok.lansia },
     { label: 'Tidak diketahui', jumlah: kelompok.tidakDiketahui },
   ].filter((k) => k.jumlah > 0);
+}
+
+// ------------------------------------------------------------
+// 5b) Donut Kategori Pasien
+//
+// Nilai kategori tidak dibatasi daftar tetap (tergantung isian di sheet),
+// jadi dikelompokkan apa adanya per teks yang muncul, diurutkan dari yang
+// terbanyak. Baris tanpa kategori dikelompokkan sebagai "Tidak diketahui".
+// ------------------------------------------------------------
+export function hitungDonutKategoriPasien(rows: KunjunganRow[]): { label: string; jumlah: number }[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const label = (r.kategori_pasien ?? '').trim() || 'Tidak diketahui';
+    map.set(label, (map.get(label) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([label, jumlah]) => ({ label, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
 }
 
 // ------------------------------------------------------------

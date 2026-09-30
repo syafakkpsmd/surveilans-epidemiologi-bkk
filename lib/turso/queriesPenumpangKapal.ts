@@ -1,63 +1,36 @@
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
-// SESUAIKAN import ini dengan client Turso yang sudah dipakai project,
-// mis. lib/turso/client.ts yang sudah ada (dipakai untuk data_icv).
-import { getTursoClient } from '@/lib/turso/client';
+import { getTursoClient } from "@/lib/turso/client";
 
-const tursoClient = getTursoClient();
+// =============================================================
+// Agregat mingguan/bulanan (dipakai chart ABK/Crew/Penumpang) --
+// dijumlahkan lintas wilker, cuma butuh tanggal_tiba + penumpang_datang/berangkat.
+// =============================================================
 
 interface BarisPenumpangKapal {
-  tanggal_tiba: string | null; // YYYY-MM-DD, null kalau kapal belum berangkat / doking
-  tanggal_berangkat: string | null; // YYYY-MM-DD, null kalau belum diisi / doking
+  tanggal_tiba: string; // YYYY-MM-DD
   penumpang_datang: number;
   penumpang_berangkat: number;
 }
 
-/**
- * Ambil semua baris yang RELEVAN untuk rentang tahun kalender [tahunAwal, tahunAkhir]:
- * yaitu baris yang tanggal_tiba ATAU tanggal_berangkat-nya jatuh di rentang itu.
- * Kedua kolom tanggal independen -- kedatangan & keberangkatan dari 1 baris
- * yang sama bisa saja jatuh di bulan/tahun kalender yang berbeda (kapal
- * berlabuh lama), jadi keduanya diambil lalu dikelompokkan terpisah nanti.
- */
-async function ambilBarisRentangTahun(
-  tahunAwal: number,
-  tahunAkhir: number
-): Promise<BarisPenumpangKapal[]> {
-  const awal = `${tahunAwal}-01-01`;
-  const akhir = `${tahunAkhir}-12-31`;
-
-  const hasil = await tursoClient.execute({
-    sql: `SELECT tanggal_tiba, tanggal_berangkat, penumpang_datang, penumpang_berangkat
+async function ambilBarisTahun(tahun: number): Promise<BarisPenumpangKapal[]> {
+  const hasil = await getTursoClient().execute({
+    sql: `SELECT tanggal_tiba, penumpang_datang, penumpang_berangkat
           FROM data_penumpang_kapal
-          WHERE (tanggal_tiba IS NOT NULL AND tanggal_tiba BETWEEN ? AND ?)
-             OR (tanggal_berangkat IS NOT NULL AND tanggal_berangkat BETWEEN ? AND ?)`,
-    args: [awal, akhir, awal, akhir],
+          WHERE strftime('%Y', tanggal_tiba) = ?`,
+    args: [String(tahun)],
   });
 
   return hasil.rows.map((r: any) => ({
-    tanggal_tiba: r.tanggal_tiba ? String(r.tanggal_tiba) : null,
-    tanggal_berangkat: r.tanggal_berangkat ? String(r.tanggal_berangkat) : null,
+    tanggal_tiba: String(r.tanggal_tiba ?? ""),
     penumpang_datang: Number(r.penumpang_datang) || 0,
     penumpang_berangkat: Number(r.penumpang_berangkat) || 0,
   }));
 }
 
-function parseTanggal(tanggal: string | null): Date | null {
-  if (!tanggal) return null;
-  const tgl = new Date(tanggal + "T00:00:00");
-  return Number.isNaN(tgl.getTime()) ? null : tgl;
-}
-
 /**
- * Ambil total penumpang kapal per minggu epidemiologi, digabung dari sheet
- * Samarinda + Lhoktuan (tidak dipisah per wilker, mengikuti pola dashboard
- * ABK/Crew/Penumpang yang sudah ada).
- *
- * PENTING: kedatangan dihitung dari tanggal_tiba, keberangkatan dari
- * tanggal_berangkat -- keduanya dikelompokkan SECARA TERPISAH per baris,
- * jadi kapal yang tiba di minggu X tapi baru berangkat di minggu Y (atau
- * belum berangkat sama sekali / tanggal_berangkat masih kosong) tetap
- * tercatat benar di masing-masing peta tanpa saling memengaruhi.
+ * Ambil total penumpang kapal (datang & berangkat) per minggu epidemiologi,
+ * digabung dari sheet Samarinda + Lhoktuan (tidak dipisah per wilker,
+ * mengikuti pola dashboard ABK/Crew/Penumpang yang sudah ada).
  *
  * Ambil data 1 tahun kalender sebelum & sesudah karena minggu epid awal/akhir
  * tahun bisa "menyeberang" tahun kalender.
@@ -65,56 +38,163 @@ function parseTanggal(tanggal: string | null): Date | null {
 export async function getPenumpangKapalMingguan(
   tahunEpid: number
 ): Promise<{ petaDatang: Map<number, number>; petaBerangkat: Map<number, number> }> {
-  const baris = await ambilBarisRentangTahun(tahunEpid - 1, tahunEpid + 1);
+  const baris = [
+    ...(await ambilBarisTahun(tahunEpid - 1)),
+    ...(await ambilBarisTahun(tahunEpid)),
+    ...(await ambilBarisTahun(tahunEpid + 1)),
+  ];
 
   const petaDatang = new Map<number, number>();
   const petaBerangkat = new Map<number, number>();
 
   baris.forEach((b) => {
-    const tglTiba = parseTanggal(b.tanggal_tiba);
-    if (tglTiba) {
-      const { tahunEpid: teTiba, mingguEpid: mgTiba } = hitungMingguEpidemiologi(tglTiba);
-      if (teTiba === tahunEpid) {
-        petaDatang.set(mgTiba, (petaDatang.get(mgTiba) ?? 0) + b.penumpang_datang);
-      }
-    }
+    if (!b.tanggal_tiba) return;
+    const tgl = new Date(b.tanggal_tiba + "T00:00:00");
+    if (Number.isNaN(tgl.getTime())) return;
 
-    const tglBerangkat = parseTanggal(b.tanggal_berangkat);
-    if (tglBerangkat) {
-      const { tahunEpid: teBerangkat, mingguEpid: mgBerangkat } = hitungMingguEpidemiologi(tglBerangkat);
-      if (teBerangkat === tahunEpid) {
-        petaBerangkat.set(mgBerangkat, (petaBerangkat.get(mgBerangkat) ?? 0) + b.penumpang_berangkat);
-      }
-    }
+    const { tahunEpid: teBaris, mingguEpid } = hitungMingguEpidemiologi(tgl);
+    if (teBaris !== tahunEpid) return;
+
+    petaDatang.set(mingguEpid, (petaDatang.get(mingguEpid) ?? 0) + b.penumpang_datang);
+    petaBerangkat.set(mingguEpid, (petaBerangkat.get(mingguEpid) ?? 0) + b.penumpang_berangkat);
   });
 
   return { petaDatang, petaBerangkat };
 }
 
 /**
- * Ambil total penumpang kapal per bulan kalender, digabung dari sheet
- * Samarinda + Lhoktuan. Sama seperti versi mingguan, kedatangan (tanggal_tiba)
- * dan keberangkatan (tanggal_berangkat) dikelompokkan terpisah per baris.
+ * Ambil total penumpang kapal (datang & berangkat) per bulan kalender,
+ * digabung dari sheet Samarinda + Lhoktuan.
  */
 export async function getPenumpangKapalBulanan(
   tahunKalender: number
 ): Promise<{ petaDatang: Map<number, number>; petaBerangkat: Map<number, number> }> {
-  const baris = await ambilBarisRentangTahun(tahunKalender, tahunKalender);
+  const baris = await ambilBarisTahun(tahunKalender);
 
   const petaDatang = new Map<number, number>();
   const petaBerangkat = new Map<number, number>();
 
   baris.forEach((b) => {
-    if (b.tanggal_tiba && b.tanggal_tiba.startsWith(String(tahunKalender))) {
-      const bulan = Number(b.tanggal_tiba.split("-")[1]);
-      if (bulan) petaDatang.set(bulan, (petaDatang.get(bulan) ?? 0) + b.penumpang_datang);
-    }
-
-    if (b.tanggal_berangkat && b.tanggal_berangkat.startsWith(String(tahunKalender))) {
-      const bulan = Number(b.tanggal_berangkat.split("-")[1]);
-      if (bulan) petaBerangkat.set(bulan, (petaBerangkat.get(bulan) ?? 0) + b.penumpang_berangkat);
-    }
+    if (!b.tanggal_tiba) return;
+    const bulan = Number(b.tanggal_tiba.split("-")[1]);
+    if (!bulan) return;
+    petaDatang.set(bulan, (petaDatang.get(bulan) ?? 0) + b.penumpang_datang);
+    petaBerangkat.set(bulan, (petaBerangkat.get(bulan) ?? 0) + b.penumpang_berangkat);
   });
 
   return { petaDatang, petaBerangkat };
+}
+
+// =============================================================
+// Listing MENTAH (bukan agregat) untuk dashboard Lalu Lintas Orang --
+// menampilkan 1 baris per pelayaran, bukan dijumlahkan per periode.
+// =============================================================
+
+export interface BarisPenumpangKapalMentah {
+  wilker: string;
+  no_baris: number;
+  tanggal_tiba: string;
+  tanggal_berangkat: string;
+  nama_kapal: string;
+  abk_datang: number;
+  abk_berangkat: number;
+  penumpang_datang: number;
+  penumpang_berangkat: number;
+  siaos: string;
+  keterangan: string;
+}
+
+export interface FilterPenumpangKapalMentah {
+  tahun: number;
+  granularitas: "mingguan" | "bulanan";
+  awal: number; // minggu 1-53 atau bulan 1-12
+  akhir: number;
+  wilker?: string;
+}
+
+/**
+ * Ambil daftar pelayaran mentah, difilter rentang minggu/bulan epidemiologi
+ * berdasar tanggal_tiba. Dipakai untuk tabel Penumpang Kapal di dashboard
+ * Lalu Lintas Orang (bukan untuk chart agregat).
+ *
+ * Baris dengan tanggal_tiba kosong (kapal baru berangkat/doking, sesuai
+ * skema GAS terbaru) tidak lolos filter rentang minggu/bulan -- baris itu
+ * memang tidak punya "kapan" untuk dikelompokkan, jadi tidak akan pernah
+ * muncul di tabel manapun sampai tanggal_tiba diisi.
+ */
+export async function getPenumpangKapalMentah(
+  filter: FilterPenumpangKapalMentah
+): Promise<BarisPenumpangKapalMentah[]> {
+  // Ambil 1 tahun kalender sebelum & sesudah karena minggu epid awal/akhir
+  // tahun bisa "menyeberang" tahun kalender (sama pola dengan getPenumpangKapalMingguan).
+  const tahunYangDiambil =
+    filter.granularitas === "mingguan"
+      ? [filter.tahun - 1, filter.tahun, filter.tahun + 1]
+      : [filter.tahun];
+
+  const kondisiTahun = tahunYangDiambil.map(() => `strftime('%Y', tanggal_tiba) = ?`).join(" OR ");
+  const args: (string | number)[] = tahunYangDiambil.map(String);
+
+  let kondisiWilker = "";
+  if (filter.wilker) {
+    kondisiWilker = ` AND wilker = ?`;
+    args.push(filter.wilker);
+  }
+
+  let hasil;
+  try {
+    hasil = await getTursoClient().execute({
+      sql: `SELECT wilker, no_baris, tanggal_tiba, tanggal_berangkat, nama_kapal,
+                   abk_datang, abk_berangkat, penumpang_datang, penumpang_berangkat, siaos, keterangan
+            FROM data_penumpang_kapal
+            WHERE (${kondisiTahun})${kondisiWilker}
+            ORDER BY wilker ASC, tanggal_tiba ASC, no_baris ASC`,
+      args,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("no such table")) return [];
+    throw err;
+  }
+
+  const semuaBaris: BarisPenumpangKapalMentah[] = hasil.rows.map((r: any) => ({
+    wilker: String(r.wilker ?? ""),
+    no_baris: Number(r.no_baris),
+    tanggal_tiba: String(r.tanggal_tiba ?? ""),
+    tanggal_berangkat: String(r.tanggal_berangkat ?? ""),
+    nama_kapal: String(r.nama_kapal ?? ""),
+    abk_datang: Number(r.abk_datang) || 0,
+    abk_berangkat: Number(r.abk_berangkat) || 0,
+    penumpang_datang: Number(r.penumpang_datang) || 0,
+    penumpang_berangkat: Number(r.penumpang_berangkat) || 0,
+    siaos: String(r.siaos ?? ""),
+    keterangan: String(r.keterangan ?? ""),
+  }));
+
+  // Filter rentang minggu/bulan di JS (epi-week tidak bisa dihitung di SQLite).
+  return semuaBaris.filter((b) => {
+    if (!b.tanggal_tiba) return false;
+    const tgl = new Date(b.tanggal_tiba + "T00:00:00");
+    if (Number.isNaN(tgl.getTime())) return false;
+
+    if (filter.granularitas === "mingguan") {
+      const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(tgl);
+      return tahunEpid === filter.tahun && mingguEpid >= filter.awal && mingguEpid <= filter.akhir;
+    }
+    const bulan = tgl.getMonth() + 1;
+    return tgl.getFullYear() === filter.tahun && bulan >= filter.awal && bulan <= filter.akhir;
+  });
+}
+
+/** Daftar wilayah kerja yang ada datanya di data_penumpang_kapal, untuk dropdown filter. */
+export async function getWilayahKerjaPenumpangKapal(): Promise<string[]> {
+  try {
+    const hasil = await getTursoClient().execute({
+      sql: `SELECT DISTINCT wilker FROM data_penumpang_kapal ORDER BY wilker`,
+      args: [],
+    });
+    return hasil.rows.map((r: any) => String(r.wilker));
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("no such table")) return [];
+    throw err;
+  }
 }

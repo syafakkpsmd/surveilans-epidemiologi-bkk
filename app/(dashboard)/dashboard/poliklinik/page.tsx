@@ -9,6 +9,7 @@ import {
   hitungTopDiagnosa,
   hitungDonutJenisKelaminKunjungan,
   hitungDonutKelompokUsia,
+  hitungDonutKategoriPasien,
   hitungBreakdownWilker,
   hitungPolaHariKunjungan,
   DAFTAR_WILKER_POLIKLINIK,
@@ -49,6 +50,7 @@ export default async function HalamanPoliklinik({
   const topDiagnosa = hitungTopDiagnosa(rows, 10);
   const donutJenisKelamin = hitungDonutJenisKelaminKunjungan(rows);
   const donutKelompokUsia = hitungDonutKelompokUsia(rows);
+  const donutKategoriPasien = hitungDonutKategoriPasien(rows);
   const breakdownWilker = hitungBreakdownWilker(dataUntukBreakdownWilker);
   const polaHari = hitungPolaHariKunjungan(rows);
 
@@ -65,6 +67,7 @@ export default async function HalamanPoliklinik({
       topDiagnosa={topDiagnosa}
       donutJenisKelamin={donutJenisKelamin}
       donutKelompokUsia={donutKelompokUsia}
+      donutKategoriPasien={donutKategoriPasien}
       breakdownWilker={breakdownWilker}
       polaHari={polaHari}
     />

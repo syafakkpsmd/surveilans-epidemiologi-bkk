@@ -11,6 +11,10 @@ import {
   getPenumpangKapalMingguan,
   getPenumpangKapalBulanan,
 } from "@/lib/turso/queriesPenumpangKapal";
+import {
+  getAbkPhqcPerTujuanMingguan,
+  getAbkPhqcPerTujuanBulanan,
+} from "@/lib/supabase/queriesPhqcTujuan";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getBanyakHasilAI, type PermintaanHasilAI } from "@/lib/ai/getBanyakHasilAI";
 import AbkCrewPenumpangClient from "./AbkCrewPenumpangClient";
@@ -40,6 +44,17 @@ function jumlahkanPerPeriode(
     peta.set(periode, (peta.get(periode) ?? 0) + nilai);
   });
   return peta;
+}
+
+/** Jumlahkan beberapa Map<periode, nilai> jadi satu Map (dipakai untuk bucket "Dalam Negeri"). */
+function jumlahkanBeberapaPeta(...petaList: Map<number, number>[]): Map<number, number> {
+  const hasil = new Map<number, number>();
+  petaList.forEach((peta) => {
+    peta.forEach((nilai, periode) => {
+      hasil.set(periode, (hasil.get(periode) ?? 0) + nilai);
+    });
+  });
+  return hasil;
 }
 
 function ambilPeriodeMingguanPesawat(row: any): number | undefined {
@@ -104,9 +119,38 @@ function gabungkanEmpatSeri(
     });
 }
 
+/** Titik untuk grafik breakdown Luar Negeri vs Dalam Negeri (2 series per periode). */
+export interface TitikLuarDalamNegeri {
+  urutan: number;
+  label: string;
+  name: string;
+  luar_negeri: number;
+  dalam_negeri: number;
+}
+
+function gabungkanDuaSeri(
+  petaLuarNegeri: Map<number, number>,
+  petaDalamNegeri: Map<number, number>,
+  labelFn: (urutan: number) => string
+): TitikLuarDalamNegeri[] {
+  const semuaPeriode = new Set<number>([...petaLuarNegeri.keys(), ...petaDalamNegeri.keys()]);
+  return Array.from(semuaPeriode)
+    .sort((a, b) => a - b)
+    .map((urutan) => {
+      const label = labelFn(urutan);
+      return {
+        urutan,
+        label,
+        name: label,
+        luar_negeri: petaLuarNegeri.get(urutan) ?? 0,
+        dalam_negeri: petaDalamNegeri.get(urutan) ?? 0,
+      };
+    });
+}
+
 export default async function AbkCrewPenumpangPage() {
   const { sudahLogin, role } = await getStatusAkses();
-  const roleAI = role === "admin" || role === "petugas" || role === "petugas_klinik" ? role : null;
+  const roleAI = role === "admin" || role === "petugas" ? role : null;
 
   const sekarang = new Date();
   const { tahunEpid, mingguEpid: mingguEpidRaw } = hitungMingguEpidemiologi(sekarang);
@@ -115,16 +159,17 @@ export default async function AbkCrewPenumpangPage() {
   const bulanBerjalan = sekarang.getMonth() + 1;
 
   // ============================================================
-  // Dashboard ini menggabungkan 3 sumber data (COP, PHQC, Pesawat,
-  // + sekarang data_penumpang_kapal di Turso) dan TIDAK punya konsep
-  // 1 wilayah kerja tunggal -- jadi datanya SELALU dijumlahkan lintas
-  // semua wilayah/wilker (bukan difilter per satu wilker). Karena itu
-  // wajibWilayahKerja={false} di semua Box AI.
+  // Dashboard ini menggabungkan beberapa sumber data (COP, PHQC, Pesawat,
+  // Penumpang Kapal di Turso) dan TIDAK punya konsep 1 wilayah kerja
+  // tunggal -- jadi datanya SELALU dijumlahkan lintas semua wilayah/wilker.
   //
-  // Sumber "penumpang_kapal" (datang & berangkat) SEKARANG dari
-  // data_penumpang_kapal (sheet Samarinda + Lhoktuan, sync ke Turso
-  // tiap malam via GAS) -- kolom total_penumpang di PHQC TIDAK lagi
-  // dipakai/dijumlahkan ke sini.
+  // Breakdown Luar Negeri vs Dalam Negeri (grafik baru) memakai kolom
+  // tujuan_berlayar di kegiatan_phqc (PHQC). Ini TIDAK mengubah angka
+  // "Total Kedatangan"/"Total Keberangkatan" yang sudah ada -- itu tetap
+  // dihitung sama seperti sebelumnya. Untuk kedatangan, PHQC tidak punya
+  // data arah datang (PHQC cuma keberangkatan), jadi angka ABK PHQC
+  // "Dalam Negeri" dipakai ulang sebagai proksi ABK Dalam Negeri yang
+  // datang juga (sesuai arahan pengguna), TANPA menambah "Total Kedatangan".
   // ============================================================
   const permintaanAI: PermintaanHasilAI[] = [
     { konteks: "abk-crew-penumpang-kedatangan-mingguan", periodeKey: `${tahunEpid}-W${mingguEpidBerjalan}`, tipe: "analisis" },
@@ -146,6 +191,8 @@ export default async function AbkCrewPenumpangPage() {
     ringkasanPesawatBulanan,
     penumpangKapalMingguan,
     penumpangKapalBulanan,
+    abkPhqcTujuanMingguan,
+    abkPhqcTujuanBulanan,
     hasilAI,
   ] = await Promise.all([
     getRingkasanMingguan("cop", tahunEpid),
@@ -156,41 +203,103 @@ export default async function AbkCrewPenumpangPage() {
     getRingkasanPesawatBulanan({ tahun: tahunKalender }),
     getPenumpangKapalMingguan(tahunEpid),
     getPenumpangKapalBulanan(tahunKalender),
+    getAbkPhqcPerTujuanMingguan(tahunEpid),
+    getAbkPhqcPerTujuanBulanan(tahunKalender),
     getBanyakHasilAI(permintaanAI),
   ]);
 
-  // ---- KEDATANGAN: ABK Kapal (COP) + Penumpang Kapal (data_penumpang_kapal,
-  // dulunya selalu 0 karena tidak ada sumbernya) + Crew & Penumpang Pesawat Datang ----
+  // ---- Peta komponen mingguan/bulanan yang dipakai ulang untuk total DAN breakdown ----
+  const petaAbkCopMingguan = jumlahkanPerPeriode(ringkasanCopMingguan, (r) => r.minggu_epid, (r) => r.total_abk);
+  const petaAbkCopBulanan = jumlahkanPerPeriode(ringkasanCopBulanan, (r) => r.bulan, (r) => r.total_abk);
+  const petaAbkPhqcMingguan = jumlahkanPerPeriode(ringkasanPhqcMingguan, (r) => r.minggu_epid, (r) => r.total_abk);
+  const petaAbkPhqcBulanan = jumlahkanPerPeriode(ringkasanPhqcBulanan, (r) => r.bulan, (r) => r.total_abk);
+  const petaCrewDatangMingguan = jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.crew_datang);
+  const petaCrewDatangBulanan = jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.crew_datang);
+  const petaPenumpangPesawatDatangMingguan = jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.penumpang_datang);
+  const petaPenumpangPesawatDatangBulanan = jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.penumpang_datang);
+  const petaCrewBerangkatMingguan = jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.crew_berangkat);
+  const petaCrewBerangkatBulanan = jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.crew_berangkat);
+  const petaPenumpangPesawatBerangkatMingguan = jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.penumpang_berangkat);
+  const petaPenumpangPesawatBerangkatBulanan = jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.penumpang_berangkat);
+
+  // ---- KEDATANGAN: ABK Kapal (COP) + Penumpang Kapal (Turso) + Crew & Penumpang Pesawat Datang ----
   const mingguanKedatangan = gabungkanEmpatSeri(
-    jumlahkanPerPeriode(ringkasanCopMingguan, (r) => r.minggu_epid, (r) => r.total_abk),
+    petaAbkCopMingguan,
     penumpangKapalMingguan.petaDatang,
-    jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.crew_datang),
-    jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.penumpang_datang),
+    petaCrewDatangMingguan,
+    petaPenumpangPesawatDatangMingguan,
     (u) => `Mg ${u}`
   );
   const bulananKedatangan = gabungkanEmpatSeri(
-    jumlahkanPerPeriode(ringkasanCopBulanan, (r) => r.bulan, (r) => r.total_abk),
+    petaAbkCopBulanan,
     penumpangKapalBulanan.petaDatang,
-    jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.crew_datang),
-    jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.penumpang_datang),
+    petaCrewDatangBulanan,
+    petaPenumpangPesawatDatangBulanan,
     (u) => NAMA_BULAN[u - 1] ?? `Bln ${u}`
   );
 
-  // ---- KEBERANGKATAN: ABK Kapal (PHQC, tidak berubah) + Penumpang Kapal
-  // (SEKARANG dari data_penumpang_kapal, bukan lagi total_penumpang PHQC)
-  // + Crew & Penumpang Pesawat Berangkat ----
+  // ---- KEBERANGKATAN: ABK Kapal (PHQC) + Penumpang Kapal (Turso) + Crew & Penumpang Pesawat Berangkat ----
   const mingguanKeberangkatan = gabungkanEmpatSeri(
-    jumlahkanPerPeriode(ringkasanPhqcMingguan, (r) => r.minggu_epid, (r) => r.total_abk),
+    petaAbkPhqcMingguan,
     penumpangKapalMingguan.petaBerangkat,
-    jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.crew_berangkat),
-    jumlahkanPerPeriode(ringkasanPesawatMingguan, ambilPeriodeMingguanPesawat, (r) => r.penumpang_berangkat),
+    petaCrewBerangkatMingguan,
+    petaPenumpangPesawatBerangkatMingguan,
     (u) => `Mg ${u}`
   );
   const bulananKeberangkatan = gabungkanEmpatSeri(
-    jumlahkanPerPeriode(ringkasanPhqcBulanan, (r) => r.bulan, (r) => r.total_abk),
+    petaAbkPhqcBulanan,
     penumpangKapalBulanan.petaBerangkat,
-    jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.crew_berangkat),
-    jumlahkanPerPeriode(ringkasanPesawatBulanan, ambilPeriodeBulananPesawat, (r) => r.penumpang_berangkat),
+    petaCrewBerangkatBulanan,
+    petaPenumpangPesawatBerangkatBulanan,
+    (u) => NAMA_BULAN[u - 1] ?? `Bln ${u}`
+  );
+
+  // ---- BREAKDOWN KEDATANGAN Luar Negeri vs Dalam Negeri ----
+  // Luar Negeri = ABK COP. Dalam Negeri = ABK PHQC "Dalam Negeri" (dipakai ulang,
+  // PHQC tidak punya data arah datang) + Penumpang Kapal Datang + Crew & Penumpang
+  // Pesawat Datang.
+  const mingguanKedatanganLuarDalam = gabungkanDuaSeri(
+    petaAbkCopMingguan,
+    jumlahkanBeberapaPeta(
+      abkPhqcTujuanMingguan.petaDalamNegeri,
+      penumpangKapalMingguan.petaDatang,
+      petaCrewDatangMingguan,
+      petaPenumpangPesawatDatangMingguan
+    ),
+    (u) => `Mg ${u}`
+  );
+  const bulananKedatanganLuarDalam = gabungkanDuaSeri(
+    petaAbkCopBulanan,
+    jumlahkanBeberapaPeta(
+      abkPhqcTujuanBulanan.petaDalamNegeri,
+      penumpangKapalBulanan.petaDatang,
+      petaCrewDatangBulanan,
+      petaPenumpangPesawatDatangBulanan
+    ),
+    (u) => NAMA_BULAN[u - 1] ?? `Bln ${u}`
+  );
+
+  // ---- BREAKDOWN KEBERANGKATAN Luar Negeri vs Dalam Negeri ----
+  // Luar Negeri = ABK PHQC tujuan "Luar Negeri". Dalam Negeri = ABK PHQC "Dalam
+  // Negeri" + Penumpang Kapal Berangkat + Crew & Penumpang Pesawat Berangkat.
+  const mingguanKeberangkatanLuarDalam = gabungkanDuaSeri(
+    abkPhqcTujuanMingguan.petaLuarNegeri,
+    jumlahkanBeberapaPeta(
+      abkPhqcTujuanMingguan.petaDalamNegeri,
+      penumpangKapalMingguan.petaBerangkat,
+      petaCrewBerangkatMingguan,
+      petaPenumpangPesawatBerangkatMingguan
+    ),
+    (u) => `Mg ${u}`
+  );
+  const bulananKeberangkatanLuarDalam = gabungkanDuaSeri(
+    abkPhqcTujuanBulanan.petaLuarNegeri,
+    jumlahkanBeberapaPeta(
+      abkPhqcTujuanBulanan.petaDalamNegeri,
+      penumpangKapalBulanan.petaBerangkat,
+      petaCrewBerangkatBulanan,
+      petaPenumpangPesawatBerangkatBulanan
+    ),
     (u) => NAMA_BULAN[u - 1] ?? `Bln ${u}`
   );
 
@@ -206,6 +315,10 @@ export default async function AbkCrewPenumpangPage() {
       bulananKedatangan={bulananKedatangan}
       mingguanKeberangkatan={mingguanKeberangkatan}
       bulananKeberangkatan={bulananKeberangkatan}
+      mingguanKedatanganLuarDalam={mingguanKedatanganLuarDalam}
+      bulananKedatanganLuarDalam={bulananKedatanganLuarDalam}
+      mingguanKeberangkatanLuarDalam={mingguanKeberangkatanLuarDalam}
+      bulananKeberangkatanLuarDalam={bulananKeberangkatanLuarDalam}
       hasilAI={hasilAI}
     />
   );

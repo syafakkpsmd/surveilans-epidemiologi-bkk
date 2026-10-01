@@ -16,6 +16,7 @@ import { buildMatriksMingguan, buildMatriksBulanan } from '@/lib/status-laporan/
 import KontrolPeriode from '@/components/status-laporan/KontrolPeriode';
 import TabelMingguan from '@/components/status-laporan/TabelMingguan';
 import TabelBulanan from '@/components/status-laporan/TabelBulanan';
+import TabStatusLaporan from '@/components/status-laporan/TabStatusLaporan';
 
 export default async function StatusLaporanPage({
   searchParams,
@@ -55,6 +56,8 @@ export default async function StatusLaporanPage({
 
   return (
     <div className="space-y-10">
+      <TabStatusLaporan aktif="alat-angkut" />
+
       {/* ============================================================
           BAGIAN ATAS -- MINGGUAN
          ============================================================ */}

@@ -95,6 +95,7 @@ import { panggilAI } from '@/lib/ai';
 import { rentangHariIniWita } from '@/lib/ai/periode';
 import type { Wilayah, KategoriCop } from "@/types/domain.types";
 import { type MetrikVektor } from '@/lib/ai/dataVektor';
+import { bolehJalankanAI } from '@/lib/auth/aksesAI';
 
 
 export const maxDuration = 60;
@@ -177,7 +178,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const { role } = await getStatusAkses();
-  if (role !== 'admin' && role !== 'petugas') {
+  if (!bolehJalankanAI(role)) {
     return NextResponse.json(
       { error: 'Menjalankan Analisis/Prediksi AI hanya untuk Petugas/Admin yang sudah login.' },
       { status: 403 }

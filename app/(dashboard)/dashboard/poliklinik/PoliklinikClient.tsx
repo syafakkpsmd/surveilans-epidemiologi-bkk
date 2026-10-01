@@ -123,6 +123,54 @@ export default function PoliklinikClient({
         <KartuKpi label="Rata-rata / Hari Aktif" nilai={ringkasan.rataRataPerHari} />
       </div>
 
+      {/* Grafik pie/donut -- diletakkan tepat di bawah kartu ringkasan */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Donut jenis kelamin */}
+        <Panel judul="Jenis Kelamin">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={donutJenisKelamin} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
+                {donutJenisKelamin.map((_, i) => (
+                  <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        {/* Donut kelompok usia */}
+        <Panel judul="Kelompok Usia">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={donutKelompokUsia} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
+                {donutKelompokUsia.map((_, i) => (
+                  <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </Panel>
+
+        {/* Donut kategori pasien */}
+        <Panel judul="Kategori Pasien">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={donutKategoriPasien} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
+                {donutKategoriPasien.map((_, i) => (
+                  <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </Panel>
+      </div>
+
       {/* Tren total */}
       <Panel
         judul={`Tren Kunjungan ${granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}`}
@@ -237,65 +285,18 @@ export default function PoliklinikClient({
         </Panel>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Donut jenis kelamin */}
-        <Panel judul="Jenis Kelamin">
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={donutJenisKelamin} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
-                {donutJenisKelamin.map((_, i) => (
-                  <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </Panel>
-
-        {/* Donut kelompok usia */}
-        <Panel judul="Kelompok Usia">
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={donutKelompokUsia} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
-                {donutKelompokUsia.map((_, i) => (
-                  <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </Panel>
-
-        {/* Donut kategori pasien */}
-        <Panel judul="Kategori Pasien">
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={donutKategoriPasien} dataKey="jumlah" nameKey="label" innerRadius={45} outerRadius={75} label>
-                {donutKategoriPasien.map((_, i) => (
-                  <Cell key={i} fill={WARNA_DONUT[i % WARNA_DONUT.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </Panel>
-
-        {/* Breakdown per wilker */}
-        <Panel judul="Kunjungan per Wilayah Kerja">
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={breakdownWilker}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="wilayahKerja" tick={{ fontSize: 9 }} interval={0} angle={-15} textAnchor="end" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="jumlah" fill="#0f766e" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Panel>
-      </div>
+      {/* Grafik batang perbandingan antar wilayah kerja -- berdiri sendiri */}
+      <Panel judul="Kunjungan per Wilayah Kerja">
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={breakdownWilker}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="wilayahKerja" tick={{ fontSize: 11 }} />
+            <YAxis />
+            <Tooltip />
+            <Bar dataKey="jumlah" fill="#0f766e" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Panel>
     </div>
   );
 }

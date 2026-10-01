@@ -3,18 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { PeranUser } from "@/types/database.types";
+import { bolehJalankanAI } from "@/lib/auth/aksesAI";
 
 interface BoxPrediksiAIProps {
   sudahLogin: boolean;
   role: PeranUser | null;
   konteks: string;
   periodeKey: string;
+  /** Kosong = prediksi keseluruhan (semua wilayah kerja). */
   wilayahKerja?: string;
   metrik?: string;
-  /** Default true. Set false untuk konteks yang memang tidak pakai wilayah kerja (mis. global-emerging, berbasis negara/metrik). */
+  /** @deprecated Tidak dipakai lagi: tombol aktif walau wilayah kerja belum dipilih. Dipertahankan supaya pemanggil lama tidak error. */
   wajibWilayahKerja?: boolean;
   /**
-   * BARU: hasil yang SUDAH diambil di server (lib/ai/getBanyakHasilAI.ts).
+   * Hasil yang SUDAH diambil di server (lib/ai/getBanyakHasilAI.ts).
    * Lihat komentar lengkap di BoxAnalisisAI.tsx -- pola sama persis,
    * cuma tipe="prediksi".
    */
@@ -29,12 +31,6 @@ type HasilPrediksi = {
   dibuatPada?: string;
 };
 
-// Tombol generate hanya aktif kalau: (1) role admin/petugas, DAN (2) sudah
-// dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
-// untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
-const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = false) =>
-  (role === "admin" || role === "petugas" || role === "petugas_klinik") && (!wajibWilayahKerja || !!wilayahKerja);
-
 export function BoxPrediksiAI({
   sudahLogin,
   role,
@@ -42,7 +38,6 @@ export function BoxPrediksiAI({
   periodeKey,
   wilayahKerja,
   metrik,
-  wajibWilayahKerja = false,
   hasilAwal,
 }: BoxPrediksiAIProps) {
   const sudahDikasihServer = hasilAwal !== undefined;
@@ -50,6 +45,9 @@ export function BoxPrediksiAI({
   const [memuat, setMemuat] = useState(!sudahDikasihServer);
   const [error, setError] = useState<string | null>(null);
   const [hasil, setHasil] = useState<HasilPrediksi | null>(hasilAwal ?? null);
+
+  // Aturan akses sama dengan BoxAnalisisAI (lib/auth/aksesAI.ts).
+  const boleh = bolehJalankanAI(role);
 
   function bangunQuery() {
     const params = new URLSearchParams({ konteks, periode_key: periodeKey, tipe: "prediksi" });
@@ -137,7 +135,7 @@ export function BoxPrediksiAI({
       )}
 
       <div className="mt-3 border-t border-gray-100 pt-3">
-        {!memuat && bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
+        {!memuat && boleh && (
           <button
             type="button"
             onClick={() => void jalankan()}
@@ -147,12 +145,10 @@ export function BoxPrediksiAI({
           </button>
         )}
 
-        {!memuat && !bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
+        {!memuat && !boleh && (
           <p className="text-xs text-gray-400">
-            {wajibWilayahKerja && !wilayahKerja ? (
-              "Pilih satu Wilayah Kerja tertentu untuk menjalankan prediksi."
-            ) : sudahLogin ? (
-              "Hanya Petugas/Admin yang dapat menjalankan prediksi baru."
+            {sudahLogin ? (
+              "Hanya Petugas/Petugas Klinik/Admin yang dapat menjalankan prediksi baru."
             ) : (
               <>
                 <Link href="/login" className="font-semibold text-teal hover:underline">

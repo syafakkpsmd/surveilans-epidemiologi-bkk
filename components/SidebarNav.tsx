@@ -72,7 +72,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship, prefetch: false },
       { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff, prefetch: false },
-      { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang/", icon: Users, prefetch: false },
     ],
   },
   {
@@ -82,13 +81,19 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
       { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
       { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
-      { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
-      { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
-      { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
       { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
       { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
+    ],
+  },
+  {
+    title: "Pelaku Perjalanan",
+    items: [
+      { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang/", icon: Users, prefetch: false },
+      { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
+      { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
+      { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },
       { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
     ],
   },
@@ -133,13 +138,26 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Stok Vaksin", href: "/dashboard/stok-vaksin", icon: Package, prefetch: false },
     ],
   },
-  {
-    title: "Tautan",
+   {
+    title: "Media Informasi",
     items: [
       { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper, prefetch: false },
       { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin, prefetch: false },
-      { label: "Download Peraturan", href: "/peraturan", icon: Book, prefetch: false },
+      {
+        label: "Monitoring Laporan",
+        icon: ClipboardCheck,
+        children: [
+          { label: "Alat Angkut & Vektor", href: "/dashboard/status-laporan", prefetch: false },
+          { label: "Lalu Lintas Orang", href: "/dashboard/status-laporan/lalu-lintas-orang", prefetch: false },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Tautan",
+    items: [
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
+      { label: "Download Peraturan", href: "/peraturan", icon: Book, prefetch: false },
       { label: "LMS Kemenkes", href: "https://lms.kemkes.go.id/", icon: Building2 },
       { label: "e-Office Kemenkes", href: "https://auth-eoffice.kemkes.go.id/", icon: Building2 },
       { label: "e-Kinerja Kemenkes", href: "https://ekinerja-portal-eoffice.kemkes.go.id/", icon: TrendingUp },
@@ -151,7 +169,6 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "TEPHINET", href: "https://www.tephinet.org/", icon: Globe },
       { label: "CDC", href: "https://www.cdc.gov", icon: ShieldAlert },
       { label: "WHO", href: "https://www.who.int/", icon: Globe },
-      { label: "Status Laporan", href: "/dashboard/status-laporan", icon: ClipboardCheck, prefetch: false },
     ],
   },
   {

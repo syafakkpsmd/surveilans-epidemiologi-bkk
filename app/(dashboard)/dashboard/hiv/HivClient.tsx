@@ -281,7 +281,7 @@ export default function HivClient(props: Props) {
       <div className="space-y-4 border-t pt-6">
         {/* Judul di kiri (text-left), rentang periode di kanan (justify-between) */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-teal-50 p-4 rounded-xl shadow-sm">
-          <h2 className="text-lg font-bold text-teal-900 text-left">Analisis Tren Mingguan</h2>
+          <h2 className="text-lg font-bold text-teal-900 text-left">Distribusi Tren Mingguan</h2>
           {trenMingguan.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-slate-600 font-medium">Rentang Periode:</span>
@@ -347,7 +347,7 @@ export default function HivClient(props: Props) {
       <div className="space-y-4 border-t pt-6">
         {/* Judul di kiri (text-left), rentang periode di kanan (justify-between) */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-teal-50 p-4 rounded-xl shadow-sm">
-          <h2 className="text-lg font-bold text-teal-900 text-left">Analisis Tren Bulanan</h2>
+          <h2 className="text-lg font-bold text-teal-900 text-left">Distribusi Bulanan</h2>
           {trenBulanan.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-slate-600 font-medium">Rentang Periode:</span>

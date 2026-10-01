@@ -3,28 +3,24 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { PeranUser } from "@/types/database.types";
+import { bolehJalankanAI } from "@/lib/auth/aksesAI";
 
 interface BoxAnalisisAIProps {
   sudahLogin: boolean;
   role: PeranUser | null;
   konteks: string;
   periodeKey: string;
+  /** Kosong = analisis keseluruhan (semua wilayah kerja). */
   wilayahKerja?: string;
   metrik?: string;
-  /** Default true. Set false untuk konteks yang memang tidak pakai wilayah kerja (mis. global-emerging, berbasis negara/metrik). */
+  /** @deprecated Tidak dipakai lagi: tombol aktif walau wilayah kerja belum dipilih. Dipertahankan supaya pemanggil lama tidak error. */
   wajibWilayahKerja?: boolean;
   /**
-   * BARU: hasil yang SUDAH diambil di server (lib/ai/getBanyakHasilAI.ts,
-   * dipanggil dari page.tsx bareng query data chart lain lewat
-   * Promise.all). Kalau prop ini diisi (termasuk `null` -- artinya
-   * server sudah cek dan memang belum ada hasil), Box TIDAK melakukan
-   * fetch GET saat mount sama sekali.
-   *
-   * Kalau prop ini TIDAK dioper sama sekali (undefined, halaman lama
-   * yang belum dimigrasi), Box otomatis balik ke perilaku lama:
-   * fetch GET /api/analisis-ai sendiri saat mount. Jadi aman dipasang
-   * bertahap, halaman yang belum sempat diubah tetap jalan seperti
-   * biasa.
+   * Hasil yang SUDAH diambil di server (lib/ai/getBanyakHasilAI.ts, dipanggil
+   * dari page.tsx lewat Promise.all). Kalau diisi (termasuk `null` = server
+   * sudah cek dan belum ada hasil), Box TIDAK fetch GET saat mount.
+   * Kalau tidak dioper (undefined, halaman lama), Box fetch GET
+   * /api/analisis-ai sendiri saat mount.
    */
   hasilAwal?: HasilAnalisis | null;
 }
@@ -37,12 +33,6 @@ type HasilAnalisis = {
   dibuatPada?: string;
 };
 
-// Tombol generate hanya aktif kalau: (1) role admin/petugas, DAN (2) sudah
-// dipilih 1 Wilayah Kerja tertentu (bukan "Semua Wilayah Kerja") -- berlaku
-// untuk SEMUA konteks (COP, PHQC, Vektor, dll), bukan cuma vektor.
-const bolehGenerate = (role: PeranUser | null, wilayahKerja?: string, wajibWilayahKerja = false) =>
-  (role === "admin" || role === "petugas" || role === "petugas_klinik") && (!wajibWilayahKerja || !!wilayahKerja);
-
 export function BoxAnalisisAI({
   sudahLogin,
   role,
@@ -50,17 +40,17 @@ export function BoxAnalisisAI({
   periodeKey,
   wilayahKerja,
   metrik,
-  wajibWilayahKerja = false,
   hasilAwal,
 }: BoxAnalisisAIProps) {
-  // sudahDikasihServer: true kalau halaman ini SUDAH dimigrasi ke pola
-  // batch-fetch (page.tsx mengoper hasilAwal, walaupun isinya null).
-  // undefined = prop tidak dioper sama sekali = halaman lama.
   const sudahDikasihServer = hasilAwal !== undefined;
 
   const [memuat, setMemuat] = useState(!sudahDikasihServer);
   const [error, setError] = useState<string | null>(null);
   const [hasil, setHasil] = useState<HasilAnalisis | null>(hasilAwal ?? null);
+
+  // Tombol aktif untuk admin/petugas/petugas_klinik (lib/auth/aksesAI.ts).
+  // Wilayah kerja tidak wajib: kosong = analisis keseluruhan.
+  const boleh = bolehJalankanAI(role);
 
   function bangunQuery() {
     const params = new URLSearchParams({ konteks, periode_key: periodeKey, tipe: "analisis" });
@@ -110,8 +100,6 @@ export function BoxAnalisisAI({
   }
 
   useEffect(() => {
-    // Kalau server SUDAH kasih hasilnya lewat props, jangan fetch lagi --
-    // ini yang menghilangkan request GET client-side per box.
     if (sudahDikasihServer) return;
     void muatHasil();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,7 +137,7 @@ export function BoxAnalisisAI({
       )}
 
       <div className="mt-3 border-t border-gray-100 pt-3">
-        {!memuat && bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
+        {!memuat && boleh && (
           <button
             type="button"
             onClick={() => void jalankan()}
@@ -159,12 +147,10 @@ export function BoxAnalisisAI({
           </button>
         )}
 
-        {!memuat && !bolehGenerate(role, wilayahKerja, wajibWilayahKerja) && (
+        {!memuat && !boleh && (
           <p className="text-xs text-gray-400">
-            {wajibWilayahKerja && !wilayahKerja ? (
-              "Pilih satu Wilayah Kerja tertentu untuk menjalankan analisis."
-            ) : sudahLogin ? (
-              "Hanya Petugas/Admin yang dapat menjalankan analisis baru."
+            {sudahLogin ? (
+              "Hanya Petugas/Petugas Klinik/Admin yang dapat menjalankan analisis baru."
             ) : (
               <>
                 <Link href="/login" className="font-semibold text-teal hover:underline">

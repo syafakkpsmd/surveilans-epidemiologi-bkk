@@ -182,6 +182,31 @@ export function hitungTrenBulananTb(rows: TbRow[]): TitikTrenTb[] {
 }
 
 // ------------------------------------------------------------
+// 2b) Filter baris berdasarkan rentang minggu/bulan epidemiologi --
+//     dipakai di page.tsx SEBELUM menghitung KPI/cascade/breakdown
+//     lain, supaya semuanya "ikut" rentang yang dipilih user, bukan
+//     cuma chart Tren-nya saja.
+// ------------------------------------------------------------
+export function filterRowsByRentangMinggu(rows: TbRow[], mulai: string, akhir: string): TbRow[] {
+  return rows.filter((r) => {
+    if (!r.tanggal_pelaksanaan) return false;
+    const tgl = new Date(r.tanggal_pelaksanaan);
+    if (isNaN(tgl.getTime())) return false;
+    const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(tgl);
+    const periode = `${tahunEpid}-W${String(mingguEpid).padStart(2, '0')}`;
+    return periode >= mulai && periode <= akhir;
+  });
+}
+
+export function filterRowsByRentangBulan(rows: TbRow[], mulai: string, akhir: string): TbRow[] {
+  return rows.filter((r) => {
+    if (!r.tanggal_pelaksanaan) return false;
+    const periode = r.tanggal_pelaksanaan.slice(0, 7); // "YYYY-MM"
+    return periode >= mulai && periode <= akhir;
+  });
+}
+
+// ------------------------------------------------------------
 // 3) Breakdown Faktor Risiko -- kelompok mana yang paling "produktif"
 //    ditemukan terduga/terkonfirmasi (untuk arahkan target skrining ACF)
 // ------------------------------------------------------------

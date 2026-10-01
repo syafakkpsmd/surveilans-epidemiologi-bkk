@@ -1254,7 +1254,7 @@ export async function getDaftarPabTmsDetail(tahun: number, wilayahKerja?: string
     .select('id, wilayah_kerja, nama_ttu, tanggal, fisik, kimia, bakteriologis')
     .gte('tanggal', `${tahun}-01-01`)
     .lte('tanggal', `${tahun}-12-31`)
-    .or('fisik.eq.Tidak Memenuhi Syarat,kimia.eq.Tidak Memenuhi Syarat,bakteriologis.eq.Tidak Memenuhi Syarat')
+    .or('fisik.ilike.*tidak memenuhi*,kimia.ilike.*tidak memenuhi*,bakteriologis.ilike.*tidak memenuhi*')
     .order('tanggal', { ascending: false });
   if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
   const { data, error } = await query;

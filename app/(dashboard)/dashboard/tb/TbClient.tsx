@@ -1,7 +1,6 @@
-// app/(dashboard)/dashboard/tb/TbClient.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   BarChart,
@@ -31,7 +30,8 @@ import type {
   TerdugaBelumTindakLanjutTb,
 } from '@/lib/turso/tb';
 
-const WARNA = ['#0d9488', '#0f766e', '#134e4a', '#f59e0b', '#dc2626', '#1e3a8a'];
+// Palet warna modern untuk chart & visualisasi
+const WARNA_PIE = ['#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
 const NAMA_BULAN_PENDEK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const NAMA_BULAN_PENUH = [
@@ -39,7 +39,6 @@ const NAMA_BULAN_PENUH = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
-// "2026-02" -> "Feb" (untuk sumbu chart, hemat tempat) atau "Februari 2026" (label lengkap)
 function formatPeriodeBulan(periode: string, penuh = false): string {
   const [tahun, bulanStr] = periode.split('-');
   const idx = parseInt(bulanStr, 10) - 1;
@@ -47,34 +46,94 @@ function formatPeriodeBulan(periode: string, penuh = false): string {
   return penuh ? `${NAMA_BULAN_PENUH[idx]} ${tahun}` : NAMA_BULAN_PENDEK[idx];
 }
 
-// "2026-W12" -> "Minggu 12"
-function formatPeriodeMinggu(periode: string): string {
-  const m = periode.match(/W(\d+)/);
-  return m ? `Minggu ${parseInt(m[1], 10)}` : periode;
+// --- HELPER: FILLING DATA KOSONG UNTUK CHART ---
+function isiRentangBulanLengkap(
+  data: TitikTrenTb[],
+  bulanMulaiStr: string,
+  bulanAkhirStr: string,
+  tahun: number
+): TitikTrenTb[] {
+  if (!bulanMulaiStr || !bulanAkhirStr) return data;
+
+  const startIdx = parseInt(bulanMulaiStr.split('-')[1], 10);
+  const endIdx = parseInt(bulanAkhirStr.split('-')[1], 10);
+
+  const dataMap = new Map(data.map((d) => [d.periode, d]));
+  const hasil: TitikTrenTb[] = [];
+
+  for (let b = startIdx; b <= endIdx; b++) {
+    const periodeKey = `${tahun}-${String(b).padStart(2, '0')}`;
+    const adaData = dataMap.get(periodeKey);
+
+    if (adaData) {
+      hasil.push(adaData);
+    } else {
+      hasil.push({
+        periode: periodeKey,
+        totalSkrining: 0,
+        totalTerduga: 0,
+        totalTerkonfirmasi: 0,
+      });
+    }
+  }
+  return hasil;
 }
 
+function isiRentangMingguLengkap(
+  data: TitikTrenTb[],
+  mingguMulaiStr: string,
+  mingguAkhirStr: string,
+  tahun: number
+): TitikTrenTb[] {
+  if (!mingguMulaiStr || !mingguAkhirStr) return data;
+
+  const startW = parseInt(mingguMulaiStr.replace(/.*-W/, ''), 10);
+  const endW = parseInt(mingguAkhirStr.replace(/.*-W/, ''), 10);
+
+  const dataMap = new Map(data.map((d) => [d.periode, d]));
+  const hasil: TitikTrenTb[] = [];
+
+  for (let w = startW; w <= endW; w++) {
+    const periodeKey = `${tahun}-W${String(w).padStart(2, '0')}`;
+    const adaData = dataMap.get(periodeKey);
+
+    if (adaData) {
+      hasil.push(adaData);
+    } else {
+      hasil.push({
+        periode: periodeKey,
+        totalSkrining: 0,
+        totalTerduga: 0,
+        totalTerkonfirmasi: 0,
+      });
+    }
+  }
+  return hasil;
+}
+
+type Granularitas = 'mingguan' | 'bulanan';
+
 interface Props {
-  // FIX: sudahLogin & roleAI sekarang dihitung di page.tsx lewat
-  // getStatusAkses() (pola asli project), bukan diturunkan manual di sini
-  // dari getUserRole(). roleAI ikut petugas_klinik juga.
   sudahLogin: boolean;
   roleAI: 'admin' | 'petugas' | 'petugas_klinik' | null;
   tahunBerjalan: number;
   daftarWilker: readonly string[];
   wilayahTerpilih: string;
+  granularitas: Granularitas;
+  rentangMingguMulaiTerpasang: string;
+  rentangMingguAkhirTerpasang: string;
+  rentangBulanMulaiTerpasang: string;
+  rentangBulanAkhirTerpasang: string;
+  trenMingguanLengkap: TitikTrenTb[];
+  trenBulananLengkap: TitikTrenTb[];
+  trenMingguanTampil: TitikTrenTb[];
+  trenBulananTampil: TitikTrenTb[];
   cascade: RingkasanCascadeTb;
-  trenMingguan: TitikTrenTb[];
-  trenBulanan: TitikTrenTb[];
   breakdownFaktorRisiko: BreakdownFaktorRisikoTb[];
   breakdownWilker: BreakdownWilkerTb[];
   delayDiagnosis: RingkasanDelayTb;
   distribusiKabKota: DistribusiWilayahTb[];
   donutJenisKelamin: { label: string; jumlah: number }[];
-  // Daftar nama individu cuma dikirim ke sini kalau page.tsx sudah
-  // memastikan role berwenang (admin/petugas_klinik) -- lihat
-  // bolehLihatDaftarSensitif. jumlahBelumTindakLanjut TETAP dikirim
-  // (angka saja, bukan data pribadi) supaya semua orang tetap tahu ada
-  // berapa yang perlu ditindaklanjuti.
   bolehLihatDaftarSensitif: boolean;
   daftarBelumTindakLanjut: TerdugaBelumTindakLanjutTb[];
   jumlahBelumTindakLanjut: number;
@@ -86,9 +145,16 @@ export default function TbClient({
   tahunBerjalan,
   daftarWilker,
   wilayahTerpilih,
+  granularitas,
+  rentangMingguMulaiTerpasang,
+  rentangMingguAkhirTerpasang,
+  rentangBulanMulaiTerpasang,
+  rentangBulanAkhirTerpasang,
+  trenMingguanLengkap,
+  trenBulananLengkap,
+  trenMingguanTampil,
+  trenBulananTampil,
   cascade,
-  trenMingguan,
-  trenBulanan,
   breakdownFaktorRisiko,
   breakdownWilker,
   delayDiagnosis,
@@ -99,57 +165,140 @@ export default function TbClient({
   jumlahBelumTindakLanjut,
 }: Props) {
   const router = useRouter();
-  const [granularitas, setGranularitas] = useState<'mingguan' | 'bulanan'>('mingguan');
 
-  function gantiWilayah(wilayah: string) {
-    router.push(`/dashboard/tb?tahun=${tahunBerjalan}&wilayah=${encodeURIComponent(wilayah)}`);
+  const [tempWilayah, setTempWilayah] = useState(wilayahTerpilih);
+  const [tempMingguMulai, setTempMingguMulai] = useState(rentangMingguMulaiTerpasang);
+  const [tempMingguAkhir, setTempMingguAkhir] = useState(rentangMingguAkhirTerpasang);
+  const [tempBulanMulai, setTempBulanMulai] = useState(rentangBulanMulaiTerpasang);
+  const [tempBulanAkhir, setTempBulanAkhir] = useState(rentangBulanAkhirTerpasang);
+
+  useEffect(() => {
+    setTempWilayah(wilayahTerpilih);
+    setTempMingguMulai(rentangMingguMulaiTerpasang);
+    setTempMingguAkhir(rentangMingguAkhirTerpasang);
+    setTempBulanMulai(rentangBulanMulaiTerpasang);
+    setTempBulanAkhir(rentangBulanAkhirTerpasang);
+  }, [
+    wilayahTerpilih,
+    rentangMingguMulaiTerpasang,
+    rentangMingguAkhirTerpasang,
+    rentangBulanMulaiTerpasang,
+    rentangBulanAkhirTerpasang,
+  ]);
+
+  function bangunUrl(opsi: {
+    wilayah: string;
+    granularitas: Granularitas;
+    mingguMulai: string;
+    mingguAkhir: string;
+    bulanMulai: string;
+    bulanAkhir: string;
+  }) {
+    const params = new URLSearchParams();
+    params.set('tahun', String(tahunBerjalan));
+    params.set('wilayah', opsi.wilayah);
+    params.set('granularitas', opsi.granularitas);
+    if (opsi.mingguMulai) params.set('minggu_mulai', opsi.mingguMulai);
+    if (opsi.mingguAkhir) params.set('minggu_akhir', opsi.mingguAkhir);
+    if (opsi.bulanMulai) params.set('bulan_mulai', opsi.bulanMulai);
+    if (opsi.bulanAkhir) params.set('bulan_akhir', opsi.bulanAkhir);
+    return `/dashboard/tb?${params.toString()}`;
   }
 
-  // periodeKeyTerakhir untuk AI SELALU pakai periode terakhir yang benar-benar
-  // ada datanya (tidak ikut terpotong oleh filter rentang tampilan di bawah).
-  const dataTrenLengkap = granularitas === 'mingguan' ? trenMingguan : trenBulanan;
+  function gantiGranularitas(g: Granularitas) {
+    router.push(
+      bangunUrl({
+        wilayah: wilayahTerpilih,
+        granularitas: g,
+        mingguMulai: rentangMingguMulaiTerpasang,
+        mingguAkhir: rentangMingguAkhirTerpasang,
+        bulanMulai: rentangBulanMulaiTerpasang,
+        bulanAkhir: rentangBulanAkhirTerpasang,
+      })
+    );
+  }
+
+  function terapkanFilter() {
+    const [mMulai, mAkhir] =
+      tempMingguMulai && tempMingguAkhir && tempMingguMulai > tempMingguAkhir
+        ? [tempMingguAkhir, tempMingguMulai]
+        : [tempMingguMulai, tempMingguAkhir];
+    const [bMulai, bAkhir] =
+      tempBulanMulai && tempBulanAkhir && tempBulanMulai > tempBulanAkhir
+        ? [tempBulanAkhir, tempBulanMulai]
+        : [tempBulanMulai, tempBulanAkhir];
+
+    router.push(
+      bangunUrl({
+        wilayah: tempWilayah,
+        granularitas,
+        mingguMulai: mMulai,
+        mingguAkhir: mAkhir,
+        bulanMulai: bMulai,
+        bulanAkhir: bAkhir,
+      })
+    );
+  }
+
+  const opsiWilayah = [
+    { value: 'semua', label: 'Semua Wilayah Kerja' },
+    ...daftarWilker.map((w) => ({ value: w, label: w })),
+  ];
+
+  const opsiMinggu = [
+    { value: '', label: '(Semua minggu)' },
+    ...Array.from({ length: 53 }, (_, i) => {
+      const w = i + 1;
+      return {
+        value: `${tahunBerjalan}-W${String(w).padStart(2, '0')}`,
+        label: `Minggu ${w} (${tahunBerjalan})`,
+      };
+    }),
+  ];
+
+  const opsiBulan = [
+    { value: '', label: '(Semua bulan)' },
+    ...Array.from({ length: 12 }, (_, i) => {
+      const periode = `${tahunBerjalan}-${String(i + 1).padStart(2, '0')}`;
+      return { value: periode, label: formatPeriodeBulan(periode, true) };
+    }),
+  ];
+
+  const dataTrenLengkap = granularitas === 'mingguan' ? trenMingguanLengkap : trenBulananLengkap;
   const periodeKeyTerakhir =
     dataTrenLengkap.length > 0 ? dataTrenLengkap[dataTrenLengkap.length - 1].periode : `${tahunBerjalan}`;
 
-  // --- Filter rentang Bulanan (dari bulan .. sampai bulan ..) ---
-  const opsiBulan = trenBulanan.map((t) => ({ value: t.periode, label: formatPeriodeBulan(t.periode, true) }));
-  const [rentangBulanMulai, setRentangBulanMulai] = useState(trenBulanan[0]?.periode ?? '');
-  const [rentangBulanAkhir, setRentangBulanAkhir] = useState(trenBulanan[trenBulanan.length - 1]?.periode ?? '');
-  const [tempBulanMulai, setTempBulanMulai] = useState(rentangBulanMulai);
-  const [tempBulanAkhir, setTempBulanAkhir] = useState(rentangBulanAkhir);
+  const dataTrenTampil = granularitas === 'mingguan' ? trenMingguanTampil : trenBulananTampil;
 
-  // --- Filter rentang Mingguan (dari minggu ke-.. sampai minggu ke-..) ---
-  const opsiMinggu = trenMingguan.map((t) => ({ value: t.periode, label: `${formatPeriodeMinggu(t.periode)} (${t.periode.split('-')[0]})` }));
-  const [rentangMingguMulai, setRentangMingguMulai] = useState(trenMingguan[0]?.periode ?? '');
-  const [rentangMingguAkhir, setRentangMingguAkhir] = useState(trenMingguan[trenMingguan.length - 1]?.periode ?? '');
-  const [tempMingguMulai, setTempMingguMulai] = useState(rentangMingguMulai);
-  const [tempMingguAkhir, setTempMingguAkhir] = useState(rentangMingguAkhir);
+  // --- PEMROSESAN LENGKAP DATA DENGAN PADDING GAP KOSONG ---
+  const dataTrenTampilUntukChart = useMemo(() => {
+    const dataBerentang =
+      granularitas === 'bulanan'
+        ? isiRentangBulanLengkap(
+            dataTrenTampil,
+            rentangBulanMulaiTerpasang,
+            rentangBulanAkhirTerpasang,
+            tahunBerjalan
+          )
+        : isiRentangMingguLengkap(
+            dataTrenTampil,
+            rentangMingguMulaiTerpasang,
+            rentangMingguAkhirTerpasang,
+            tahunBerjalan
+          );
 
-  function terapkanRentangBulan() {
-    // periodeKey berformat "YYYY-MM" jadi aman dibandingkan sebagai string
-    const [mulai, akhir] = tempBulanMulai <= tempBulanAkhir ? [tempBulanMulai, tempBulanAkhir] : [tempBulanAkhir, tempBulanMulai];
-    setRentangBulanMulai(mulai);
-    setRentangBulanAkhir(akhir);
-  }
-
-  function terapkanRentangMinggu() {
-    const [mulai, akhir] = tempMingguMulai <= tempMingguAkhir ? [tempMingguMulai, tempMingguAkhir] : [tempMingguAkhir, tempMingguMulai];
-    setRentangMingguMulai(mulai);
-    setRentangMingguAkhir(akhir);
-  }
-
-  const dataTrenBulananTampil = trenBulanan.filter(
-    (t) => t.periode >= rentangBulanMulai && t.periode <= rentangBulanAkhir
-  );
-  const dataTrenMingguanTampil = trenMingguan.filter(
-    (t) => t.periode >= rentangMingguMulai && t.periode <= rentangMingguAkhir
-  );
-  const dataTrenTampil = granularitas === 'mingguan' ? dataTrenMingguanTampil : dataTrenBulananTampil;
-  // dipakai sumbu-X chart Bulanan supaya tampil nama bulan Indonesia, bukan "2026-02"
-  const dataTrenTampilUntukChart =
-    granularitas === 'bulanan'
-      ? dataTrenTampil.map((t) => ({ ...t, labelSumbu: formatPeriodeBulan(t.periode) }))
-      : dataTrenTampil.map((t) => ({ ...t, labelSumbu: t.periode }));
+    return granularitas === 'bulanan'
+      ? dataBerentang.map((t) => ({ ...t, labelSumbu: formatPeriodeBulan(t.periode) }))
+      : dataBerentang.map((t) => ({ ...t, labelSumbu: t.periode.replace(/.*-W/, 'Mg ') }));
+  }, [
+    dataTrenTampil,
+    granularitas,
+    rentangBulanMulaiTerpasang,
+    rentangBulanAkhirTerpasang,
+    rentangMingguMulaiTerpasang,
+    rentangMingguAkhirTerpasang,
+    tahunBerjalan,
+  ]);
 
   const cascadeData = [
     { tahap: 'Diskrining', jumlah: cascade.totalSkrining },
@@ -158,171 +307,205 @@ export default function TbClient({
     { tahap: 'Terkonfirmasi', jumlah: cascade.totalTerkonfirmasi },
   ];
 
+  const adaRentangAktif =
+    granularitas === 'mingguan'
+      ? Boolean(rentangMingguMulaiTerpasang && rentangMingguAkhirTerpasang)
+      : Boolean(rentangBulanMulaiTerpasang && rentangBulanAkhirTerpasang);
+
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div>
-        <h1 className="text-xl font-semibold text-teal-900">
-          Modul TB — Skrining &amp; Investigasi Kontak ({tahunBerjalan})
-        </h1>
-        {wilayahTerpilih !== 'semua' && (
-          <p className="mt-1 text-sm text-gray-500">Wilayah kerja: {wilayahTerpilih}</p>
-        )}
+      {/* HEADER & FILTER NAVBAR */}
+      <div className="flex flex-col gap-3">
+        {/* Baris 1: Judul Utama */}
+        <div>
+          <h1 className="text-xl font-bold text-teal-950">
+            Modul TB — Skrining &amp; Investigasi Kontak ({tahunBerjalan})
+          </h1>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {wilayahTerpilih === 'semua' ? 'Semua wilayah kerja' : `Wilayah kerja: ${wilayahTerpilih}`}
+            {adaRentangAktif && ' — rentang tampilan aktif'}
+          </p>
+        </div>
+
+        {/* Baris 2: Toolbar Filter (Rata Kanan) */}
+        <div className="flex flex-wrap items-end justify-end gap-2.5">
+          <FieldSelect
+            label="Wilayah Kerja"
+            value={tempWilayah}
+            onChange={setTempWilayah}
+            opsi={opsiWilayah}
+          />
+
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-gray-600">Tampilan</span>
+            <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+              <ToggleButton
+                aktif={granularitas === 'mingguan'}
+                onClick={() => gantiGranularitas('mingguan')}
+              >
+                Mingguan
+              </ToggleButton>
+              <ToggleButton
+                aktif={granularitas === 'bulanan'}
+                onClick={() => gantiGranularitas('bulanan')}
+              >
+                Bulanan
+              </ToggleButton>
+            </div>
+          </div>
+
+          {granularitas === 'mingguan' ? (
+            <>
+              <FieldSelect
+                label="Dari minggu"
+                value={tempMingguMulai}
+                onChange={setTempMingguMulai}
+                opsi={opsiMinggu}
+              />
+              <FieldSelect
+                label="Sampai minggu"
+                value={tempMingguAkhir}
+                onChange={setTempMingguAkhir}
+                opsi={opsiMinggu}
+              />
+            </>
+          ) : (
+            <>
+              <FieldSelect
+                label="Dari bulan"
+                value={tempBulanMulai}
+                onChange={setTempBulanMulai}
+                opsi={opsiBulan}
+              />
+              <FieldSelect
+                label="Sampai bulan"
+                value={tempBulanAkhir}
+                onChange={setTempBulanAkhir}
+                opsi={opsiBulan}
+              />
+            </>
+          )}
+
+          <button
+            onClick={terapkanFilter}
+            className="rounded-md bg-[#0F4C5C] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#0c3e4b] transition-colors"
+          >
+            Terapkan
+          </button>
+        </div>
       </div>
 
-      {/* Filter tab Wilayah Kerja -- mengikuti tata letak sheet sumbernya
-          (1 wilker = 1 tab), plus "Semua Wilayah Kerja" untuk gabungan */}
-      <div className="flex flex-wrap gap-2 border-b pb-3">
-        <TabWilayah aktif={wilayahTerpilih === 'semua'} onClick={() => gantiWilayah('semua')}>
-          Semua Wilayah Kerja
-        </TabWilayah>
-        {daftarWilker.map((w) => (
-          <TabWilayah key={w} aktif={wilayahTerpilih === w} onClick={() => gantiWilayah(w)}>
-            {w}
-          </TabWilayah>
-        ))}
-      </div>
-
-      {/* Kartu ringkasan cascade */}
+      {/* Kartu Ringkasan */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KartuRingkasan label="Total Diskrining" nilai={cascade.totalSkrining} />
-        <KartuRingkasan label="Terduga TBC" nilai={cascade.totalTerduga} />
-        <KartuRingkasan label="Terkonfirmasi TBC" nilai={cascade.totalTerkonfirmasi} aksen="teal" />
+        <KartuRingkasan label="Total Diskrining" nilai={cascade.totalSkrining} warna="indigo" />
+        <KartuRingkasan label="Terduga TBC" nilai={cascade.totalTerduga} warna="amber" />
+        <KartuRingkasan label="Terkonfirmasi TBC" nilai={cascade.totalTerkonfirmasi} warna="red" />
         <KartuRingkasan
           label="Case Detection Rate"
           nilai={`${cascade.caseDetectionRate.toFixed(2)}%`}
+          warna="teal"
         />
       </div>
 
-      {/* Cascade funnel */}
-      <Panel judul="Cascade Skrining TBC">
-        <p className="mb-2 text-sm text-gray-600">
-          Menunjukkan penurunan jumlah dari total diskrining sampai terkonfirmasi TBC — titik
-          penurunan tajam menandakan potensi loss-to-follow-up yang perlu ditindaklanjuti.
+      {/* Cascade Funnel */}
+      <Panel judul="Alur Penemuan Kasus TBC di BKK Kelas I">
+        <p className="mb-3 text-center text-xs text-gray-500">
+          Menunjukkan penurunan jumlah dari total diskrining sampai terkonfirmasi TBC — titik penurunan tajam menandakan potensi <i>loss-to-follow-up</i>.
         </p>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={cascadeData} margin={{ top: 24 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="tahap" />
-            <YAxis />
-            <Tooltip />
-            {/* FIX: angka tetap kelihatan lewat label di atas bar, walau
-                bar-nya nyaris tak kelihatan karena jauh lebih kecil dari
-                Diskrining (mis. 2 vs 611). */}
-            <Bar dataKey="jumlah" fill="#0d9488">
-              <LabelList dataKey="jumlah" position="top" style={{ fill: '#134e4a', fontWeight: 600 }} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+            <XAxis dataKey="tahap" tick={{ fontSize: 12, fill: '#64748B' }} />
+            <YAxis tick={{ fontSize: 12, fill: '#64748B' }} />
+            <Tooltip cursor={{ fill: '#F8FAFC' }} />
+            <Bar dataKey="jumlah" fill="#0F4C5C" radius={[6, 6, 0, 0]}>
+              <LabelList dataKey="jumlah" position="top" style={{ fill: '#0F4C5C', fontWeight: 600, fontSize: 12 }} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-        <p className="mt-2 text-sm text-gray-600">
-          Yield dari terduga ke terkonfirmasi: <b>{cascade.yieldRateTerduga.toFixed(2)}%</b>
+        <p className="mt-2 text-center text-xs font-medium text-gray-600">
+          Yield dari terduga ke terkonfirmasi: <span className="font-bold text-[#0F4C5C]">{cascade.yieldRateTerduga.toFixed(2)}%</span>
         </p>
       </Panel>
 
-      {/* Tren -- toggle dipindah ke sini (menempel di panel, gaya sama
-          seperti dashboard Kunjungan Poliklinik), plus filter rentang
-          dari-sampai dan nama bulan Indonesia */}
-      <Panel judul={`Tren ${granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}`}>
-        <div className="mb-3 flex gap-2">
-          <ToggleButton aktif={granularitas === 'mingguan'} onClick={() => setGranularitas('mingguan')}>
-            Mingguan
-          </ToggleButton>
-          <ToggleButton aktif={granularitas === 'bulanan'} onClick={() => setGranularitas('bulanan')}>
-            Bulanan
-          </ToggleButton>
-        </div>
-
-        {/* Filter rentang -- terpisah per granularitas, disimpan sebagai
-            state "temp" dulu, baru diterapkan lewat tombol supaya tidak
-            reload chart di tiap ketukan dropdown */}
-        {granularitas === 'bulanan' ? (
-          <div className="mb-3 flex flex-wrap items-end gap-2">
-            <FieldSelect label="Dari bulan" value={tempBulanMulai} onChange={setTempBulanMulai} opsi={opsiBulan} />
-            <FieldSelect label="Sampai bulan" value={tempBulanAkhir} onChange={setTempBulanAkhir} opsi={opsiBulan} />
-            <button
-              onClick={terapkanRentangBulan}
-              className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white hover:bg-teal-800"
-            >
-              Terapkan
-            </button>
-          </div>
-        ) : (
-          <div className="mb-3 flex flex-wrap items-end gap-2">
-            <FieldSelect label="Dari minggu" value={tempMingguMulai} onChange={setTempMingguMulai} opsi={opsiMinggu} />
-            <FieldSelect label="Sampai minggu" value={tempMingguAkhir} onChange={setTempMingguAkhir} opsi={opsiMinggu} />
-            <button
-              onClick={terapkanRentangMinggu}
-              className="rounded bg-teal-700 px-3 py-1.5 text-sm text-white hover:bg-teal-800"
-            >
-              Terapkan
-            </button>
-          </div>
-        )}
-
-        <ResponsiveContainer width="100%" height={280}>
-          {/* Bulanan pakai Bar Chart, Mingguan tetap Line Chart.
-              labelSumbu = "2026-02" -> "Feb" untuk Bulanan (nama bulan
-              Indonesia), dibiarkan apa adanya untuk Mingguan. */}
+      {/* Grafik Tren */}
+      <Panel judul="Distribusi Kegiatan Pengawasan Tuberkulosis di BKK Kelas I Samarinda">
+      {/* Subjudul / Keterangan Periode di Baris Bawah */}
+      <p className="mb-3 text-center text-xs font-medium text-gray-500">
+        Skope Periode: {granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}
+      </p>
+        <ResponsiveContainer width="100%" height={300}>
           {granularitas === 'mingguan' ? (
             <LineChart data={dataTrenTampilUntukChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="labelSumbu" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis dataKey="labelSumbu" tick={{ fontSize: 11, fill: '#64748B' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} />
               <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="totalSkrining" name="Diskrining" stroke="#0f766e" />
-              <Line type="monotone" dataKey="totalTerduga" name="Terduga" stroke="#f59e0b" />
-              <Line type="monotone" dataKey="totalTerkonfirmasi" name="Terkonfirmasi" stroke="#dc2626" />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="totalSkrining" name="Penapisan" stroke="#06B6D4" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="totalTerduga" name="Terduga" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="totalTerkonfirmasi" name="Terkonfirmasi" stroke="#EF4444" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           ) : (
             <BarChart data={dataTrenTampilUntukChart}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="labelSumbu" tick={{ fontSize: 11 }} />
-              <YAxis />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+              <XAxis dataKey="labelSumbu" tick={{ fontSize: 11, fill: '#64748B' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748B' }} />
               <Tooltip
+                cursor={{ fill: '#F8FAFC' }}
                 labelFormatter={(_, payload) => {
                   const periode = payload?.[0]?.payload?.periode as string | undefined;
                   return periode ? formatPeriodeBulan(periode, true) : '';
                 }}
               />
-              <Legend />
-              <Bar dataKey="totalSkrining" name="Diskrining" fill="#0f766e" />
-              <Bar dataKey="totalTerduga" name="Terduga" fill="#f59e0b" />
-              <Bar dataKey="totalTerkonfirmasi" name="Terkonfirmasi" fill="#dc2626" />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="totalSkrining" name="Penapisan" fill="#06B6D4" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="totalTerduga" name="Terduga" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="totalTerkonfirmasi" name="Terkonfirmasi" fill="#EF4444" radius={[4, 4, 0, 0]} />
             </BarChart>
           )}
         </ResponsiveContainer>
       </Panel>
 
-      <BoxAnalisisAI
-        sudahLogin={sudahLogin}
-        role={roleAI}
-        konteks={granularitas === 'mingguan' ? 'tb-mingguan' : 'tb-bulanan'}
-        periodeKey={periodeKeyTerakhir}
-        wilayahKerja={undefined}
-      />
-      <BoxPrediksiAI
-        sudahLogin={sudahLogin}
-        role={roleAI}
-        konteks={granularitas === 'mingguan' ? 'tb-mingguan' : 'tb-bulanan'}
-        periodeKey={periodeKeyTerakhir}
-        wilayahKerja={undefined}
-      />
+      {/* AI Intelligence Modules (Layout Kiri-Kanan) */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <BoxAnalisisAI
+          sudahLogin={sudahLogin}
+          role={roleAI}
+          konteks={granularitas === 'mingguan' ? 'tb-mingguan' : 'tb-bulanan'}
+          periodeKey={periodeKeyTerakhir}
+          wilayahKerja={undefined}
+        />
+        <BoxPrediksiAI
+          sudahLogin={sudahLogin}
+          role={roleAI}
+          konteks={granularitas === 'mingguan' ? 'tb-mingguan' : 'tb-bulanan'}
+          periodeKey={periodeKeyTerakhir}
+          wilayahKerja={undefined}
+        />
+      </div>
 
-      {/* Breakdown faktor risiko -- FIX: diganti jadi grouped bar
-          Diskrining vs Terkonfirmasi (selalu ada tinggi bar), yield%
-          ditampilkan di tooltip supaya tidak jadi chart kosong kalau
-          jumlah terkonfirmasi masih sedikit/nol. */}
+      {/* Breakdown Faktor Risiko */}
       <Panel judul="Yield per Faktor Risiko (Target Skrining Aktif)">
-        <p className="mb-2 text-sm text-gray-600">
-          Jumlah diskrining vs terkonfirmasi TBC pada tiap kelompok risiko — arahkan kursor untuk
-          lihat persentase yield. Membantu mengarahkan prioritas skrining aktif (ACF).
+        <p className="mb-3 text-center text-xs text-gray-500">
+          Distribusi Pemeriksaan TBC pada kelompok risiko (diurutkan dari jumlah terbanyak). Arahkan kursor untuk melihat yield.
         </p>
-        <ResponsiveContainer width="100%" height={360}>
-          <BarChart data={breakdownFaktorRisiko} layout="vertical" margin={{ left: 110 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" allowDecimals={false} />
-            <YAxis type="category" dataKey="faktor" width={120} tick={{ fontSize: 11 }} />
+        <ResponsiveContainer width="100%" height={380}>
+          <BarChart
+            data={[...breakdownFaktorRisiko].sort((a, b) => b.totalDiskrining - a.totalDiskrining)}
+            layout="vertical"
+            margin={{ left: 120, right: 20 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
+            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+            <YAxis
+              type="category"
+              dataKey="faktor"
+              width={130}
+              tick={{ fontSize: 11, fill: '#1E293B', fontWeight: 500 }}
+            />
             <Tooltip
+              cursor={{ fill: '#F1F5F9' }}
               formatter={(value, name, item) => {
                 if (name === 'Terkonfirmasi') {
                   const yieldPersen = (item?.payload as BreakdownFaktorRisikoTb | undefined)?.yieldPersen ?? 0;
@@ -331,151 +514,146 @@ export default function TbClient({
                 return [value, name];
               }}
             />
-            <Legend />
-            <Bar dataKey="totalDiskrining" name="Diskrining" fill="#94a3b8" radius={[0, 4, 4, 0]} />
-            <Bar dataKey="totalTerkonfirmasi" name="Terkonfirmasi" fill="#dc2626" radius={[0, 4, 4, 0]} />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: '10px' }} />
+            <Bar
+              dataKey="totalDiskrining"
+              name="Penapisan"
+              fill="#0EA5E9"
+              radius={[0, 4, 4, 0]}
+              barSize={14}
+            />
+            <Bar
+              dataKey="totalTerkonfirmasi"
+              name="Terkonfirmasi"
+              fill="#E11D48"
+              radius={[0, 4, 4, 0]}
+              barSize={14}
+            />
           </BarChart>
         </ResponsiveContainer>
       </Panel>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Donut jenis kelamin */}
-        <Panel judul="Distribusi Jenis Kelamin">
+        {/* Donut Jenis Kelamin */}
+        <Panel judul="Distribusi berdasarkan Jenis Kelamin">
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie
                 data={donutJenisKelamin}
                 dataKey="jumlah"
                 nameKey="label"
-                innerRadius={50}
+                innerRadius={55}
                 outerRadius={80}
+                paddingAngle={3}
                 label
               >
                 {donutJenisKelamin.map((_, i) => (
-                  <Cell key={i} fill={WARNA[i % WARNA.length]} />
+                  <Cell key={i} fill={WARNA_PIE[i % WARNA_PIE.length]} />
                 ))}
               </Pie>
               <Tooltip />
-              <Legend />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
         </Panel>
 
-        {/* Delay diagnosis */}
+        {/* Delay Diagnosis */}
         <Panel judul="Kecepatan Diagnosis (Delay)">
-          <p className="text-sm text-gray-600">
-            Selisih hari dari tanggal skrining sampai keluar hasil pemeriksaan diagnosis.
+          <p className="text-center text-xs text-gray-500">
+            Selisih hari dari tanggal Penapisan hingga keluar hasil laboratorium.
           </p>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-            <div>
-              <div className="text-2xl font-semibold text-teal-800">
-                {delayDiagnosis.rataRataHari}
-              </div>
-              <div className="text-xs text-gray-500">Rata-rata (hari)</div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-lg bg-teal-50 p-3">
+              <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.rataRataHari}</div>
+              <div className="text-xs font-medium text-teal-600">Rata-rata (hari)</div>
             </div>
-            <div>
-              <div className="text-2xl font-semibold text-teal-800">
-                {delayDiagnosis.medianHari}
-              </div>
-              <div className="text-xs text-gray-500">Median (hari)</div>
+            <div className="rounded-lg bg-teal-50 p-3">
+              <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.medianHari}</div>
+              <div className="text-xs font-medium text-teal-600">Median (hari)</div>
             </div>
-            <div>
-              <div className="text-2xl font-semibold text-teal-800">
-                {delayDiagnosis.maksimalHari}
-              </div>
-              <div className="text-xs text-gray-500">Maksimal (hari)</div>
+            <div className="rounded-lg bg-teal-50 p-3">
+              <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.maksimalHari}</div>
+              <div className="text-xs font-medium text-teal-600">Maksimal (hari)</div>
             </div>
           </div>
-          <p className="mt-2 text-xs text-gray-500">
-            Dihitung dari {delayDiagnosis.jumlahKasusDihitung} kasus yang sudah punya tanggal hasil.
+          <p className="mt-3 text-center text-xs text-gray-400">
+            Dihitung dari {delayDiagnosis.jumlahKasusDihitung} kasus yang sudah terbit hasil laboratorium.
           </p>
         </Panel>
       </div>
 
-      {/* Distribusi kab/kota -- FIX: sekarang sudah dibatasi Top 15 +
-          "Lainnya" dari lib/turso/tb.ts, jadi tidak perlu diubah di sini,
-          cuma dirapikan sedikit label sumbunya. */}
+      {/* Distribusi per Kab/Kota */}
       <Panel judul="Distribusi per Kabupaten/Kota (Top 15)">
         <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={distribusiKabKota} margin={{ bottom: 60 }}>
-            <CartesianGrid strokeDasharray="3 3" />
+          <BarChart data={distribusiKabKota} margin={{ bottom: 65 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
             <XAxis
               dataKey="kabupatenKota"
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: '#64748B' }}
               interval={0}
               angle={-35}
               textAnchor="end"
               height={70}
             />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="totalSkrining" name="Diskrining" fill="#0f766e" />
-            <Bar dataKey="totalTerkonfirmasi" name="Terkonfirmasi" fill="#dc2626" />
+            <YAxis tick={{ fontSize: 11, fill: '#64748B' }} />
+            <Tooltip cursor={{ fill: '#F8FAFC' }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="totalSkrining" name="Penapisan" fill="#0F4C5C" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="totalTerkonfirmasi" name="Terkonfirmasi" fill="#EF4444" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Panel>
 
-      {/* Breakdown per Wilayah Kerja BKK -- beda dimensi dari kab/kota
-          di atas (itu asal peserta, ini wilker BKK yang MELAKSANAKAN
-          skrining). SELALU tampil semua 7 wilker (lihat catatan di
-          page.tsx: dataUntukBreakdownWilker tidak ikut filter wilayah)
-          supaya tetap jadi pembanding walau sedang memfilter 1 wilker. */}
-      <Panel judul="Diskrining per Wilayah Kerja">
+      {/* Sekrining per Wilker */}
+      <Panel judul=" Distribusi Hasil Penapisan per Wilayah Kerja">
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={breakdownWilker}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="wilayahKerja" tick={{ fontSize: 10 }} interval={0} angle={-15} textAnchor="end" height={50} />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="totalSkrining" name="Diskrining" fill="#0f766e" />
-            <Bar dataKey="totalTerduga" name="Terduga" fill="#f59e0b" />
-            <Bar dataKey="totalTerkonfirmasi" name="Terkonfirmasi" fill="#dc2626" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+            <XAxis dataKey="wilayahKerja" tick={{ fontSize: 10, fill: '#64748B' }} interval={0} angle={-15} textAnchor="end" height={50} />
+            <YAxis tick={{ fontSize: 11, fill: '#64748B' }} />
+            <Tooltip cursor={{ fill: '#F8FAFC' }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="totalSkrining" name="Penapisan" fill="#06B6D4" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="totalTerduga" name="Terduga" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="totalTerkonfirmasi" name="Terkonfirmasi" fill="#EF4444" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Panel>
 
-      {/* Daftar belum tindak lanjut -- FIX (privasi): data individu
-          (nama, kab/kota, dll) cuma ditampilkan kalau bolehLihatDaftarSensitif
-          true. Selain itu, cuma jumlahnya saja yang ditampilkan. */}
+      {/* Tabel Belum Tindak Lanjut */}
       <Panel judul={`Terduga TBC Belum Ada Hasil Pemeriksaan (${jumlahBelumTindakLanjut})`}>
         {!bolehLihatDaftarSensitif ? (
-          <p className="py-6 text-center text-sm text-gray-400">
-            Data individu (nama, lokasi, dll) disembunyikan — hanya bisa dilihat oleh Petugas
-            Klinik yang berwenang.
+          <p className="py-6 text-center text-xs text-gray-400">
+            Data individu (nama, lokasi, dll) disembunyikan — hanya dapat diakses oleh Petugas Klinik yang berwenang.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-205 text-sm">
+            <table className="w-full min-w-205 text-left text-xs">
               <thead>
-                <tr className="border-b text-left text-gray-500">
-                  <th className="py-2 pr-3">Nama</th>
-                  <th className="py-2 pr-3">Wilayah Kerja</th>
-                  <th className="py-2 pr-3">Tanggal Skrining</th>
-                  <th className="py-2 pr-3">Kab/Kota Asal</th>
-                  <th className="py-2 pr-3">Tindak Lanjut</th>
-                  <th className="py-2 pr-3">Fasyankes</th>
+                <tr className="border-b border-gray-200 text-gray-500 font-medium">
+                  <th className="pb-2 pr-3">Nama</th>
+                  <th className="pb-2 pr-3">Wilayah Kerja</th>
+                  <th className="pb-2 pr-3">Tanggal Skrining</th>
+                  <th className="pb-2 pr-3">Kab/Kota Asal</th>
+                  <th className="pb-2 pr-3">Tindak Lanjut</th>
+                  <th className="pb-2 pr-3">Fasyankes</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100 text-gray-700">
                 {daftarBelumTindakLanjut.map((d) => (
-                  // FIX: key sekarang gabungan wilayahKerja+noBaris, karena
-                  // no_baris tidak lagi unik global setelah data dipecah
-                  // per sheet wilker (dulu 1 sheet "DATA" jadi noBaris unik).
-                  <tr key={`${d.wilayahKerja}-${d.noBaris}`} className="border-b last:border-0">
-                    <td className="py-2 pr-3">{d.namaPeserta}</td>
-                    <td className="py-2 pr-3">{d.wilayahKerja}</td>
-                    <td className="py-2 pr-3">{d.tanggalPelaksanaan}</td>
-                    <td className="py-2 pr-3">{d.kabupatenKota}</td>
-                    <td className="py-2 pr-3">{d.tindakLanjutPemeriksaan || '-'}</td>
-                    <td className="py-2 pr-3">{d.fasyankesPemeriksaan || '-'}</td>
+                  <tr key={`${d.wilayahKerja}-${d.noBaris}`} className="hover:bg-gray-50">
+                    <td className="py-2.5 pr-3 font-medium text-gray-900">{d.namaPeserta}</td>
+                    <td className="py-2.5 pr-3">{d.wilayahKerja}</td>
+                    <td className="py-2.5 pr-3">{d.tanggalPelaksanaan}</td>
+                    <td className="py-2.5 pr-3">{d.kabupatenKota}</td>
+                    <td className="py-2.5 pr-3">{d.tindakLanjutPemeriksaan || '-'}</td>
+                    <td className="py-2.5 pr-3">{d.fasyankesPemeriksaan || '-'}</td>
                   </tr>
                 ))}
                 {daftarBelumTindakLanjut.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-4 text-center text-gray-400">
-                      Semua terduga TBC sudah punya hasil pemeriksaan.
+                    <td colSpan={6} className="py-6 text-center text-gray-400">
+                      Semua terduga TBC sudah memiliki hasil pemeriksaan.
                     </td>
                   </tr>
                 )}
@@ -491,26 +669,34 @@ export default function TbClient({
 function KartuRingkasan({
   label,
   nilai,
-  aksen,
+  warna = 'slate',
 }: {
   label: string;
   nilai: string | number;
-  aksen?: 'teal';
+  warna?: 'teal' | 'indigo' | 'amber' | 'red' | 'slate';
 }) {
+  const SKEMA_WARNA: Record<string, { bg: string; border: string; label: string; nilai: string }> = {
+    slate: { bg: 'bg-white', border: 'border-gray-200', label: 'text-gray-500', nilai: 'text-gray-900' },
+    teal: { bg: 'bg-teal-50/60', border: 'border-teal-200', label: 'text-teal-700', nilai: 'text-teal-900' },
+    indigo: { bg: 'bg-indigo-50/60', border: 'border-indigo-200', label: 'text-indigo-700', nilai: 'text-indigo-900' },
+    amber: { bg: 'bg-amber-50/60', border: 'border-amber-200', label: 'text-amber-700', nilai: 'text-amber-900' },
+    red: { bg: 'bg-rose-50/60', border: 'border-rose-200', label: 'text-rose-700', nilai: 'text-rose-900' },
+  };
+  const s = SKEMA_WARNA[warna];
+
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${aksen === 'teal' ? 'text-teal-700' : 'text-gray-900'}`}>
-        {nilai}
-      </div>
+    <div className={`rounded-xl border p-4 shadow-2xs ${s.bg} ${s.border}`}>
+      <div className={`text-xs font-semibold ${s.label}`}>{label}</div>
+      <div className={`mt-1 text-2xl font-bold tracking-tight ${s.nilai}`}>{nilai}</div>
     </div>
   );
 }
 
+// Komponen Panel diperbarui dengan text-center pada judul
 function Panel({ judul, children }: { judul: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <h2 className="mb-2 font-medium text-teal-900">{judul}</h2>
+    <div className="rounded-xl border border-gray-200/80 bg-white p-5 shadow-2xs">
+      <h2 className="mb-2 text-center text-sm font-bold text-gray-900">{judul}</h2>
       {children}
     </div>
   );
@@ -527,8 +713,11 @@ function ToggleButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`rounded px-3 py-1 text-sm ${aktif ? 'bg-teal-700 text-white' : 'bg-gray-100'}`}
+      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+        aktif ? 'bg-white text-teal-900 shadow-2xs' : 'text-gray-600 hover:text-gray-900'
+      }`}
     >
       {children}
     </button>
@@ -547,12 +736,12 @@ function FieldSelect({
   opsi: { value: string; label: string }[];
 }) {
   return (
-    <label className="flex flex-col gap-1 text-xs text-gray-600">
+    <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
       {label}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded border px-2 py-1.5 text-sm text-gray-800"
+        className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-2xs focus:border-teal-600 focus:outline-hidden"
       >
         {opsi.map((o) => (
           <option key={o.value} value={o.value}>
@@ -561,26 +750,5 @@ function FieldSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function TabWilayah({
-  aktif,
-  onClick,
-  children,
-}: {
-  aktif: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-        aktif ? 'bg-teal-700 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-      }`}
-    >
-      {children}
-    </button>
   );
 }

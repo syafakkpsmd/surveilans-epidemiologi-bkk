@@ -1025,33 +1025,33 @@ Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 f
 }`;
 }
 
-/**
- * Provider tertentu (mis. Gemini dengan responseMimeType json, atau
- * OpenAI-compatible dengan response_format json_object) SEHARUSNYA
- * sudah mengembalikan JSON murni. Tapi beberapa provider gratis suka
- * membungkusnya dengan ```json ... ``` -- fungsi ini menangani kedua
- * kemungkinan itu supaya parsing tidak rapuh.
- */
-export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
-  const bersih = teksMentah
+/** Ambil objek JSON terluar, abaikan code fence atau teks pembuka/penutup. */
+function ekstrakJson(teks: string): string {
+  const t = teks
     .trim()
     .replace(/^```(?:json)?/i, '')
     .replace(/```$/, '')
     .trim();
+  const awal = t.indexOf('{');
+  const akhir = t.lastIndexOf('}');
+  return awal !== -1 && akhir > awal ? t.slice(awal, akhir + 1) : t;
+}
+
+export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
+  const bersih = ekstrakJson(teksMentah);
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(bersih);
   } catch {
+    console.error('DEBUG RAW AI RESPONSE:', teksMentah);
     throw new Error('Respons AI bukan JSON yang valid -- tidak bisa ditampilkan sebagai hasil analisis.');
   }
 
   /**
    * AI kadang membalas field (terutama "rekomendasi") sebagai ARRAY
-   * berisi beberapa poin, bukan 1 string -- terutama kalau isinya
-   * wajar dipecah jadi beberapa poin (mis. 3 rekomendasi terpisah).
-   * Gabungkan jadi 1 string bernomor supaya tetap valid & enak dibaca,
-   * daripada menolak respons yang sebenarnya isinya sudah bagus.
+   * berisi beberapa poin, bukan 1 string. Gabungkan jadi 1 string
+   * bernomor daripada menolak respons yang isinya sudah bagus.
    */
   function normalisasiField(nilai: unknown): string | null {
     if (typeof nilai === 'string') return nilai;
@@ -1063,7 +1063,7 @@ export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
 
   if (typeof parsed !== 'object' || parsed === null) {
     console.error('DEBUG RAW AI RESPONSE:', bersih);
-    throw new Error('Respons AI tidak memuat field ringkasan/anomali/rekomendasi yang lengkap.');
+    throw new Error('Respons AI tidak berbentuk objek JSON.');
   }
 
   const obj = parsed as Record<string, unknown>;
@@ -1071,9 +1071,17 @@ export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
   const anomali = normalisasiField(obj.anomali);
   const rekomendasi = normalisasiField(obj.rekomendasi);
 
+  const hilang = (
+    [['ringkasan', ringkasan], ['anomali', anomali], ['rekomendasi', rekomendasi]] as const
+  )
+    .filter(([, nilai]) => nilai === null)
+    .map(([nama]) => nama);
+
   if (ringkasan === null || anomali === null || rekomendasi === null) {
     console.error('DEBUG RAW AI RESPONSE:', bersih);
-    throw new Error('Respons AI tidak memuat field ringkasan/anomali/rekomendasi yang lengkap.');
+    throw new Error(
+      `Respons AI tidak lengkap (field hilang: ${hilang.join(', ')}). Kemungkinan terpotong, coba jalankan ulang.`
+    );
   }
 
   return {
@@ -1630,7 +1638,34 @@ Jawab HANYA dalam format JSON: {"ringkasan": "...", "anomali": "...", "rekomenda
 }
 
 export function susunPromptPrediksiTb(data: DataAnalisis): string {
-  // pola sama seperti susunPromptPrediksiX modul lain (linear-extrapolation 2 titik data)
   return `${PERSONA_EPIDEMIOLOG}
-... (ikuti pola susunPromptPrediksiRatGuard/susunPromptPrediksiTtu yang sudah ada)`;
+
+Konteks: ${data.labelKonteks}
+Wilayah: ${data.labelWilayah}
+Periode saat ini (${data.labelPeriodeSaatIni}): ${formatRingkasan(data.ringkasanSaatIni)}
+${data.ringkasanSebelumnya ? `Periode sebelumnya (${data.labelPeriodeSebelumnya}): ${formatRingkasan(data.ringkasanSebelumnya)}` : "Periode sebelumnya: tidak ada data."}
+
+Ini adalah data program skrining aktif & investigasi kontak TBC (bukan data kasus TBC terkonfirmasi
+di fasilitas kesehatan) — hasil "terkonfirmasi" berasal dari populasi yang diskrining karena punya
+faktor risiko (kontak dengan pasien TBC, gizi kurang, perokok, DM, ODHIV, lansia, ibu hamil).
+
+Tugasmu: buat PREDIKSI/PROYEKSI singkat untuk periode berikutnya berdasarkan data di atas.
+
+Isi tiga field JSON berikut:
+- "ringkasan" (Kondisi Saat Ini): gambaran kondisi program TBC pada periode saat ini — jumlah skrining,
+  terduga, terkonfirmasi, dan yield-nya — dibanding periode sebelumnya bila ada.
+- "anomali" (Proyeksi Jika Tidak Direspons): proyeksi periode berikutnya kalau tren tidak diintervensi.
+  Gunakan ekstrapolasi linear sederhana dari dua titik data (periode sebelumnya → saat ini) dan tulis
+  angka proyeksinya sebagai perkiraan kasar. Jika hanya ada satu periode, jangan membuat angka proyeksi;
+  nyatakan bahwa tren belum bisa diproyeksikan dan jelaskan risikonya secara kualitatif.
+  Ingat: penurunan jumlah skrining tidak sama dengan penurunan risiko, bisa berarti cakupan program menurun.
+- "rekomendasi" (Tindakan yang Perlu Dilakukan): 3-5 tindakan konkret untuk program skrining dan
+  investigasi kontak TBC, sesuai kondisi dan proyeksi di atas.
+
+ATURAN:
+- Bahas HANYA TBC. Jangan menyebut COVID-19, influenza, atau penyakit lain.
+- Gunakan HANYA angka yang ada di data. Jangan mengarang angka, lokasi, atau fasilitas.
+- Jika data periode saat ini kosong, isi ketiga field dengan satu kalimat bahwa data tidak tersedia.
+
+Jawab HANYA dalam format JSON: {"ringkasan": "...", "anomali": "...", "rekomendasi": "..."}`;
 }

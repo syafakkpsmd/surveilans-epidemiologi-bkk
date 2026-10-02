@@ -164,6 +164,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
       { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
       { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },
+      { label: "Laporan Timker 1", href: "https://drive.google.com/drive/folders/1ZMoZhPgy8WndyGsuU37LzBzxUry1B0Hl?usp=sharing", icon: Book, prefetch: false },
     ],
   },
 ];

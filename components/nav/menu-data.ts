@@ -68,7 +68,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
       { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
       { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },
-      { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
     ],
   },
   {
@@ -93,7 +92,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Diare Kecoa", href: "/dashboard/vektor/diare-kecoa", prefetch: false },
         ],
       },
-      { label: "Master Tabel", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
     ],
   },
   {
@@ -136,7 +134,6 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Tautan",
     singkat: "Tautan",
     items: [
-      { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
       { label: "Download Peraturan", href: "/peraturan", icon: Book, prefetch: false },
       { label: "LMS Kemenkes", href: "https://lms.kemkes.go.id/", icon: Building2 },
       { label: "e-Office Kemenkes", href: "https://auth-eoffice.kemkes.go.id/", icon: Building2 },
@@ -157,6 +154,16 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Kapal", href: "/dashboard/simulasi-wabah/kapal", icon: Ship },
       { label: "Pesawat", href: "/dashboard/simulasi-wabah/pesawat", icon: PlaneTakeoff },
+    ],
+  },
+  {
+    title: "Data",
+    singkat: "Data",
+    items: [
+      { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
+      { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
+      { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
+      { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },
     ],
   },
 ];

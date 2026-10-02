@@ -174,6 +174,7 @@ export const ADMIN_GROUP: NavGroup = {
   singkat: "Admin",
   items: [
     { label: "Verifikasi User", href: "/admin/users", icon: Users, prefetch: false },
+    { label: "Laporan Bulanan", href: "/dashboard/laporan-bulanan", icon: Ship },
     { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3, prefetch: false },
   ],
 };

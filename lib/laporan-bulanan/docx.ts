@@ -21,7 +21,7 @@ import {
 import { gambarTren, type PabrikKanvas } from "./chart";
 import { kelompokkan } from "./registri";
 import { BULAN, labelRentang } from "./periode";
-import type { BahanLaporan, Kartu, OpsiLaporanWord, Tabel } from "./types";
+import type { BahanLaporan, BatangMendatar, Donat, Kartu, OpsiLaporanWord, Tabel } from "./types";
 import { OPSI_WORD_DEFAULT } from "./types";
 
 const FONT = "Arial";
@@ -116,6 +116,27 @@ function tabelData(t: Tabel) {
   });
 }
 
+const fmtAngka = (n: number) => new Intl.NumberFormat("id-ID").format(n);
+const persen = (n: number, total: number) =>
+  total > 0 ? `${((n / total) * 100).toFixed(1).replace(".", ",")}%` : "-";
+
+/** Donat dan batang mendatar disajikan sebagai tabel: kategori, jumlah, persentase. */
+function tabelKategori(item: { label: string; nilai: number }[], kolomJumlah: string): Tabel {
+  const total = item.reduce((a, b) => a + b.nilai, 0);
+  return {
+    kepala: ["Kategori", kolomJumlah, "Persentase"],
+    kanan: [1, 2],
+    lebar: [5, 2, 2],
+    baris: [
+      ...item.map((i) => [i.label, fmtAngka(i.nilai), persen(i.nilai, total)]),
+      ["Total", fmtAngka(total), total > 0 ? "100%" : "-"],
+    ],
+  };
+}
+
+const tabelDonat = (d: Donat) => tabelData(tabelKategori(d.irisan, "Jumlah"));
+const tabelBatang = (b: BatangMendatar) => tabelData(tabelKategori(b.item, b.satuan ?? "Jumlah"));
+
 const keterangan = (t: string, atasTabel: boolean) =>
   new Paragraph({ alignment: AlignmentType.CENTER, keepNext: atasTabel, spacing: { before: atasTabel ? 160 : 60, after: atasTabel ? 80 : 200 }, children: [teks(t, { italics: true, size: 19, color: "4A6472" })] });
 
@@ -206,6 +227,26 @@ export async function rakitDocx(bahan: BahanLaporan, opsiParsial: Partial<OpsiLa
         noTabel++;
         bab2.push(keterangan(`Tabel ${noTabel}. Rincian ${d.judul}`, true));
         bab2.push(tabelData(d.tabel));
+        bab2.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
+      }
+            for (const t of d.tabelTambahan ?? []) {
+        noTabel++;
+        bab2.push(keterangan(`Tabel ${noTabel}. ${t.judul ?? `Rincian tambahan ${d.judul}`}`, true));
+        bab2.push(tabelData(t));
+        bab2.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
+      }
+      for (const dn of d.donat ?? []) {
+        if (dn.irisan.length === 0) continue;
+        noTabel++;
+        bab2.push(keterangan(`Tabel ${noTabel}. ${dn.judul}`, true));
+        bab2.push(tabelDonat(dn));
+        bab2.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
+      }
+      for (const b of d.batangMendatar ?? []) {
+        if (b.item.length === 0) continue;
+        noTabel++;
+        bab2.push(keterangan(`Tabel ${noTabel}. ${b.judul}`, true));
+        bab2.push(tabelBatang(b));
         bab2.push(new Paragraph({ spacing: { after: 80 }, children: [] }));
       }
       if (d.temuan && d.temuan.length > 0) {

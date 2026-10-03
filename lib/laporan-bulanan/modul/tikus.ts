@@ -4,7 +4,7 @@ import { fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { desimal, jumlah, jumlahPerBulan, persenDari, petaNamaWilker } from "./_bantu";
 
-const JUDUL = "Vektor Tikus";
+const JUDUL = "Surveilans Vektor Tikus";
 
 /** Kolom view_vektor_tikus_bulanan yang dipakai. */
 interface Baris {

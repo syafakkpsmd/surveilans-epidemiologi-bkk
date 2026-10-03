@@ -1,0 +1,1588 @@
+﻿
+===== lib\turso\tb.ts =====
+// lib/turso/tb.ts
+//
+// Query layer modul TB. Turso (SQLite) tidak punya fungsi mmwr_week seperti
+// Postgres/Supabase, jadi pola di sini: ambil raw rows dari tb_data (query
+// sederhana, difilter rentang tanggal di SQL), lalu SEMUA agregasi
+// (mingguan/bulanan/cascade/breakdown faktor risiko) dihitung di JavaScript
+// memakai hitungMingguEpidemiologi() yang sudah ada di @/lib/epi-week.
+//
+// Kalau project sudah punya lib/turso/client.ts (dipakai data_icv/stok_vaksin),
+// HAPUS getTursoClient() di bawah ini dan import dari sana supaya konsisten
+// (satu koneksi/singleton), tinggal ganti baris import di paling atas.
+
+import { createClient, type Client } from '@libsql/client';
+import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+
+let _client: Client | null = null;
+function getTursoClient(): Client {
+  if (!_client) {
+    _client = createClient({
+      url: process.env.TURSO_DATABASE_URL!,
+      authToken: process.env.TURSO_AUTH_TOKEN!,
+    });
+  }
+  return _client;
+}
+
+export const DAFTAR_WILKER_TB = [
+  'Samarinda',
+  'APT Pranoto',
+  'Tanjung Santan',
+  'Tanjung Laut',
+  'Lhoktuan',
+  'Sangatta',
+  'Sangkulirang',
+] as const;
+
+// ------------------------------------------------------------
+// Tipe data
+// ------------------------------------------------------------
+export interface TbRow {
+  wilayah_kerja: string;
+  no_baris: number;
+  tanggal_pelaksanaan: string | null;
+  nama_peserta: string | null;
+  provinsi: string | null;
+  kabupaten_kota: string | null;
+  nik: string | null;
+  pekerjaan: string | null;
+  tanggal_lahir: string | null;
+  jenis_kelamin: string | null;
+  riwayat_kontak_tbc: string | null;
+  jenis_kontak_tbc: string | null;
+  pernah_terdiagnosa_tbc: string | null;
+  kekurangan_gizi: string | null;
+  merokok: string | null;
+  perokok_pasif: string | null;
+  riwayat_dm: string | null;
+  odhiv: string | null;
+  lansia: string | null;
+  ibu_hamil: string | null;
+  hasil_skrining_gejala: string | null;
+  terduga_tbc: string | null;
+  tindak_lanjut_pemeriksaan: string | null;
+  fasyankes_pemeriksaan: string | null;
+  nomor_register_sitb: string | null;
+  tanggal_hasil_diagnosis: string | null;
+  hasil_pemeriksaan_diagnosis: string | null;
+  jenis_pemeriksaan_diagnosis: string | null;
+  terkonfirmasi_tbc: string | null;
+}
+
+const YA = (v: string | null | undefined) => (v ?? '').trim().toLowerCase() === 'ya';
+
+// ------------------------------------------------------------
+// Ambil raw data (dasar semua agregasi di bawah)
+// ------------------------------------------------------------
+export async function getTbRawData(tahun?: number, wilayahKerja?: string): Promise<TbRow[]> {
+  const client = getTursoClient();
+  const kondisi: string[] = [];
+  const args: string[] = [];
+
+  if (tahun) {
+    kondisi.push(`strftime('%Y', tanggal_pelaksanaan) = ?`);
+    args.push(String(tahun));
+  }
+  if (wilayahKerja) {
+    kondisi.push(`wilayah_kerja = ?`);
+    args.push(wilayahKerja);
+  }
+
+  const whereSql = kondisi.length > 0 ? `WHERE ${kondisi.join(' AND ')}` : '';
+  const result = await client.execute({
+    sql: `SELECT * FROM tb_data ${whereSql} ORDER BY tanggal_pelaksanaan ASC`,
+    args,
+  });
+  return result.rows as unknown as TbRow[];
+}
+
+// ------------------------------------------------------------
+// 1) Ringkasan Cascade Skrining TB
+//    Skrining -> Bergejala/Terduga -> Diperiksa -> Terkonfirmasi
+// ------------------------------------------------------------
+export interface RingkasanCascadeTb {
+  totalSkrining: number;
+  totalTerduga: number;
+  totalDiperiksa: number;
+  totalTerkonfirmasi: number;
+  caseDetectionRate: number; // terkonfirmasi / skrining (%)
+  yieldRateTerduga: number; // terkonfirmasi / terduga (%)
+}
+
+export function hitungCascadeTb(rows: TbRow[]): RingkasanCascadeTb {
+  const totalSkrining = rows.length;
+  const totalTerduga = rows.filter((r) => YA(r.terduga_tbc)).length;
+  const totalDiperiksa = rows.filter(
+    (r) => r.hasil_pemeriksaan_diagnosis && r.hasil_pemeriksaan_diagnosis.trim() !== ''
+  ).length;
+  const totalTerkonfirmasi = rows.filter((r) => YA(r.terkonfirmasi_tbc)).length;
+
+  return {
+    totalSkrining,
+    totalTerduga,
+    totalDiperiksa,
+    totalTerkonfirmasi,
+    caseDetectionRate: totalSkrining > 0 ? (totalTerkonfirmasi / totalSkrining) * 100 : 0,
+    yieldRateTerduga: totalTerduga > 0 ? (totalTerkonfirmasi / totalTerduga) * 100 : 0,
+  };
+}
+
+// ------------------------------------------------------------
+// 2) Tren Mingguan / Bulanan (skrining, terduga, terkonfirmasi)
+// ------------------------------------------------------------
+export interface TitikTrenTb {
+  periode: string; // "2026-W12" atau "2026-05"
+  totalSkrining: number;
+  totalTerduga: number;
+  totalTerkonfirmasi: number;
+}
+
+export function hitungTrenMingguanTb(rows: TbRow[]): TitikTrenTb[] {
+  const map = new Map<string, TitikTrenTb>();
+
+  for (const r of rows) {
+    if (!r.tanggal_pelaksanaan) continue;
+    const tgl = new Date(r.tanggal_pelaksanaan);
+    if (isNaN(tgl.getTime())) continue;
+
+    const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(tgl);
+    const key = `${tahunEpid}-W${String(mingguEpid).padStart(2, '0')}`;
+
+    if (!map.has(key)) {
+      map.set(key, { periode: key, totalSkrining: 0, totalTerduga: 0, totalTerkonfirmasi: 0 });
+    }
+    const titik = map.get(key)!;
+    titik.totalSkrining += 1;
+    if (YA(r.terduga_tbc)) titik.totalTerduga += 1;
+    if (YA(r.terkonfirmasi_tbc)) titik.totalTerkonfirmasi += 1;
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.periode.localeCompare(b.periode));
+}
+
+export function hitungTrenBulananTb(rows: TbRow[]): TitikTrenTb[] {
+  const map = new Map<string, TitikTrenTb>();
+
+  for (const r of rows) {
+    if (!r.tanggal_pelaksanaan) continue;
+    const tgl = new Date(r.tanggal_pelaksanaan);
+    if (isNaN(tgl.getTime())) continue;
+
+    const key = `${tgl.getFullYear()}-${String(tgl.getMonth() + 1).padStart(2, '0')}`;
+    if (!map.has(key)) {
+      map.set(key, { periode: key, totalSkrining: 0, totalTerduga: 0, totalTerkonfirmasi: 0 });
+    }
+    const titik = map.get(key)!;
+    titik.totalSkrining += 1;
+    if (YA(r.terduga_tbc)) titik.totalTerduga += 1;
+    if (YA(r.terkonfirmasi_tbc)) titik.totalTerkonfirmasi += 1;
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.periode.localeCompare(b.periode));
+}
+
+// ------------------------------------------------------------
+// 2b) Filter baris berdasarkan rentang minggu/bulan epidemiologi --
+//     dipakai di page.tsx SEBELUM menghitung KPI/cascade/breakdown
+//     lain, supaya semuanya "ikut" rentang yang dipilih user, bukan
+//     cuma chart Tren-nya saja.
+// ------------------------------------------------------------
+export function filterRowsByRentangMinggu(rows: TbRow[], mulai: string, akhir: string): TbRow[] {
+  return rows.filter((r) => {
+    if (!r.tanggal_pelaksanaan) return false;
+    const tgl = new Date(r.tanggal_pelaksanaan);
+    if (isNaN(tgl.getTime())) return false;
+    const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(tgl);
+    const periode = `${tahunEpid}-W${String(mingguEpid).padStart(2, '0')}`;
+    return periode >= mulai && periode <= akhir;
+  });
+}
+
+export function filterRowsByRentangBulan(rows: TbRow[], mulai: string, akhir: string): TbRow[] {
+  return rows.filter((r) => {
+    if (!r.tanggal_pelaksanaan) return false;
+    const periode = r.tanggal_pelaksanaan.slice(0, 7); // "YYYY-MM"
+    return periode >= mulai && periode <= akhir;
+  });
+}
+
+// ------------------------------------------------------------
+// 3) Breakdown Faktor Risiko -- kelompok mana yang paling "produktif"
+//    ditemukan terduga/terkonfirmasi (untuk arahkan target skrining ACF)
+// ------------------------------------------------------------
+export interface BreakdownFaktorRisikoTb {
+  faktor: string;
+  totalDiskrining: number;
+  totalTerduga: number;
+  totalTerkonfirmasi: number;
+  yieldPersen: number; // terkonfirmasi / diskrining pada kelompok ini (%)
+}
+
+const FAKTOR_RISIKO_FIELDS: { label: string; ambil: (r: TbRow) => boolean }[] = [
+  { label: 'Kontak Serumah', ambil: (r) => YA(r.riwayat_kontak_tbc) && r.jenis_kontak_tbc?.trim() === 'Kontak Serumah' },
+  { label: 'Kontak Erat', ambil: (r) => YA(r.riwayat_kontak_tbc) && r.jenis_kontak_tbc?.trim() === 'Kontak Erat' },
+  { label: 'Kekurangan Gizi', ambil: (r) => YA(r.kekurangan_gizi) },
+  { label: 'Merokok', ambil: (r) => YA(r.merokok) },
+  { label: 'Perokok Pasif', ambil: (r) => YA(r.perokok_pasif) },
+  { label: 'Riwayat DM', ambil: (r) => YA(r.riwayat_dm) },
+  { label: 'ODHIV', ambil: (r) => YA(r.odhiv) },
+  { label: 'Lansia >65 th', ambil: (r) => YA(r.lansia) },
+  { label: 'Ibu Hamil', ambil: (r) => YA(r.ibu_hamil) },
+];
+
+export function hitungBreakdownFaktorRisikoTb(rows: TbRow[]): BreakdownFaktorRisikoTb[] {
+  return FAKTOR_RISIKO_FIELDS.map(({ label, ambil }) => {
+    const kelompok = rows.filter(ambil);
+    const totalDiskrining = kelompok.length;
+    const totalTerduga = kelompok.filter((r) => YA(r.terduga_tbc)).length;
+    const totalTerkonfirmasi = kelompok.filter((r) => YA(r.terkonfirmasi_tbc)).length;
+    return {
+      faktor: label,
+      totalDiskrining,
+      totalTerduga,
+      totalTerkonfirmasi,
+      yieldPersen: totalDiskrining > 0 ? (totalTerkonfirmasi / totalDiskrining) * 100 : 0,
+    };
+  }).sort((a, b) => b.yieldPersen - a.yieldPersen);
+}
+
+// ------------------------------------------------------------
+// 3b) Breakdown per Wilayah Kerja BKK (bukan kab/kota asal peserta) --
+//     untuk kebutuhan operasional/pencetakan laporan per wilker
+// ------------------------------------------------------------
+export interface BreakdownWilkerTb {
+  wilayahKerja: string;
+  totalSkrining: number;
+  totalTerduga: number;
+  totalTerkonfirmasi: number;
+}
+
+export function hitungBreakdownWilkerTb(rows: TbRow[]): BreakdownWilkerTb[] {
+  const map = new Map<string, BreakdownWilkerTb>();
+  for (const r of rows) {
+    const key = r.wilayah_kerja;
+    if (!map.has(key)) {
+      map.set(key, { wilayahKerja: key, totalSkrining: 0, totalTerduga: 0, totalTerkonfirmasi: 0 });
+    }
+    const d = map.get(key)!;
+    d.totalSkrining += 1;
+    if (YA(r.terduga_tbc)) d.totalTerduga += 1;
+    if (YA(r.terkonfirmasi_tbc)) d.totalTerkonfirmasi += 1;
+  }
+  // Urut sesuai DAFTAR_WILKER_TB supaya tampilan chart konsisten, wilker
+  // yang belum ada datanya sama sekali tetap tampil dengan nilai 0.
+  return DAFTAR_WILKER_TB.map(
+    (w) => map.get(w) ?? { wilayahKerja: w, totalSkrining: 0, totalTerduga: 0, totalTerkonfirmasi: 0 }
+  );
+}
+
+// ------------------------------------------------------------
+// 4) Delay diagnosis: selisih hari tanggal skrining -> tanggal hasil
+//    (indikator kecepatan program, target ideal TCM <= H+2)
+// ------------------------------------------------------------
+export interface RingkasanDelayTb {
+  jumlahKasusDihitung: number;
+  rataRataHari: number;
+  medianHari: number;
+  maksimalHari: number;
+}
+
+export function hitungDelayDiagnosisTb(rows: TbRow[]): RingkasanDelayTb {
+  const delays: number[] = [];
+  for (const r of rows) {
+    if (!r.tanggal_pelaksanaan || !r.tanggal_hasil_diagnosis) continue;
+    const a = new Date(r.tanggal_pelaksanaan).getTime();
+    const b = new Date(r.tanggal_hasil_diagnosis).getTime();
+    if (isNaN(a) || isNaN(b) || b < a) continue;
+    delays.push(Math.round((b - a) / (1000 * 60 * 60 * 24)));
+  }
+
+  if (delays.length === 0) {
+    return { jumlahKasusDihitung: 0, rataRataHari: 0, medianHari: 0, maksimalHari: 0 };
+  }
+
+  delays.sort((a, b) => a - b);
+  const rataRata = delays.reduce((a, b) => a + b, 0) / delays.length;
+  const median = delays[Math.floor(delays.length / 2)];
+
+  return {
+    jumlahKasusDihitung: delays.length,
+    rataRataHari: Math.round(rataRata * 10) / 10,
+    medianHari: median,
+    maksimalHari: delays[delays.length - 1],
+  };
+}
+
+// ------------------------------------------------------------
+// 5) Distribusi Kabupaten/Kota
+// ------------------------------------------------------------
+export interface DistribusiWilayahTb {
+  kabupatenKota: string;
+  totalSkrining: number;
+  totalTerkonfirmasi: number;
+}
+
+// FIX: data ini nasional (Provinsi/Kabupaten-Kota bisa dari seluruh
+// Indonesia, bukan cuma Kaltim), jadi bisa ratusan kategori kalau
+// ditampilkan semua -- chart jadi tidak terbaca. Dibatasi Top N,
+// sisanya digabung jadi satu batang "Lainnya".
+export function hitungDistribusiKabKotaTb(rows: TbRow[], limit = 15): DistribusiWilayahTb[] {
+  const map = new Map<string, DistribusiWilayahTb>();
+  for (const r of rows) {
+    const key = (r.kabupaten_kota ?? 'Tidak diketahui').trim() || 'Tidak diketahui';
+    if (!map.has(key)) {
+      map.set(key, { kabupatenKota: key, totalSkrining: 0, totalTerkonfirmasi: 0 });
+    }
+    const d = map.get(key)!;
+    d.totalSkrining += 1;
+    if (YA(r.terkonfirmasi_tbc)) d.totalTerkonfirmasi += 1;
+  }
+
+  const semua = Array.from(map.values()).sort((a, b) => b.totalSkrining - a.totalSkrining);
+  if (semua.length <= limit) return semua;
+
+  const teratas = semua.slice(0, limit);
+  const sisa = semua.slice(limit);
+  const gabunganLainnya = sisa.reduce(
+    (acc, d) => ({
+      kabupatenKota: `Lainnya (${sisa.length} kab/kota)`,
+      totalSkrining: acc.totalSkrining + d.totalSkrining,
+      totalTerkonfirmasi: acc.totalTerkonfirmasi + d.totalTerkonfirmasi,
+    }),
+    { kabupatenKota: '', totalSkrining: 0, totalTerkonfirmasi: 0 }
+  );
+
+  return [...teratas, gabunganLainnya];
+}
+
+// ------------------------------------------------------------
+// 6) Donut Jenis Kelamin
+// ------------------------------------------------------------
+export function hitungDonutJenisKelaminTb(rows: TbRow[]): { label: string; jumlah: number }[] {
+  const lakiLaki = rows.filter((r) => r.jenis_kelamin?.trim() === 'Laki-laki').length;
+  const perempuan = rows.filter((r) => r.jenis_kelamin?.trim() === 'Perempuan').length;
+  return [
+    { label: 'Laki-laki', jumlah: lakiLaki },
+    { label: 'Perempuan', jumlah: perempuan },
+  ];
+}
+
+// ------------------------------------------------------------
+// 7) Daftar terduga TBC yang BELUM ada tindak lanjut / hasil
+//    (actionable list untuk petugas follow-up, bukan cuma statistik)
+// ------------------------------------------------------------
+export interface TerdugaBelumTindakLanjutTb {
+  wilayahKerja: string;
+  noBaris: number;
+  namaPeserta: string | null;
+  nik: string | null;
+  tanggalPelaksanaan: string | null;
+  kabupatenKota: string | null;
+  tindakLanjutPemeriksaan: string | null;
+  fasyankesPemeriksaan: string | null;
+}
+
+export function ambilDaftarBelumTindakLanjutTb(rows: TbRow[]): TerdugaBelumTindakLanjutTb[] {
+  return rows
+    .filter((r) => YA(r.terduga_tbc))
+    .filter((r) => {
+      const belumHasil = !r.hasil_pemeriksaan_diagnosis || r.hasil_pemeriksaan_diagnosis.trim() === '';
+      return belumHasil;
+    })
+    .map((r) => ({
+      wilayahKerja: r.wilayah_kerja,
+      noBaris: r.no_baris,
+      namaPeserta: r.nama_peserta,
+      nik: r.nik,
+      tanggalPelaksanaan: r.tanggal_pelaksanaan,
+      kabupatenKota: r.kabupaten_kota,
+      tindakLanjutPemeriksaan: r.tindak_lanjut_pemeriksaan,
+      fasyankesPemeriksaan: r.fasyankes_pemeriksaan,
+    }))
+    .sort((a, b) => (a.tanggalPelaksanaan ?? '').localeCompare(b.tanggalPelaksanaan ?? ''));
+}
+
+===== lib\turso\hiv.ts =====
+import { getTursoClient } from '@/lib/turso/client';
+import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+
+export interface HivRow {
+  wilayah_kerja: string;
+  tanggal_kegiatan: string | null;
+  sex: string | null;
+  tanggal_lahir: string | null;
+  status_perkawinan: string | null;
+  kunjungan: string | null;
+  hasil: string | null;
+  jenis_reagen: string | null;
+  hubungan_berisiko: string | null;
+}
+
+export async function ambilHivRaw(tahun: number): Promise<HivRow[]> {
+  const client = getTursoClient();
+  const result = await client.execute({
+    sql: `SELECT wilayah_kerja, tanggal_kegiatan, sex, tanggal_lahir, status_perkawinan,
+                 kunjungan, hasil, jenis_reagen, hubungan_berisiko
+          FROM hiv_data
+          WHERE strftime('%Y', tanggal_kegiatan) = ? AND tanggal_kegiatan IS NOT NULL`,
+    args: [String(tahun)]
+  });
+  return result.rows as unknown as HivRow[];
+}
+
+export async function getDaftarWilayahKerjaHiv(): Promise<string[]> {
+  const client = getTursoClient();
+  const result = await client.execute(`SELECT DISTINCT wilayah_kerja FROM hiv_data ORDER BY wilayah_kerja`);
+  return result.rows.map((r: any) => r.wilayah_kerja as string);
+}
+
+// ===== RINGKASAN (kartu) =====
+export interface RingkasanHiv {
+  totalPemeriksaan: number;
+  jumlahReaktif: number;
+  jumlahNonReaktif: number;
+  persenReaktif: number;
+  kunjunganBaru: number;
+  hubunganBerisikoYa: number;
+}
+
+export function hitungRingkasanHiv(rows: HivRow[]): RingkasanHiv {
+  const total = rows.length;
+  const reaktif = rows.filter(r => r.hasil === 'Reaktif').length;
+  const kunjunganBaru = rows.filter(r => r.kunjungan === 'Baru').length;
+  const hubunganBerisikoYa = rows.filter(r => r.hubungan_berisiko === 'Ya').length;
+  return {
+    totalPemeriksaan: total,
+    jumlahReaktif: reaktif,
+    jumlahNonReaktif: total - reaktif,
+    persenReaktif: total > 0 ? Math.round((reaktif / total) * 1000) / 10 : 0,
+    kunjunganBaru,
+    hubunganBerisikoYa
+  };
+}
+
+// ===== DISTRIBUSI GENERIK (donut) =====
+export function hitungDistribusi(rows: HivRow[], field: keyof HivRow): { label: string; jumlah: number }[] {
+  const peta = new Map<string, number>();
+  rows.forEach(r => {
+    const nilai = r[field];
+    const key = (nilai && String(nilai).trim()) || 'Tidak diketahui';
+    peta.set(key, (peta.get(key) || 0) + 1);
+  });
+  return Array.from(peta.entries()).map(([label, jumlah]) => ({ label, jumlah }));
+}
+
+// ===== DISTRIBUSI USIA =====
+function hitungUsia(tanggalLahir: string | null, tanggalKegiatan: string | null): number | null {
+  if (!tanggalLahir || !tanggalKegiatan) return null;
+  const lahir = new Date(tanggalLahir);
+  const kegiatan = new Date(tanggalKegiatan);
+  if (isNaN(lahir.getTime()) || isNaN(kegiatan.getTime())) return null;
+  let usia = kegiatan.getFullYear() - lahir.getFullYear();
+  const belumUlangTahun =
+    kegiatan.getMonth() < lahir.getMonth() ||
+    (kegiatan.getMonth() === lahir.getMonth() && kegiatan.getDate() < lahir.getDate());
+  if (belumUlangTahun) usia--;
+  return usia;
+}
+
+function bucketUsia(usia: number | null): string {
+  if (usia === null || isNaN(usia) || usia < 0) return 'Tidak diketahui';
+  if (usia < 20) return '<20';
+  if (usia < 30) return '20-29';
+  if (usia < 40) return '30-39';
+  if (usia < 50) return '40-49';
+  return '50+';
+}
+
+export function hitungDistribusiUsia(rows: HivRow[]) {
+  const peta = new Map<string, number>();
+  rows.forEach(r => {
+    const key = bucketUsia(hitungUsia(r.tanggal_lahir, r.tanggal_kegiatan));
+    peta.set(key, (peta.get(key) || 0) + 1);
+  });
+  const urutan = ['<20', '20-29', '30-39', '40-49', '50+', 'Tidak diketahui'];
+  return urutan.filter(k => peta.has(k)).map(label => ({ label, jumlah: peta.get(label)! }));
+}
+
+// ===== FORMAT PERIODE =====
+const NAMA_BULAN = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
+export function formatPeriodeBulanan(periode: string): string {
+  const [tahun, bulan] = periode.split('-');
+  const idx = Number(bulan) - 1;
+  return NAMA_BULAN[idx] ? `${NAMA_BULAN[idx]} ${tahun}` : periode;
+}
+
+// ===== DAFTAR PERIODE PENUH 1 TAHUN (supaya rentang bisa dipilih dari awal tahun) =====
+function buatDaftarPeriodeMingguan(tahun: number): string[] {
+  // Digenerate penuh 53 minggu (aman untuk tahun dengan 53 minggu epid);
+  // minggu yang tidak ada datanya otomatis terisi 0, bukan hilang dari dropdown
+  return Array.from({ length: 53 }, (_, i) => `${tahun}-W${i + 1}`);
+}
+
+function buatDaftarPeriodeBulanan(tahun: number): string[] {
+  return Array.from({ length: 12 }, (_, i) => `${tahun}-${String(i + 1).padStart(2, '0')}`);
+}
+
+const ambilPeriodeMingguan = (r: HivRow) => {
+  if (!r.tanggal_kegiatan) return null;
+  const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(new Date(r.tanggal_kegiatan));
+  return `${tahunEpid}-W${mingguEpid}`;
+};
+const ambilPeriodeBulanan = (r: HivRow) => (r.tanggal_kegiatan ? r.tanggal_kegiatan.slice(0, 7) : null);
+
+// ===== TREN KESELURUHAN (garis atas) — sekarang full-range 1 tahun, diisi 0 kalau kosong =====
+export function hitungTrenMingguan(rows: HivRow[], tahun: number) {
+  const daftarPeriode = buatDaftarPeriodeMingguan(tahun);
+  const peta = new Map<string, number>();
+  rows.forEach(r => {
+    const periode = ambilPeriodeMingguan(r);
+    if (periode) peta.set(periode, (peta.get(periode) || 0) + 1);
+  });
+  return daftarPeriode.map(periode => ({ periode, jumlah: peta.get(periode) || 0 }));
+}
+
+export function hitungTrenBulanan(rows: HivRow[], tahun: number) {
+  const daftarPeriode = buatDaftarPeriodeBulanan(tahun);
+  const peta = new Map<string, number>();
+  rows.forEach(r => {
+    const periode = ambilPeriodeBulanan(r);
+    if (periode) peta.set(periode, (peta.get(periode) || 0) + 1);
+  });
+  return daftarPeriode.map(periode => ({ periode, jumlah: peta.get(periode) || 0 }));
+}
+
+// ===== TREN DIPERIKSA VS REAKTIF (chart baru) =====
+export interface TitikDiperiksaReaktif { periode: string; Diperiksa: number; Reaktif: number }
+
+function hitungDiperiksaReaktif(rows: HivRow[], daftarPeriode: string[], ambilPeriode: (r: HivRow) => string | null): TitikDiperiksaReaktif[] {
+  const totalPeta = new Map<string, number>();
+  const reaktifPeta = new Map<string, number>();
+  rows.forEach(r => {
+    const periode = ambilPeriode(r);
+    if (!periode) return;
+    totalPeta.set(periode, (totalPeta.get(periode) || 0) + 1);
+    if (r.hasil === 'Reaktif') reaktifPeta.set(periode, (reaktifPeta.get(periode) || 0) + 1);
+  });
+  return daftarPeriode.map(periode => ({
+    periode,
+    Diperiksa: totalPeta.get(periode) || 0,
+    Reaktif: reaktifPeta.get(periode) || 0
+  }));
+}
+
+export const hitungDiperiksaReaktifMingguan = (rows: HivRow[], tahun: number) =>
+  hitungDiperiksaReaktif(rows, buatDaftarPeriodeMingguan(tahun), ambilPeriodeMingguan);
+
+export const hitungDiperiksaReaktifBulanan = (rows: HivRow[], tahun: number) =>
+  hitungDiperiksaReaktif(rows, buatDaftarPeriodeBulanan(tahun), ambilPeriodeBulanan);
+
+// ===== TREN PER WILAYAH KERJA x KATEGORI — sekarang full-range juga =====
+export const KATEGORI_HASIL = ['Reaktif', 'Non Reaktif'] as const;
+export const KATEGORI_HUBUNGAN_BERISIKO = ['Ya', 'Tidak'] as const;
+
+function pivotTrenPerWilayahKategori(
+  rows: HivRow[],
+  daftarPeriode: string[],
+  ambilPeriode: (r: HivRow) => string | null,
+  ambilKategori: (r: HivRow) => string | null,
+  daftarWilayah: string[],
+  kategoriList: readonly string[]
+): Record<string, number | string>[] {
+  const peta = new Map<string, Record<string, number>>();
+  daftarPeriode.forEach(p => {
+    const obj: Record<string, number> = {};
+    daftarWilayah.forEach(w => kategoriList.forEach(k => { obj[`${w}__${k}`] = 0; }));
+    peta.set(p, obj);
+  });
+  rows.forEach(r => {
+    const periode = ambilPeriode(r);
+    const kategori = ambilKategori(r);
+    if (!periode || !kategori || !peta.has(periode)) return;
+    const obj = peta.get(periode)!;
+    const key = `${r.wilayah_kerja}__${kategori}`;
+    obj[key] = (obj[key] || 0) + 1;
+  });
+  return daftarPeriode.map(periode => ({ periode, ...peta.get(periode)! }));
+}
+
+export const hitungTrenMingguanHasilPerWilayah = (rows: HivRow[], tahun: number, daftarWilayah: string[]) =>
+  pivotTrenPerWilayahKategori(rows, buatDaftarPeriodeMingguan(tahun), ambilPeriodeMingguan, r => r.hasil, daftarWilayah, KATEGORI_HASIL);
+
+export const hitungTrenMingguanHubunganBerisikoPerWilayah = (rows: HivRow[], tahun: number, daftarWilayah: string[]) =>
+  pivotTrenPerWilayahKategori(rows, buatDaftarPeriodeMingguan(tahun), ambilPeriodeMingguan, r => r.hubungan_berisiko, daftarWilayah, KATEGORI_HUBUNGAN_BERISIKO);
+
+export const hitungTrenBulananHasilPerWilayah = (rows: HivRow[], tahun: number, daftarWilayah: string[]) =>
+  pivotTrenPerWilayahKategori(rows, buatDaftarPeriodeBulanan(tahun), ambilPeriodeBulanan, r => r.hasil, daftarWilayah, KATEGORI_HASIL);
+
+export const hitungTrenBulananHubunganBerisikoPerWilayah = (rows: HivRow[], tahun: number, daftarWilayah: string[]) =>
+  pivotTrenPerWilayahKategori(rows, buatDaftarPeriodeBulanan(tahun), ambilPeriodeBulanan, r => r.hubungan_berisiko, daftarWilayah, KATEGORI_HUBUNGAN_BERISIKO);
+
+===== lib\turso\kier.ts =====
+// lib/turso/kier.ts
+//
+// CATATAN INTEGRASI: file ini mengasumsikan sudah ada client Turso bersama
+// yang dipakai modul TB/HIV/Klinik/Poliklinik, biasanya di '@/lib/turso/client'
+// dengan export seperti:
+//   export const tursoClient = createClient({ url: ..., authToken: ... })
+// Sesuaikan path import di bawah ini dengan yang sudah ada di project Anda.
+
+import { getTursoClient } from '@/lib/turso/client';
+
+const tursoClient = getTursoClient();
+
+export const DAFTAR_WILKER_KIER = ['Samarinda', 'APT Pranoto', 'Tanjung Laut', 'Lhoktuan', 'Sangatta'];
+ 
+export interface BarisKier {
+  wilayah_kerja: string;
+  no_baris: number;
+  nama: string;
+  tanggal_lahir: string | null;
+  jenis_kelamin: string | null;
+  alamat: string | null;
+  tujuan_pemeriksaan: string | null;
+  tanggal_pemeriksaan: string | null; // yyyy-MM-dd
+  kesimpulan: string | null;
+  tempat_terbit: string | null;
+}
+ 
+export interface RingkasanKier {
+  totalPemeriksaan: number;
+  breakdownKesimpulan: { label: string; jumlah: number }[];
+  breakdownJenisKelamin: { label: string; jumlah: number }[];
+  tujuanTerbanyak: { label: string; jumlah: number }[];
+  breakdownWilker: { label: string; jumlah: number }[];
+}
+ 
+export interface TitikMingguan {
+  minggu: number;
+  label: string; // "Mg 1", "Mg 2", dst
+  jumlah: number;
+}
+ 
+export interface TitikBulanan {
+  bulan: number;
+  label: string; // "Januari", "Februari", dst
+  jumlah: number;
+}
+ 
+/** Titik mingguan/bulanan dengan satu kolom angka per wilayah kerja, dipakai untuk chart breakdown */
+export interface TitikMingguanPerWilker {
+  minggu: number;
+  label: string;
+  [wilayahKerja: string]: number | string;
+}
+ 
+export interface TitikBulananPerWilker {
+  bulan: number;
+  label: string;
+  [wilayahKerja: string]: number | string;
+}
+ 
+const NAMA_BULAN = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+ 
+/** Ambil seluruh baris untuk satu tahun, opsional difilter satu wilayah kerja */
+async function ambilBarisTahun(tahun: number, wilayahKerja?: string): Promise<BarisKier[]> {
+  const kondisiWilker = wilayahKerja ? 'AND wilayah_kerja = ?' : '';
+  const args: any[] = [String(tahun)];
+  if (wilayahKerja) args.push(wilayahKerja);
+ 
+  const result = await tursoClient.execute({
+    sql: `SELECT wilayah_kerja, no_baris, nama, tanggal_lahir, jenis_kelamin, alamat,
+                 tujuan_pemeriksaan, tanggal_pemeriksaan, kesimpulan, tempat_terbit
+          FROM kier_kesehatan
+          WHERE substr(tanggal_pemeriksaan, 1, 4) = ? ${kondisiWilker}
+          ORDER BY tanggal_pemeriksaan ASC`,
+    args,
+  });
+ 
+  return result.rows.map((row: any) => ({
+    wilayah_kerja: row.wilayah_kerja,
+    no_baris: Number(row.no_baris),
+    nama: row.nama,
+    tanggal_lahir: row.tanggal_lahir,
+    jenis_kelamin: row.jenis_kelamin,
+    alamat: row.alamat,
+    tujuan_pemeriksaan: row.tujuan_pemeriksaan,
+    tanggal_pemeriksaan: row.tanggal_pemeriksaan,
+    kesimpulan: row.kesimpulan,
+    tempat_terbit: row.tempat_terbit,
+  }));
+}
+ 
+/**
+ * Minggu epidemiologi sederhana (Minggu sebagai awal minggu), dipakai untuk
+ * agregasi di JS karena Turso (SQLite) tidak punya fungsi mmwr_week seperti
+ * di Supabase Postgres. Pola ini konsisten dengan modul Poliklinik/TB/HIV.
+ */
+export function hitungMingguEpid(tanggalIso: string): { tahun: number; minggu: number } {
+  const tanggal = new Date(tanggalIso + 'T00:00:00');
+  const tahun = tanggal.getFullYear();
+  const awalTahun = new Date(tahun, 0, 1);
+  const hariAwalTahun = awalTahun.getDay(); // 0 = Minggu
+  const selisihHari = Math.floor((tanggal.getTime() - awalTahun.getTime()) / 86400000);
+  const minggu = Math.floor((selisihHari + hariAwalTahun) / 7) + 1;
+  return { tahun, minggu };
+}
+ 
+/** Ringkasan untuk kartu-kartu di bagian atas dashboard. wilayahKerja opsional = filter 1 wilker */
+export async function getRingkasanKier(tahun: number, wilayahKerja?: string): Promise<RingkasanKier> {
+  const data = await ambilBarisTahun(tahun, wilayahKerja);
+ 
+  const hitung = (arr: BarisKier[], key: keyof BarisKier) => {
+    const map = new Map<string, number>();
+    arr.forEach((b) => {
+      const nilai = (b[key] as string) || 'Tidak diketahui';
+      map.set(nilai, (map.get(nilai) || 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([label, jumlah]) => ({ label, jumlah }))
+      .sort((a, b) => b.jumlah - a.jumlah);
+  };
+ 
+  // Breakdown wilker SELALU dari semua wilker (walau sedang difilter 1 wilker),
+  // supaya kartu/chart perbandingan antar-wilker tetap informatif
+  const dataSemuaWilker = wilayahKerja ? await ambilBarisTahun(tahun) : data;
+ 
+  return {
+    totalPemeriksaan: data.length,
+    breakdownKesimpulan: hitung(data, 'kesimpulan'),
+    breakdownJenisKelamin: hitung(data, 'jenis_kelamin'),
+    tujuanTerbanyak: hitung(data, 'tujuan_pemeriksaan').slice(0, 5),
+    breakdownWilker: hitung(dataSemuaWilker, 'wilayah_kerja'),
+  };
+}
+ 
+/** Tren mingguan, difilter rentang minggu (mingguAwal..mingguAkhir), opsional 1 wilker */
+export async function getTrenMingguanKier(
+  tahun: number,
+  mingguAwal: number,
+  mingguAkhir: number,
+  wilayahKerja?: string
+): Promise<TitikMingguan[]> {
+  const data = await ambilBarisTahun(tahun, wilayahKerja);
+  const perMinggu = new Map<number, number>();
+ 
+  data.forEach((b) => {
+    if (!b.tanggal_pemeriksaan) return;
+    const { minggu } = hitungMingguEpid(b.tanggal_pemeriksaan);
+    perMinggu.set(minggu, (perMinggu.get(minggu) || 0) + 1);
+  });
+ 
+  const hasil: TitikMingguan[] = [];
+  for (let m = mingguAwal; m <= mingguAkhir; m++) {
+    hasil.push({ minggu: m, label: `Mg ${m}`, jumlah: perMinggu.get(m) || 0 });
+  }
+  return hasil;
+}
+ 
+/** Tren bulanan, difilter rentang bulan (bulanAwal..bulanAkhir, 1-12), opsional 1 wilker */
+export async function getTrenBulananKier(
+  tahun: number,
+  bulanAwal: number,
+  bulanAkhir: number,
+  wilayahKerja?: string
+): Promise<TitikBulanan[]> {
+  const data = await ambilBarisTahun(tahun, wilayahKerja);
+  const perBulan = new Map<number, number>();
+ 
+  data.forEach((b) => {
+    if (!b.tanggal_pemeriksaan) return;
+    const bulan = Number(b.tanggal_pemeriksaan.slice(5, 7));
+    perBulan.set(bulan, (perBulan.get(bulan) || 0) + 1);
+  });
+ 
+  const hasil: TitikBulanan[] = [];
+  for (let bl = bulanAwal; bl <= bulanAkhir; bl++) {
+    hasil.push({ bulan: bl, label: NAMA_BULAN[bl - 1], jumlah: perBulan.get(bl) || 0 });
+  }
+  return hasil;
+}
+ 
+/** Daftar tahun yang tersedia di data, untuk dropdown filter tahun */
+export async function getDaftarTahunKier(): Promise<number[]> {
+  const result = await tursoClient.execute({
+    sql: `SELECT DISTINCT substr(tanggal_pemeriksaan, 1, 4) AS tahun
+          FROM kier_kesehatan
+          WHERE tanggal_pemeriksaan IS NOT NULL AND tanggal_pemeriksaan != ''
+          ORDER BY tahun DESC`,
+  });
+  return result.rows.map((r: any) => Number(r.tahun)).filter((t) => !isNaN(t));
+}
+ 
+/**
+ * Daftar wilayah kerja YANG BENAR-BENAR ADA di data Turso untuk tahun ini,
+ * digabung dengan DAFTAR_WILKER_KIER (supaya urutan/warna tetap konsisten
+ * untuk 5 wilker resmi walau datanya baru 0). Wilker "asing" (typo/beda
+ * ejaan dari sheet) tetap ikut ditampilkan di akhir daftar, bukan hilang
+ * diam-diam — supaya kelihatan kalau ada nama wilker yang tidak konsisten.
+ */
+export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
+  const result = await tursoClient.execute({
+    sql: `SELECT DISTINCT wilayah_kerja
+          FROM kier_kesehatan
+          WHERE substr(tanggal_pemeriksaan, 1, 4) = ?
+            AND wilayah_kerja IS NOT NULL AND wilayah_kerja != ''`,
+    args: [String(tahun)],
+  });
+ 
+  const dariData = result.rows.map((r: any) => String(r.wilayah_kerja));
+  const gabungan = [...DAFTAR_WILKER_KIER];
+  dariData.forEach((w) => {
+    if (!gabungan.includes(w)) gabungan.push(w);
+  });
+  return gabungan;
+}
+ 
+/**
+ * Tren mingguan DIPECAH per wilayah kerja (selalu dari SEMUA wilker, tidak
+ * ikut filter wilayahKerja) — dipakai untuk chart breakdown "Seluruh Wilayah
+ * Kerja". Front-end yang menentukan kapan chart ini ditampilkan (hanya saat
+ * tidak ada 1 wilker spesifik yang difilter).
+ *
+ * `daftarWilker` SEBAIKNYA diisi hasil getDaftarWilkerAktif(tahun) supaya
+ * kolom yang dibentuk cocok persis dengan nilai wilayah_kerja yang benar-
+ * benar ada di Turso (bukan hardcode) — kalau tidak diisi, fallback ke
+ * DAFTAR_WILKER_KIER (bisa membuat data 0 semua kalau ejaan di sheet beda).
+ */
+export async function getTrenMingguanPerWilkerKier(
+  tahun: number,
+  mingguAwal: number,
+  mingguAkhir: number,
+  daftarWilker: string[] = DAFTAR_WILKER_KIER
+): Promise<TitikMingguanPerWilker[]> {
+  const data = await ambilBarisTahun(tahun);
+  const perMinggu = new Map<number, Record<string, number>>();
+ 
+  data.forEach((b) => {
+    if (!b.tanggal_pemeriksaan) return;
+    const { minggu } = hitungMingguEpid(b.tanggal_pemeriksaan);
+    if (!perMinggu.has(minggu)) perMinggu.set(minggu, {});
+    const rec = perMinggu.get(minggu)!;
+    const wilker = b.wilayah_kerja || 'Tidak diketahui';
+    rec[wilker] = (rec[wilker] || 0) + 1;
+  });
+ 
+  const hasil: TitikMingguanPerWilker[] = [];
+  for (let m = mingguAwal; m <= mingguAkhir; m++) {
+    const rec = perMinggu.get(m) || {};
+    const titik: TitikMingguanPerWilker = { minggu: m, label: `Mg ${m}` };
+    daftarWilker.forEach((w) => {
+      titik[w] = rec[w] || 0;
+    });
+    hasil.push(titik);
+  }
+  return hasil;
+}
+ 
+/**
+ * Tren bulanan DIPECAH per wilayah kerja (selalu dari SEMUA wilker) —
+ * dipakai untuk chart breakdown batang "Seluruh Wilayah Kerja".
+ * `daftarWilker` sebaiknya diisi hasil getDaftarWilkerAktif(tahun), sama
+ * seperti getTrenMingguanPerWilkerKier di atas.
+ */
+export async function getTrenBulananPerWilkerKier(
+  tahun: number,
+  bulanAwal: number,
+  bulanAkhir: number,
+  daftarWilker: string[] = DAFTAR_WILKER_KIER
+): Promise<TitikBulananPerWilker[]> {
+  const data = await ambilBarisTahun(tahun);
+  const perBulan = new Map<number, Record<string, number>>();
+ 
+  data.forEach((b) => {
+    if (!b.tanggal_pemeriksaan) return;
+    const bulan = Number(b.tanggal_pemeriksaan.slice(5, 7));
+    if (!perBulan.has(bulan)) perBulan.set(bulan, {});
+    const rec = perBulan.get(bulan)!;
+    const wilker = b.wilayah_kerja || 'Tidak diketahui';
+    rec[wilker] = (rec[wilker] || 0) + 1;
+  });
+ 
+  const hasil: TitikBulananPerWilker[] = [];
+  for (let bl = bulanAwal; bl <= bulanAkhir; bl++) {
+    const rec = perBulan.get(bl) || {};
+    const titik: TitikBulananPerWilker = { bulan: bl, label: NAMA_BULAN[bl - 1] };
+    daftarWilker.forEach((w) => {
+      titik[w] = rec[w] || 0;
+    });
+    hasil.push(titik);
+  }
+  return hasil;
+}
+ 
+
+===== lib\turso\poliklinik.ts =====
+// lib/turso/poliklinik.ts
+//
+// Query + agregasi untuk modul Kunjungan Poliklinik. Sama seperti modul TB,
+// semua agregasi (tren, breakdown) dihitung di JS karena Turso/SQLite tidak
+// punya fungsi mmwr_week seperti Postgres. Modul ini TIDAK dipakaikan AI
+// Analysis/Prediksi (sesuai permintaan), jadi tidak ada dependensi ke
+// lib/ai/data.ts atau DataAnalisis di sini.
+
+import { createClient, type Client } from '@libsql/client';
+import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+
+let _client: Client | null = null;
+function getTursoClient(): Client {
+  if (!_client) {
+    _client = createClient({
+      url: process.env.TURSO_DATABASE_URL!,
+      authToken: process.env.TURSO_AUTH_TOKEN!,
+    });
+  }
+  return _client;
+}
+
+export const DAFTAR_WILKER_POLIKLINIK = [
+  'Samarinda',
+  'APT Pranoto',
+  'Tanjung Laut',
+  'Lhoktuan',
+  'Sangatta',
+] as const;
+
+export interface KunjunganRow {
+  wilayah_kerja: string;
+  no_baris: number;
+  tanggal_pemeriksaan: string | null;
+  nama: string | null;
+  jenis_kelamin: string | null;
+  usia: number | null;
+  kategori_pasien: string | null;
+  diagnosa: string | null;
+  keterangan: string | null;
+}
+
+// ------------------------------------------------------------
+// Raw data
+// ------------------------------------------------------------
+export async function getKunjunganRawData(tahun?: number, wilayahKerja?: string): Promise<KunjunganRow[]> {
+  const client = getTursoClient();
+  const kondisi: string[] = [];
+  const args: (string | number)[] = [];
+
+  if (tahun) {
+    kondisi.push(`strftime('%Y', tanggal_pemeriksaan) = ?`);
+    args.push(String(tahun));
+  }
+  if (wilayahKerja) {
+    kondisi.push(`wilayah_kerja = ?`);
+    args.push(wilayahKerja);
+  }
+
+  const whereSql = kondisi.length > 0 ? `WHERE ${kondisi.join(' AND ')}` : '';
+  const result = await client.execute({
+    sql: `SELECT wilayah_kerja, no_baris, tanggal_pemeriksaan, nama, jenis_kelamin, usia, kategori_pasien, diagnosa, keterangan
+          FROM kunjungan_poliklinik ${whereSql}
+          ORDER BY tanggal_pemeriksaan ASC`,
+    args,
+  });
+  return result.rows as unknown as KunjunganRow[];
+}
+
+// ------------------------------------------------------------
+// 1) Ringkasan KPI
+// ------------------------------------------------------------
+export interface RingkasanKunjungan {
+  totalKunjungan: number;
+  jumlahDiagnosaUnik: number;
+  wilkerTerbanyak: string | null;
+  rataRataPerHari: number;
+}
+
+export function hitungRingkasanKunjungan(rows: KunjunganRow[]): RingkasanKunjungan {
+  const totalKunjungan = rows.length;
+  const diagnosaSet = new Set(rows.map((r) => (r.diagnosa ?? '').trim()).filter(Boolean));
+
+  const perWilker = new Map<string, number>();
+  for (const r of rows) {
+    perWilker.set(r.wilayah_kerja, (perWilker.get(r.wilayah_kerja) ?? 0) + 1);
+  }
+  let wilkerTerbanyak: string | null = null;
+  let maxWilker = -1;
+  for (const [w, jumlah] of perWilker) {
+    if (jumlah > maxWilker) {
+      maxWilker = jumlah;
+      wilkerTerbanyak = w;
+    }
+  }
+
+  const tanggalUnik = new Set(rows.map((r) => r.tanggal_pemeriksaan).filter(Boolean));
+  const rataRataPerHari = tanggalUnik.size > 0 ? totalKunjungan / tanggalUnik.size : 0;
+
+  return {
+    totalKunjungan,
+    jumlahDiagnosaUnik: diagnosaSet.size,
+    wilkerTerbanyak,
+    rataRataPerHari: Math.round(rataRataPerHari * 10) / 10,
+  };
+}
+
+// ------------------------------------------------------------
+// 2) Tren Mingguan / Bulanan
+// ------------------------------------------------------------
+export interface TitikTrenKunjungan {
+  periode: string;
+  totalKunjungan: number;
+}
+
+export function hitungTrenMingguanKunjungan(rows: KunjunganRow[]): TitikTrenKunjungan[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.tanggal_pemeriksaan) continue;
+    const tgl = new Date(r.tanggal_pemeriksaan);
+    if (isNaN(tgl.getTime())) continue;
+    const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(tgl);
+    const key = `${tahunEpid}-W${String(mingguEpid).padStart(2, '0')}`;
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([periode, totalKunjungan]) => ({ periode, totalKunjungan }))
+    .sort((a, b) => a.periode.localeCompare(b.periode));
+}
+
+export function hitungTrenBulananKunjungan(rows: KunjunganRow[]): TitikTrenKunjungan[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.tanggal_pemeriksaan) continue;
+    const tgl = new Date(r.tanggal_pemeriksaan);
+    if (isNaN(tgl.getTime())) continue;
+    const key = `${tgl.getFullYear()}-${String(tgl.getMonth() + 1).padStart(2, '0')}`;
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, totalKunjungan]) => ({ periode: formatPeriodeBulanan(key), totalKunjungan }));
+}
+
+// Nama bulan Indonesia dipakai untuk label sumbu-X/legend chart bulanan.
+// Pengurutan tetap dilakukan pada key mentah "YYYY-MM" (sortable), baru
+// diubah ke label "Nama Bulan Tahun" setelah terurut.
+const NAMA_BULAN = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
+function formatPeriodeBulanan(key: string): string {
+  const [tahun, bulan] = key.split('-');
+  const namaBulan = NAMA_BULAN[parseInt(bulan, 10) - 1] ?? bulan;
+  return `${namaBulan} ${tahun}`;
+}
+
+// ------------------------------------------------------------
+// 2b) Tren per Wilayah Kerja (Mingguan / Bulanan)
+//
+// Dipakai khusus untuk chart perbandingan antar-wilker di halaman "Semua
+// Wilayah Kerja". Bentuk return: satu baris per periode, dengan satu kolom
+// per nama wilker (nilai = jumlah kunjungan wilker itu pada periode itu).
+// Setiap wilker di DAFTAR_WILKER_POLIKLINIK selalu diberi nilai (default 0)
+// walau tidak ada data pada periode tsb, supaya garis/batang tiap wilker
+// tetap konsisten sepanjang sumbu-X chart.
+// ------------------------------------------------------------
+export type TitikTrenPerWilker = { periode: string } & Record<string, string | number>;
+
+export function hitungTrenPerWilkerMingguan(rows: KunjunganRow[]): TitikTrenPerWilker[] {
+  const map = new Map<string, TitikTrenPerWilker>();
+  for (const r of rows) {
+    if (!r.tanggal_pemeriksaan) continue;
+    const tgl = new Date(r.tanggal_pemeriksaan);
+    if (isNaN(tgl.getTime())) continue;
+    const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(tgl);
+    const periode = `${tahunEpid}-W${String(mingguEpid).padStart(2, '0')}`;
+
+    if (!map.has(periode)) {
+      const baris: TitikTrenPerWilker = { periode };
+      for (const w of DAFTAR_WILKER_POLIKLINIK) baris[w] = 0;
+      map.set(periode, baris);
+    }
+    const baris = map.get(periode)!;
+    baris[r.wilayah_kerja] = (Number(baris[r.wilayah_kerja]) || 0) + 1;
+  }
+  return Array.from(map.values()).sort((a, b) => a.periode.localeCompare(b.periode));
+}
+
+export function hitungTrenPerWilkerBulanan(rows: KunjunganRow[]): TitikTrenPerWilker[] {
+  const map = new Map<string, TitikTrenPerWilker>();
+  for (const r of rows) {
+    if (!r.tanggal_pemeriksaan) continue;
+    const tgl = new Date(r.tanggal_pemeriksaan);
+    if (isNaN(tgl.getTime())) continue;
+    const key = `${tgl.getFullYear()}-${String(tgl.getMonth() + 1).padStart(2, '0')}`;
+
+    if (!map.has(key)) {
+      const baris: TitikTrenPerWilker = { periode: key };
+      for (const w of DAFTAR_WILKER_POLIKLINIK) baris[w] = 0;
+      map.set(key, baris);
+    }
+    const baris = map.get(key)!;
+    baris[r.wilayah_kerja] = (Number(baris[r.wilayah_kerja]) || 0) + 1;
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, baris]) => ({ ...baris, periode: formatPeriodeBulanan(key) }));
+}
+
+// ------------------------------------------------------------
+// 3) Top Diagnosa
+// ------------------------------------------------------------
+export interface TopDiagnosa {
+  diagnosa: string;
+  jumlah: number;
+}
+
+export function hitungTopDiagnosa(rows: KunjunganRow[], limit = 10): TopDiagnosa[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const d = (r.diagnosa ?? '').trim();
+    if (!d) continue;
+    map.set(d, (map.get(d) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([diagnosa, jumlah]) => ({ diagnosa, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah)
+    .slice(0, limit);
+}
+
+// ------------------------------------------------------------
+// 4) Donut Jenis Kelamin
+// ------------------------------------------------------------
+export function hitungDonutJenisKelaminKunjungan(rows: KunjunganRow[]): { label: string; jumlah: number }[] {
+  const lakiLaki = rows.filter((r) => (r.jenis_kelamin ?? '').trim().toLowerCase().startsWith('l')).length;
+  const perempuan = rows.filter((r) => (r.jenis_kelamin ?? '').trim().toLowerCase().startsWith('p')).length;
+  return [
+    { label: 'Laki-laki', jumlah: lakiLaki },
+    { label: 'Perempuan', jumlah: perempuan },
+  ];
+}
+
+// ------------------------------------------------------------
+// 5) Donut Kelompok Usia
+// ------------------------------------------------------------
+export function hitungDonutKelompokUsia(rows: KunjunganRow[]): { label: string; jumlah: number }[] {
+  const kelompok = { balita: 0, anak: 0, dewasa: 0, lansia: 0, tidakDiketahui: 0 };
+  for (const r of rows) {
+    const usia = r.usia;
+    if (usia === null || usia === undefined) {
+      kelompok.tidakDiketahui++;
+    } else if (usia <= 5) {
+      kelompok.balita++;
+    } else if (usia <= 17) {
+      kelompok.anak++;
+    } else if (usia <= 59) {
+      kelompok.dewasa++;
+    } else {
+      kelompok.lansia++;
+    }
+  }
+  return [
+    { label: 'Balita (0-5 th)', jumlah: kelompok.balita },
+    { label: 'Anak (6-17 th)', jumlah: kelompok.anak },
+    { label: 'Dewasa (18-59 th)', jumlah: kelompok.dewasa },
+    { label: 'Lansia (60+ th)', jumlah: kelompok.lansia },
+    { label: 'Tidak diketahui', jumlah: kelompok.tidakDiketahui },
+  ].filter((k) => k.jumlah > 0);
+}
+
+// ------------------------------------------------------------
+// 5b) Donut Kategori Pasien
+//
+// Nilai kategori tidak dibatasi daftar tetap (tergantung isian di sheet),
+// jadi dikelompokkan apa adanya per teks yang muncul, diurutkan dari yang
+// terbanyak. Baris tanpa kategori dikelompokkan sebagai "Tidak diketahui".
+// ------------------------------------------------------------
+export function hitungDonutKategoriPasien(rows: KunjunganRow[]): { label: string; jumlah: number }[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const label = (r.kategori_pasien ?? '').trim() || 'Tidak diketahui';
+    map.set(label, (map.get(label) ?? 0) + 1);
+  }
+  return Array.from(map.entries())
+    .map(([label, jumlah]) => ({ label, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
+// ------------------------------------------------------------
+// 6) Breakdown per Wilker
+// ------------------------------------------------------------
+export function hitungBreakdownWilker(rows: KunjunganRow[]): { wilayahKerja: string; jumlah: number }[] {
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    map.set(r.wilayah_kerja, (map.get(r.wilayah_kerja) ?? 0) + 1);
+  }
+  return DAFTAR_WILKER_POLIKLINIK.map((w) => ({ wilayahKerja: w, jumlah: map.get(w) ?? 0 }));
+}
+
+// ------------------------------------------------------------
+// 7) Pola Hari Kunjungan (Senin-Minggu) -- berguna untuk perencanaan piket
+// ------------------------------------------------------------
+const NAMA_HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jumat", 'Sabtu'];
+
+export function hitungPolaHariKunjungan(rows: KunjunganRow[]): { hari: string; jumlah: number }[] {
+  const jumlahPerHari = [0, 0, 0, 0, 0, 0, 0]; // index 0=Minggu .. 6=Sabtu
+  for (const r of rows) {
+    if (!r.tanggal_pemeriksaan) continue;
+    const tgl = new Date(r.tanggal_pemeriksaan);
+    if (isNaN(tgl.getTime())) continue;
+    jumlahPerHari[tgl.getDay()]++;
+  }
+  // urutkan mulai Senin supaya enak dibaca di chart
+  const urutan = [1, 2, 3, 4, 5, 6, 0];
+  return urutan.map((i) => ({ hari: NAMA_HARI[i], jumlah: jumlahPerHari[i] }));
+}
+
+===== lib\turso\sklt.ts =====
+// lib/turso/sklt.ts
+// Import client Turso: samakan dengan yang dipakai di lib/turso/kier.ts
+import { getTursoClient } from "@/lib/turso/client";
+
+const turso = getTursoClient();
+
+export type SkltRow = {
+  id: number;
+  tanggal: string; // yyyy-mm-dd
+  inisial: string; // nama disamarkan di server — nama lengkap tidak pernah dikirim ke browser
+  maskapai: string;
+  rute: string; // nama bandara
+  jk: string;
+  umur: number | null;
+  diagnosis: string;
+  laik: 'Laik' | 'Tidak Laik' | 'Belum diisi';
+  jenisPenyakit: string;
+  gcs: string;
+  nadi: number | null;
+  suhu: number | null;
+  hamil: boolean;
+  pendamping: boolean;
+  fasilitas: string;
+};
+
+const NEGATIF = new Set(['', '-', '--', 'tidak', 'tdk', 'tidak hamil', 'tidak ada', 'no', 'n', '0', 'x']);
+const yaFlag = (v: unknown) => !NEGATIF.has(String(v ?? '').trim().toLowerCase());
+
+/** "Muhammad Ali Sadikin" → "M. A. S." */
+function inisial(nama: unknown): string {
+  const kata = String(nama ?? '').trim().split(/\s+/).filter(Boolean);
+  if (!kata.length) return '-';
+  return kata.map((k) => k[0].toUpperCase() + '.').join(' ');
+}
+
+const angka = (v: unknown): number | null => (v === null || v === undefined || v === '' ? null : Number(v));
+
+export async function getTahunSklt(): Promise<number[]> {
+  const rs = await turso.execute(
+    `SELECT DISTINCT substr(tanggal,1,4) AS t FROM sklt_penumpang
+     WHERE tanggal IS NOT NULL AND tanggal <> '' ORDER BY t DESC`
+  );
+  return rs.rows.map((r) => Number(r.t)).filter((n) => Number.isFinite(n));
+}
+
+export async function getSkltData(tahun: number): Promise<SkltRow[]> {
+  const rs = await turso.execute({
+    sql: `SELECT id, tanggal, nama, maskapai, rute, jenis_kelamin, umur, diagnosis, status_laik,
+                 jenis_penyakit, gcs, nadi, suhu, hamil, pendamping, fasilitas
+          FROM sklt_penumpang
+          WHERE substr(tanggal,1,4) = ?
+          ORDER BY tanggal DESC, no_urut DESC`,
+    args: [String(tahun)],
+  });
+
+  return rs.rows.map((r) => {
+    const laikMentah = String(r.status_laik ?? '');
+    return {
+      id: Number(r.id),
+      tanggal: String(r.tanggal ?? ''),
+      inisial: inisial(r.nama),
+      maskapai: String(r.maskapai ?? '').trim() || 'Tidak diisi',
+      rute: String(r.rute ?? '').trim() || 'Tidak diisi',
+      jk: String(r.jenis_kelamin ?? ''),
+      umur: angka(r.umur),
+      diagnosis: String(r.diagnosis ?? '').trim(),
+      laik: laikMentah === 'Laik' || laikMentah === 'Tidak Laik' ? laikMentah : 'Belum diisi',
+      jenisPenyakit: String(r.jenis_penyakit ?? ''),
+      gcs: String(r.gcs ?? ''),
+      nadi: angka(r.nadi),
+      suhu: angka(r.suhu),
+      hamil: yaFlag(r.hamil),
+      pendamping: yaFlag(r.pendamping),
+      fasilitas: String(r.fasilitas ?? '').trim(),
+    } as SkltRow;
+  });
+}
+
+===== lib\turso\queriessiaos.ts =====
+import { getTursoClient } from "@/lib/turso/client";
+
+export type SiaosRow = {
+  id: number;
+  wilayah_kerja: string;
+  no: number | null;
+  tanggal: string | null;
+  no_surat: string | null;
+  nama: string | null;
+  pelayaran: string | null;
+  maskapai: string | null;
+  pelabuhan: string | null;
+  jenis_kelamin: string | null;
+  usia: number | null;
+  satuan_usia: string | null;
+  diagnosa: string | null;
+  butuh_bantuan_medis: string | null;
+  ambulance: string | null;
+  kondisi_lanjut_perjalanan: string | null;
+  perlu_kursi_dorong: string | null;
+  perlu_bantuan_makanan_medikasi: string | null;
+  synced_at: string | null;
+};
+
+const DAFTAR_KOLOM = `id, wilayah_kerja, no, tanggal, no_surat, nama, pelayaran, maskapai, pelabuhan,
+  jenis_kelamin, usia, satuan_usia, diagnosa, butuh_bantuan_medis, ambulance,
+  kondisi_lanjut_perjalanan, perlu_kursi_dorong, perlu_bantuan_makanan_medikasi, synced_at`;
+
+// libSQL mengembalikan setiap baris sebagai instance class `Row` (bukan objek
+// biasa) -- ada method-method internal di dalamnya. Next.js menolak mengirim
+// itu dari Server Component ke Client Component ("Only plain objects can be
+// passed..."). Jadi setiap baris harus disalin dulu jadi objek polos sebelum
+// dikembalikan / diteruskan ke komponen client.
+function keObjekBiasa(row: unknown): SiaosRow {
+  const r = row as Record<string, unknown>;
+  return {
+    id: r.id as number,
+    wilayah_kerja: r.wilayah_kerja as string,
+    no: r.no as number | null,
+    tanggal: r.tanggal as string | null,
+    no_surat: r.no_surat as string | null,
+    nama: r.nama as string | null,
+    pelayaran: r.pelayaran as string | null,
+    maskapai: r.maskapai as string | null,
+    pelabuhan: r.pelabuhan as string | null,
+    jenis_kelamin: r.jenis_kelamin as string | null,
+    usia: r.usia as number | null,
+    satuan_usia: r.satuan_usia as string | null,
+    diagnosa: r.diagnosa as string | null,
+    butuh_bantuan_medis: r.butuh_bantuan_medis as string | null,
+    ambulance: r.ambulance as string | null,
+    kondisi_lanjut_perjalanan: r.kondisi_lanjut_perjalanan as string | null,
+    perlu_kursi_dorong: r.perlu_kursi_dorong as string | null,
+    perlu_bantuan_makanan_medikasi: r.perlu_bantuan_makanan_medikasi as string | null,
+    synced_at: r.synced_at as string | null,
+  };
+}
+
+export async function ambilDataSiaos(): Promise<SiaosRow[]> {
+  const turso = getTursoClient();
+  const result = await turso.execute(
+    `SELECT ${DAFTAR_KOLOM} FROM siaos ORDER BY tanggal DESC`
+  );
+  return result.rows.map(keObjekBiasa);
+}
+
+export async function ambilDataSiaosByWilayahKerja(wilayahKerja: string): Promise<SiaosRow[]> {
+  const turso = getTursoClient();
+  const result = await turso.execute({
+    sql: `SELECT ${DAFTAR_KOLOM} FROM siaos WHERE wilayah_kerja = ? ORDER BY tanggal DESC`,
+    args: [wilayahKerja],
+  });
+  return result.rows.map(keObjekBiasa);
+}
+
+===== app\(dashboard)\dashboard\kier\page.tsx =====
+// app/(dashboard)/dashboard/kier/page.tsx
+import {
+  getRingkasanKier,
+  getTrenMingguanKier,
+  getTrenBulananKier,
+  getTrenMingguanPerWilkerKier,
+  getTrenBulananPerWilkerKier,
+  getDaftarTahunKier,
+  getDaftarWilkerAktif,
+  DAFTAR_WILKER_KIER,
+} from '@/lib/turso/kier';
+import KierClient from './KierClient';
+
+export default async function HalamanKierKesehatan({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | undefined }>;
+}) {
+  const params = await searchParams;
+
+  const sekarang = new Date();
+  const tahun = Number(params.tahun) || sekarang.getFullYear();
+  const wilayahKerja = params.wilker || undefined; // undefined = Semua Wilayah Kerja
+
+  const mingguAwal = Number(params.mingguAwal) || 1;
+  const mingguAkhir = Number(params.mingguAkhir) || 52;
+  const bulanAwal = Number(params.bulanAwal) || 1;
+  const bulanAkhir = Number(params.bulanAkhir) || 12;
+
+  // Daftar wilker AKTIF (sesuai data asli di Turso) diambil dulu, supaya
+  // breakdown mingguan/bulanan di bawah pasti cocok dengan ejaan aslinya.
+  const daftarWilkerAktif = await getDaftarWilkerAktif(tahun);
+
+  const [ringkasan, trenMingguan, trenBulanan, trenMingguanWilker, trenBulananWilker, daftarTahun] = await Promise.all([
+    getRingkasanKier(tahun, wilayahKerja),
+    getTrenMingguanKier(tahun, mingguAwal, mingguAkhir, wilayahKerja),
+    getTrenBulananKier(tahun, bulanAwal, bulanAkhir, wilayahKerja),
+    getTrenMingguanPerWilkerKier(tahun, mingguAwal, mingguAkhir, daftarWilkerAktif),
+    getTrenBulananPerWilkerKier(tahun, bulanAwal, bulanAkhir, daftarWilkerAktif),
+    getDaftarTahunKier(),
+  ]);
+
+  return (
+    <KierClient
+      tahun={tahun}
+      wilayahKerja={wilayahKerja}
+      daftarWilker={DAFTAR_WILKER_KIER}
+      daftarWilkerAktifAwal={daftarWilkerAktif}
+      daftarTahun={daftarTahun.length > 0 ? daftarTahun : [sekarang.getFullYear()]}
+      ringkasan={ringkasan}
+      trenMingguanAwal={trenMingguan}
+      trenBulananAwal={trenBulanan}
+      trenMingguanWilkerAwal={trenMingguanWilker}
+      trenBulananWilkerAwal={trenBulananWilker}
+      rentangAwal={{ mingguAwal, mingguAkhir, bulanAwal, bulanAkhir }}
+    />
+  );
+}
+
+===== app\(dashboard)\dashboard\poliklinik\page.tsx =====
+// app/(dashboard)/dashboard/poliklinik/page.tsx
+import {
+  getKunjunganRawData,
+  hitungRingkasanKunjungan,
+  hitungTrenMingguanKunjungan,
+  hitungTrenBulananKunjungan,
+  hitungTrenPerWilkerMingguan,
+  hitungTrenPerWilkerBulanan,
+  hitungTopDiagnosa,
+  hitungDonutJenisKelaminKunjungan,
+  hitungDonutKelompokUsia,
+  hitungDonutKategoriPasien,
+  hitungBreakdownWilker,
+  hitungPolaHariKunjungan,
+  DAFTAR_WILKER_POLIKLINIK,
+} from '@/lib/turso/poliklinik';
+import PoliklinikClient from './PoliklinikClient';
+
+export const dynamic = 'force-dynamic';
+
+export default async function HalamanPoliklinik({
+  searchParams,
+}: {
+  searchParams: Promise<{ tahun?: string; wilayah?: string }>;
+}) {
+  const params = await searchParams;
+  const tahunBerjalan = new Date().getFullYear();
+  const tahun = params.tahun ? parseInt(params.tahun, 10) : tahunBerjalan;
+  const wilayahKerja = params.wilayah && params.wilayah !== 'semua' ? params.wilayah : undefined;
+
+  // rows: sudah difilter wilker (kalau dipilih) -- dipakai untuk semua
+  // chart yang memang seharusnya ikut berubah sesuai filter wilker.
+  // rowsSemuaWilker: TIDAK difilter wilker (cuma tahun) -- khusus untuk
+  // chart perbandingan antar-wilker, supaya tetap tampil semua wilker
+  // sebagai pembanding walau user sedang memfilter 1 wilker tertentu.
+  const [rows, rowsSemuaWilker] = await Promise.all([
+    getKunjunganRawData(tahun, wilayahKerja),
+    wilayahKerja ? getKunjunganRawData(tahun) : Promise.resolve(null),
+  ]);
+  const dataUntukBreakdownWilker = rowsSemuaWilker ?? rows;
+
+  const ringkasan = hitungRingkasanKunjungan(rows);
+  const trenMingguan = hitungTrenMingguanKunjungan(rows);
+  const trenBulanan = hitungTrenBulananKunjungan(rows);
+  // Chart perbandingan antar-wilker cuma dipakai/dirender saat wilayahKerja
+  // tidak difilter ('semua'), tapi tetap dihitung dari dataUntukBreakdownWilker
+  // supaya konsisten dengan breakdownWilker di bawah.
+  const trenPerWilkerMingguan = hitungTrenPerWilkerMingguan(dataUntukBreakdownWilker);
+  const trenPerWilkerBulanan = hitungTrenPerWilkerBulanan(dataUntukBreakdownWilker);
+  const topDiagnosa = hitungTopDiagnosa(rows, 10);
+  const donutJenisKelamin = hitungDonutJenisKelaminKunjungan(rows);
+  const donutKelompokUsia = hitungDonutKelompokUsia(rows);
+  const donutKategoriPasien = hitungDonutKategoriPasien(rows);
+  const breakdownWilker = hitungBreakdownWilker(dataUntukBreakdownWilker);
+  const polaHari = hitungPolaHariKunjungan(rows);
+
+  return (
+    <PoliklinikClient
+      tahunBerjalan={tahun}
+      wilayahTerpilih={wilayahKerja ?? 'semua'}
+      daftarWilker={DAFTAR_WILKER_POLIKLINIK}
+      ringkasan={ringkasan}
+      trenMingguan={trenMingguan}
+      trenBulanan={trenBulanan}
+      trenPerWilkerMingguan={trenPerWilkerMingguan}
+      trenPerWilkerBulanan={trenPerWilkerBulanan}
+      topDiagnosa={topDiagnosa}
+      donutJenisKelamin={donutJenisKelamin}
+      donutKelompokUsia={donutKelompokUsia}
+      donutKategoriPasien={donutKategoriPasien}
+      breakdownWilker={breakdownWilker}
+      polaHari={polaHari}
+    />
+  );
+}
+
+===== app\(dashboard)\dashboard\sklt\page.tsx =====
+import { getSkltData, getTahunSklt } from '@/lib/turso/sklt';
+import SkltClient from './SkltClient';
+
+export const dynamic = 'force-dynamic';
+export const metadata = { title: 'SKLT — Laik Terbang APT Pranoto' };
+
+export default async function SkltPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tahun?: string }>;
+}) {
+  const sp = await searchParams; // Next.js 15/16: searchParams adalah Promise
+
+  // "Sekarang" dalam WITA (UTC+8)
+  const wita = new Date(Date.now() + 8 * 3600 * 1000);
+  const tahunIni = wita.getUTCFullYear();
+  const bulanIni = wita.getUTCMonth() + 1;
+  const hariIni = wita.toISOString().slice(0, 10);
+
+  const daftarTahun = await getTahunSklt();
+  const diminta = Number(sp.tahun);
+  const tahun = Number.isFinite(diminta) && diminta > 2000
+    ? diminta
+    : daftarTahun.includes(tahunIni) ? tahunIni : (daftarTahun[0] ?? tahunIni);
+
+  const rows = await getSkltData(tahun);
+  const tahunOpsi = Array.from(new Set([...daftarTahun, tahun, tahunIni])).sort((a, b) => b - a);
+
+  return (
+    <SkltClient
+      rows={rows}
+      tahun={tahun}
+      tahunOpsi={tahunOpsi}
+      tahunIni={tahunIni}
+      bulanIni={bulanIni}
+      hariIni={hariIni}
+    />
+  );
+}
+
+===== app\(dashboard)\dashboard\siaos\page.tsx =====
+import { ambilDataSiaos } from '@/lib/turso/queriesSiaos';
+import SiaosClient from './SiaosClient';
+
+// Data selalu diambil langsung dari Turso saat request, tidak di-cache statis
+export const dynamic = 'force-dynamic';
+
+export default async function SiaosPage() {
+  const data = await ambilDataSiaos();
+
+  return <SiaosClient data={data} />;
+}

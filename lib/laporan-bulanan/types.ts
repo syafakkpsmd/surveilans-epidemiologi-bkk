@@ -5,6 +5,10 @@
  *           HasilModul[]  ->  buildSlides()  ->  Slide[]  ->  layar (SlideView) dan PPTX
  *           HasilModul[]  ->  rakitDocx()    ->  laporan Word
  * Semua berkas di folder ini tidak bergantung pada Supabase, Turso, maupun Next.js.
+ *
+ * Bagian yang ditandai "BARU" ditambahkan untuk modul COP (grafik per wilayah kerja,
+ * tabel RBA, donut status negara, bar horizontal negara kedatangan). Semuanya opsional,
+ * jadi modul lain tidak perlu diubah.
  */
 
 export type Nada = "ok" | "warn" | "bad" | "info" | "muted";
@@ -34,15 +38,49 @@ export interface Tren {
   satuan?: string;
   /** Batas sumbu Y. Berguna untuk persentase (0 sampai 100) agar variasi kecil tidak tampak berlebihan. */
   sumbuY?: { min?: number; maks?: number };
+  /**
+   * BARU. true = batang ditumpuk (stacked) per seri, mis. satu seri per wilayah kerja
+   * dalam satu grafik. Hanya berlaku bila jenis "batang"; diabaikan untuk "garis".
+   */
+  tumpuk?: boolean;
 }
 
 export interface Tabel {
+  /** BARU. Judul kecil di atas tabel, mis. "Hasil RBA". Kosong = tanpa judul. */
+  judul?: string;
   kepala: string[];
   baris: string[][];
   /** Indeks kolom yang rata kanan (angka). */
   kanan?: number[];
   /** Bobot lebar relatif tiap kolom. */
   lebar?: number[];
+  /**
+   * BARU. true = baris dirapatkan (tinggi baris 30 px) agar dua tabel muat dalam satu slide,
+   * mis. tabel wilayah kerja dan tabel RBA di bawahnya. Diisi otomatis oleh slides.ts.
+   */
+  padat?: boolean;
+}
+
+/** BARU. Diagram donat, mis. status negara kedatangan (sehat dan terjangkiti). */
+export interface Donat {
+  judul: string;
+  irisan: {
+    label: string;
+    nilai: number;
+    /** Hex tanpa #. Bila kosong dipilihkan dari palet. */
+    warna?: string;
+  }[];
+}
+
+/** BARU. Bar horizontal, mis. 10 negara kedatangan terbanyak. */
+export interface BatangMendatar {
+  judul: string;
+  /** Urutkan dari terbesar; ditampilkan dari atas ke bawah. */
+  item: { label: string; nilai: number }[];
+  /** Keterangan sumbu, mis. "Jumlah kapal". */
+  satuan?: string;
+  /** Hex tanpa #. Bila kosong dipilihkan dari palet. */
+  warna?: string;
 }
 
 /** Hasil pembacaan satu modul untuk satu periode. */
@@ -56,6 +94,12 @@ export interface DataModul {
   tren?: Tren;
   /** Rincian, mis. per wilayah kerja. Dipecah otomatis ke beberapa slide bila panjang. */
   tabel?: Tabel;
+  /** BARU. Tabel lanjutan yang dirender tepat di bawah `tabel`, mis. hasil RBA. */
+  tabelTambahan?: Tabel[];
+  /** BARU. Diagram donat (boleh lebih dari satu). */
+  donat?: Donat[];
+  /** BARU. Bar horizontal (boleh lebih dari satu). */
+  batangMendatar?: BatangMendatar[];
   /** Poin penting yang perlu dibahas (maksimal 4 tampil di slide). */
   temuan?: string[];
   /** Paragraf untuk laporan Word, mis. hasil Analisis AI yang sudah tersimpan. */
@@ -94,9 +138,15 @@ export type SlideBlok =
   | { tipe: "statistik"; items: Kartu[] }
   | ({ tipe: "tabel" } & Tabel)
   | ({ tipe: "grafik" } & Tren)
+  /** BARU */
+  | ({ tipe: "donat" } & Donat)
+  /** BARU */
+  | ({ tipe: "batang_mendatar" } & BatangMendatar)
   | { tipe: "poin"; items: string[] }
   | { tipe: "teks"; teks: string; nada?: Nada }
-  | { tipe: "dua_kolom"; kiri: SlideBlok; kanan: SlideBlok; rasioKiri: number };
+    | { tipe: "dua_kolom"; kiri: SlideBlok; kanan: SlideBlok; rasioKiri: number }
+  /** BARU. Beberapa blok disusun atas-bawah, tinggi dibagi rata. */
+  | { tipe: "tumpuk"; items: SlideBlok[] };
 
 export interface Slide {
   kunci: string;
@@ -157,4 +207,24 @@ export interface BahanLaporan {
   tahun: number;
   bulanAkhir: number;
   hasil: HasilModul[];
+}
+
+export interface RingkasanBulananPhqc {
+  id: string;
+  tahun: number;
+  bulan: number;
+  wilayah_kerja: string;
+  jumlah_kapal: number;
+  total_abk: number;
+  total_penumpang: number;
+  total_penumpang_wni: number;
+  total_penumpang_wna: number;
+
+  /* ---- Properti Tambahan untuk Grafik & Donat PHQC ---- */
+  tujuan_dalam_negeri?: number;
+  tujuan_luar_negeri?: number;
+  rba_tinggi?: number;
+  rba_sedang?: number;
+  rba_rendah?: number;
+  pelabuhan_tujuan?: Record<string, number> | string | null;
 }

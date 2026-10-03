@@ -4,7 +4,7 @@ import { BULAN, fmtAngka, fmtPerubahan, labelBulanan, labelRentang } from "../pe
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { desimal, jumlah, persenDari } from "./_bantu";
 
-const JUDUL = "Migrasi Malaria";
+const JUDUL = "Surveilans Migrasi Malaria";
 
 export const modulMalaria: ModulLaporan = {
   kunci: "malaria",

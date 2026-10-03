@@ -4,7 +4,7 @@ import { BULAN, fmtAngka, fmtPerubahan, labelBulanan, labelRentang } from "../pe
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, temuanDeret } from "./_bantu";
 
-const JUDUL = "Alat Angkut Pesawat";
+const JUDUL = "Pengawasan Alat Angkut Pesawat";
 const MAKS_KOTA = 8;
 
 export const modulPesawat: ModulLaporan = {
@@ -25,12 +25,16 @@ export const modulPesawat: ModulLaporan = {
     const totalFlight = jumlah(flightTotal);
     if (totalFlight === 0) return null;
 
-    // Kota asal (kedatangan) atau tujuan (keberangkatan), digabung per nama kota.
-    const peta = new Map<string, { datang: number; berangkat: number; penumpang: number }>();
+    // 1. UBAH DI SINI: Pisahkan penumpangan datang dan penumpang berangkat pada Map & fungsi tambah
+    const peta = new Map<string, { datang: number; berangkat: number; penumpangDatang: number; penumpangBerangkat: number }>();
     const tambah = (b: { kota: string; jumlah_penerbangan: number; total_penumpang: number }, arah: "datang" | "berangkat") => {
-      const x = peta.get(b.kota) ?? { datang: 0, berangkat: 0, penumpang: 0 };
+      const x = peta.get(b.kota) ?? { datang: 0, berangkat: 0, penumpangDatang: 0, penumpangBerangkat: 0 };
       x[arah] += Number(b.jumlah_penerbangan) || 0;
-      x.penumpang += Number(b.total_penumpang) || 0;
+      if (arah === "datang") {
+        x.penumpangDatang += Number(b.total_penumpang) || 0;
+      } else {
+        x.penumpangBerangkat += Number(b.total_penumpang) || 0;
+      }
       peta.set(b.kota, x);
     };
     d.forEach((b) => tambah(b, "datang"));
@@ -42,7 +46,7 @@ export const modulPesawat: ModulLaporan = {
       judul: JUDUL,
       kelompok: "Faktor Risiko",
       kartu: [
-        { label: "Penerbangan", nilai: fmtAngka(totalFlight), catatan: `Datang ${fmtAngka(jumlah(flightDatang))}, berangkat ${fmtAngka(jumlah(flightBerangkat))}` },
+        { label: "Penerbangan", nilai: fmtAngka(totalFlight), catatan: `Berangkat ${fmtAngka(jumlah(flightBerangkat))}, Datang ${fmtAngka(jumlah(flightDatang))}` },
         { label: `Bulan ${BULAN[bulanAkhir - 1]}`, nilai: fmtAngka(flightTotal[bulanAkhir - 1]), catatan: bulanAkhir >= 2 ? fmtPerubahan(flightTotal[bulanAkhir - 1], flightTotal[bulanAkhir - 2]) : undefined },
         { label: "Total penumpang", nilai: fmtAngka(penumpang), catatan: labelRentang(tahun, bulanAkhir) },
       ],
@@ -50,17 +54,26 @@ export const modulPesawat: ModulLaporan = {
         jenis: "batang",
         label: labelBulanan(bulanAkhir),
         seri: [
+          { nama: "Keberangkatan", nilai: flightBerangkat, warna: "C9781F" },          
           { nama: "Kedatangan", nilai: flightDatang, warna: "0A7A78" },
-          { nama: "Keberangkatan", nilai: flightBerangkat, warna: "C9781F" },
         ],
         satuan: "Jumlah penerbangan",
       },
+
+      // 2. UBAH DI SINI: Konfigurasi tabel disesuaikan menjadi 5 kolom
       tabel: {
-        kepala: ["Kota asal/tujuan", "Kedatangan", "Keberangkatan", "Penumpang"],
-        kanan: [1, 2, 3],
-        lebar: [3, 1.2, 1.5, 1.3],
-        baris: kota.slice(0, MAKS_KOTA).map((c) => [c.nama, fmtAngka(c.datang), fmtAngka(c.berangkat), fmtAngka(c.penumpang)]),
+        kepala: ["Kota asal/tujuan", "Flight Datang", "Flight Berangkat", "Psg Datang", "Psg Berangkat"],
+        kanan: [1, 2, 3, 4], // Kolom indeks 1 sampai 4 diatur rata kanan
+        lebar: [2.5, 1.1, 1.1, 1.1, 1.1], // Proporsi lebar 5 kolom
+        baris: kota.slice(0, MAKS_KOTA).map((c) => [
+          c.nama,
+          fmtAngka(c.datang),
+          fmtAngka(c.berangkat),
+          fmtAngka(c.penumpangDatang),
+          fmtAngka(c.penumpangBerangkat),
+        ]),
       },
+
       temuan: [
         ...temuanDeret(flightTotal, "penerbangan"),
         ...(kota.length > 0 ? [`Kota asal/tujuan terbanyak: ${kota[0].nama} (${fmtAngka(kota[0].datang + kota[0].berangkat)} penerbangan).`] : []),

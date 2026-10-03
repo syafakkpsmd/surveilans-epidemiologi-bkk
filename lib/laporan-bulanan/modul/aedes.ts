@@ -4,7 +4,7 @@ import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal, indeksBulanDariLabel, jumlah } from "./_bantu";
 
-const JUDUL = "Vektor Aedes (DBD)";
+const JUDUL = "Surveilans Vektor Aedes (DBD)";
 
 export const modulAedes: ModulLaporan = {
   kunci: "aedes",
@@ -19,7 +19,7 @@ export const modulAedes: ModulLaporan = {
     ]);
     if (indeks.length === 0 && aktivitas.length === 0) return null;
 
-    // HI, CI, BI, ABJ: rata-rata nilai survei per bulan (sama dengan halaman Aedes). Bulan tanpa survei = null.
+    // HI, CI, BI, ABJ: rata-rata nilai survei per bulan. Bulan tanpa survei = null.
     const hi = deretDariLabel(indeks, tahun, bulanAkhir, (b) => b.bulanLabel, (b) => b.hi_rerata, null);
     const ci = deretDariLabel(indeks, tahun, bulanAkhir, (b) => b.bulanLabel, (b) => b.ci_rerata, null);
     const abj = deretDariLabel(indeks, tahun, bulanAkhir, (b) => b.bulanLabel, (b) => b.abj_rerata, null);
@@ -56,11 +56,11 @@ export const modulAedes: ModulLaporan = {
         { label: `ABJ ${BULAN[i]}`, nilai: abj[i] == null ? "-" : `${desimal(abj[i])}%`, catatan: labelRentang(tahun, bulanAkhir) },
       ],
       tren: {
-        jenis: "garis",
+        jenis: "batang",
         label,
         seri: [
-          { nama: "HI (%)", nilai: hi, warna: "B71C1C" },
-          { nama: "CI (%)", nilai: ci, warna: "EF6C00" },
+          { nama: "HI (%)", nilai: hi, warna: "E11D48" }, // Modern Rose Red (Tanpa '#')
+          { nama: "CI (%)", nilai: ci, warna: "F59E0B" }, // Modern Amber (Tanpa '#')
         ],
         satuan: "Persen (%)",
       },
@@ -68,7 +68,16 @@ export const modulAedes: ModulLaporan = {
         kepala: ["Bulan", "Rumah diperiksa", "Rumah positif", "Kontainer diperiksa", "Kontainer positif", "HI (%)", "CI (%)", "ABJ (%)"],
         kanan: [1, 2, 3, 4, 5, 6, 7],
         lebar: [1.4, 1.4, 1.3, 1.6, 1.5, 1, 1, 1],
-        baris: label.map((nama, k) => [nama, fmtAngka(rumah[k]), fmtAngka(rumahPos[k]), fmtAngka(kontainer[k]), fmtAngka(kontainerPos[k]), hi[k] == null ? "-" : desimal(hi[k]), ci[k] == null ? "-" : desimal(ci[k]), abj[k] == null ? "-" : desimal(abj[k])]),
+        baris: label.map((nama, k) => [
+          nama,
+          fmtAngka(rumah[k]),
+          fmtAngka(rumahPos[k]),
+          fmtAngka(kontainer[k]),
+          fmtAngka(kontainerPos[k]),
+          hi[k] == null ? "-" : desimal(hi[k]),
+          ci[k] == null ? "-" : desimal(ci[k]),
+          abj[k] == null ? "-" : desimal(abj[k]),
+        ]),
       },
       temuan: [...temuan, ...(bi[i] != null ? [`BI bulan ${BULAN[i]}: ${desimal(bi[i])}.`] : [])],
     };

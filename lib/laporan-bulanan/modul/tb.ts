@@ -1,105 +1,92 @@
 import "server-only";
-import { getWilkerRef } from "@/lib/supabase/queries";
-import { createClient } from "@/lib/supabase/server";
+import {
+  DAFTAR_WILKER_TB,
+  getTbRawData,
+  hitungBreakdownFaktorRisikoTb,
+  hitungBreakdownWilkerTb,
+  hitungCascadeTb,
+  hitungDelayDiagnosisTb,
+} from "@/lib/turso/tb";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
-import { ambilSemuaHalaman, jumlah, jumlahPerBulan, persenDari, petaNamaWilker } from "./_bantu";
+import { jumlah } from "./_bantu";
 
 const JUDUL = "Surveilans TB";
 
-const akhirBulan = (tahun: number, bulan: number): string => new Date(Date.UTC(tahun, bulan, 0)).toISOString().slice(0, 10);
-
-/** Kolom tabel tb_data yang dipakai. Dashboard TB hanya mingguan, jadi bulanan dihitung dari data mentah. */
-interface Baris {
-  tgl_penemuan: string;
-  kode_wilker: string | null;
-  jml_suspek: number | null;
-  jml_diperiksa_tcm: number | null;
-  jml_positif_tcm: number | null;
-  jml_kontak_erat: number | null;
-  jml_kontak_diperiksa: number | null;
-  jml_mulai_pengobatan: number | null;
-}
+/** Bulan kalender (1-12) dari tanggal_pelaksanaan (format YYYY-MM-DD). */
+const bulanDari = (iso: string | null): number | null => {
+  if (!iso || iso.length < 7) return null;
+  const b = Number(iso.slice(5, 7));
+  return b >= 1 && b <= 12 ? b : null;
+};
 
 export const modulTb: ModulLaporan = {
   kunci: "tb",
   judul: JUDUL,
   kelompok: "Surveilans",
   async ambil({ tahun, bulanAkhir }: KonteksLaporan): Promise<DataModul | null> {
-    const supabase = await createClient();
-    const [data, wilker] = await Promise.all([
-      ambilSemuaHalaman((dari, sampai) =>
-        supabase
-          .from("tb_data")
-          .select("tgl_penemuan, kode_wilker, jml_suspek, jml_diperiksa_tcm, jml_positif_tcm, jml_kontak_erat, jml_kontak_diperiksa, jml_mulai_pengobatan")
-          .gte("tgl_penemuan", `${tahun}-01-01`)
-          .lte("tgl_penemuan", akhirBulan(tahun, bulanAkhir))
-          .order("tgl_penemuan")
-          .order("id")
-          .range(dari, sampai),
-      ),
-      getWilkerRef(),
-    ]);
-    const baris = (data as Baris[]).map((b) => ({ ...b, bulan: Number(String(b.tgl_penemuan).slice(5, 7)), wilayah_kerja: b.kode_wilker }));
-    if (baris.length === 0) return null;
+    const semua = await getTbRawData(tahun);
+    const rows = semua.filter((r) => {
+      const b = bulanDari(r.tanggal_pelaksanaan);
+      return b != null && b <= bulanAkhir;
+    });
+    if (rows.length === 0) return null;
 
-    const suspek = jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_suspek ?? 0);
-    const diperiksa = jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_diperiksa_tcm ?? 0);
-    const positif = jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_positif_tcm ?? 0);
-    const kontakErat = jumlah(jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_kontak_erat ?? 0));
-    const kontakPeriksa = jumlah(jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_kontak_diperiksa ?? 0));
-    const pengobatan = jumlah(jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_mulai_pengobatan ?? 0));
-    if (jumlah(suspek) + jumlah(diperiksa) + jumlah(positif) === 0) return null;
+    const cascade = hitungCascadeTb(rows);
+    const perWilker = hitungBreakdownWilkerTb(rows).filter((w) => DAFTAR_WILKER_TB.includes(w.wilayahKerja as (typeof DAFTAR_WILKER_TB)[number]));
+    const faktor = hitungBreakdownFaktorRisikoTb(rows).filter((f) => f.totalDiskrining > 0).slice(0, 5);
+    const delay = hitungDelayDiagnosisTb(rows);
 
-    const nama = petaNamaWilker(wilker as unknown as Parameters<typeof petaNamaWilker>[0]);
-    const perWilker = new Map<string, { suspek: number; diperiksa: number; positif: number }>();
-    for (const b of baris) {
-      if (b.bulan < 1 || b.bulan > bulanAkhir) continue;
-      const k = nama.get(b.kode_wilker ?? "") ?? b.kode_wilker ?? "-";
-      const x = perWilker.get(k) ?? { suspek: 0, diperiksa: 0, positif: 0 };
-      x.suspek += b.jml_suspek ?? 0;
-      x.diperiksa += b.jml_diperiksa_tcm ?? 0;
-      x.positif += b.jml_positif_tcm ?? 0;
-      perWilker.set(k, x);
+    // Deret skrining per bulan, untuk grafik dan kartu "bulan ini".
+    const skriningBulan = new Array<number>(bulanAkhir).fill(0);
+    const terkonfirmasiBulan = new Array<number>(bulanAkhir).fill(0);
+    for (const r of rows) {
+      const b = bulanDari(r.tanggal_pelaksanaan)!;
+      skriningBulan[b - 1] += 1;
+      if ((r.terkonfirmasi_tbc ?? "").trim().toLowerCase() === "ya") terkonfirmasiBulan[b - 1] += 1;
     }
-    const tabel = Array.from(perWilker, ([w, v]) => ({ w, ...v })).sort((a, b) => b.positif - a.positif || b.suspek - a.suspek);
-    const i = bulanAkhir - 1;
-    const totalPositif = jumlah(positif);
 
-    const temuan: string[] = [];
-    if (totalPositif > 0) {
-      temuan.push(`Terdapat ${fmtAngka(totalPositif)} hasil TCM positif dari ${fmtAngka(jumlah(diperiksa))} orang diperiksa (${fmtPersen(persenDari(totalPositif, jumlah(diperiksa)))}).`);
-      if (tabel.length > 1 && tabel[0].positif > 0) temuan.push(`TCM positif terbanyak di ${tabel[0].w} (${fmtAngka(tabel[0].positif)}).`);
-    } else temuan.push("Tidak ada hasil TCM positif pada periode ini.");
-    if (kontakErat > 0) temuan.push(`Kontak erat teridentifikasi ${fmtAngka(kontakErat)} orang, ${fmtAngka(kontakPeriksa)} di antaranya diperiksa.`);
+    const temuan: string[] = [
+      `Case Detection Rate ${fmtPersen(cascade.caseDetectionRate, 2)} (${fmtAngka(cascade.totalTerkonfirmasi)} terkonfirmasi dari ${fmtAngka(cascade.totalSkrining)} skrining); yield dari terduga ${fmtPersen(cascade.yieldRateTerduga, 1)}.`,
+    ];
+    if (faktor.length > 0) temuan.push(`Yield tertinggi pada kelompok ${faktor[0].faktor} (${fmtPersen(faktor[0].yieldPersen, 1)}, ${fmtAngka(faktor[0].totalTerkonfirmasi)} dari ${fmtAngka(faktor[0].totalDiskrining)} diskrining).`);
+    if (delay.jumlahKasusDihitung > 0) temuan.push(`Rata-rata waktu skrining sampai hasil diagnosis ${desimal1(delay.rataRataHari)} hari (median ${fmtAngka(delay.medianHari)}, maksimal ${fmtAngka(delay.maksimalHari)} hari), dari ${fmtAngka(delay.jumlahKasusDihitung)} kasus dengan tanggal hasil tercatat.`);
+    const wilkerTerbanyak = [...perWilker].sort((a, b) => b.totalSkrining - a.totalSkrining)[0];
+    if (wilkerTerbanyak && wilkerTerbanyak.totalSkrining > 0) temuan.push(`Skrining terbanyak di wilayah kerja ${wilkerTerbanyak.wilayahKerja} (${fmtAngka(wilkerTerbanyak.totalSkrining)}).`);
 
     return {
       kunci: "tb",
       judul: JUDUL,
       kelompok: "Surveilans",
       kartu: [
-        { label: "Suspek TB", nilai: fmtAngka(jumlah(suspek)), catatan: labelRentang(tahun, bulanAkhir) },
-        { label: "Diperiksa TCM", nilai: fmtAngka(jumlah(diperiksa)) },
-        { label: "Positif TCM", nilai: fmtAngka(totalPositif), nada: totalPositif > 0 ? "bad" : "ok", catatan: `${fmtAngka(pengobatan)} mulai pengobatan` },
-        { label: `Suspek ${BULAN[i]}`, nilai: fmtAngka(suspek[i]) },
+        { label: "Total skrining", nilai: fmtAngka(cascade.totalSkrining), catatan: labelRentang(tahun, bulanAkhir) },
+        { label: "Terduga TBC", nilai: fmtAngka(cascade.totalTerduga), catatan: `${fmtAngka(cascade.totalDiperiksa)} sudah diperiksa` },
+        { label: "Terkonfirmasi TBC", nilai: fmtAngka(cascade.totalTerkonfirmasi), nada: cascade.totalTerkonfirmasi > 0 ? "bad" : "ok" },
+        { label: `Skrining ${BULAN[bulanAkhir - 1]}`, nilai: fmtAngka(skriningBulan[bulanAkhir - 1]) },
       ],
       tren: {
         jenis: "batang",
         label: labelBulanan(bulanAkhir),
         seri: [
-          { nama: "Suspek", nilai: suspek, warna: "6B8E9B" },
-          { nama: "Diperiksa TCM", nilai: diperiksa, warna: "0A7A78" },
-          { nama: "Positif TCM", nilai: positif, warna: "B3362C" },
+          { nama: "Skrining", nilai: skriningBulan, warna: "6B8E9B" },
+          { nama: "Terkonfirmasi", nilai: terkonfirmasiBulan, warna: "B3362C" },
         ],
-        satuan: "Jumlah orang",
+        satuan: "Jumlah peserta",
       },
       tabel: {
-        kepala: ["Wilayah kerja", "Suspek", "Diperiksa TCM", "Positif TCM"],
+        kepala: ["Wilayah kerja", "Skrining", "Terduga", "Terkonfirmasi"],
         kanan: [1, 2, 3],
-        lebar: [3, 1.2, 1.7, 1.5],
-        baris: tabel.map((t) => [t.w, fmtAngka(t.suspek), fmtAngka(t.diperiksa), fmtAngka(t.positif)]),
+        lebar: [3, 1.2, 1.2, 1.6],
+        baris: perWilker.map((w) => [w.wilayahKerja, fmtAngka(w.totalSkrining), fmtAngka(w.totalTerduga), fmtAngka(w.totalTerkonfirmasi)]),
       },
       temuan,
+      narasi: [
+        "Skrining mencakup peserta dari seluruh Indonesia (kabupaten/kota asal peserta), sementara wilayah kerja menunjukkan BKK yang melaksanakan skrining. Case Detection Rate dan yield rate dihitung dari data periode laporan, bukan kumulatif sejak awal program.",
+      ],
     };
   },
 };
+
+function desimal1(n: number): string {
+  return new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n);
+}

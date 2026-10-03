@@ -228,7 +228,7 @@ export default function AbkCrewPenumpangClient({
       {/* ================= KEDATANGAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Kedatangan Orang di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Seluruh Lalu Lintas Orang Datang di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Total gabungan ABK Kapal dari Luar Negeri + Crew Pesawat Datang + Penumpang Pesawat Datang + Penumpang Kapal Datang
@@ -268,7 +268,7 @@ export default function AbkCrewPenumpangClient({
       {/* ---- BARU: Kedatangan Luar Negeri vs Dalam Negeri ---- */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Kedatangan Orang: Luar Negeri vs Dalam Negeri Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas Orang di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Luar Negeri: ABK Kapal (COP). Dalam Negeri: ABK Kapal PHQC + Penumpang Kapal Datang + Crew &amp; Penumpang Pesawat Datang
@@ -309,7 +309,7 @@ export default function AbkCrewPenumpangClient({
       {/* ================= KEBERANGKATAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Keberangkatan Orang di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Seluruh Lalu Lintas Orang Berangkat di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Total gabungan ABK Kapal PHQC + Penumpang Kapal Berangkat + Crew Pesawat Berangkat + Penumpang Pesawat Berangkat
@@ -349,7 +349,7 @@ export default function AbkCrewPenumpangClient({
       {/* ---- BARU: Keberangkatan Luar Negeri vs Dalam Negeri ---- */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Keberangkatan Orang: Luar Negeri vs Dalam Negeri Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas orang Berangkat dari Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Luar Negeri: ABK Kapal PHQC tujuan Luar Negeri. Dalam Negeri: ABK Kapal PHQC tujuan Dalam Negeri + Penumpang Kapal Berangkat + Crew &amp; Penumpang Pesawat Berangkat
@@ -390,7 +390,7 @@ export default function AbkCrewPenumpangClient({
       {/* ================= PERBANDINGAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Lalu Lintas Orang Datang & Berangkat dii Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br />(Dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas Orang Datang & Berangkat di Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br />(Dalam {granularitas})
         </h2>
         {dataPerbandingan.length === 0 ? (
           <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>

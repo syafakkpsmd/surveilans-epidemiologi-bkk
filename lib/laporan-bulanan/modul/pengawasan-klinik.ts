@@ -5,7 +5,7 @@ import { fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { ambilSemuaHalaman, desimal, jumlah } from "./_bantu";
 
-const JUDUL = "Pengawasan Klinik";
+const JUDUL = "Pengawasan Klinik Binaan BKK";
 const STATUS_LABEL: Record<string, string> = { memenuhi_syarat: "Memenuhi syarat", perlu_perbaikan: "Perlu perbaikan", tidak_memenuhi_syarat: "Tidak memenuhi syarat" };
 
 const akhirBulan = (tahun: number, bulan: number): string => new Date(Date.UTC(tahun, bulan, 0)).toISOString().slice(0, 10);

@@ -4,7 +4,7 @@ import { BULAN, fmtAngka, fmtPersen, fmtPerubahan, labelBulanan, labelRentang } 
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, persenDari } from "./_bantu";
 
-const JUDUL = "Klinik Binaan dan BKK (ICV)";
+const JUDUL = "Surveilans Vaksinasi Internasional";
 
 /** Baris hasil getRingkasanKlinikBulanan: satu baris per bulan per klinik/BKK. */
 interface Baris {

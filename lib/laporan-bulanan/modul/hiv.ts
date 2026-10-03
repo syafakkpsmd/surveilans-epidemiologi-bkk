@@ -1,100 +1,79 @@
 import "server-only";
-import { getWilkerRef } from "@/lib/supabase/queries";
-import { createClient } from "@/lib/supabase/server";
+import { ambilHivRaw, hitungDistribusi, hitungRingkasanHiv } from "@/lib/turso/hiv";
+import type { HivRow } from "@/lib/turso/hiv";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
-import { ambilSemuaHalaman, jumlah, jumlahPerBulan, persenDari, petaNamaWilker } from "./_bantu";
+import { persenDari } from "./_bantu";
 
 const JUDUL = "Surveilans HIV";
 
-const akhirBulan = (tahun: number, bulan: number): string => new Date(Date.UTC(tahun, bulan, 0)).toISOString().slice(0, 10);
-
-/** Kolom tabel hiv_data yang dipakai. Dashboard HIV hanya mingguan, jadi bulanan dihitung dari data mentah. */
-interface Baris {
-  tgl_skrining: string;
-  kode_wilker: string | null;
-  jml_ditawarkan: number | null;
-  jml_diperiksa: number | null;
-  jml_reaktif: number | null;
-  jml_konfirmasi_positif: number | null;
-  jml_dirujuk_vct: number | null;
-}
+const bulanDari = (iso: string | null): number | null => {
+  if (!iso || iso.length < 7) return null;
+  const b = Number(iso.slice(5, 7));
+  return b >= 1 && b <= 12 ? b : null;
+};
 
 export const modulHiv: ModulLaporan = {
   kunci: "hiv",
   judul: JUDUL,
   kelompok: "Surveilans",
   async ambil({ tahun, bulanAkhir }: KonteksLaporan): Promise<DataModul | null> {
-    const supabase = await createClient();
-    const [data, wilker] = await Promise.all([
-      ambilSemuaHalaman((dari, sampai) =>
-        supabase
-          .from("hiv_data")
-          .select("tgl_skrining, kode_wilker, jml_ditawarkan, jml_diperiksa, jml_reaktif, jml_konfirmasi_positif, jml_dirujuk_vct")
-          .gte("tgl_skrining", `${tahun}-01-01`)
-          .lte("tgl_skrining", akhirBulan(tahun, bulanAkhir))
-          .order("tgl_skrining")
-          .order("id")
-          .range(dari, sampai),
-      ),
-      getWilkerRef(),
-    ]);
-    const baris = (data as Baris[]).map((b) => ({ ...b, bulan: Number(String(b.tgl_skrining).slice(5, 7)), wilayah_kerja: b.kode_wilker }));
-    if (baris.length === 0) return null;
+    const semua = await ambilHivRaw(tahun);
+    const rows = semua.filter((r) => {
+      const b = bulanDari(r.tanggal_kegiatan);
+      return b != null && b <= bulanAkhir;
+    });
+    if (rows.length === 0) return null;
 
-    const ditawarkan = jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_ditawarkan ?? 0);
-    const diperiksa = jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_diperiksa ?? 0);
-    const reaktif = jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_reaktif ?? 0);
-    const konfirmasi = jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_konfirmasi_positif ?? 0);
-    const vct = jumlah(jumlahPerBulan(baris, bulanAkhir, (b) => b.jml_dirujuk_vct ?? 0));
-    if (jumlah(diperiksa) + jumlah(ditawarkan) === 0) return null;
-
-    const nama = petaNamaWilker(wilker as unknown as Parameters<typeof petaNamaWilker>[0]);
-    const perWilker = new Map<string, { diperiksa: number; reaktif: number; konfirmasi: number }>();
-    for (const b of baris) {
-      if (b.bulan < 1 || b.bulan > bulanAkhir) continue;
-      const k = nama.get(b.kode_wilker ?? "") ?? b.kode_wilker ?? "-";
-      const x = perWilker.get(k) ?? { diperiksa: 0, reaktif: 0, konfirmasi: 0 };
-      x.diperiksa += b.jml_diperiksa ?? 0;
-      x.reaktif += b.jml_reaktif ?? 0;
-      x.konfirmasi += b.jml_konfirmasi_positif ?? 0;
-      perWilker.set(k, x);
+    const ringkas = hitungRingkasanHiv(rows);
+    const perWilker = new Map<string, { periksa: number; reaktif: number }>();
+    const periksaBulan = new Array<number>(bulanAkhir).fill(0);
+    const reaktifBulan = new Array<number>(bulanAkhir).fill(0);
+    for (const r of rows) {
+      const w = perWilker.get(r.wilayah_kerja) ?? { periksa: 0, reaktif: 0 };
+      w.periksa += 1;
+      if (r.hasil === "Reaktif") w.reaktif += 1;
+      perWilker.set(r.wilayah_kerja, w);
+      const b = bulanDari(r.tanggal_kegiatan)!;
+      periksaBulan[b - 1] += 1;
+      if (r.hasil === "Reaktif") reaktifBulan[b - 1] += 1;
     }
-    const tabel = Array.from(perWilker, ([w, v]) => ({ w, ...v })).sort((a, b) => b.diperiksa - a.diperiksa);
-    const i = bulanAkhir - 1;
-    const totalDiperiksa = jumlah(diperiksa);
-    const totalReaktif = jumlah(reaktif);
+    const tabel = Array.from(perWilker, ([w, v]) => ({ w, ...v })).sort((a, b) => b.periksa - a.periksa);
 
-    const temuan: string[] = [];
-    if (totalDiperiksa > 0) temuan.push(`Hasil reaktif ${fmtAngka(totalReaktif)} dari ${fmtAngka(totalDiperiksa)} orang diperiksa (${fmtPersen(persenDari(totalReaktif, totalDiperiksa))}).`);
-    if (jumlah(konfirmasi) > 0) temuan.push(`${fmtAngka(jumlah(konfirmasi))} orang terkonfirmasi positif; ${fmtAngka(vct)} dirujuk ke layanan VCT.`);
+    const reagen = hitungDistribusi(rows, "jenis_reagen" as keyof HivRow).sort((a, b) => b.jumlah - a.jumlah);
+    const i = bulanAkhir - 1;
+
+    const temuan: string[] = [`Hasil reaktif ${fmtAngka(ringkas.jumlahReaktif)} dari ${fmtAngka(ringkas.totalPemeriksaan)} pemeriksaan (${fmtPersen(ringkas.persenReaktif)}).`];
+    if (ringkas.hubunganBerisikoYa > 0) temuan.push(`${fmtAngka(ringkas.hubunganBerisikoYa)} orang memiliki riwayat hubungan berisiko (${fmtPersen(persenDari(ringkas.hubunganBerisikoYa, ringkas.totalPemeriksaan))}).`);
+    if (tabel.length > 1 && tabel[0].periksa > 0) temuan.push(`Pemeriksaan terbanyak di wilayah kerja ${tabel[0].w} (${fmtAngka(tabel[0].periksa)}).`);
 
     return {
       kunci: "hiv",
       judul: JUDUL,
       kelompok: "Surveilans",
       kartu: [
-        { label: "Ditawarkan skrining", nilai: fmtAngka(jumlah(ditawarkan)), catatan: labelRentang(tahun, bulanAkhir) },
-        { label: "Diperiksa", nilai: fmtAngka(totalDiperiksa) },
-        { label: "Reaktif", nilai: fmtAngka(totalReaktif), nada: totalReaktif > 0 ? "warn" : "ok", catatan: `${fmtAngka(jumlah(konfirmasi))} konfirmasi positif` },
-        { label: `Diperiksa ${BULAN[i]}`, nilai: fmtAngka(diperiksa[i]) },
+        { label: "Total pemeriksaan", nilai: fmtAngka(ringkas.totalPemeriksaan), catatan: labelRentang(tahun, bulanAkhir) },
+        { label: "Reaktif", nilai: fmtAngka(ringkas.jumlahReaktif), nada: ringkas.jumlahReaktif > 0 ? "warn" : "ok", catatan: fmtPersen(ringkas.persenReaktif) },
+        { label: "Kunjungan baru", nilai: fmtAngka(ringkas.kunjunganBaru) },
+        { label: `Pemeriksaan ${BULAN[i]}`, nilai: fmtAngka(periksaBulan[i]) },
       ],
       tren: {
         jenis: "batang",
         label: labelBulanan(bulanAkhir),
         seri: [
-          { nama: "Diperiksa", nilai: diperiksa, warna: "0A7A78" },
-          { nama: "Reaktif", nilai: reaktif, warna: "B3362C" },
+          { nama: "Diperiksa", nilai: periksaBulan, warna: "0A7A78" },
+          { nama: "Reaktif", nilai: reaktifBulan, warna: "B3362C" },
         ],
         satuan: "Jumlah orang",
       },
       tabel: {
-        kepala: ["Wilayah kerja", "Diperiksa", "Reaktif", "Konfirmasi positif"],
+        kepala: ["Wilayah kerja", "Diperiksa", "Reaktif", "% Reaktif"],
         kanan: [1, 2, 3],
-        lebar: [3, 1.3, 1.3, 2],
-        baris: tabel.map((t) => [t.w, fmtAngka(t.diperiksa), fmtAngka(t.reaktif), fmtAngka(t.konfirmasi)]),
+        lebar: [3, 1.3, 1.3, 1.4],
+        baris: tabel.map((t) => [t.w, fmtAngka(t.periksa), fmtAngka(t.reaktif), fmtPersen(persenDari(t.reaktif, t.periksa))]),
       },
       temuan,
+      narasi: reagen.length > 0 ? [`Jenis reagen yang paling sering dipakai: ${reagen.map((r) => `${r.label} (${fmtAngka(r.jumlah)})`).join(", ")}.`] : undefined,
     };
   },
 };

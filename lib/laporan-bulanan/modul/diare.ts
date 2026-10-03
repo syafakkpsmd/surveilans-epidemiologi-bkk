@@ -22,7 +22,7 @@ interface Lokasi {
 }
 
 function buat(jenis: Jenis): ModulLaporan {
-  const judul = jenis === "lalat" ? "Vektor Diare: Lalat" : "Vektor Diare: Kecoa";
+  const judul = jenis === "lalat" ? "Surveilans Vektor Diare: Lalat" : "Surveilans Vektor Diare: Kecoa";
   const namaIndeks = jenis === "lalat" ? "Fly Index" : "Kepadatan kecoa";
   const satuanIndeks = jenis === "lalat" ? "" : " per m²";
   return {

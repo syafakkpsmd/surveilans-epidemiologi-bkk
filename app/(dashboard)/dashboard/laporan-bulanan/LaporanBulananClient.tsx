@@ -33,7 +33,7 @@ export default function LaporanBulananClient({ tahunAwal, bulanAwal, tahunSekara
   const memuat = !hasil && galat?.kunci !== kunci;
 
   const [dikecualikan, setDikecualikan] = useState<Set<string>>(new Set());
-  const [judulRapat, setJudulRapat] = useState("Rapat Bulanan Kinerja Surveilans");
+  const [judulRapat, setJudulRapat] = useState("Rapat Bulanan Tim Kerja Surveilans dan Penindakan Pelanggaran Kekarantinaan Kesehatan");
   const [catatan, setCatatan] = useState("");
   const [indeks, setIndeks] = useState(0);
 

@@ -4,7 +4,7 @@ import { BULAN, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal } from "./_bantu";
 
-const JUDUL = "Vektor Anopheles (Nyamuk Dewasa)";
+const JUDUL = "Surveilans Vektor Nyamuk Anopheles";
 
 interface BarisBulan {
   bulanLabel: string;
@@ -46,7 +46,7 @@ export const modulAnopheles: ModulLaporan = {
         { label: "Kelembapan rata-rata", nilai: rata(lembab) == null ? "-" : `${desimal(rata(lembab), 1)}%` },
       ],
       tren: {
-        jenis: "garis",
+        jenis: "batang", // <-- Diubah menjadi grafik batang
         label,
         seri: [
           { nama: "MHD", nilai: mhd, warna: "0A7A78" },

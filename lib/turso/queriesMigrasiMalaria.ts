@@ -557,3 +557,52 @@ export async function getBreakdownKapalPesawat({
 
   return hasil.rows.map((r) => ({ kategori: String(r.kategori), jumlah: Number(r.jumlah) }));
 }
+
+type FiltrePeriode = { tahun: number; bulanDari: number; bulanSampai: number; kodeWilker?: string };
+
+/** Jumlah responden per kelompok usia (urutan kelompok diatur di sisi modul). */
+export async function getDonatUsiaMigrasiMalaria({ tahun, bulanDari, bulanSampai, kodeWilker }: FiltrePeriode): Promise<{ label: string; jumlah: number }[]> {
+  const client = getTursoClient();
+  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const hasil = await client.execute({
+    sql: `
+      SELECT
+        CASE
+          WHEN umur IS NULL THEN 'Tidak diisi'
+          WHEN umur <= 14 THEN '0-14 th'
+          WHEN umur <= 24 THEN '15-24 th'
+          WHEN umur <= 34 THEN '25-34 th'
+          WHEN umur <= 44 THEN '35-44 th'
+          WHEN umur <= 54 THEN '45-54 th'
+          ELSE '55+ th'
+        END AS kelompok,
+        COUNT(*) AS jumlah
+      FROM migrasi_malaria
+      WHERE strftime('%Y', tanggal_kegiatan) = ?
+        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
+      GROUP BY kelompok
+    `,
+    args: [String(tahun), String(bulanDari).padStart(2, "0"), String(bulanSampai).padStart(2, "0"), ...args],
+  });
+  return hasil.rows.map((r) => ({ label: String(r.kelompok), jumlah: Number(r.jumlah) }));
+}
+
+/** Jumlah responden per pekerjaan (huruf besar/kecil digabung), terbanyak dulu. */
+export async function getDonatPekerjaanMigrasiMalaria({ tahun, bulanDari, bulanSampai, kodeWilker }: FiltrePeriode): Promise<{ label: string; jumlah: number }[]> {
+  const client = getTursoClient();
+  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const hasil = await client.execute({
+    sql: `
+      SELECT
+        COALESCE(NULLIF(MIN(TRIM(pekerjaan)), ''), 'Tidak diisi') AS label,
+        COUNT(*) AS jumlah
+      FROM migrasi_malaria
+      WHERE strftime('%Y', tanggal_kegiatan) = ?
+        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
+      GROUP BY LOWER(TRIM(COALESCE(pekerjaan, '')))
+      ORDER BY jumlah DESC
+    `,
+    args: [String(tahun), String(bulanDari).padStart(2, "0"), String(bulanSampai).padStart(2, "0"), ...args],
+  });
+  return hasil.rows.map((r) => ({ label: String(r.label), jumlah: Number(r.jumlah) }));
+}

@@ -10,6 +10,7 @@ import {
   hitungDelayDiagnosisTb,
   hitungDistribusiKabKotaTb,
   hitungDonutJenisKelaminTb,
+  hitungDemografiTb,
   ambilDaftarBelumTindakLanjutTb,
   filterRowsByRentangMinggu,
   filterRowsByRentangBulan,
@@ -99,7 +100,7 @@ export default async function HalamanTb({
   const delayDiagnosis = hitungDelayDiagnosisTb(rowsTerfilterRentang);
   const distribusiKabKota = hitungDistribusiKabKotaTb(rowsTerfilterRentang); // sudah dibatasi Top 15 + "Lainnya"
   const donutJenisKelamin = hitungDonutJenisKelaminTb(rowsTerfilterRentang);
-
+  const demografi = hitungDemografiTb(rowsTerfilterRentang);
   // Data individu (nama, dll) terduga/kasus TBC adalah data sensitif --
   // TIDAK dikirim ke client sama sekali kalau tidak berwenang, supaya
   // tidak bocor lewat network tab walau di-UI disembunyikan.
@@ -130,6 +131,7 @@ export default async function HalamanTb({
       delayDiagnosis={delayDiagnosis}
       distribusiKabKota={distribusiKabKota}
       donutJenisKelamin={donutJenisKelamin}
+      demografi={demografi}
       bolehLihatDaftarSensitif={bolehLihatDaftarSensitif}
       daftarBelumTindakLanjut={daftarBelumTindakLanjut}
       jumlahBelumTindakLanjut={jumlahBelumTindakLanjut}

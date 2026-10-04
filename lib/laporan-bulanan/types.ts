@@ -27,6 +27,10 @@ export interface SeriTren {
   nilai: (number | null)[];
   /** Hex tanpa #, mis. "0A7A78". Bila kosong dipilihkan dari palet. */
   warna?: string;
+    /** BARU. true = digambar sebagai garis di atas batang (grafik gabungan). Hanya untuk Tren berjenis "batang". */
+  garis?: boolean;
+  /** BARU. Nomor sumbu Y di sisi kanan (1 atau 2) untuk seri garis. Kosong = sumbu kiri. */
+  sumbuKanan?: 1 | 2;
 }
 
 /** Deret bulanan Januari sampai bulan laporan. */
@@ -43,6 +47,8 @@ export interface Tren {
    * dalam satu grafik. Hanya berlaku bila jenis "batang"; diabaikan untuk "garis".
    */
   tumpuk?: boolean;
+    /** BARU. Garis ambang horizontal (standar/batas), mis. HI 1%. Warna hex tanpa #. */
+  garisAmbang?: { nilai: number; label: string; warna?: string };
 }
 
 export interface Tabel {

@@ -282,3 +282,41 @@ export async function getHasilPengamatanPerWilkerBulanan(
     .map(([kode, jumlah]) => ({ wilayah: wilkerMap.get(kode) || kode, jumlah }))
     .sort((a, b) => b.jumlah - a.jumlah);
 }
+
+export interface RekapDiarePerWilker {
+  kode_wilker: string;
+  pengamatan: number;
+  ms: number;
+  tms: number;
+  insektisida_ml: number | null;
+  luas_m2: number | null;
+}
+
+/** Rekap per wilayah kerja, Januari sampai bulanAkhir: pengamatan, MS, TMS, insektisida (ml), luas semprot (m²). */
+export async function getRekapDiarePerWilker(tahun: number, jenis: "lalat" | "kecoa", bulanAkhir: number): Promise<RekapDiarePerWilker[]> {
+  const supabase = await createClient();
+  const batas = bulanAkhir >= 12 ? `${tahun + 1}-01-01` : `${tahun}-${String(bulanAkhir + 1).padStart(2, "0")}-01`;
+  const { data, error } = await supabase
+    .from("vektor_diare")
+    .select("kode_wilker, hasil_pengamatan, insektisida_terpakai_ml, luas_area_semprot_m2")
+    .ilike("jenis_kegiatan", `%${jenis}%`)
+    .gte("tgl_kegiatan", `${tahun}-01-01`)
+    .lt("tgl_kegiatan", batas);
+  if (error) throw error;
+
+  const peta = new Map<string, RekapDiarePerWilker>();
+  for (const r of data ?? []) {
+    const kode = r.kode_wilker ?? "-";
+    const x = peta.get(kode) ?? { kode_wilker: kode, pengamatan: 0, ms: 0, tms: 0, insektisida_ml: null, luas_m2: null };
+    const hasil = String(r.hasil_pengamatan ?? "").trim().toLowerCase();
+    if (hasil) {
+      x.pengamatan += 1;
+      if (hasil.startsWith("tidak")) x.tms += 1;
+      else if (hasil.includes("memenuhi")) x.ms += 1;
+    }
+    if (r.insektisida_terpakai_ml != null) x.insektisida_ml = (x.insektisida_ml ?? 0) + Number(r.insektisida_terpakai_ml);
+    if (r.luas_area_semprot_m2 != null) x.luas_m2 = (x.luas_m2 ?? 0) + Number(r.luas_area_semprot_m2);
+    peta.set(kode, x);
+  }
+  return Array.from(peta.values()).sort((a, b) => b.pengamatan - a.pengamatan);
+}

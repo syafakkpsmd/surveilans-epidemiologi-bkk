@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis, ComposedChart } from "recharts";
 import type { BatangMendatar, Donat, Slide, SlideBlok, Tren } from "@/lib/laporan-bulanan/types";
 
 /**
@@ -45,8 +45,12 @@ function Grafik({ t, x, y, w, h }: { t: Tren; x: number; y: number; w: number; h
     return baris;
   });
   const warna = (i: number) => (t.seri[i].warna ? `#${t.seri[i].warna}` : PALET[i % PALET.length]);
+  const idxBatang = t.seri.flatMap((s, i) => (s.garis ? [] : [i]));
+  const idxGaris = t.seri.flatMap((s, i) => (s.garis ? [i] : []));
+  const nomorKanan = Array.from(new Set(idxGaris.map((i) => t.seri[i].sumbuKanan).filter((n): n is 1 | 2 => n != null))).sort();
+  const gabungan = t.jenis === "batang" && idxGaris.length > 0;
   const tunggal = t.seri.length === 1;
-  const tumpuk = t.jenis === "batang" && !!t.tumpuk && !tunggal;
+  const tumpuk = t.jenis === "batang" && !!t.tumpuk && idxBatang.length > 1;
   const umum = { data, margin: { top: 26, right: 12, left: 0, bottom: 0 } };
   const fontLegenda = t.seri.length > 4 ? 13 : 14;
   const sumbu = (
@@ -56,11 +60,42 @@ function Grafik({ t, x, y, w, h }: { t: Tren; x: number; y: number; w: number; h
       <YAxis domain={[t.sumbuY?.min ?? 0, t.sumbuY?.maks ?? "auto"]} tick={{ fill: C.soft, fontSize: 13, fontFamily: FONT }} tickLine={false} axisLine={false} width={56} tickFormatter={fmt} />
     </>
   );
+  const ambang = t.garisAmbang ? (
+    <ReferenceLine
+      y={t.garisAmbang.nilai}
+      stroke={`#${t.garisAmbang.warna ?? "DC2626"}`}
+      strokeWidth={2.5}
+      strokeDasharray="8 5"
+      ifOverflow="extendDomain"
+      label={{ value: t.garisAmbang.label, position: "insideTopRight", fill: `#${t.garisAmbang.warna ?? "DC2626"}`, fontSize: 13, fontFamily: FONT }}
+    />
+  ) : null;
+  const legenda = !tunggal ? <Legend verticalAlign="bottom" itemSorter={null} wrapperStyle={{ fontSize: fontLegenda, fontFamily: FONT }} /> : null;
+
   return (
     <div style={{ position: "absolute", left: x, top: y, width: w, height: h }}>
       {t.satuan ? <div style={{ position: "absolute", left: 4, top: 0, fontSize: 13, color: C.soft }}>{t.satuan}</div> : null}
       <ResponsiveContainer width="100%" height="100%">
-        {t.jenis === "batang" ? (
+        {gabungan ? (
+          <ComposedChart {...umum}>
+            <CartesianGrid stroke={C.line} vertical={false} />
+            <XAxis dataKey="name" tick={{ fill: C.soft, fontSize: 14, fontFamily: FONT }} tickLine={false} axisLine={{ stroke: C.soft }} />
+            <YAxis yAxisId="kiri" domain={[t.sumbuY?.min ?? 0, t.sumbuY?.maks ?? "auto"]} tick={{ fill: C.soft, fontSize: 13, fontFamily: FONT }} tickLine={false} axisLine={false} width={56} tickFormatter={fmt} />
+            {nomorKanan.map((n) => {
+              const i = idxGaris.find((j) => t.seri[j].sumbuKanan === n)!;
+              return (
+                <YAxis key={n} yAxisId={`kanan${n}`} orientation="right" domain={["auto", "auto"]} tick={{ fill: warna(i), fontSize: 13, fontFamily: FONT }} tickLine={false} axisLine={{ stroke: warna(i) }} width={46} tickFormatter={fmt} />
+              );
+            })}
+            {idxBatang.map((i) => (
+              <Bar key={t.seri[i].nama} yAxisId="kiri" dataKey={t.seri[i].nama} fill={warna(i)} stackId={tumpuk ? "tumpuk" : undefined} isAnimationActive={false} />
+            ))}
+            {idxGaris.map((i) => (
+              <Line key={t.seri[i].nama} yAxisId={t.seri[i].sumbuKanan ? `kanan${t.seri[i].sumbuKanan}` : "kiri"} type="linear" dataKey={t.seri[i].nama} stroke={warna(i)} strokeWidth={3} dot={{ r: 4, fill: warna(i) }} isAnimationActive={false} connectNulls={false} />
+            ))}
+            {legenda}
+          </ComposedChart>
+        ) : t.jenis === "batang" ? (
           <BarChart {...umum}>
             {sumbu}
             {t.seri.map((s, i) => (
@@ -68,7 +103,8 @@ function Grafik({ t, x, y, w, h }: { t: Tren; x: number; y: number; w: number; h
                 {tunggal && t.label.length <= 12 ? <LabelList dataKey={s.nama} position="top" formatter={fmt} style={{ fill: C.ink, fontSize: 13, fontFamily: FONT }} /> : null}
               </Bar>
             ))}
-            {!tunggal ? <Legend verticalAlign="bottom" itemSorter={null} wrapperStyle={{ fontSize: fontLegenda, fontFamily: FONT }} /> : null}
+            {ambang}
+            {legenda}
           </BarChart>
         ) : (
           <LineChart {...umum}>
@@ -76,7 +112,8 @@ function Grafik({ t, x, y, w, h }: { t: Tren; x: number; y: number; w: number; h
             {t.seri.map((s, i) => (
               <Line key={s.nama} type="linear" dataKey={s.nama} stroke={warna(i)} strokeWidth={3} dot={{ r: 5, fill: warna(i) }} isAnimationActive={false} connectNulls={false} />
             ))}
-            {!tunggal ? <Legend verticalAlign="bottom" itemSorter={null} wrapperStyle={{ fontSize: fontLegenda, fontFamily: FONT }} /> : null}
+            {ambang}
+            {legenda}
           </LineChart>
         )}
       </ResponsiveContainer>
@@ -135,7 +172,7 @@ function GrafikDonat({ d, x, y, w, h }: { d: Donat; x: number; y: number; w: num
         }}
       >
         {d.irisan.map((s, i) => (
-          <Fragment key={s.label}>
+          <Fragment key={`${s.label}-${i}`}>
             <div style={{ display: "flex", alignItems: "center", height: padat ? 18 : 22, whiteSpace: "nowrap" }}>
               <span style={{ width: 9, height: 9, background: warna(i), marginRight: 6, flexShrink: 0, borderRadius: 2 }} />
               <span>{s.label}</span>

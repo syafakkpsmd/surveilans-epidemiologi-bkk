@@ -28,6 +28,7 @@ import type {
   RingkasanDelayTb,
   DistribusiWilayahTb,
   TerdugaBelumTindakLanjutTb,
+  DemografiTb,
 } from '@/lib/turso/tb';
 
 // Palet warna modern untuk chart & visualisasi
@@ -134,6 +135,7 @@ interface Props {
   delayDiagnosis: RingkasanDelayTb;
   distribusiKabKota: DistribusiWilayahTb[];
   donutJenisKelamin: { label: string; jumlah: number }[];
+  demografi: DemografiTb;
   bolehLihatDaftarSensitif: boolean;
   daftarBelumTindakLanjut: TerdugaBelumTindakLanjutTb[];
   jumlahBelumTindakLanjut: number;
@@ -160,6 +162,7 @@ export default function TbClient({
   delayDiagnosis,
   distribusiKabKota,
   donutJenisKelamin,
+  demografi,
   bolehLihatDaftarSensitif,
   daftarBelumTindakLanjut,
   jumlahBelumTindakLanjut,
@@ -407,6 +410,16 @@ export default function TbClient({
         />
       </div>
 
+      {/* Donut Karakteristik Sasaran Skrining */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <DonutPanel judul="Jenis Kelamin" data={donutJenisKelamin} />
+        <DonutPanel judul="Kelompok Usia" data={demografi.usia} />
+        <DonutPanel judul="Pekerjaan" data={demografi.pekerjaan} />
+        <DonutPanel judul="Status Perokok" data={demografi.perokok} />
+        <DonutPanel judul="Riwayat Diabetes Melitus (DM)" data={demografi.dm} />
+        <DonutPanel judul="Kekurangan Gizi" data={demografi.kekuranganGizi} />
+      </div>
+
       {/* Cascade Funnel */}
       <Panel judul="Alur Penemuan Kasus TBC di BKK Kelas I">
         <p className="mb-3 text-center text-xs text-gray-500">
@@ -430,10 +443,9 @@ export default function TbClient({
 
       {/* Grafik Tren */}
       <Panel judul="Distribusi Kegiatan Pengawasan Tuberkulosis di BKK Kelas I Samarinda">
-      {/* Subjudul / Keterangan Periode di Baris Bawah */}
-      <p className="mb-3 text-center text-xs font-medium text-gray-500">
-        Skope Periode: {granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}
-      </p>
+        <p className="mb-3 text-center text-xs font-medium text-gray-500">
+          Skope Periode: {granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}
+        </p>
         <ResponsiveContainer width="100%" height={300}>
           {granularitas === 'mingguan' ? (
             <LineChart data={dataTrenTampilUntukChart}>
@@ -533,54 +545,29 @@ export default function TbClient({
         </ResponsiveContainer>
       </Panel>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {/* Donut Jenis Kelamin */}
-        <Panel judul="Distribusi berdasarkan Jenis Kelamin">
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={donutJenisKelamin}
-                dataKey="jumlah"
-                nameKey="label"
-                innerRadius={55}
-                outerRadius={80}
-                paddingAngle={3}
-                label
-              >
-                {donutJenisKelamin.map((_, i) => (
-                  <Cell key={i} fill={WARNA_PIE[i % WARNA_PIE.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </Panel>
-
-        {/* Delay Diagnosis */}
-        <Panel judul="Kecepatan Diagnosis (Delay)">
-          <p className="text-center text-xs text-gray-500">
-            Selisih hari dari tanggal Penapisan hingga keluar hasil laboratorium.
-          </p>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg bg-teal-50 p-3">
-              <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.rataRataHari}</div>
-              <div className="text-xs font-medium text-teal-600">Rata-rata (hari)</div>
-            </div>
-            <div className="rounded-lg bg-teal-50 p-3">
-              <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.medianHari}</div>
-              <div className="text-xs font-medium text-teal-600">Median (hari)</div>
-            </div>
-            <div className="rounded-lg bg-teal-50 p-3">
-              <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.maksimalHari}</div>
-              <div className="text-xs font-medium text-teal-600">Maksimal (hari)</div>
-            </div>
+      {/* Delay Diagnosis */}
+      <Panel judul="Kecepatan Diagnosis (Delay)">
+        <p className="text-center text-xs text-gray-500">
+          Selisih hari dari tanggal Penapisan hingga keluar hasil laboratorium.
+        </p>
+        <div className="mx-auto mt-4 grid max-w-xl grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg bg-teal-50 p-3">
+            <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.rataRataHari}</div>
+            <div className="text-xs font-medium text-teal-600">Rata-rata (hari)</div>
           </div>
-          <p className="mt-3 text-center text-xs text-gray-400">
-            Dihitung dari {delayDiagnosis.jumlahKasusDihitung} kasus yang sudah terbit hasil laboratorium.
-          </p>
-        </Panel>
-      </div>
+          <div className="rounded-lg bg-teal-50 p-3">
+            <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.medianHari}</div>
+            <div className="text-xs font-medium text-teal-600">Median (hari)</div>
+          </div>
+          <div className="rounded-lg bg-teal-50 p-3">
+            <div className="text-2xl font-bold text-teal-800">{delayDiagnosis.maksimalHari}</div>
+            <div className="text-xs font-medium text-teal-600">Maksimal (hari)</div>
+          </div>
+        </div>
+        <p className="mt-3 text-center text-xs text-gray-400">
+          Dihitung dari {delayDiagnosis.jumlahKasusDihitung} kasus yang sudah terbit hasil laboratorium.
+        </p>
+      </Panel>
 
       {/* Distribusi per Kab/Kota */}
       <Panel judul="Distribusi per Kabupaten/Kota (Top 15)">
@@ -604,8 +591,8 @@ export default function TbClient({
         </ResponsiveContainer>
       </Panel>
 
-      {/* Sekrining per Wilker */}
-      <Panel judul=" Distribusi Hasil Penapisan per Wilayah Kerja">
+      {/* Skrining per Wilker */}
+      <Panel judul="Distribusi Hasil Penapisan per Wilayah Kerja">
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={breakdownWilker}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
@@ -692,13 +679,66 @@ function KartuRingkasan({
   );
 }
 
-// Komponen Panel diperbarui dengan text-center pada judul
 function Panel({ judul, children }: { judul: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-200/80 bg-white p-5 shadow-2xs">
       <h2 className="mb-2 text-center text-sm font-bold text-gray-900">{judul}</h2>
       {children}
     </div>
+  );
+}
+
+// Panel donut generik: dipakai untuk semua donut karakteristik sasaran
+function DonutPanel({
+  judul,
+  data,
+}: {
+  judul: string;
+  data: { label: string; jumlah: number }[];
+}) {
+  const total = data.reduce((a, b) => a + b.jumlah, 0);
+
+  return (
+    <Panel judul={judul}>
+      {total === 0 ? (
+        <p className="py-16 text-center text-xs text-gray-400">Belum ada data.</p>
+      ) : (
+        <div className="relative">
+          <ResponsiveContainer width="100%" height={230}>
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="jumlah"
+                nameKey="label"
+                innerRadius={50}
+                outerRadius={75}
+                paddingAngle={2}
+                cy="45%"
+              >
+                {data.map((_, i) => (
+                  <Cell key={i} fill={WARNA_PIE[i % WARNA_PIE.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value, name) => {
+                  const v = Number(value);
+                  return [`${v} (${((v / total) * 100).toFixed(1)}%)`, String(name)];
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+            </PieChart>
+          </ResponsiveContainer>
+          {/* Total di tengah donut */}
+          <div
+            className="pointer-events-none absolute inset-x-0 text-center"
+            style={{ top: '45%', transform: 'translateY(-50%)' }}
+          >
+            <div className="text-lg font-bold text-gray-900">{total}</div>
+            <div className="text-[10px] text-gray-500">peserta</div>
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }
 

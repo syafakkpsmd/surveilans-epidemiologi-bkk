@@ -7,6 +7,7 @@ import {
 import { BULAN, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal, jumlah } from "./_bantu";
+import { seriPerWilker } from "./_perWilker";
 
 const JUDUL = "Surveilans Vektor Larva Anopheles";
 const fmtAngka = (n: number) => new Intl.NumberFormat("id-ID").format(n);
@@ -90,6 +91,15 @@ export const modulAnophelesLarva: ModulLaporan = {
 
     const i = bulanAkhir - 1;
     const label = labelBulanan(bulanAkhir);
+    // Larva per wilayah kerja. Bulan tanpa survei (cidukan 0) = null, survei tanpa larva = 0.
+    const seriWilker = await seriPerWilker(
+      (kode) => getTrenLarva(tahun, kode, "bulanan").then((r) => r as unknown as BarisBulanLarva[]),
+      (rows) =>
+        deretDariLabel(rows, tahun, bulanAkhir, (b) => b.bulanLabel, (b) => ((b.cidukan ?? 0) > 0 ? (b.larva ?? 0) : null), null),
+    );
+    const totalWilker = seriWilker
+      .map((s) => ({ nama: s.nama, total: jumlah(s.nilai.map((v) => v ?? 0)) }))
+      .sort((a, b) => b.total - a.total);
 
     const suhuAda = suhu.filter((v) => v > 0);
     const rataSuhu = suhuAda.length ? jumlah(suhuAda) / suhuAda.length : null;
@@ -113,6 +123,9 @@ export const modulAnophelesLarva: ModulLaporan = {
           BULAN[larva.indexOf(maksLarva)]
         } dengan ${fmtAngka(maksLarva)} ekor larva.`,
       );
+    }
+        if (totalWilker[0] && totalWilker[0].total > 0) {
+      temuan.push(`Larva terbanyak ditemukan di ${totalWilker[0].nama} (${fmtAngka(totalWilker[0].total)} ekor).`);
     }
     if (ubahLarva != null) {
       temuan.push(
@@ -174,10 +187,12 @@ export const modulAnophelesLarva: ModulLaporan = {
         jenis: "batang",
         label,
         seri: [
-          { nama: "Jumlah Cidukan", nilai: cidukan, warna: "059669" }, // Emerald Green (Modern)
-          { nama: "Jumlah Larva", nilai: larva, warna: "DC2626" }, // Crimson Red (Modern)
+          ...(seriWilker.length > 0
+            ? seriWilker
+            : [{ nama: "Jumlah Larva", nilai: larva, warna: "DC2626" }]),
+          { nama: "Suhu (°C)", nilai: suhu.map((v) => (v > 0 ? v : null)), warna: "E11D48", garis: true, sumbuKanan: 1 as const },
         ],
-        satuan: "Distribusi Pengawasan Larva Anopheles",
+        satuan: "Jumlah larva",
       },
       tabel: {
         kepala: ["Bulan", "Jumlah Cidukan", "Jumlah Larva", "Suhu (°C)"],

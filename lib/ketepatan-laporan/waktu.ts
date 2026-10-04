@@ -2,13 +2,8 @@
  * lib/ketepatan-laporan/waktu.ts
  *
  * Perhitungan tanggal & deadline dalam WITA (UTC+8, tanpa DST). Semua
- * aritmetika memakai epoch UTC, jadi hasilnya sama di server, browser,
+ * aritmetika memakai epoch UTC, jadi hasilnya konsisten di server, browser,
  * dan zona waktu perangkat apa pun.
- *
- * Aturan minggu: minggu epidemiologi MMWR (mulai Minggu, minggu-1 = minggu
- * yang memuat >= 4 hari di tahun itu) -- sama dengan lib/epi-week.ts dan
- * fungsi SQL mmwr_week(). Modul ini sengaja berdiri sendiri supaya bisa
- * dipasang tanpa bergantung pada file lain.
  */
 
 export const WITA_OFFSET_MS = 8 * 60 * 60 * 1000;
@@ -23,9 +18,9 @@ export const NAMA_BULAN_PENDEK = BULAN_PENDEK;
 
 const dua = (n: number) => String(n).padStart(2, '0');
 
-// ------------------------------------------------------------------ Format
+// ------------------------------------------------------------------ Helper Format
 
-/** Geser ke WITA lalu baca komponen dengan getUTC*. */
+/** Geser timestamp UTC ke representasi waktu WITA. */
 function keWita(d: Date): Date {
   return new Date(d.getTime() + WITA_OFFSET_MS);
 }
@@ -45,7 +40,7 @@ export function formatWaktuWita(d: Date): string {
   return `${formatTanggalWita(d)}, ${dua(g.getUTCHours())}:${dua(g.getUTCMinutes())} WITA`;
 }
 
-/** ISO 8601 dengan offset +08:00 (untuk data contoh). */
+/** ISO 8601 dengan offset +08:00 (misal: "2026-09-29T14:20:00+08:00"). */
 export function keIsoWita(d: Date): string {
   const g = keWita(d);
   return (
@@ -60,19 +55,20 @@ export function formatDurasi(ms: number): string {
   const hari = Math.floor(totalMenit / 1440);
   const jam = Math.floor((totalMenit % 1440) / 60);
   const menit = totalMenit % 60;
+
   if (hari > 0) return jam > 0 ? `${hari} hari ${jam} jam` : `${hari} hari`;
   if (jam > 0) return menit > 0 ? `${jam} jam ${menit} menit` : `${jam} jam`;
   if (menit > 0) return `${menit} menit`;
   return 'kurang dari 1 menit';
 }
 
-// ------------------------------------------------------------------ Mingguan
+// ------------------------------------------------------------------ Mingguan (Epi-Week MMWR)
 
 function mulaiMingguSatuMs(tahun: number): number {
-  const jan1 = Date.UTC(tahun, 0, 1);
-  const dow = new Date(jan1).getUTCDay(); // 0 = Minggu
+  const jan1 = new Date(Date.UTC(tahun, 0, 1));
+  const dow = jan1.getUTCDay(); // 0 = Minggu, 1 = Senin, dst.
   const geser = dow <= 3 ? -dow : 7 - dow;
-  return jan1 + geser * HARI_MS;
+  return jan1.getTime() + geser * HARI_MS;
 }
 
 /** Hari Minggu pembuka minggu epid (tanggal saja, disimpan sebagai 00:00 UTC). */
@@ -83,6 +79,7 @@ export function awalMingguEpid(tahun: number, minggu: number): Date {
 /**
  * Deadline mingguan: Selasa pukul 17:00 WITA pada minggu BERIKUTNYA.
  * Minggu N mulai Minggu S -> minggu berikutnya mulai S+7 -> Selasa = S+9.
+ * 17:00 WITA = 09:00 UTC.
  */
 export function deadlineMingguan(tahun: number, minggu: number): Date {
   const awal = awalMingguEpid(tahun, minggu).getTime();
@@ -103,6 +100,7 @@ function fmtTanggalUtc(d: Date, denganTahun: boolean): string {
 export function labelRentangMinggu(tahun: number, minggu: number): string {
   const a = awalMingguEpid(tahun, minggu);
   const b = new Date(a.getTime() + 6 * HARI_MS);
+
   if (a.getUTCFullYear() !== b.getUTCFullYear()) {
     return `${fmtTanggalUtc(a, true)}-${fmtTanggalUtc(b, true)}`;
   }
@@ -115,12 +113,11 @@ export function labelRentangMinggu(tahun: number, minggu: number): string {
 // ------------------------------------------------------------------- Bulanan
 
 /**
- * Deadline bulanan: tanggal 10 bulan berikutnya pukul 23:59 WITA. Dihitung
- * sampai akhir menit 23:59 (23:59:59.999), jadi kiriman pukul 23:59:30 masih
- * tepat waktu. Bulan 12 otomatis jatuh ke 10 Januari tahun berikutnya.
+ * Deadline bulanan: tanggal 10 bulan berikutnya pukul 23:59:59.999 WITA.
+ * Bulan 12 otomatis jatuh ke 10 Januari tahun berikutnya.
  */
 export function deadlineBulanan(tahun: number, bulan: number): Date {
-  // bulan 1-12 -> indeks bulan berikutnya = `bulan` (0-based)
+  // bulan: 1..12 -> Date.UTC(tahun, bulan, 10) otomatis mengacu pada bulan berikutnya
   return new Date(Date.UTC(tahun, bulan, 10, 23, 59, 59, 999) - WITA_OFFSET_MS);
 }
 
@@ -130,5 +127,5 @@ export function akhirBulanan(tahun: number, bulan: number): Date {
 }
 
 export function namaBulanPanjang(bulan: number): string {
-  return BULAN_PANJANG[bulan - 1];
+  return BULAN_PANJANG[bulan - 1] ?? '';
 }

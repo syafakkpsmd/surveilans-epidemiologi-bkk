@@ -401,3 +401,90 @@ export function ambilDaftarBelumTindakLanjutTb(rows: TbRow[]): TerdugaBelumTinda
     }))
     .sort((a, b) => (a.tanggalPelaksanaan ?? '').localeCompare(b.tanggalPelaksanaan ?? ''));
 }
+export interface ItemDonutTb {
+  label: string;
+  jumlah: number;
+}
+
+export interface DemografiTb {
+  usia: ItemDonutTb[];
+  pekerjaan: ItemDonutTb[];
+  perokok: ItemDonutTb[];
+  dm: ItemDonutTb[];
+  kekuranganGizi: ItemDonutTb[];
+}
+
+function hitungKategoriTb(
+  nilai: (string | null | undefined)[],
+  normalisasi: (v: string) => string = (v) => v
+): ItemDonutTb[] {
+  const peta = new Map<string, number>();
+  for (const v of nilai) {
+    const bersih = (v ?? '').trim();
+    const label = bersih ? normalisasi(bersih) : 'Tidak diketahui';
+    peta.set(label, (peta.get(label) ?? 0) + 1);
+  }
+  return [...peta.entries()]
+    .map(([label, jumlah]) => ({ label, jumlah }))
+    .sort((a, b) => b.jumlah - a.jumlah);
+}
+
+const normYaTidak = (v: string) => {
+  const x = v.toLowerCase();
+  if (['ya', 'y', 'iya', '1', 'true'].includes(x)) return 'Ya';
+  if (['tidak', 't', 'tdk', '0', 'false'].includes(x)) return 'Tidak';
+  return 'Tidak diketahui';
+};
+
+function hitungUsiaTb(tgl: string | null | undefined): number | null {
+  if (!tgl) return null;
+  const s = tgl.trim().slice(0, 10);
+  let y: number, m: number, d: number;
+  let mt = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (mt) { y = +mt[1]; m = +mt[2]; d = +mt[3]; }
+  else if ((mt = s.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/))) { d = +mt[1]; m = +mt[2]; y = +mt[3]; }
+  else return null;
+  const now = new Date();
+  let umur = now.getFullYear() - y;
+  if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) umur--;
+  return umur >= 0 && umur < 120 ? umur : null;
+}
+
+const KELOMPOK_USIA_TB = ['< 15', '15–24', '25–34', '35–44', '45–54', '55–64', '≥ 65'];
+function kelompokUsiaTb(u: number): string {
+  const batas = [15, 25, 35, 45, 55, 65];
+  const i = batas.findIndex((b) => u < b);
+  return KELOMPOK_USIA_TB[i === -1 ? 6 : i];
+}
+
+export function hitungDemografiTb(rows: TbRow[]): DemografiTb {
+  // Usia
+  const petaUsia = new Map<string, number>(KELOMPOK_USIA_TB.map((k) => [k, 0]));
+  let tanpaUsia = 0;
+  for (const r of rows) {
+    const u = hitungUsiaTb(r.tanggal_lahir);
+    if (u === null) tanpaUsia++;
+    else petaUsia.set(kelompokUsiaTb(u), (petaUsia.get(kelompokUsiaTb(u)) ?? 0) + 1);
+  }
+  const usia: ItemDonutTb[] = [...petaUsia.entries()]
+    .filter(([, n]) => n > 0)
+    .map(([label, jumlah]) => ({ label, jumlah }));
+  if (tanpaUsia > 0) usia.push({ label: 'Tidak diketahui', jumlah: tanpaUsia });
+
+  // Pekerjaan: top 5 + Lainnya
+  const semuaPekerjaan = hitungKategoriTb(
+    rows.map((r) => r.pekerjaan),
+    (v) => v.replace(/\s+/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+  );
+  const top = semuaPekerjaan.slice(0, 5);
+  const sisa = semuaPekerjaan.slice(5).reduce((a, b) => a + b.jumlah, 0);
+  const pekerjaan = sisa > 0 ? [...top, { label: 'Lainnya', jumlah: sisa }] : top;
+
+  return {
+    usia,
+    pekerjaan,
+    perokok: hitungKategoriTb(rows.map((r) => r.merokok), normYaTidak),
+    dm: hitungKategoriTb(rows.map((r) => r.riwayat_dm), normYaTidak),
+    kekuranganGizi: hitungKategoriTb(rows.map((r) => r.kekurangan_gizi), normYaTidak),
+  };
+}

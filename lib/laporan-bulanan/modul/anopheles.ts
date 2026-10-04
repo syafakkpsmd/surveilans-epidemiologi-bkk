@@ -3,6 +3,7 @@ import { getTrenAnophelesDewasa } from "@/lib/supabase/queries";
 import { BULAN, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal } from "./_bantu";
+import { seriPerWilker } from "./_perWilker";
 
 const JUDUL = "Surveilans Vektor Nyamuk Anopheles";
 
@@ -28,6 +29,15 @@ export const modulAnopheles: ModulLaporan = {
     const suhu = ambil((b) => b.suhu);
     const lembab = ambil((b) => b.kelembaban);
     if (mhd.every((v) => v == null)) return null;
+    // MHD per wilayah kerja (batang berdampingan; laju tidak boleh ditumpuk)
+    const seriWilker = await seriPerWilker(
+      (kode) => getTrenAnophelesDewasa(tahun, kode, "bulanan").then((r) => r as unknown as BarisBulan[]),
+      (rows) => deretDariLabel(rows, tahun, bulanAkhir, (b) => b.bulanLabel, (b) => b.mhd, null),
+    );
+    const puncakWilker = seriWilker
+      .flatMap((s) => s.nilai.map((v, k) => ({ nama: s.nama, bulan: BULAN[k], nilai: v })))
+      .filter((x): x is { nama: string; bulan: string; nilai: number } => x.nilai != null)
+      .sort((a, b) => b.nilai - a.nilai)[0];
 
     const i = bulanAkhir - 1;
     const label = labelBulanan(bulanAkhir);
@@ -46,13 +56,19 @@ export const modulAnopheles: ModulLaporan = {
         { label: "Kelembapan rata-rata", nilai: rata(lembab) == null ? "-" : `${desimal(rata(lembab), 1)}%` },
       ],
       tren: {
-        jenis: "batang", // <-- Diubah menjadi grafik batang
+        jenis: "batang",
         label,
-        seri: [
-          { nama: "MHD", nilai: mhd, warna: "0A7A78" },
-          { nama: "MBR", nilai: mbr, warna: "C9781F" },
-        ],
-        satuan: "Nilai rata-rata survei",
+          seri: [
+            ...(seriWilker.length > 0
+              ? seriWilker
+              : [
+                  { nama: "MHD", nilai: mhd, warna: "0A7A78" },
+                  { nama: "MBR", nilai: mbr, warna: "C9781F" },
+                ]),
+            { nama: "Suhu (°C)", nilai: suhu, warna: "E11D48", garis: true, sumbuKanan: 1 as const },
+            { nama: "Kelembapan (%)", nilai: lembab, warna: "0284C7", garis: true, sumbuKanan: 2 as const },
+          ],
+        satuan: "MHD (nyamuk per orang per jam)",
       },
       tabel: {
         kepala: ["Bulan", "MHD", "MBR", "Suhu (°C)", "Kelembapan (%)"],
@@ -60,7 +76,10 @@ export const modulAnopheles: ModulLaporan = {
         lebar: [1.6, 1, 1, 1.2, 1.5],
         baris: label.map((nama, k) => [nama, desimal(mhd[k]), desimal(mbr[k]), desimal(suhu[k], 1), desimal(lembab[k], 1)]),
       },
-      temuan: Number.isFinite(maksMhd) ? [`MHD tertinggi pada bulan ${BULAN[mhd.indexOf(maksMhd)]} (${desimal(maksMhd)}).`] : [],
+            temuan: [
+        ...(Number.isFinite(maksMhd) ? [`MHD tertinggi pada bulan ${BULAN[mhd.indexOf(maksMhd)]} (${desimal(maksMhd)}).`] : []),
+        ...(puncakWilker ? [`MHD tertinggi per wilayah kerja tercatat di ${puncakWilker.nama} pada ${puncakWilker.bulan} (${desimal(puncakWilker.nilai)}).`] : []),
+      ],
     };
   },
 };

@@ -52,7 +52,8 @@ function pasanganVisual(d: DataModul): SlideBlok[] {
 
 function slideModulOk(d: DataModul, subjudul: string): Slide[] {
   const slides: Slide[] = [];
-  const temuan = (d.temuan ?? []).slice(0, MAKS_TEMUAN).map((t) => potong(t, 150));
+  const batasTemuan = d.kunci === "aedes" ? 340 : 150;
+  const temuan = (d.temuan ?? []).slice(0, MAKS_TEMUAN).map((t) => potong(t, batasTemuan));
   const tabelKecil = !d.tren && d.tabel && d.tabel.baris.length <= 6 ? d.tabel : undefined;
   const donatSampingGrafik = d.kunci === "poliklinik" && d.donat && d.donat.length === 2 ? d.donat[0] : undefined;
 
@@ -178,6 +179,80 @@ function slideModulOk(d: DataModul, subjudul: string): Slide[] {
           ];
           visualTerpakai = 2;
         }
+        // LAYOUT KHUSUS TIKUS (Tabel kiri; Donat Spesies + Donat Hasil Trap bertumpuk di kanan)
+        else if (d.kunci === "tikus" && d.donat && d.donat.length === 2) {
+          isiSlide = [
+            {
+              tipe: "dua_kolom",
+              kiri: bTabel(utamaPadat),
+              kanan: {
+                tipe: "tumpuk",
+                items: [
+                  { tipe: "donat", ...d.donat[0] },
+                  { tipe: "donat", ...d.donat[1] },
+                ],
+              },
+              rasioKiri: 0.64,
+            },
+          ];
+          visualTerpakai = 2;
+        }
+                // LAYOUT KHUSUS MALARIA (Tabel kiri; Donat Usia + Donat Pekerjaan bertumpuk di kanan)
+        else if (d.kunci === "malaria" && d.donat && d.donat.length === 2) {
+          isiSlide = [
+            {
+              tipe: "dua_kolom",
+              kiri: bTabel(utamaPadat),
+              kanan: {
+                tipe: "tumpuk",
+                items: [
+                  { tipe: "donat", ...d.donat[0] },
+                  { tipe: "donat", ...d.donat[1] },
+                ],
+              },
+              rasioKiri: 0.58,
+            },
+          ];
+          visualTerpakai = 2;
+        }
+        // LAYOUT KHUSUS TB (Satu slide: Tabel kiri; 5 donat dikecilkan di kanan, 3 di atas dan 2 di bawah)
+        else if (d.kunci === "tb" && d.donat && d.donat.length === 5) {
+          const dn = d.donat.map((x): SlideBlok => ({ tipe: "donat", ...x }));
+          isiSlide = [
+            {
+              tipe: "dua_kolom",
+              kiri: bTabel(utamaPadat),
+              kanan: {
+                tipe: "tumpuk",
+                items: [
+                  { tipe: "dua_kolom", kiri: dn[0], kanan: { tipe: "dua_kolom", kiri: dn[1], kanan: dn[2], rasioKiri: 0.5 }, rasioKiri: 0.34 },
+                  { tipe: "dua_kolom", kiri: dn[3], kanan: dn[4], rasioKiri: 0.34 },
+                ],
+              },
+              rasioKiri: 0.4,
+            },
+          ];
+          visualTerpakai = 5;
+        }
+                // LAYOUT KHUSUS HIV (Tabel kiri; 4 donat 2 x 2 di kanan)
+        else if (d.kunci === "hiv" && d.donat && d.donat.length === 4) {
+          const dn = d.donat.map((x): SlideBlok => ({ tipe: "donat", ...x }));
+          isiSlide = [
+            {
+              tipe: "dua_kolom",
+              kiri: bTabel(utamaPadat),
+              kanan: {
+                tipe: "tumpuk",
+                items: [
+                  { tipe: "dua_kolom", kiri: dn[0], kanan: dn[1], rasioKiri: 0.5 },
+                  { tipe: "dua_kolom", kiri: dn[2], kanan: dn[3], rasioKiri: 0.5 },
+                ],
+              },
+              rasioKiri: 0.4,
+            },
+          ];
+          visualTerpakai = 4;
+        }
         else {
           // Logika Bawaan Modul Lain
           const tinggiUtama = tinggiTabel(utamaPadat, true);
@@ -231,6 +306,23 @@ function slideModulOk(d: DataModul, subjudul: string): Slide[] {
 
   /* Visual yang belum tertampung */
   const visualSisa = visual.slice(visualTerpakai);
+  if (d.kunci === "tb" && visualSisa.length === 3) {
+    // Tiga donat sejajar: Merokok | Perokok Pasif | Pekerjaan
+    slides.push({
+      kunci: `modul-${d.kunci}-visual-0`,
+      tipe: "isi",
+      judul: `${d.judul}: karakteristik peserta`,
+      subjudul,
+      blok: [
+        {
+          tipe: "dua_kolom",
+          kiri: visualSisa[0],
+          kanan: { tipe: "dua_kolom", kiri: visualSisa[1], kanan: visualSisa[2], rasioKiri: 0.5 },
+          rasioKiri: 0.34,
+        },
+      ],
+    });
+  } else
   visualSisa.forEach((b, i) => {
     slides.push({
       kunci: `modul-${d.kunci}-visual-${i}`,

@@ -62,7 +62,7 @@ function dataGrafik(t: Tren) {
     while (n > 0 && se.nilai[n - 1] == null) n--;
     // Grafik garis: bulan tanpa data dibiarkan kosong (terputus), bukan digambar sebagai nol.
     // Grafik batang: bulan tanpa data digambar sebagai 0.
-    const nilai = se.nilai.slice(0, n).map((v) => (v == null ? (t.jenis === "garis" ? null : 0) : v));
+        const nilai = se.nilai.slice(0, n).map((v) => (v == null ? (t.jenis === "garis" || se.garis ? null : 0) : v));
     return { name: se.nama, labels: t.label.slice(0, n), values: nilai as number[] };
   });
 }
@@ -146,21 +146,92 @@ function gambarBlok(pptx: PptxGenJS, s: PptxGenJS.Slide, b: SlideBlok, x: number
       ...(b.sumbuY?.min != null ? { valAxisMinVal: b.sumbuY.min } : {}),
       ...(b.sumbuY?.maks != null ? { valAxisMaxVal: b.sumbuY.maks } : {}),
     };
-    if (b.jenis === "batang") {
-      s.addChart(pptx.ChartType.bar, data, {
-        ...umum,
-        barDir: "col",
-        barGrouping: tumpuk ? "stacked" : "clustered",
+     if (b.jenis === "batang") {
+      const idxBatang = b.seri.flatMap((se, i) => (se.garis ? [] : [i]));
+      const idxKanan = b.seri.flatMap((se, i) => (se.garis && se.sumbuKanan ? [i] : []));
+      const idxKiri = b.seri.flatMap((se, i) => (se.garis && !se.sumbuKanan ? [i] : []));
+      const warnaSeri = (i: number) => b.seri[i].warna ?? PALET[i % PALET.length];
+      const opsiBatang = {
+        barDir: "col" as const,
+        barGrouping: (tumpuk ? "stacked" : "clustered") as "stacked" | "clustered",
         barGapWidthPct: banyakSeri > 1 ? 40 : 60,
-        showValue: banyakSeri === 1 && b.label.length <= 12,
-        dataLabelFontFace: FONT,
-        dataLabelFontSize: 10,
-        dataLabelColor: C.ink,
-        dataLabelPosition: "outEnd",
-        dataLabelFormatCode: "#,##0",
-      });
-    } else {
-      s.addChart(pptx.ChartType.line, data, { ...umum, lineSize: 3, lineDataSymbolSize: 7, displayBlanksAs: "gap" });
+      };
+
+      if (idxKanan.length > 0 || idxKiri.length > 0 || b.garisAmbang) {
+        const n = Math.max(...data.map((d) => d.values.length));
+        const pad = (d: { name: string; values: number[] }) => ({
+          name: d.name,
+          labels: b.label.slice(0, n),
+          values: [...d.values, ...Array.from({ length: n - d.values.length }, () => null)] as unknown as number[],
+        });
+        const jenis: unknown[] = [
+          { type: pptx.ChartType.bar, data: idxBatang.map((i) => pad(data[i])), options: { chartColors: idxBatang.map(warnaSeri), ...opsiBatang } },
+        ];
+        const dataKiri = idxKiri.map((i) => pad(data[i]));
+        const warnaKiri = idxKiri.map(warnaSeri);
+        if (b.garisAmbang) {
+          dataKiri.push({ name: b.garisAmbang.label, labels: b.label.slice(0, n), values: Array(n).fill(b.garisAmbang.nilai) as number[] });
+          warnaKiri.push(b.garisAmbang.warna ?? "DC2626");
+        }
+        if (dataKiri.length > 0) {
+          jenis.push({ type: pptx.ChartType.line, data: dataKiri, options: { chartColors: warnaKiri, lineSize: 2.5, lineDataSymbolSize: 6 } });
+        }
+        if (idxKanan.length > 0) {
+          jenis.push({
+            type: pptx.ChartType.line,
+            data: idxKanan.map((i) => pad(data[i])),
+            options: { chartColors: idxKanan.map(warnaSeri), lineSize: 2.5, lineDataSymbolSize: 6, secondaryValAxis: true, secondaryCatAxis: true },
+          });
+        }
+        const axisKiri = {
+          valAxisLabelFontFace: FONT,
+          valAxisLabelFontSize: 10,
+          valAxisLabelColor: C.soft,
+          valAxisLabelFormatCode: "#,##0",
+          valGridLine: { color: C.line, size: 0.5 },
+          showValAxisTitle: !!b.satuan,
+          valAxisTitle: b.satuan ?? "",
+          valAxisTitleFontSize: 10,
+          valAxisTitleColor: C.soft,
+          ...(b.sumbuY?.min != null ? { valAxisMinVal: b.sumbuY.min } : {}),
+          ...(b.sumbuY?.maks != null ? { valAxisMaxVal: b.sumbuY.maks } : {}),
+        };
+        const catKiri = { catAxisLabelFontFace: FONT, catAxisLabelFontSize: 11, catAxisLabelColor: C.soft, catGridLine: { style: "none" as const } };
+        const dasar = { x, y, w, h, showLegend: true, legendPos: "b" as const, legendFontFace: FONT, legendFontSize: 11 };
+        const opsi =
+          idxKanan.length > 0
+            ? {
+                ...dasar,
+                valAxes: [
+                  axisKiri,
+                  {
+                    valAxisLabelFontFace: FONT,
+                    valAxisLabelFontSize: 10,
+                    valAxisLabelColor: C.soft,
+                    valAxisLabelFormatCode: "0.0",
+                    valGridLine: { style: "none" as const },
+                    showValAxisTitle: true,
+                    valAxisTitle: idxKanan.map((i) => b.seri[i].nama).join(" / "),
+                    valAxisTitleFontSize: 10,
+                    valAxisTitleColor: C.soft,
+                  },
+                ],
+                catAxes: [catKiri, { catAxisHidden: true }],
+              }
+            : { ...dasar, ...axisKiri, ...catKiri };
+        s.addChart(jenis as unknown as Parameters<typeof s.addChart>[0], opsi as unknown as unknown[]);
+      } else {
+        s.addChart(pptx.ChartType.bar, data, {
+          ...umum,
+          ...opsiBatang,
+          showValue: banyakSeri === 1 && b.label.length <= 12,
+          dataLabelFontFace: FONT,
+          dataLabelFontSize: 10,
+          dataLabelColor: C.ink,
+          dataLabelPosition: "outEnd",
+          dataLabelFormatCode: "#,##0",
+        });
+      }
     }
     return y + h + 0.1;
   }

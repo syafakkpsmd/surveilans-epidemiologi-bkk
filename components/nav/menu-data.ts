@@ -74,8 +74,6 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Surveilans Vektor",
     singkat: "Vektor",
     items: [
-      { label: "Vektor Aedes", href: "/dashboard/vektor/aedes", icon: Bug, prefetch: false },
-      { label: "Vektor Tikus", href: "/dashboard/vektor/tikus", icon: Rat, prefetch: false },
       {
         label: "Vektor Anopheles",
         icon: Zap,
@@ -92,6 +90,8 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Diare Kecoa", href: "/dashboard/vektor/diare-kecoa", prefetch: false },
         ],
       },
+      { label: "Vektor Aedes", href: "/dashboard/vektor/aedes", icon: Bug, prefetch: false },
+      { label: "Vektor Tikus", href: "/dashboard/vektor/tikus", icon: Rat, prefetch: false },
     ],
   },
   {
@@ -165,6 +165,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
       { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },
       { label: "Laporan Timker 1", href: "https://drive.google.com/drive/folders/1ZMoZhPgy8WndyGsuU37LzBzxUry1B0Hl?usp=sharing", icon: Book, prefetch: false },
+      { label: "Laporan Indikator Kinerja", href: "https://s.kemkes.go.id/indikatorrenstrabkk2026", icon: Book, prefetch: false },
     ],
   },
 ];

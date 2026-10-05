@@ -71,7 +71,6 @@ export default function PanelTrenPeriode({
           </button>
         </div>
 
-        {mode === 'mingguan' ? <FilterRentangMinggu /> : <FilterRentangBulan />}
       </div>
 
       {mode === 'mingguan' ? (

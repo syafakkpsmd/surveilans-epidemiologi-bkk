@@ -1,0 +1,878 @@
+diff --git a/app/(dashboard)/dashboard/abk-crew-penumpang/AbkCrewPenumpangClient.tsx b/app/(dashboard)/dashboard/abk-crew-penumpang/AbkCrewPenumpangClient.tsx
+index b315277..16730b8 100644
+--- a/app/(dashboard)/dashboard/abk-crew-penumpang/AbkCrewPenumpangClient.tsx
++++ b/app/(dashboard)/dashboard/abk-crew-penumpang/AbkCrewPenumpangClient.tsx
+@@ -2,10 +2,11 @@
+ 
+ import { useMemo, useState } from "react";
+ import Link from "next/link";
+-import TrenChartLine from "@/components/vektor/TrenChartLine";
++import TrenChartPilihanSeri from "@/components/vektor/TrenChartPilihanSeri";
++import FilterWilker from "@/components/vektor/FilterWilker";
+ import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
+ import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
+-import { PeranUser } from "@/types/database.types";
++import { PeranUser, type WilkerRef } from "@/types/database.types";
+ import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
+ import type { TitikGabungan, TitikLuarDalamNegeri } from "./page";
+ 
+@@ -32,6 +33,8 @@ type AbkCrewPenumpangClientProps = {
+   mingguanKeberangkatanLuarDalam: TitikLuarDalamNegeri[];
+   bulananKeberangkatanLuarDalam: TitikLuarDalamNegeri[];
+   hasilAI: Record<string, HasilAIStruktur | null>;
++  daftarWilker: WilkerRef[];
++  namaWilkerTerpilih: string | null;
+ };
+ 
+ const WARNA_KOMPONEN = {
+@@ -46,6 +49,73 @@ const WARNA_LUAR_DALAM = {
+   dalam_negeri: "#EA580C",
+ };
+ 
++// ---- Checkbox = SUMBER DATA ----
++const KEY_SUMBER_UTAMA = ["abk_kapal", "penumpang_kapal", "crew_pesawat", "penumpang_pesawat"];
++
++// Kedatangan: ABK Kapal = COP (Luar Negeri).
++const SUMBER_KEDATANGAN = [
++  { key: "abk_kapal", label: "ABK Kapal (COP, Luar Negeri)", warna: WARNA_KOMPONEN.abk_kapal },
++  { key: "penumpang_kapal", label: "Penumpang Kapal Datang", warna: WARNA_KOMPONEN.penumpang_kapal },
++  { key: "crew_pesawat", label: "Crew Pesawat Datang", warna: WARNA_KOMPONEN.crew_pesawat },
++  { key: "penumpang_pesawat", label: "Penumpang Pesawat Datang", warna: WARNA_KOMPONEN.penumpang_pesawat },
++];
++
++// Keberangkatan: ABK Kapal = PHQC.
++const SUMBER_KEBERANGKATAN = [
++  { key: "abk_kapal", label: "ABK Kapal (PHQC)", warna: WARNA_KOMPONEN.abk_kapal },
++  { key: "penumpang_kapal", label: "Penumpang Kapal Berangkat", warna: WARNA_KOMPONEN.penumpang_kapal },
++  { key: "crew_pesawat", label: "Crew Pesawat Berangkat", warna: WARNA_KOMPONEN.crew_pesawat },
++  { key: "penumpang_pesawat", label: "Penumpang Pesawat Berangkat", warna: WARNA_KOMPONEN.penumpang_pesawat },
++];
++
++// Grafik Luar vs Dalam Negeri: checkbox = sumber data; 2 batang dihitung ulang dari sumber yang dicentang.
++// Warna kotak = warna batang tempat sumber itu dijumlahkan.
++const SUMBER_LUAR_DALAM_KEDATANGAN = [
++  { key: "abk_cop", label: "ABK Kapal (COP)", warna: WARNA_LUAR_DALAM.luar_negeri },
++  { key: "abk_phqc_dalam", label: "ABK Kapal PHQC", warna: WARNA_LUAR_DALAM.dalam_negeri },
++  { key: "penumpang_kapal", label: "Penumpang Kapal Datang", warna: WARNA_LUAR_DALAM.dalam_negeri },
++  { key: "crew_pesawat", label: "Crew Pesawat Datang", warna: WARNA_LUAR_DALAM.dalam_negeri },
++  { key: "penumpang_pesawat", label: "Penumpang Pesawat Datang", warna: WARNA_LUAR_DALAM.dalam_negeri },
++];
++const HASIL_LUAR_DALAM_KEDATANGAN = [
++  { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri, sumber: ["abk_cop"] },
++  {
++    key: "dalam_negeri",
++    label: "Dalam Negeri",
++    warna: WARNA_LUAR_DALAM.dalam_negeri,
++    sumber: ["abk_phqc_dalam", "penumpang_kapal", "crew_pesawat", "penumpang_pesawat"],
++  },
++];
++
++const SUMBER_LUAR_DALAM_KEBERANGKATAN = [
++  { key: "abk_phqc_luar", label: "ABK Kapal PHQC (Luar Negeri)", warna: WARNA_LUAR_DALAM.luar_negeri },
++  { key: "abk_phqc_dalam", label: "ABK Kapal PHQC (Dalam Negeri)", warna: WARNA_LUAR_DALAM.dalam_negeri },
++  { key: "penumpang_kapal", label: "Penumpang Kapal Berangkat", warna: WARNA_LUAR_DALAM.dalam_negeri },
++  { key: "crew_pesawat", label: "Crew Pesawat Berangkat", warna: WARNA_LUAR_DALAM.dalam_negeri },
++  { key: "penumpang_pesawat", label: "Penumpang Pesawat Berangkat", warna: WARNA_LUAR_DALAM.dalam_negeri },
++];
++const HASIL_LUAR_DALAM_KEBERANGKATAN = [
++  { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri, sumber: ["abk_phqc_luar"] },
++  {
++    key: "dalam_negeri",
++    label: "Dalam Negeri",
++    warna: WARNA_LUAR_DALAM.dalam_negeri,
++    sumber: ["abk_phqc_dalam", "penumpang_kapal", "crew_pesawat", "penumpang_pesawat"],
++  },
++];
++
++// Grafik perbandingan: 1 set checkbox sumber data berlaku untuk kedua batang.
++const SUMBER_PERBANDINGAN = [
++  { key: "abk_kapal", label: "ABK Kapal (COP datang / PHQC berangkat)", warna: WARNA_KOMPONEN.abk_kapal },
++  { key: "penumpang_kapal", label: "Penumpang Kapal", warna: WARNA_KOMPONEN.penumpang_kapal },
++  { key: "crew_pesawat", label: "Crew Pesawat", warna: WARNA_KOMPONEN.crew_pesawat },
++  { key: "penumpang_pesawat", label: "Penumpang Pesawat", warna: WARNA_KOMPONEN.penumpang_pesawat },
++];
++const HASIL_PERBANDINGAN = [
++  { key: "total_kedatangan", label: "Total Kedatangan", warna: "#0F4C5C", sumber: KEY_SUMBER_UTAMA, awalan: "datang_" },
++  { key: "total_keberangkatan", label: "Total Keberangkatan", warna: "#B71C1C", sumber: KEY_SUMBER_UTAMA, awalan: "berangkat_" },
++];
++
+ export default function AbkCrewPenumpangClient({
+   role,
+   sudahLogin,
+@@ -62,6 +132,8 @@ export default function AbkCrewPenumpangClient({
+   mingguanKeberangkatanLuarDalam,
+   bulananKeberangkatanLuarDalam,
+   hasilAI,
++  daftarWilker,
++  namaWilkerTerpilih,
+ }: AbkCrewPenumpangClientProps) {
+   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
+ 
+@@ -110,19 +182,30 @@ export default function AbkCrewPenumpangClient({
+     [granularitas, bulananKeberangkatanLuarDalam, mingguanKeberangkatanLuarDalam, batasAwal, batasAkhir]
+   );
+ 
+-  // Data perbandingan (Section 7): 1 baris per periode, kolomnya
+-  // total_kedatangan vs total_keberangkatan.
++  // Data perbandingan (Section 7): 1 baris per periode, dengan nilai PER SUMBER
++  // untuk arah datang (datang_*) dan berangkat (berangkat_*) supaya total kedua
++  // batang bisa dihitung ulang sesuai checkbox sumber data.
+   const dataPerbandingan = useMemo(() => {
+-    const peta = new Map<number, { urutan: number; name: string; label: string; total_kedatangan: number; total_keberangkatan: number }>();
++    type Baris = { urutan: number; name: string; label: string } & Record<string, number | string>;
++    const peta = new Map<number, Baris>();
++    const ambil = (d: { urutan: number; name: string; label: string }): Baris => {
++      const ada = peta.get(d.urutan);
++      if (ada) return ada;
++      const baru: Baris = { urutan: d.urutan, name: d.name, label: d.label };
++      KEY_SUMBER_UTAMA.forEach((k) => {
++        baru[`datang_${k}`] = 0;
++        baru[`berangkat_${k}`] = 0;
++      });
++      peta.set(d.urutan, baru);
++      return baru;
++    };
+     dataKedatangan.forEach((d) => {
+-      const existing = peta.get(d.urutan) ?? { urutan: d.urutan, name: d.name, label: d.label, total_kedatangan: 0, total_keberangkatan: 0 };
+-      existing.total_kedatangan = d.total;
+-      peta.set(d.urutan, existing);
++      const baris = ambil(d);
++      KEY_SUMBER_UTAMA.forEach((k) => (baris[`datang_${k}`] = (d as any)[k] ?? 0));
+     });
+     dataKeberangkatan.forEach((d) => {
+-      const existing = peta.get(d.urutan) ?? { urutan: d.urutan, name: d.name, label: d.label, total_kedatangan: 0, total_keberangkatan: 0 };
+-      existing.total_keberangkatan = d.total;
+-      peta.set(d.urutan, existing);
++      const baris = ambil(d);
++      KEY_SUMBER_UTAMA.forEach((k) => (baris[`berangkat_${k}`] = (d as any)[k] ?? 0));
+     });
+     return Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
+   }, [dataKedatangan, dataKeberangkatan]);
+@@ -154,6 +237,8 @@ export default function AbkCrewPenumpangClient({
+         </div>
+ 
+         <div className="flex flex-wrap items-center justify-end gap-3">
++          <FilterWilker daftarWilker={daftarWilker} sembunyikanNonAktif={false} />
++
+           <Link
+             href="/lalu-lintas-orang"
+             className="rounded-md border border-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-[#0F4C5C] hover:bg-gray-50 transition-colors"
+@@ -225,6 +310,14 @@ export default function AbkCrewPenumpangClient({
+         </div>
+       </div>
+ 
++      {namaWilkerTerpilih && (
++        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
++          Menampilkan data wilayah kerja <strong>{namaWilkerTerpilih}</strong>. Sumber yang tidak beroperasi di wilayah ini
++          (mis. Pesawat di pelabuhan, atau Penumpang Kapal di luar Samarinda dan Lhoktuan) tampil 0. Kotak Analisis &amp;
++          Prediksi AI di bawah tetap mencakup seluruh wilayah kerja.
++        </p>
++      )}
++
+       {/* ================= KEDATANGAN ================= */}
+       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
+         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
+@@ -233,36 +326,22 @@ export default function AbkCrewPenumpangClient({
+         <p className="mb-4 text-center text-xs text-gray-400">
+           Total gabungan ABK Kapal dari Luar Negeri + Crew Pesawat Datang + Penumpang Pesawat Datang + Penumpang Kapal Datang
+         </p>
+-        {dataKedatangan.length === 0 ? (
+-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
+-        ) : (
+-          <TrenChartLine
++        <TrenChartPilihanSeri
+             data={dataKedatangan}
+             tipeChart={tipeChart}
+             tampilkanNilai={granularitas === "bulanan"}
+-            seriesList={[{ key: "total", label: "Total Kedatangan", warna: "#0F4C5C" }]}
++            sumberList={SUMBER_KEDATANGAN}
++            seriesHasil={[
++              { key: "total", label: "Total Kedatangan", warna: "#0F4C5C", sumber: KEY_SUMBER_UTAMA },
++            ]}
+           />
+-        )}
+       </div>
+ 
+       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
+         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
+           Distribusi Pengawasan Lalu Lintas Orang yang Datang ke Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+         </h2>
+-        {dataKedatangan.length === 0 ? (
+-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
+-        ) : (
+-          <TrenChartLine
+-            data={dataKedatangan}
+-            tipeChart={tipeChart}
+-            seriesList={[
+-              { key: "abk_kapal", label: "ABK Kapal", warna: WARNA_KOMPONEN.abk_kapal },
+-              { key: "penumpang_kapal", label: "Penumpang Kapal", warna: WARNA_KOMPONEN.penumpang_kapal },
+-              { key: "crew_pesawat", label: "Crew Pesawat", warna: WARNA_KOMPONEN.crew_pesawat },
+-              { key: "penumpang_pesawat", label: "Penumpang Pesawat", warna: WARNA_KOMPONEN.penumpang_pesawat },
+-            ]}
+-          />
+-        )}
++        <TrenChartPilihanSeri data={dataKedatangan} tipeChart={tipeChart} sumberList={SUMBER_KEDATANGAN} />
+       </div>
+ 
+       {/* ---- BARU: Kedatangan Luar Negeri vs Dalam Negeri ---- */}
+@@ -273,18 +352,12 @@ export default function AbkCrewPenumpangClient({
+         <p className="mb-4 text-center text-xs text-gray-400">
+           Luar Negeri: ABK Kapal (COP). Dalam Negeri: ABK Kapal PHQC + Penumpang Kapal Datang + Crew &amp; Penumpang Pesawat Datang
+         </p>
+-        {dataKedatanganLuarDalam.length === 0 ? (
+-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
+-        ) : (
+-          <TrenChartLine
++        <TrenChartPilihanSeri
+             data={dataKedatanganLuarDalam}
+             tipeChart={tipeChart}
+-            seriesList={[
+-              { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri },
+-              { key: "dalam_negeri", label: "Dalam Negeri", warna: WARNA_LUAR_DALAM.dalam_negeri },
+-            ]}
++            sumberList={SUMBER_LUAR_DALAM_KEDATANGAN}
++            seriesHasil={HASIL_LUAR_DALAM_KEDATANGAN}
+           />
+-        )}
+       </div>
+ 
+       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+@@ -314,36 +387,22 @@ export default function AbkCrewPenumpangClient({
+         <p className="mb-4 text-center text-xs text-gray-400">
+           Total gabungan ABK Kapal PHQC + Penumpang Kapal Berangkat + Crew Pesawat Berangkat + Penumpang Pesawat Berangkat
+         </p>
+-        {dataKeberangkatan.length === 0 ? (
+-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
+-        ) : (
+-          <TrenChartLine
++        <TrenChartPilihanSeri
+             data={dataKeberangkatan}
+             tipeChart={tipeChart}
+             tampilkanNilai={granularitas === "bulanan"}
+-            seriesList={[{ key: "total", label: "Total Keberangkatan", warna: "#B71C1C" }]}
++            sumberList={SUMBER_KEBERANGKATAN}
++            seriesHasil={[
++              { key: "total", label: "Total Keberangkatan", warna: "#B71C1C", sumber: KEY_SUMBER_UTAMA },
++            ]}
+           />
+-        )}
+       </div>
+ 
+       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
+         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
+           Distribusi Pengawasan Lalu Lintas Orang yang Berangkat dari Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+         </h2>
+-        {dataKeberangkatan.length === 0 ? (
+-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
+-        ) : (
+-          <TrenChartLine
+-            data={dataKeberangkatan}
+-            tipeChart={tipeChart}
+-            seriesList={[
+-              { key: "abk_kapal", label: "ABK Kapal", warna: WARNA_KOMPONEN.abk_kapal },
+-              { key: "penumpang_kapal", label: "Penumpang Kapal", warna: WARNA_KOMPONEN.penumpang_kapal },
+-              { key: "crew_pesawat", label: "Crew Pesawat", warna: WARNA_KOMPONEN.crew_pesawat },
+-              { key: "penumpang_pesawat", label: "Penumpang Pesawat", warna: WARNA_KOMPONEN.penumpang_pesawat },
+-            ]}
+-          />
+-        )}
++        <TrenChartPilihanSeri data={dataKeberangkatan} tipeChart={tipeChart} sumberList={SUMBER_KEBERANGKATAN} />
+       </div>
+ 
+       {/* ---- BARU: Keberangkatan Luar Negeri vs Dalam Negeri ---- */}
+@@ -354,18 +413,12 @@ export default function AbkCrewPenumpangClient({
+         <p className="mb-4 text-center text-xs text-gray-400">
+           Luar Negeri: ABK Kapal PHQC tujuan Luar Negeri. Dalam Negeri: ABK Kapal PHQC tujuan Dalam Negeri + Penumpang Kapal Berangkat + Crew &amp; Penumpang Pesawat Berangkat
+         </p>
+-        {dataKeberangkatanLuarDalam.length === 0 ? (
+-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
+-        ) : (
+-          <TrenChartLine
++        <TrenChartPilihanSeri
+             data={dataKeberangkatanLuarDalam}
+             tipeChart={tipeChart}
+-            seriesList={[
+-              { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri },
+-              { key: "dalam_negeri", label: "Dalam Negeri", warna: WARNA_LUAR_DALAM.dalam_negeri },
+-            ]}
++            sumberList={SUMBER_LUAR_DALAM_KEBERANGKATAN}
++            seriesHasil={HASIL_LUAR_DALAM_KEBERANGKATAN}
+           />
+-        )}
+       </div>
+ 
+       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+@@ -392,18 +445,12 @@ export default function AbkCrewPenumpangClient({
+         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
+           Distribusi Pengawasan Lalu Lintas Orang Datang & Berangkat di Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br />(Dalam {granularitas})
+         </h2>
+-        {dataPerbandingan.length === 0 ? (
+-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
+-        ) : (
+-          <TrenChartLine
++        <TrenChartPilihanSeri
+             data={dataPerbandingan}
+             tipeChart={tipeChart}
+-            seriesList={[
+-              { key: "total_kedatangan", label: "Total Kedatangan", warna: "#0F4C5C" },
+-              { key: "total_keberangkatan", label: "Total Keberangkatan", warna: "#B71C1C" },
+-            ]}
++            sumberList={SUMBER_PERBANDINGAN}
++            seriesHasil={HASIL_PERBANDINGAN}
+           />
+-        )}
+       </div>
+     </div>
+   );
+diff --git a/app/(dashboard)/dashboard/abk-crew-penumpang/page.tsx b/app/(dashboard)/dashboard/abk-crew-penumpang/page.tsx
+index 58a4ab2..749322b 100644
+--- a/app/(dashboard)/dashboard/abk-crew-penumpang/page.tsx
++++ b/app/(dashboard)/dashboard/abk-crew-penumpang/page.tsx
+@@ -2,6 +2,7 @@ import { getStatusAkses } from "@/lib/auth/getStatusAkses";
+ import {
+   getRingkasanMingguan,
+   getRingkasanBulanan,
++  getWilkerRef,
+ } from "@/lib/supabase/queries";
+ import {
+   getRingkasanPesawatMingguan,
+@@ -46,17 +47,6 @@ function jumlahkanPerPeriode(
+   return peta;
+ }
+ 
+-/** Jumlahkan beberapa Map<periode, nilai> jadi satu Map (dipakai untuk bucket "Dalam Negeri"). */
+-function jumlahkanBeberapaPeta(...petaList: Map<number, number>[]): Map<number, number> {
+-  const hasil = new Map<number, number>();
+-  petaList.forEach((peta) => {
+-    peta.forEach((nilai, periode) => {
+-      hasil.set(periode, (hasil.get(periode) ?? 0) + nilai);
+-    });
+-  });
+-  return hasil;
+-}
+-
+ function ambilPeriodeMingguanPesawat(row: any): number | undefined {
+   return row.minggu_epid ?? row.minggu ?? row.minggu_ke ?? undefined;
+ }
+@@ -119,36 +109,86 @@ function gabungkanEmpatSeri(
+     });
+ }
+ 
+-/** Titik untuk grafik breakdown Luar Negeri vs Dalam Negeri (2 series per periode). */
++/**
++ * Titik untuk grafik breakdown Luar Negeri vs Dalam Negeri. Selain 2 angka
++ * hasil (luar_negeri, dalam_negeri), tiap titik membawa nilai PER SUMBER DATA
++ * supaya client bisa menghitung ulang kedua batang sesuai sumber yang dicentang.
++ */
+ export interface TitikLuarDalamNegeri {
+   urutan: number;
+   label: string;
+   name: string;
+   luar_negeri: number;
+   dalam_negeri: number;
++  abk_cop: number; // ABK Kapal COP (kedatangan, Luar Negeri)
++  abk_phqc_luar: number; // ABK Kapal PHQC tujuan Luar Negeri (keberangkatan)
++  abk_phqc_dalam: number; // ABK Kapal PHQC tujuan Dalam Negeri
++  penumpang_kapal: number;
++  crew_pesawat: number;
++  penumpang_pesawat: number;
+ }
+ 
+-function gabungkanDuaSeri(
+-  petaLuarNegeri: Map<number, number>,
+-  petaDalamNegeri: Map<number, number>,
++interface SumberLuarDalam {
++  abkCop: Map<number, number>;
++  abkPhqcLuar: Map<number, number>;
++  abkPhqcDalam: Map<number, number>;
++  penumpangKapal: Map<number, number>;
++  crewPesawat: Map<number, number>;
++  penumpangPesawat: Map<number, number>;
++}
++
++/**
++ * arah "datang": Luar Negeri = ABK COP.
++ * arah "berangkat": Luar Negeri = ABK PHQC tujuan Luar Negeri.
++ * Dalam Negeri (kedua arah) = ABK PHQC Dalam Negeri + Penumpang Kapal + Crew + Penumpang Pesawat.
++ */
++function gabungkanLuarDalamPerSumber(
++  sumber: SumberLuarDalam,
++  arah: "datang" | "berangkat",
+   labelFn: (urutan: number) => string
+ ): TitikLuarDalamNegeri[] {
+-  const semuaPeriode = new Set<number>([...petaLuarNegeri.keys(), ...petaDalamNegeri.keys()]);
++  const semuaPeriode = new Set<number>();
++  (Object.values(sumber) as Map<number, number>[]).forEach((peta) =>
++    peta.forEach((_nilai, urutan) => semuaPeriode.add(urutan))
++  );
++
+   return Array.from(semuaPeriode)
+     .sort((a, b) => a - b)
+     .map((urutan) => {
+       const label = labelFn(urutan);
++      const abk_cop = sumber.abkCop.get(urutan) ?? 0;
++      const abk_phqc_luar = sumber.abkPhqcLuar.get(urutan) ?? 0;
++      const abk_phqc_dalam = sumber.abkPhqcDalam.get(urutan) ?? 0;
++      const penumpang_kapal = sumber.penumpangKapal.get(urutan) ?? 0;
++      const crew_pesawat = sumber.crewPesawat.get(urutan) ?? 0;
++      const penumpang_pesawat = sumber.penumpangPesawat.get(urutan) ?? 0;
+       return {
+         urutan,
+         label,
+         name: label,
+-        luar_negeri: petaLuarNegeri.get(urutan) ?? 0,
+-        dalam_negeri: petaDalamNegeri.get(urutan) ?? 0,
++        luar_negeri: arah === "datang" ? abk_cop : abk_phqc_luar,
++        dalam_negeri: abk_phqc_dalam + penumpang_kapal + crew_pesawat + penumpang_pesawat,
++        abk_cop,
++        abk_phqc_luar,
++        abk_phqc_dalam,
++        penumpang_kapal,
++        crew_pesawat,
++        penumpang_pesawat,
+       };
+     });
+ }
+ 
+-export default async function AbkCrewPenumpangPage() {
++/** "Pelabuhan Tanjung Santan" -> "tanjungsantan" (dibandingkan dgn enum Wilayah "TanjungSantan"). */
++function normalisasiNamaWilker(nama: string): string {
++  return nama.replace(/^(pelabuhan|bandara)\s+/i, "").replace(/\s+/g, "").toLowerCase();
++}
++
++export default async function AbkCrewPenumpangPage({
++  searchParams,
++}: {
++  searchParams: Promise<{ wilker?: string }>;
++}) {
++  const { wilker: wilkerParam } = await searchParams;
+   const { sudahLogin, role } = await getStatusAkses();
+   const roleAI = role === "admin" || role === "petugas" ? role : null;
+ 
+@@ -182,11 +222,24 @@ export default async function AbkCrewPenumpangPage() {
+     { konteks: "abk-crew-penumpang-keberangkatan-bulanan", periodeKey: `${tahunKalender}-${bulanBerjalan}`, tipe: "prediksi" },
+   ];
+ 
++  // ---- FILTER WILAYAH KERJA (?wilker=WK01..WK07) ----
++  // Kode wilker divalidasi ke wilker_ref, lalu diterjemahkan ke nilai yang
++  // dipakai tiap sumber: Pesawat pakai kode_wilker langsung; COP/PHQC/Turso
++  // pakai nama wilayah tanpa spasi (mis. "TanjungSantan").
++  const daftarWilker = await getWilkerRef();
++  const wilkerTerpilih = wilkerParam ? daftarWilker.find((w) => w.kode === wilkerParam) : undefined;
++  const kodeWilker = wilkerTerpilih?.kode;
++  const namaWilayah = wilkerTerpilih
++    ? wilkerTerpilih.nama.replace(/^(pelabuhan|bandara)\s+/i, "").replace(/\s+/g, "")
++    : undefined;
++  const cocokWilayah = (r: { wilayah_kerja?: string | null }) =>
++    !namaWilayah || normalisasiNamaWilker(String(r.wilayah_kerja ?? "")) === normalisasiNamaWilker(namaWilayah);
++
+   const [
+-    ringkasanCopMingguan,
+-    ringkasanCopBulanan,
+-    ringkasanPhqcMingguan,
+-    ringkasanPhqcBulanan,
++    ringkasanCopMingguanSemua,
++    ringkasanCopBulananSemua,
++    ringkasanPhqcMingguanSemua,
++    ringkasanPhqcBulananSemua,
+     ringkasanPesawatMingguan,
+     ringkasanPesawatBulanan,
+     penumpangKapalMingguan,
+@@ -199,15 +252,21 @@ export default async function AbkCrewPenumpangPage() {
+     getRingkasanBulanan("cop", tahunKalender),
+     getRingkasanMingguan("phqc", tahunEpid),
+     getRingkasanBulanan("phqc", tahunKalender),
+-    getRingkasanPesawatMingguan({ tahun: tahunEpid }),
+-    getRingkasanPesawatBulanan({ tahun: tahunKalender }),
+-    getPenumpangKapalMingguan(tahunEpid),
+-    getPenumpangKapalBulanan(tahunKalender),
+-    getAbkPhqcPerTujuanMingguan(tahunEpid),
+-    getAbkPhqcPerTujuanBulanan(tahunKalender),
++    getRingkasanPesawatMingguan({ tahun: tahunEpid, kodeWilker }),
++    getRingkasanPesawatBulanan({ tahun: tahunKalender, kodeWilker }),
++    getPenumpangKapalMingguan(tahunEpid, namaWilayah),
++    getPenumpangKapalBulanan(tahunKalender, namaWilayah),
++    getAbkPhqcPerTujuanMingguan(tahunEpid, namaWilayah),
++    getAbkPhqcPerTujuanBulanan(tahunKalender, namaWilayah),
+     getBanyakHasilAI(permintaanAI),
+   ]);
+ 
++  // View COP/PHQC sudah per wilayah_kerja -> cukup disaring di sini.
++  const ringkasanCopMingguan = ringkasanCopMingguanSemua.filter(cocokWilayah);
++  const ringkasanCopBulanan = ringkasanCopBulananSemua.filter(cocokWilayah);
++  const ringkasanPhqcMingguan = ringkasanPhqcMingguanSemua.filter(cocokWilayah);
++  const ringkasanPhqcBulanan = ringkasanPhqcBulananSemua.filter(cocokWilayah);
++
+   // ---- Peta komponen mingguan/bulanan yang dipakai ulang untuk total DAN breakdown ----
+   const petaAbkCopMingguan = jumlahkanPerPeriode(ringkasanCopMingguan, (r) => r.minggu_epid, (r) => r.total_abk);
+   const petaAbkCopBulanan = jumlahkanPerPeriode(ringkasanCopBulanan, (r) => r.bulan, (r) => r.total_abk);
+@@ -257,49 +316,58 @@ export default async function AbkCrewPenumpangPage() {
+   // ---- BREAKDOWN KEDATANGAN Luar Negeri vs Dalam Negeri ----
+   // Luar Negeri = ABK COP. Dalam Negeri = ABK PHQC "Dalam Negeri" (dipakai ulang,
+   // PHQC tidak punya data arah datang) + Penumpang Kapal Datang + Crew & Penumpang
+-  // Pesawat Datang.
+-  const mingguanKedatanganLuarDalam = gabungkanDuaSeri(
+-    petaAbkCopMingguan,
+-    jumlahkanBeberapaPeta(
+-      abkPhqcTujuanMingguan.petaDalamNegeri,
+-      penumpangKapalMingguan.petaDatang,
+-      petaCrewDatangMingguan,
+-      petaPenumpangPesawatDatangMingguan
+-    ),
++  // Pesawat Datang. Nilai per sumber ikut dikirim untuk checkbox di client.
++  const kosong = new Map<number, number>();
++  const mingguanKedatanganLuarDalam = gabungkanLuarDalamPerSumber(
++    {
++      abkCop: petaAbkCopMingguan,
++      abkPhqcLuar: kosong,
++      abkPhqcDalam: abkPhqcTujuanMingguan.petaDalamNegeri,
++      penumpangKapal: penumpangKapalMingguan.petaDatang,
++      crewPesawat: petaCrewDatangMingguan,
++      penumpangPesawat: petaPenumpangPesawatDatangMingguan,
++    },
++    "datang",
+     (u) => `Mg ${u}`
+   );
+-  const bulananKedatanganLuarDalam = gabungkanDuaSeri(
+-    petaAbkCopBulanan,
+-    jumlahkanBeberapaPeta(
+-      abkPhqcTujuanBulanan.petaDalamNegeri,
+-      penumpangKapalBulanan.petaDatang,
+-      petaCrewDatangBulanan,
+-      petaPenumpangPesawatDatangBulanan
+-    ),
++  const bulananKedatanganLuarDalam = gabungkanLuarDalamPerSumber(
++    {
++      abkCop: petaAbkCopBulanan,
++      abkPhqcLuar: kosong,
++      abkPhqcDalam: abkPhqcTujuanBulanan.petaDalamNegeri,
++      penumpangKapal: penumpangKapalBulanan.petaDatang,
++      crewPesawat: petaCrewDatangBulanan,
++      penumpangPesawat: petaPenumpangPesawatDatangBulanan,
++    },
++    "datang",
+     (u) => NAMA_BULAN[u - 1] ?? `Bln ${u}`
+   );
+ 
+   // ---- BREAKDOWN KEBERANGKATAN Luar Negeri vs Dalam Negeri ----
+   // Luar Negeri = ABK PHQC tujuan "Luar Negeri". Dalam Negeri = ABK PHQC "Dalam
+   // Negeri" + Penumpang Kapal Berangkat + Crew & Penumpang Pesawat Berangkat.
+-  const mingguanKeberangkatanLuarDalam = gabungkanDuaSeri(
+-    abkPhqcTujuanMingguan.petaLuarNegeri,
+-    jumlahkanBeberapaPeta(
+-      abkPhqcTujuanMingguan.petaDalamNegeri,
+-      penumpangKapalMingguan.petaBerangkat,
+-      petaCrewBerangkatMingguan,
+-      petaPenumpangPesawatBerangkatMingguan
+-    ),
++  const mingguanKeberangkatanLuarDalam = gabungkanLuarDalamPerSumber(
++    {
++      abkCop: kosong,
++      abkPhqcLuar: abkPhqcTujuanMingguan.petaLuarNegeri,
++      abkPhqcDalam: abkPhqcTujuanMingguan.petaDalamNegeri,
++      penumpangKapal: penumpangKapalMingguan.petaBerangkat,
++      crewPesawat: petaCrewBerangkatMingguan,
++      penumpangPesawat: petaPenumpangPesawatBerangkatMingguan,
++    },
++    "berangkat",
+     (u) => `Mg ${u}`
+   );
+-  const bulananKeberangkatanLuarDalam = gabungkanDuaSeri(
+-    abkPhqcTujuanBulanan.petaLuarNegeri,
+-    jumlahkanBeberapaPeta(
+-      abkPhqcTujuanBulanan.petaDalamNegeri,
+-      penumpangKapalBulanan.petaBerangkat,
+-      petaCrewBerangkatBulanan,
+-      petaPenumpangPesawatBerangkatBulanan
+-    ),
++  const bulananKeberangkatanLuarDalam = gabungkanLuarDalamPerSumber(
++    {
++      abkCop: kosong,
++      abkPhqcLuar: abkPhqcTujuanBulanan.petaLuarNegeri,
++      abkPhqcDalam: abkPhqcTujuanBulanan.petaDalamNegeri,
++      penumpangKapal: penumpangKapalBulanan.petaBerangkat,
++      crewPesawat: petaCrewBerangkatBulanan,
++      penumpangPesawat: petaPenumpangPesawatBerangkatBulanan,
++    },
++    "berangkat",
+     (u) => NAMA_BULAN[u - 1] ?? `Bln ${u}`
+   );
+ 
+@@ -320,6 +388,8 @@ export default async function AbkCrewPenumpangPage() {
+       mingguanKeberangkatanLuarDalam={mingguanKeberangkatanLuarDalam}
+       bulananKeberangkatanLuarDalam={bulananKeberangkatanLuarDalam}
+       hasilAI={hasilAI}
++      daftarWilker={daftarWilker}
++      namaWilkerTerpilih={wilkerTerpilih?.nama ?? null}
+     />
+   );
+ }
+\ No newline at end of file
+diff --git a/components/vektor/TrenChartPilihanSeri.tsx b/components/vektor/TrenChartPilihanSeri.tsx
+new file mode 100644
+index 0000000..eaa8bee
+--- /dev/null
++++ b/components/vektor/TrenChartPilihanSeri.tsx
+@@ -0,0 +1,135 @@
++"use client";
++
++import { useMemo, useState } from "react";
++import TrenChartLine from "@/components/vektor/TrenChartLine";
++
++/** Satu SUMBER DATA = satu checkbox. `key` = nama kolom di data. */
++type SumberItem = {
++  key: string;
++  label: string;
++  warna: string;
++};
++
++/**
++ * Satu seri HASIL yang digambar = jumlah dari sumber-sumber (yang dicentang)
++ * di daftar `sumber`. `awalan` (opsional) ditambahkan di depan key sumber
++ * saat membaca kolom data, mis. awalan "datang_" + sumber "abk_kapal"
++ * membaca kolom `datang_abk_kapal`.
++ */
++type SeriesHasil = {
++  key: string;
++  label: string;
++  warna: string;
++  sumber: string[];
++  awalan?: string;
++};
++
++type TrenChartPilihanSeriProps = {
++  data: any[];
++  /** Daftar checkbox (sumber data). */
++  sumberList: SumberItem[];
++  /**
++   * Kalau kosong: tiap sumber yang dicentang digambar sebagai serinya sendiri.
++   * Kalau diisi: yang digambar adalah seri-seri hasil ini (dijumlahkan dari
++   * sumber yang dicentang). Seri yang semua sumbernya tidak dicentang disembunyikan.
++   */
++  seriesHasil?: SeriesHasil[];
++  tipeChart?: "line" | "bar";
++  tampilkanNilai?: boolean;
++  pesanKosong?: string;
++};
++
++const AWALAN_HASIL = "__hasil_";
++
++/**
++ * Pembungkus TrenChartLine dengan checkbox SUMBER DATA yang diletakkan DI
++ * BAWAH grafik. Kondisi "data kosong" ditangani di sini supaya state centang
++ * tidak hilang saat rentang periode berubah.
++ */
++export default function TrenChartPilihanSeri({
++  data,
++  sumberList,
++  seriesHasil,
++  tipeChart = "line",
++  tampilkanNilai = false,
++  pesanKosong = "Belum ada data untuk rentang ini.",
++}: TrenChartPilihanSeriProps) {
++  const [dipilih, setDipilih] = useState<Set<string>>(() => new Set(sumberList.map((s) => s.key)));
++
++  const toggle = (key: string) =>
++    setDipilih((lama) => {
++      const baru = new Set(lama);
++      if (baru.has(key)) baru.delete(key);
++      else baru.add(key);
++      return baru;
++    });
++
++  const semuaDipilih = sumberList.every((s) => dipilih.has(s.key));
++
++  const { dataTampil, seriesGambar } = useMemo(() => {
++    if (!seriesHasil) {
++      return {
++        dataTampil: data,
++        seriesGambar: sumberList.filter((s) => dipilih.has(s.key)),
++      };
++    }
++
++    const aktif = seriesHasil.filter((h) => h.sumber.some((k) => dipilih.has(k)));
++    const hitung = data.map((d) => {
++      const baris: Record<string, any> = { ...d };
++      aktif.forEach((h) => {
++        baris[AWALAN_HASIL + h.key] = h.sumber
++          .filter((k) => dipilih.has(k))
++          .reduce((jumlah, k) => jumlah + (Number(d[(h.awalan ?? "") + k]) || 0), 0);
++      });
++      return baris;
++    });
++    return {
++      dataTampil: hitung,
++      seriesGambar: aktif.map((h) => ({ key: AWALAN_HASIL + h.key, label: h.label, warna: h.warna })),
++    };
++  }, [data, sumberList, seriesHasil, dipilih]);
++
++  return (
++    <div className="space-y-3">
++      {data.length === 0 ? (
++        <p className="py-8 text-center text-sm text-gray-400">{pesanKosong}</p>
++      ) : seriesGambar.length === 0 ? (
++        <p className="py-8 text-center text-sm text-gray-400">
++          Centang minimal satu sumber data untuk menampilkan grafik.
++        </p>
++      ) : (
++        <TrenChartLine
++          data={dataTampil}
++          tipeChart={tipeChart}
++          tampilkanNilai={tampilkanNilai}
++          seriesList={seriesGambar}
++        />
++      )}
++
++      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
++        <span className="font-semibold text-gray-500">Sumber data:</span>
++        {sumberList.map((s) => (
++          <label key={s.key} className="flex cursor-pointer items-center gap-1.5 text-gray-700">
++            <input
++              type="checkbox"
++              checked={dipilih.has(s.key)}
++              onChange={() => toggle(s.key)}
++              className="h-3.5 w-3.5 cursor-pointer"
++              style={{ accentColor: s.warna }}
++            />
++            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.warna }} />
++            {s.label}
++          </label>
++        ))}
++        <button
++          type="button"
++          onClick={() => setDipilih(new Set(semuaDipilih ? [] : sumberList.map((s) => s.key)))}
++          className="ml-auto font-semibold text-[#0F4C5C] hover:underline"
++        >
++          {semuaDipilih ? "Kosongkan" : "Pilih semua"}
++        </button>
++      </div>
++    </div>
++  );
++}
+diff --git a/lib/supabase/queriesPhqcTujuan.ts b/lib/supabase/queriesPhqcTujuan.ts
+index d320fbd..7563f11 100644
+--- a/lib/supabase/queriesPhqcTujuan.ts
++++ b/lib/supabase/queriesPhqcTujuan.ts
+@@ -19,13 +19,16 @@ interface BarisAbkPhqc {
+   jumlahAbk: number;
+ }
+ 
+-async function ambilAbkPhqcTahun(tahunKalender: number): Promise<BarisAbkPhqc[]> {
++async function ambilAbkPhqcTahun(tahunKalender: number, wilayah?: string): Promise<BarisAbkPhqc[]> {
+   const supabase = await createClient();
+-  const { data, error } = await supabase
++  let query = supabase
+     .from("kegiatan_phqc")
+     .select("tgl_keberangkatan, jml_abk_wna, jml_abk_wni, tujuan_berlayar")
+     .gte("tgl_keberangkatan", `${tahunKalender}-01-01`)
+     .lte("tgl_keberangkatan", `${tahunKalender}-12-31`);
++  // `wilayah` = nilai enum Wilayah (mis. "Samarinda", "TanjungSantan"); kosong = semua wilayah.
++  if (wilayah) query = query.eq("wilayah_kerja", wilayah);
++  const { data, error } = await query;
+ 
+   if (error) throw error;
+ 
+@@ -46,13 +49,16 @@ function isLuarNegeri(tujuan: string): boolean {
+  * tahun bisa "menyeberang" tahun kalender (pola sama dengan Penumpang Kapal).
+  */
+ export async function getAbkPhqcPerTujuanMingguan(
+-  tahunEpid: number
++  tahunEpid: number,
++  wilayah?: string
+ ): Promise<{ petaDalamNegeri: Map<number, number>; petaLuarNegeri: Map<number, number> }> {
+-  const baris = [
+-    ...(await ambilAbkPhqcTahun(tahunEpid - 1)),
+-    ...(await ambilAbkPhqcTahun(tahunEpid)),
+-    ...(await ambilAbkPhqcTahun(tahunEpid + 1)),
+-  ];
++  // 3 tahun diambil PARALEL (sebelumnya 3 await berurutan).
++  const [sebelum, ini, sesudah] = await Promise.all([
++    ambilAbkPhqcTahun(tahunEpid - 1, wilayah),
++    ambilAbkPhqcTahun(tahunEpid, wilayah),
++    ambilAbkPhqcTahun(tahunEpid + 1, wilayah),
++  ]);
++  const baris = [...sebelum, ...ini, ...sesudah];
+ 
+   const petaDalamNegeri = new Map<number, number>();
+   const petaLuarNegeri = new Map<number, number>();
+@@ -74,9 +80,10 @@ export async function getAbkPhqcPerTujuanMingguan(
+ 
+ /** ABK PHQC per bulan kalender, dipecah Dalam Negeri / Luar Negeri. */
+ export async function getAbkPhqcPerTujuanBulanan(
+-  tahunKalender: number
++  tahunKalender: number,
++  wilayah?: string
+ ): Promise<{ petaDalamNegeri: Map<number, number>; petaLuarNegeri: Map<number, number> }> {
+-  const baris = await ambilAbkPhqcTahun(tahunKalender);
++  const baris = await ambilAbkPhqcTahun(tahunKalender, wilayah);
+ 
+   const petaDalamNegeri = new Map<number, number>();
+   const petaLuarNegeri = new Map<number, number>();
+diff --git a/lib/turso/queriesPenumpangKapal.ts b/lib/turso/queriesPenumpangKapal.ts
+index 8a067e6..0621922 100644
+--- a/lib/turso/queriesPenumpangKapal.ts
++++ b/lib/turso/queriesPenumpangKapal.ts
+@@ -12,12 +12,24 @@ interface BarisPenumpangKapal {
+   penumpang_berangkat: number;
+ }
+ 
+-async function ambilBarisTahun(tahun: number): Promise<BarisPenumpangKapal[]> {
++/** "Tanjung Santan" / "TanjungSantan" -> "tanjungsantan" (pembanding wilker yang tahan beda spasi/huruf besar). */
++function normalisasiWilker(nama: string): string {
++  return nama.replace(/\s+/g, "").toLowerCase();
++}
++
++async function ambilBarisTahun(tahun: number, wilker?: string): Promise<BarisPenumpangKapal[]> {
++  const args: (string | number)[] = [String(tahun)];
++  let kondisiWilker = "";
++  if (wilker) {
++    kondisiWilker = ` AND REPLACE(LOWER(wilker), ' ', '') = ?`;
++    args.push(normalisasiWilker(wilker));
++  }
++
+   const hasil = await getTursoClient().execute({
+     sql: `SELECT tanggal_tiba, penumpang_datang, penumpang_berangkat
+           FROM data_penumpang_kapal
+-          WHERE strftime('%Y', tanggal_tiba) = ?`,
+-    args: [String(tahun)],
++          WHERE strftime('%Y', tanggal_tiba) = ?${kondisiWilker}`,
++    args,
+   });
+ 
+   return hasil.rows.map((r: any) => ({
+@@ -36,13 +48,16 @@ async function ambilBarisTahun(tahun: number): Promise<BarisPenumpangKapal[]> {
+  * tahun bisa "menyeberang" tahun kalender.
+  */
+ export async function getPenumpangKapalMingguan(
+-  tahunEpid: number
++  tahunEpid: number,
++  wilker?: string
+ ): Promise<{ petaDatang: Map<number, number>; petaBerangkat: Map<number, number> }> {
+-  const baris = [
+-    ...(await ambilBarisTahun(tahunEpid - 1)),
+-    ...(await ambilBarisTahun(tahunEpid)),
+-    ...(await ambilBarisTahun(tahunEpid + 1)),
+-  ];
++  // 3 tahun diambil PARALEL (sebelumnya 3 await berurutan = 3x round-trip Turso).
++  const [sebelum, ini, sesudah] = await Promise.all([
++    ambilBarisTahun(tahunEpid - 1, wilker),
++    ambilBarisTahun(tahunEpid, wilker),
++    ambilBarisTahun(tahunEpid + 1, wilker),
++  ]);
++  const baris = [...sebelum, ...ini, ...sesudah];
+ 
+   const petaDatang = new Map<number, number>();
+   const petaBerangkat = new Map<number, number>();
+@@ -67,9 +82,10 @@ export async function getPenumpangKapalMingguan(
+  * digabung dari sheet Samarinda + Lhoktuan.
+  */
+ export async function getPenumpangKapalBulanan(
+-  tahunKalender: number
++  tahunKalender: number,
++  wilker?: string
+ ): Promise<{ petaDatang: Map<number, number>; petaBerangkat: Map<number, number> }> {
+-  const baris = await ambilBarisTahun(tahunKalender);
++  const baris = await ambilBarisTahun(tahunKalender, wilker);
+ 
+   const petaDatang = new Map<number, number>();
+   const petaBerangkat = new Map<number, number>();

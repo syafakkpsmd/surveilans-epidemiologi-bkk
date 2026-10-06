@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import TrenChartLine from "@/components/vektor/TrenChartLine";
+import TrenChartPilihanSeri from "@/components/vektor/TrenChartPilihanSeri";
+import FilterWilker from "@/components/vektor/FilterWilker";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
-import { PeranUser } from "@/types/database.types";
+import { PeranUser, type WilkerRef } from "@/types/database.types";
 import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 import type { TitikGabungan, TitikLuarDalamNegeri } from "./page";
 
@@ -32,6 +33,8 @@ type AbkCrewPenumpangClientProps = {
   mingguanKeberangkatanLuarDalam: TitikLuarDalamNegeri[];
   bulananKeberangkatanLuarDalam: TitikLuarDalamNegeri[];
   hasilAI: Record<string, HasilAIStruktur | null>;
+  daftarWilker: WilkerRef[];
+  namaWilkerTerpilih: string | null;
 };
 
 const WARNA_KOMPONEN = {
@@ -45,6 +48,73 @@ const WARNA_LUAR_DALAM = {
   luar_negeri: "#0F4C5C",
   dalam_negeri: "#EA580C",
 };
+
+// ---- Checkbox = SUMBER DATA ----
+const KEY_SUMBER_UTAMA = ["abk_kapal", "penumpang_kapal", "crew_pesawat", "penumpang_pesawat"];
+
+// Kedatangan: ABK Kapal = COP (Luar Negeri).
+const SUMBER_KEDATANGAN = [
+  { key: "abk_kapal", label: "ABK Kapal (COP, Luar Negeri)", warna: WARNA_KOMPONEN.abk_kapal },
+  { key: "penumpang_kapal", label: "Penumpang Kapal Datang", warna: WARNA_KOMPONEN.penumpang_kapal },
+  { key: "crew_pesawat", label: "Crew Pesawat Datang", warna: WARNA_KOMPONEN.crew_pesawat },
+  { key: "penumpang_pesawat", label: "Penumpang Pesawat Datang", warna: WARNA_KOMPONEN.penumpang_pesawat },
+];
+
+// Keberangkatan: ABK Kapal = PHQC.
+const SUMBER_KEBERANGKATAN = [
+  { key: "abk_kapal", label: "ABK Kapal (PHQC)", warna: WARNA_KOMPONEN.abk_kapal },
+  { key: "penumpang_kapal", label: "Penumpang Kapal Berangkat", warna: WARNA_KOMPONEN.penumpang_kapal },
+  { key: "crew_pesawat", label: "Crew Pesawat Berangkat", warna: WARNA_KOMPONEN.crew_pesawat },
+  { key: "penumpang_pesawat", label: "Penumpang Pesawat Berangkat", warna: WARNA_KOMPONEN.penumpang_pesawat },
+];
+
+// Grafik Luar vs Dalam Negeri: checkbox = sumber data; 2 batang dihitung ulang dari sumber yang dicentang.
+// Warna kotak = warna batang tempat sumber itu dijumlahkan.
+const SUMBER_LUAR_DALAM_KEDATANGAN = [
+  { key: "abk_cop", label: "ABK Kapal (COP)", warna: WARNA_LUAR_DALAM.luar_negeri },
+  { key: "abk_phqc_dalam", label: "ABK Kapal PHQC", warna: WARNA_LUAR_DALAM.dalam_negeri },
+  { key: "penumpang_kapal", label: "Penumpang Kapal Datang", warna: WARNA_LUAR_DALAM.dalam_negeri },
+  { key: "crew_pesawat", label: "Crew Pesawat Datang", warna: WARNA_LUAR_DALAM.dalam_negeri },
+  { key: "penumpang_pesawat", label: "Penumpang Pesawat Datang", warna: WARNA_LUAR_DALAM.dalam_negeri },
+];
+const HASIL_LUAR_DALAM_KEDATANGAN = [
+  { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri, sumber: ["abk_cop"] },
+  {
+    key: "dalam_negeri",
+    label: "Dalam Negeri",
+    warna: WARNA_LUAR_DALAM.dalam_negeri,
+    sumber: ["abk_phqc_dalam", "penumpang_kapal", "crew_pesawat", "penumpang_pesawat"],
+  },
+];
+
+const SUMBER_LUAR_DALAM_KEBERANGKATAN = [
+  { key: "abk_phqc_luar", label: "ABK Kapal PHQC (Luar Negeri)", warna: WARNA_LUAR_DALAM.luar_negeri },
+  { key: "abk_phqc_dalam", label: "ABK Kapal PHQC (Dalam Negeri)", warna: WARNA_LUAR_DALAM.dalam_negeri },
+  { key: "penumpang_kapal", label: "Penumpang Kapal Berangkat", warna: WARNA_LUAR_DALAM.dalam_negeri },
+  { key: "crew_pesawat", label: "Crew Pesawat Berangkat", warna: WARNA_LUAR_DALAM.dalam_negeri },
+  { key: "penumpang_pesawat", label: "Penumpang Pesawat Berangkat", warna: WARNA_LUAR_DALAM.dalam_negeri },
+];
+const HASIL_LUAR_DALAM_KEBERANGKATAN = [
+  { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri, sumber: ["abk_phqc_luar"] },
+  {
+    key: "dalam_negeri",
+    label: "Dalam Negeri",
+    warna: WARNA_LUAR_DALAM.dalam_negeri,
+    sumber: ["abk_phqc_dalam", "penumpang_kapal", "crew_pesawat", "penumpang_pesawat"],
+  },
+];
+
+// Grafik perbandingan: 1 set checkbox sumber data berlaku untuk kedua batang.
+const SUMBER_PERBANDINGAN = [
+  { key: "abk_kapal", label: "ABK Kapal (COP datang / PHQC berangkat)", warna: WARNA_KOMPONEN.abk_kapal },
+  { key: "penumpang_kapal", label: "Penumpang Kapal", warna: WARNA_KOMPONEN.penumpang_kapal },
+  { key: "crew_pesawat", label: "Crew Pesawat", warna: WARNA_KOMPONEN.crew_pesawat },
+  { key: "penumpang_pesawat", label: "Penumpang Pesawat", warna: WARNA_KOMPONEN.penumpang_pesawat },
+];
+const HASIL_PERBANDINGAN = [
+  { key: "total_kedatangan", label: "Total Kedatangan", warna: "#0F4C5C", sumber: KEY_SUMBER_UTAMA, awalan: "datang_" },
+  { key: "total_keberangkatan", label: "Total Keberangkatan", warna: "#B71C1C", sumber: KEY_SUMBER_UTAMA, awalan: "berangkat_" },
+];
 
 export default function AbkCrewPenumpangClient({
   role,
@@ -62,6 +132,8 @@ export default function AbkCrewPenumpangClient({
   mingguanKeberangkatanLuarDalam,
   bulananKeberangkatanLuarDalam,
   hasilAI,
+  daftarWilker,
+  namaWilkerTerpilih,
 }: AbkCrewPenumpangClientProps) {
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
 
@@ -110,19 +182,30 @@ export default function AbkCrewPenumpangClient({
     [granularitas, bulananKeberangkatanLuarDalam, mingguanKeberangkatanLuarDalam, batasAwal, batasAkhir]
   );
 
-  // Data perbandingan (Section 7): 1 baris per periode, kolomnya
-  // total_kedatangan vs total_keberangkatan.
+  // Data perbandingan (Section 7): 1 baris per periode, dengan nilai PER SUMBER
+  // untuk arah datang (datang_*) dan berangkat (berangkat_*) supaya total kedua
+  // batang bisa dihitung ulang sesuai checkbox sumber data.
   const dataPerbandingan = useMemo(() => {
-    const peta = new Map<number, { urutan: number; name: string; label: string; total_kedatangan: number; total_keberangkatan: number }>();
+    type Baris = { urutan: number; name: string; label: string } & Record<string, number | string>;
+    const peta = new Map<number, Baris>();
+    const ambil = (d: { urutan: number; name: string; label: string }): Baris => {
+      const ada = peta.get(d.urutan);
+      if (ada) return ada;
+      const baru: Baris = { urutan: d.urutan, name: d.name, label: d.label };
+      KEY_SUMBER_UTAMA.forEach((k) => {
+        baru[`datang_${k}`] = 0;
+        baru[`berangkat_${k}`] = 0;
+      });
+      peta.set(d.urutan, baru);
+      return baru;
+    };
     dataKedatangan.forEach((d) => {
-      const existing = peta.get(d.urutan) ?? { urutan: d.urutan, name: d.name, label: d.label, total_kedatangan: 0, total_keberangkatan: 0 };
-      existing.total_kedatangan = d.total;
-      peta.set(d.urutan, existing);
+      const baris = ambil(d);
+      KEY_SUMBER_UTAMA.forEach((k) => (baris[`datang_${k}`] = (d as any)[k] ?? 0));
     });
     dataKeberangkatan.forEach((d) => {
-      const existing = peta.get(d.urutan) ?? { urutan: d.urutan, name: d.name, label: d.label, total_kedatangan: 0, total_keberangkatan: 0 };
-      existing.total_keberangkatan = d.total;
-      peta.set(d.urutan, existing);
+      const baris = ambil(d);
+      KEY_SUMBER_UTAMA.forEach((k) => (baris[`berangkat_${k}`] = (d as any)[k] ?? 0));
     });
     return Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
   }, [dataKedatangan, dataKeberangkatan]);
@@ -154,6 +237,8 @@ export default function AbkCrewPenumpangClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
+          <FilterWilker daftarWilker={daftarWilker}  />
+
           <Link
             href="/lalu-lintas-orang"
             className="rounded-md border border-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-[#0F4C5C] hover:bg-gray-50 transition-colors"
@@ -225,6 +310,14 @@ export default function AbkCrewPenumpangClient({
         </div>
       </div>
 
+      {namaWilkerTerpilih && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Menampilkan data wilayah kerja <strong>{namaWilkerTerpilih}</strong>. Sumber yang tidak beroperasi di wilayah ini
+          (mis. Pesawat di pelabuhan, atau Penumpang Kapal di luar Samarinda dan Lhoktuan) tampil 0. Kotak Analisis &amp;
+          Prediksi AI di bawah tetap mencakup seluruh wilayah kerja.
+        </p>
+      )}
+
       {/* ================= KEDATANGAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
@@ -233,36 +326,22 @@ export default function AbkCrewPenumpangClient({
         <p className="mb-4 text-center text-xs text-gray-400">
           Total gabungan ABK Kapal dari Luar Negeri + Crew Pesawat Datang + Penumpang Pesawat Datang + Penumpang Kapal Datang
         </p>
-        {dataKedatangan.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
-        ) : (
-          <TrenChartLine
+        <TrenChartPilihanSeri
             data={dataKedatangan}
             tipeChart={tipeChart}
             tampilkanNilai={granularitas === "bulanan"}
-            seriesList={[{ key: "total", label: "Total Kedatangan", warna: "#0F4C5C" }]}
+            sumberList={SUMBER_KEDATANGAN}
+            seriesHasil={[
+              { key: "total", label: "Total Kedatangan", warna: "#0F4C5C", sumber: KEY_SUMBER_UTAMA },
+            ]}
           />
-        )}
       </div>
 
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
           Distribusi Pengawasan Lalu Lintas Orang yang Datang ke Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
-        {dataKedatangan.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
-        ) : (
-          <TrenChartLine
-            data={dataKedatangan}
-            tipeChart={tipeChart}
-            seriesList={[
-              { key: "abk_kapal", label: "ABK Kapal", warna: WARNA_KOMPONEN.abk_kapal },
-              { key: "penumpang_kapal", label: "Penumpang Kapal", warna: WARNA_KOMPONEN.penumpang_kapal },
-              { key: "crew_pesawat", label: "Crew Pesawat", warna: WARNA_KOMPONEN.crew_pesawat },
-              { key: "penumpang_pesawat", label: "Penumpang Pesawat", warna: WARNA_KOMPONEN.penumpang_pesawat },
-            ]}
-          />
-        )}
+        <TrenChartPilihanSeri data={dataKedatangan} tipeChart={tipeChart} sumberList={SUMBER_KEDATANGAN} />
       </div>
 
       {/* ---- BARU: Kedatangan Luar Negeri vs Dalam Negeri ---- */}
@@ -273,18 +352,12 @@ export default function AbkCrewPenumpangClient({
         <p className="mb-4 text-center text-xs text-gray-400">
           Luar Negeri: ABK Kapal (COP). Dalam Negeri: ABK Kapal PHQC + Penumpang Kapal Datang + Crew &amp; Penumpang Pesawat Datang
         </p>
-        {dataKedatanganLuarDalam.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
-        ) : (
-          <TrenChartLine
+        <TrenChartPilihanSeri
             data={dataKedatanganLuarDalam}
             tipeChart={tipeChart}
-            seriesList={[
-              { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri },
-              { key: "dalam_negeri", label: "Dalam Negeri", warna: WARNA_LUAR_DALAM.dalam_negeri },
-            ]}
+            sumberList={SUMBER_LUAR_DALAM_KEDATANGAN}
+            seriesHasil={HASIL_LUAR_DALAM_KEDATANGAN}
           />
-        )}
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -314,36 +387,22 @@ export default function AbkCrewPenumpangClient({
         <p className="mb-4 text-center text-xs text-gray-400">
           Total gabungan ABK Kapal PHQC + Penumpang Kapal Berangkat + Crew Pesawat Berangkat + Penumpang Pesawat Berangkat
         </p>
-        {dataKeberangkatan.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
-        ) : (
-          <TrenChartLine
+        <TrenChartPilihanSeri
             data={dataKeberangkatan}
             tipeChart={tipeChart}
             tampilkanNilai={granularitas === "bulanan"}
-            seriesList={[{ key: "total", label: "Total Keberangkatan", warna: "#B71C1C" }]}
+            sumberList={SUMBER_KEBERANGKATAN}
+            seriesHasil={[
+              { key: "total", label: "Total Keberangkatan", warna: "#B71C1C", sumber: KEY_SUMBER_UTAMA },
+            ]}
           />
-        )}
       </div>
 
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
           Distribusi Pengawasan Lalu Lintas Orang yang Berangkat dari Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
-        {dataKeberangkatan.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
-        ) : (
-          <TrenChartLine
-            data={dataKeberangkatan}
-            tipeChart={tipeChart}
-            seriesList={[
-              { key: "abk_kapal", label: "ABK Kapal", warna: WARNA_KOMPONEN.abk_kapal },
-              { key: "penumpang_kapal", label: "Penumpang Kapal", warna: WARNA_KOMPONEN.penumpang_kapal },
-              { key: "crew_pesawat", label: "Crew Pesawat", warna: WARNA_KOMPONEN.crew_pesawat },
-              { key: "penumpang_pesawat", label: "Penumpang Pesawat", warna: WARNA_KOMPONEN.penumpang_pesawat },
-            ]}
-          />
-        )}
+        <TrenChartPilihanSeri data={dataKeberangkatan} tipeChart={tipeChart} sumberList={SUMBER_KEBERANGKATAN} />
       </div>
 
       {/* ---- BARU: Keberangkatan Luar Negeri vs Dalam Negeri ---- */}
@@ -354,18 +413,12 @@ export default function AbkCrewPenumpangClient({
         <p className="mb-4 text-center text-xs text-gray-400">
           Luar Negeri: ABK Kapal PHQC tujuan Luar Negeri. Dalam Negeri: ABK Kapal PHQC tujuan Dalam Negeri + Penumpang Kapal Berangkat + Crew &amp; Penumpang Pesawat Berangkat
         </p>
-        {dataKeberangkatanLuarDalam.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
-        ) : (
-          <TrenChartLine
+        <TrenChartPilihanSeri
             data={dataKeberangkatanLuarDalam}
             tipeChart={tipeChart}
-            seriesList={[
-              { key: "luar_negeri", label: "Luar Negeri", warna: WARNA_LUAR_DALAM.luar_negeri },
-              { key: "dalam_negeri", label: "Dalam Negeri", warna: WARNA_LUAR_DALAM.dalam_negeri },
-            ]}
+            sumberList={SUMBER_LUAR_DALAM_KEBERANGKATAN}
+            seriesHasil={HASIL_LUAR_DALAM_KEBERANGKATAN}
           />
-        )}
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -392,18 +445,12 @@ export default function AbkCrewPenumpangClient({
         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
           Distribusi Pengawasan Lalu Lintas Orang Datang & Berangkat di Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br />(Dalam {granularitas})
         </h2>
-        {dataPerbandingan.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-400">Belum ada data untuk rentang ini.</p>
-        ) : (
-          <TrenChartLine
+        <TrenChartPilihanSeri
             data={dataPerbandingan}
             tipeChart={tipeChart}
-            seriesList={[
-              { key: "total_kedatangan", label: "Total Kedatangan", warna: "#0F4C5C" },
-              { key: "total_keberangkatan", label: "Total Keberangkatan", warna: "#B71C1C" },
-            ]}
+            sumberList={SUMBER_PERBANDINGAN}
+            seriesHasil={HASIL_PERBANDINGAN}
           />
-        )}
       </div>
     </div>
   );

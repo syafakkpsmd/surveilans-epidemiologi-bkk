@@ -12,12 +12,24 @@ interface BarisPenumpangKapal {
   penumpang_berangkat: number;
 }
 
-async function ambilBarisTahun(tahun: number): Promise<BarisPenumpangKapal[]> {
+/** "Tanjung Santan" / "TanjungSantan" -> "tanjungsantan" (pembanding wilker yang tahan beda spasi/huruf besar). */
+function normalisasiWilker(nama: string): string {
+  return nama.replace(/\s+/g, "").toLowerCase();
+}
+
+async function ambilBarisTahun(tahun: number, wilker?: string): Promise<BarisPenumpangKapal[]> {
+  const args: (string | number)[] = [String(tahun)];
+  let kondisiWilker = "";
+  if (wilker) {
+    kondisiWilker = ` AND REPLACE(LOWER(wilker), ' ', '') = ?`;
+    args.push(normalisasiWilker(wilker));
+  }
+
   const hasil = await getTursoClient().execute({
     sql: `SELECT tanggal_tiba, penumpang_datang, penumpang_berangkat
           FROM data_penumpang_kapal
-          WHERE strftime('%Y', tanggal_tiba) = ?`,
-    args: [String(tahun)],
+          WHERE strftime('%Y', tanggal_tiba) = ?${kondisiWilker}`,
+    args,
   });
 
   return hasil.rows.map((r: any) => ({
@@ -36,13 +48,16 @@ async function ambilBarisTahun(tahun: number): Promise<BarisPenumpangKapal[]> {
  * tahun bisa "menyeberang" tahun kalender.
  */
 export async function getPenumpangKapalMingguan(
-  tahunEpid: number
+  tahunEpid: number,
+  wilker?: string
 ): Promise<{ petaDatang: Map<number, number>; petaBerangkat: Map<number, number> }> {
-  const baris = [
-    ...(await ambilBarisTahun(tahunEpid - 1)),
-    ...(await ambilBarisTahun(tahunEpid)),
-    ...(await ambilBarisTahun(tahunEpid + 1)),
-  ];
+  // 3 tahun diambil PARALEL (sebelumnya 3 await berurutan = 3x round-trip Turso).
+  const [sebelum, ini, sesudah] = await Promise.all([
+    ambilBarisTahun(tahunEpid - 1, wilker),
+    ambilBarisTahun(tahunEpid, wilker),
+    ambilBarisTahun(tahunEpid + 1, wilker),
+  ]);
+  const baris = [...sebelum, ...ini, ...sesudah];
 
   const petaDatang = new Map<number, number>();
   const petaBerangkat = new Map<number, number>();
@@ -67,9 +82,10 @@ export async function getPenumpangKapalMingguan(
  * digabung dari sheet Samarinda + Lhoktuan.
  */
 export async function getPenumpangKapalBulanan(
-  tahunKalender: number
+  tahunKalender: number,
+  wilker?: string
 ): Promise<{ petaDatang: Map<number, number>; petaBerangkat: Map<number, number> }> {
-  const baris = await ambilBarisTahun(tahunKalender);
+  const baris = await ambilBarisTahun(tahunKalender, wilker);
 
   const petaDatang = new Map<number, number>();
   const petaBerangkat = new Map<number, number>();

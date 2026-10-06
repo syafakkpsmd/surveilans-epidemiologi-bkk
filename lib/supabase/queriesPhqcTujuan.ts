@@ -19,13 +19,16 @@ interface BarisAbkPhqc {
   jumlahAbk: number;
 }
 
-async function ambilAbkPhqcTahun(tahunKalender: number): Promise<BarisAbkPhqc[]> {
+async function ambilAbkPhqcTahun(tahunKalender: number, wilayah?: string): Promise<BarisAbkPhqc[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("kegiatan_phqc")
     .select("tgl_keberangkatan, jml_abk_wna, jml_abk_wni, tujuan_berlayar")
     .gte("tgl_keberangkatan", `${tahunKalender}-01-01`)
     .lte("tgl_keberangkatan", `${tahunKalender}-12-31`);
+  // `wilayah` = nilai enum Wilayah (mis. "Samarinda", "TanjungSantan"); kosong = semua wilayah.
+  if (wilayah) query = query.eq("wilayah_kerja", wilayah);
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -46,13 +49,16 @@ function isLuarNegeri(tujuan: string): boolean {
  * tahun bisa "menyeberang" tahun kalender (pola sama dengan Penumpang Kapal).
  */
 export async function getAbkPhqcPerTujuanMingguan(
-  tahunEpid: number
+  tahunEpid: number,
+  wilayah?: string
 ): Promise<{ petaDalamNegeri: Map<number, number>; petaLuarNegeri: Map<number, number> }> {
-  const baris = [
-    ...(await ambilAbkPhqcTahun(tahunEpid - 1)),
-    ...(await ambilAbkPhqcTahun(tahunEpid)),
-    ...(await ambilAbkPhqcTahun(tahunEpid + 1)),
-  ];
+  // 3 tahun diambil PARALEL (sebelumnya 3 await berurutan).
+  const [sebelum, ini, sesudah] = await Promise.all([
+    ambilAbkPhqcTahun(tahunEpid - 1, wilayah),
+    ambilAbkPhqcTahun(tahunEpid, wilayah),
+    ambilAbkPhqcTahun(tahunEpid + 1, wilayah),
+  ]);
+  const baris = [...sebelum, ...ini, ...sesudah];
 
   const petaDalamNegeri = new Map<number, number>();
   const petaLuarNegeri = new Map<number, number>();
@@ -74,9 +80,10 @@ export async function getAbkPhqcPerTujuanMingguan(
 
 /** ABK PHQC per bulan kalender, dipecah Dalam Negeri / Luar Negeri. */
 export async function getAbkPhqcPerTujuanBulanan(
-  tahunKalender: number
+  tahunKalender: number,
+  wilayah?: string
 ): Promise<{ petaDalamNegeri: Map<number, number>; petaLuarNegeri: Map<number, number> }> {
-  const baris = await ambilAbkPhqcTahun(tahunKalender);
+  const baris = await ambilAbkPhqcTahun(tahunKalender, wilayah);
 
   const petaDalamNegeri = new Map<number, number>();
   const petaLuarNegeri = new Map<number, number>();

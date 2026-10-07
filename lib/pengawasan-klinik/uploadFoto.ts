@@ -22,3 +22,6 @@ export async function uploadFotoKlinik(file: File, jenisDokumen: string, namaKli
   // simpan result.secure_url dan result.public_id ke tabel pengawasan_klinik_dokumen
   return { url: result.secure_url as string, publicId: result.public_id as string, jenisDokumen };
 }
+if (!uploadRes.ok || !result.secure_url) {
+  throw new Error(result?.error?.message ?? 'Upload ke Cloudinary gagal');
+}

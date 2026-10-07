@@ -243,7 +243,19 @@ export default function PengawasanKlinikClient({
                 return (
                   <Fragment key={k.id}>
                     <tr className="border-t">
-                      <td className="px-4 py-2">{k.namaKlinik}</td>
+                      <td className="px-4 py-2">
+                        {belumPernahDiawasi ? (
+                          k.namaKlinik
+                        ) : (
+                          <Link
+                            href={`/dashboard/pengawasan-klinik/${k.klinikId}`}
+                            className="font-medium text-blue-700 hover:underline"
+                            title="Lihat detail pengawasan & foto kegiatan"
+                          >
+                            {k.namaKlinik}
+                          </Link>
+                        )}
+                      </td>
                       <td className="px-4 py-2">{k.jenisFasilitas}</td>
                       <td className="px-4 py-2">
                         {k.tanggalTerakhir ? formatTanggal(k.tanggalTerakhir) : '-'}

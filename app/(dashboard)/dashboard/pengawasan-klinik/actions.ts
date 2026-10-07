@@ -91,8 +91,40 @@ export async function simpanPengawasanKlinik(formData: FormData) {
 
   if (error) return { error: error.message };
 
+  // ---- simpan foto (url Cloudinary) ke pengawasan_klinik_dokumen ----
+  // Form mengirim foto_url_<key> & foto_public_id_<key>. Foto item checklist hanya
+  // disimpan kalau item itu dicentang (sesuai UI: foto hanya bisa diambil saat dicentang);
+  // foto cold_chain selalu disimpan.
+  const barisFoto: {
+    pengawasan_id: string;
+    jenis_dokumen: string;
+    cloudinary_url: string;
+    cloudinary_public_id: string;
+  }[] = [];
+  for (const [nama, nilai] of formData.entries()) {
+    if (!nama.startsWith('foto_url_') || typeof nilai !== 'string' || !nilai) continue;
+    const jenis = nama.slice('foto_url_'.length);
+    const publicId = getString(`foto_public_id_${jenis}`);
+    const dipakai = jenis === 'cold_chain' || (dataChecklist as Record<string, boolean>)[jenis] === true;
+    if (!dipakai || !publicId) continue;
+    barisFoto.push({
+      pengawasan_id: pengawasan.id as string,
+      jenis_dokumen: jenis,
+      cloudinary_url: nilai,
+      cloudinary_public_id: publicId,
+    });
+  }
+
+  let peringatan: string | undefined;
+  if (barisFoto.length > 0) {
+    const { error: errorFoto } = await supabase.from('pengawasan_klinik_dokumen').insert(barisFoto);
+    if (errorFoto) {
+      peringatan = `Pengawasan tersimpan, tetapi foto gagal disimpan ke database: ${errorFoto.message}`;
+    }
+  }
+
   revalidatePath('/dashboard/pengawasan-klinik');
-  return { success: true, pengawasanId: pengawasan.id, status: hasil.status };
+  return { success: true, pengawasanId: pengawasan.id, status: hasil.status, peringatan };
 }
 
 export async function simpanDokumenPengawasan(

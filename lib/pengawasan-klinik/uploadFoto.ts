@@ -18,10 +18,11 @@ export async function uploadFotoKlinik(file: File, jenisDokumen: string, namaKli
     method: 'POST',
     body: formData,
   });
-  const result = await uploadRes.json();
-  // simpan result.secure_url dan result.public_id ke tabel pengawasan_klinik_dokumen
+    const result = await uploadRes.json();
+
+  if (!uploadRes.ok || !result.secure_url) {
+    throw new Error(result?.error?.message ?? 'Upload ke Cloudinary gagal');
+  }
+
   return { url: result.secure_url as string, publicId: result.public_id as string, jenisDokumen };
-}
-if (!uploadRes.ok || !result.secure_url) {
-  throw new Error(result?.error?.message ?? 'Upload ke Cloudinary gagal');
 }

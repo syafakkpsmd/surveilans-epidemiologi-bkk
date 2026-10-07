@@ -1,10 +1,11 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/tambah/PengawasanKlinikFormClient.tsx
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { simpanPengawasanKlinik } from '../actions';
 import { uploadFotoKlinik } from '@/lib/pengawasan-klinik/uploadFoto';
 import { ITEM_CHECKLIST } from '@/lib/pengawasan-klinik/itemChecklist';
+import PadTandaTangan, { type PadTandaTanganHandle } from './PadTandaTangan';
 
 type Klinik = { id: string; nama_klinik: string };
 
@@ -19,6 +20,8 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [namaKlinikTerpilih, setNamaKlinikTerpilih] = useState('klinik');
+  const refTtdBkk = useRef<PadTandaTanganHandle>(null);
+  const refTtdKlinik = useRef<PadTandaTanganHandle>(null);
 
   async function handleUploadFoto(jenisDokumen: string, file: File) {
     setSedangUpload((prev) => ({ ...prev, [jenisDokumen]: true }));
@@ -42,6 +45,25 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
   async function handleSubmit(formData: FormData) {
     setLoading(true);
     Object.entries(checklist).forEach(([key, val]) => formData.set(key, String(val)));
+
+    // tanda tangan: diunggah otomatis saat simpan (kalau pad tidak kosong)
+    try {
+      const daftarTtd = [
+        { key: 'ttd_petugas_bkk', ref: refTtdBkk },
+        { key: 'ttd_petugas_klinik', ref: refTtdKlinik },
+      ];
+      for (const { key, ref } of daftarTtd) {
+        const berkas = await ref.current?.ambilBerkas(key);
+        if (!berkas) continue;
+        const hasilTtd = await uploadFotoKlinik(berkas, key, namaKlinikTerpilih);
+        formData.set(`foto_url_${key}`, hasilTtd.url);
+        formData.set(`foto_public_id_${key}`, hasilTtd.publicId);
+      }
+    } catch (err) {
+      setLoading(false);
+      alert(`Gagal mengunggah tanda tangan: ${(err as Error).message}`);
+      return;
+    }
 
     // sertakan url & public_id foto per item checklist yang sudah terupload
     Object.entries(fotoUploaded).forEach(([key, info]) => {
@@ -200,6 +222,11 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
           }}
         />
         {fotoUploaded.cold_chain && <p className="text-sm text-green-600">Terupload ✓</p>}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <PadTandaTangan ref={refTtdBkk} label="Tanda Tangan Petugas BKK" />
+        <PadTandaTangan ref={refTtdKlinik} label="Tanda Tangan Petugas Klinik" />
       </div>
 
       <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded">

@@ -94,7 +94,7 @@ export async function simpanPengawasanKlinik(formData: FormData) {
   // ---- simpan foto (url Cloudinary) ke pengawasan_klinik_dokumen ----
   // Form mengirim foto_url_<key> & foto_public_id_<key>. Foto item checklist hanya
   // disimpan kalau item itu dicentang (sesuai UI: foto hanya bisa diambil saat dicentang);
-  // foto cold_chain selalu disimpan.
+  // foto cold_chain dan tanda tangan (ttd_*) selalu disimpan.
   const barisFoto: {
     pengawasan_id: string;
     jenis_dokumen: string;
@@ -105,7 +105,10 @@ export async function simpanPengawasanKlinik(formData: FormData) {
     if (!nama.startsWith('foto_url_') || typeof nilai !== 'string' || !nilai) continue;
     const jenis = nama.slice('foto_url_'.length);
     const publicId = getString(`foto_public_id_${jenis}`);
-    const dipakai = jenis === 'cold_chain' || (dataChecklist as Record<string, boolean>)[jenis] === true;
+    const dipakai =
+      jenis === 'cold_chain' ||
+      jenis.startsWith('ttd_') ||
+      (dataChecklist as Record<string, boolean>)[jenis] === true;
     if (!dipakai || !publicId) continue;
     barisFoto.push({
       pengawasan_id: pengawasan.id as string,

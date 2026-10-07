@@ -234,6 +234,43 @@ export default async function DetailPengawasanKlinikPage({
             </div>
           ))}
 
+          {(fotoPerJenis('ttd_petugas_bkk').length > 0 || fotoPerJenis('ttd_petugas_klinik').length > 0) && (
+            <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-500">Tanda Tangan</h3>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {[
+                  {
+                    jenis: 'ttd_petugas_bkk',
+                    judul: 'Petugas BKK',
+                    nama:
+                      [terpilih.nama_petugas_1, terpilih.nama_petugas_2, terpilih.nama_petugas_3]
+                        .filter(Boolean)
+                        .join(', ') || '-',
+                  },
+                  { jenis: 'ttd_petugas_klinik', judul: 'Petugas Klinik', nama: terpilih.nama_petugas_klinik ?? '-' },
+                ].map((t) => (
+                  <div key={t.jenis}>
+                    <p className="text-xs font-semibold text-gray-500">{t.judul}</p>
+                    {fotoPerJenis(t.jenis).length > 0 ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={urlThumbnail(fotoPerJenis(t.jenis)[0].cloudinary_url)}
+                        alt={`Tanda tangan ${t.judul}`}
+                        loading="lazy"
+                        className="mt-1 h-28 w-full rounded-md border border-gray-200 bg-white object-contain"
+                      />
+                    ) : (
+                      <p className="mt-1 flex h-28 items-center justify-center rounded-md border border-dashed border-gray-200 text-xs text-gray-400">
+                        Tidak ada tanda tangan
+                      </p>
+                    )}
+                    <p className="mt-1 text-sm text-gray-700">{t.nama}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {fotoPerJenis('cold_chain').length > 0 && (
             <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
               <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-gray-500">Foto Cold Chain</h3>

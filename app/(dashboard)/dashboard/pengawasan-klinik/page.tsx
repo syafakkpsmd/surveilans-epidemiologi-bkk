@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { hitungBreakdownKategori, hitungStatusKepatuhan } from '@/lib/pengawasan-klinik/hitungKepatuhan';
 import PengawasanKlinikClient from './PengawasanKlinikClient';
+import BannerAntrianOffline from '@/components/pengawasan-klinik/BannerAntrianOffline';
 
 export default async function PengawasanKlinikPage() {
   const supabase = await createClient();
@@ -124,14 +125,19 @@ export default async function PengawasanKlinikPage() {
   }));
 
   return (
-    <PengawasanKlinikClient
-      ringkasanStatus={ringkasanStatus}
-      rataRataKategori={rataRataKategori}
-      tabelKlinik={tabelKlinik}
-      totalKlinikDiawasi={dataTerbaru.length}
-      titikPeta={titikPeta}
-      riwayatPengawasan={riwayatPengawasan}
-      dataLengkapUntukExport={dataLengkapUntukExport}
-    />
+    <>
+      <div className="mx-auto max-w-6xl px-4 pt-4 empty:hidden">
+        <BannerAntrianOffline />
+      </div>
+      <PengawasanKlinikClient
+        ringkasanStatus={ringkasanStatus}
+        rataRataKategori={rataRataKategori}
+        tabelKlinik={tabelKlinik}
+        totalKlinikDiawasi={dataTerbaru.length}
+        titikPeta={titikPeta}
+        riwayatPengawasan={riwayatPengawasan}
+        dataLengkapUntukExport={dataLengkapUntukExport}
+      />
+    </>
   );
 }

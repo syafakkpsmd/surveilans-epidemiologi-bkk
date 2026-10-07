@@ -5,6 +5,8 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref
 export type PadTandaTanganHandle = {
   /** PNG tanda tangan (latar putih) atau null kalau pad masih kosong. */
   ambilBerkas: (namaFile: string) => Promise<File | null>;
+  /** Hapus goresan (dipakai setelah data tersimpan ke antrian offline). */
+  kosongkan: () => void;
 };
 
 type Props = {
@@ -88,6 +90,7 @@ export default function PadTandaTangan({ label, ref }: Props) {
   useImperativeHandle(
     ref,
     () => ({
+      kosongkan: hapus,
       ambilBerkas: (namaFile: string) =>
         new Promise<File | null>((resolve) => {
           const canvas = canvasRef.current;

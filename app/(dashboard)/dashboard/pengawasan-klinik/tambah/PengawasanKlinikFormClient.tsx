@@ -1,9 +1,17 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/tambah/PengawasanKlinikFormClient.tsx
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { simpanPengawasanKlinik } from '../actions';
-import { uploadFotoKlinik } from '@/lib/pengawasan-klinik/uploadFoto';
+import { unggahFotoAman } from '@/lib/pengawasan-klinik/unggahAman';
+import {
+  adalahGalatJaringan,
+  berkasKeMedia,
+  EVENT_ANTRIAN,
+  idBaru,
+  kompresGambar,
+  simpanRekam,
+} from '@/lib/pengawasan-klinik/antrianOffline';
 import { ITEM_CHECKLIST } from '@/lib/pengawasan-klinik/itemChecklist';
 import PadTandaTangan, { type PadTandaTanganHandle } from './PadTandaTangan';
 
@@ -20,16 +28,48 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [namaKlinikTerpilih, setNamaKlinikTerpilih] = useState('klinik');
+  const [fotoLokal, setFotoLokal] = useState<Record<string, File>>({}); // foto belum terunggah (offline)
+  const [online, setOnline] = useState(true);
+  const [pesanAntrian, setPesanAntrian] = useState<string | null>(null);
   const refTtdBkk = useRef<PadTandaTanganHandle>(null);
   const refTtdKlinik = useRef<PadTandaTanganHandle>(null);
 
-  async function handleUploadFoto(jenisDokumen: string, file: File) {
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const hidup = () => setOnline(true);
+    const mati = () => setOnline(false);
+    window.addEventListener('online', hidup);
+    window.addEventListener('offline', mati);
+    return () => {
+      window.removeEventListener('online', hidup);
+      window.removeEventListener('offline', mati);
+    };
+  }, []);
+
+  const tanpaKunci = <T,>(obj: Record<string, T>, key: string): Record<string, T> =>
+    Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key));
+
+  function simpanFotoLokal(jenisDokumen: string, file: File) {
+    setFotoLokal((prev) => ({ ...prev, [jenisDokumen]: file }));
+    setFotoUploaded((prev) => tanpaKunci(prev, jenisDokumen));
+  }
+
+  async function handleUploadFoto(jenisDokumen: string, fileAsli: File) {
     setSedangUpload((prev) => ({ ...prev, [jenisDokumen]: true }));
     try {
-      const hasil = await uploadFotoKlinik(file, jenisDokumen, namaKlinikTerpilih);
-      setFotoUploaded((prev) => ({ ...prev, [jenisDokumen]: { url: hasil.url, publicId: hasil.publicId } }));
-    } catch (err) {
-      alert(`Gagal upload foto: ${(err as Error).message}`);
+      const file = await kompresGambar(fileAsli);
+      if (!navigator.onLine) {
+        simpanFotoLokal(jenisDokumen, file);
+        return;
+      }
+      try {
+        const hasil = await unggahFotoAman(file, jenisDokumen, namaKlinikTerpilih);
+        setFotoUploaded((prev) => ({ ...prev, [jenisDokumen]: { url: hasil.url, publicId: hasil.publicId } }));
+        setFotoLokal((prev) => tanpaKunci(prev, jenisDokumen));
+      } catch (err) {
+        if (adalahGalatJaringan(err)) simpanFotoLokal(jenisDokumen, file);
+        else alert(`Gagal upload foto: ${(err as Error).message}`);
+      }
     } finally {
       setSedangUpload((prev) => ({ ...prev, [jenisDokumen]: false }));
     }
@@ -42,47 +82,105 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
     // supaya kalau user re-check tidak perlu upload ulang.
   }
 
+  function kosongkanForm() {
+    setChecklist({});
+    setFotoUploaded({});
+    setFotoLokal({});
+    setStatus(null);
+    setNamaKlinikTerpilih('klinik');
+    refTtdBkk.current?.kosongkan();
+    refTtdKlinik.current?.kosongkan();
+  }
+
   async function handleSubmit(formData: FormData) {
     setLoading(true);
+    setPesanAntrian(null);
     Object.entries(checklist).forEach(([key, val]) => formData.set(key, String(val)));
 
-    // tanda tangan: diunggah otomatis saat simpan (kalau pad tidak kosong)
-    try {
-      const daftarTtd = [
-        { key: 'ttd_petugas_bkk', ref: refTtdBkk },
-        { key: 'ttd_petugas_klinik', ref: refTtdKlinik },
-      ];
-      for (const { key, ref } of daftarTtd) {
-        const berkas = await ref.current?.ambilBerkas(key);
-        if (!berkas) continue;
-        const hasilTtd = await uploadFotoKlinik(berkas, key, namaKlinikTerpilih);
-        formData.set(`foto_url_${key}`, hasilTtd.url);
-        formData.set(`foto_public_id_${key}`, hasilTtd.publicId);
-      }
-    } catch (err) {
-      setLoading(false);
-      alert(`Gagal mengunggah tanda tangan: ${(err as Error).message}`);
-      return;
+    // media yang BELUM terunggah: foto yang diambil saat offline + tanda tangan
+    const sisaMedia: { key: string; file: File }[] = Object.entries(fotoLokal)
+      .filter(([key]) => key === 'cold_chain' || checklist[key] === true)
+      .map(([key, file]) => ({ key, file }));
+    for (const { key, ref } of [
+      { key: 'ttd_petugas_bkk', ref: refTtdBkk },
+      { key: 'ttd_petugas_klinik', ref: refTtdKlinik },
+    ]) {
+      const berkas = await ref.current?.ambilBerkas(key);
+      if (berkas) sisaMedia.push({ key, file: berkas });
     }
 
-    // sertakan url & public_id foto per item checklist yang sudah terupload
+    // url foto yang sudah terunggah
     Object.entries(fotoUploaded).forEach(([key, info]) => {
       formData.set(`foto_url_${key}`, info.url);
       formData.set(`foto_public_id_${key}`, info.publicId);
     });
 
-    const hasil = await simpanPengawasanKlinik(formData);
-    setLoading(false);
-    if (hasil.error) {
-      alert(hasil.error);
-      return;
+    // ---- JALUR ONLINE ----
+    if (navigator.onLine) {
+      try {
+        while (sisaMedia.length > 0) {
+          const { key, file } = sisaMedia[0];
+          const hasilUp = await unggahFotoAman(file, key, namaKlinikTerpilih);
+          formData.set(`foto_url_${key}`, hasilUp.url);
+          formData.set(`foto_public_id_${key}`, hasilUp.publicId);
+          sisaMedia.shift();
+        }
+        const hasil = await simpanPengawasanKlinik(formData);
+        setLoading(false);
+        if (hasil.error) {
+          alert(hasil.error);
+          return;
+        }
+        if (hasil.peringatan) alert(hasil.peringatan);
+        setStatus(hasil.status ?? null);
+        return;
+      } catch (err) {
+        if (!adalahGalatJaringan(err)) {
+          setLoading(false);
+          alert(`Gagal menyimpan: ${err instanceof Error ? err.message : 'kesalahan tidak diketahui'}`);
+          return;
+        }
+        // sinyal putus di tengah jalan -> simpan di perangkat (di bawah)
+      }
     }
-    if (hasil.peringatan) alert(hasil.peringatan);
-    setStatus(hasil.status ?? null);
+
+    // ---- OFFLINE / SINYAL PUTUS: simpan di perangkat, kirim otomatis nanti ----
+    try {
+      const fields: Record<string, string> = {};
+      formData.forEach((nilai, kunci) => {
+        if (typeof nilai === 'string') fields[kunci] = nilai;
+      });
+      const media = await Promise.all(sisaMedia.map((m) => berkasKeMedia(m.key, m.file)));
+      await simpanRekam({
+        id: idBaru(),
+        dibuat: new Date().toISOString(),
+        namaKlinik: namaKlinikTerpilih,
+        fields,
+        media,
+        status: 'menunggu',
+      });
+      window.dispatchEvent(new Event(EVENT_ANTRIAN));
+      setPesanAntrian(
+        'Tersimpan di perangkat. Data akan dikirim otomatis saat ada sinyal (buka halaman ini lagi bila perlu).'
+      );
+      kosongkanForm();
+    } catch (err) {
+      alert(
+        `Gagal menyimpan di perangkat: ${err instanceof Error ? err.message : 'penyimpanan tidak tersedia'}. ` +
+          'Data belum tersimpan — jangan tutup halaman ini.'
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <form action={handleSubmit} className="max-w-2xl mx-auto p-4 space-y-6">
+      {!online && (
+        <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Mode offline: isian, foto, dan tanda tangan disimpan di perangkat ini dan dikirim otomatis saat ada sinyal.
+        </p>
+      )}
       <div>
         <label className="block font-medium">Klinik/RS</label>
         <select
@@ -171,6 +269,9 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
                   {uploadBerjalan && (
                     <p className="text-xs text-gray-500 mt-1">Mengupload…</p>
                   )}
+                  {fotoLokal[item.key] && !uploadBerjalan && (
+                    <p className="text-xs text-amber-700 mt-1">Foto tersimpan di perangkat (diunggah saat ada sinyal) ✓</p>
+                  )}
                   {foto && !uploadBerjalan && (
                     <p className="text-xs text-green-600 mt-1">Foto terupload ✓</p>
                   )}
@@ -222,12 +323,19 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
           }}
         />
         {fotoUploaded.cold_chain && <p className="text-sm text-green-600">Terupload ✓</p>}
+        {fotoLokal.cold_chain && (
+          <p className="text-sm text-amber-700">Tersimpan di perangkat (diunggah saat ada sinyal) ✓</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <PadTandaTangan ref={refTtdBkk} label="Tanda Tangan Petugas BKK" />
         <PadTandaTangan ref={refTtdKlinik} label="Tanda Tangan Petugas Klinik" />
       </div>
+
+      {pesanAntrian && (
+        <p className="rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">{pesanAntrian}</p>
+      )}
 
       <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded">
         {loading ? 'Menyimpan...' : 'Simpan Pengawasan'}

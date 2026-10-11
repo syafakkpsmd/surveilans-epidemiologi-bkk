@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import TrenChartPilihanSeri from "@/components/vektor/TrenChartPilihanSeri";
 import FilterWilker from "@/components/vektor/FilterWilker";
+import KpiCard from "@/components/vektor/KpiCard";
+import { DonutChart } from "@/components/klinik/DonutChart";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser, type WilkerRef } from "@/types/database.types";
@@ -210,6 +212,69 @@ export default function AbkCrewPenumpangClient({
     return Array.from(peta.values()).sort((a, b) => a.urutan - b.urutan);
   }, [dataKedatangan, dataKeberangkatan]);
 
+  // ---- RINGKASAN (kartu + donut): mengikuti granularitas, rentang periode, dan wilayah kerja ----
+  const ringkasan = useMemo(() => {
+    const jumlah = (data: TitikLuarDalamNegeri[], key: keyof TitikLuarDalamNegeri) =>
+      data.reduce((total, d) => total + (Number(d[key]) || 0), 0);
+
+    const datangLuar = jumlah(dataKedatanganLuarDalam, "luar_negeri");
+    const datangDalam = jumlah(dataKedatanganLuarDalam, "dalam_negeri");
+    const berangkatLuar = jumlah(dataKeberangkatanLuarDalam, "luar_negeri");
+    const berangkatDalam = jumlah(dataKeberangkatanLuarDalam, "dalam_negeri");
+
+    return {
+      datangLuar,
+      datangDalam,
+      totalDatang: datangLuar + datangDalam,
+      berangkatLuar,
+      berangkatDalam,
+      totalBerangkat: berangkatLuar + berangkatDalam,
+      donutDatangLuarDalam: [
+        { kategori: "Dari Luar Negeri", jumlah: datangLuar },
+        { kategori: "Dari Dalam Negeri", jumlah: datangDalam },
+      ],
+      donutBerangkatLuarDalam: [
+        { kategori: "Ke Luar Negeri", jumlah: berangkatLuar },
+        { kategori: "Ke Dalam Negeri", jumlah: berangkatDalam },
+      ],
+      donutSumberDatang: [
+        { kategori: "ABK Luar Negeri Datang", jumlah: jumlah(dataKedatanganLuarDalam, "abk_cop") },
+        { kategori: "ABK Dalam Negeri Datang", jumlah: jumlah(dataKedatanganLuarDalam, "abk_phqc_dalam") },
+        { kategori: "Penumpang Kapal Datang", jumlah: jumlah(dataKedatanganLuarDalam, "penumpang_kapal") },
+        { kategori: "Crew Pesawat Datang", jumlah: jumlah(dataKedatanganLuarDalam, "crew_pesawat") },
+        { kategori: "Penumpang Pesawat Datang", jumlah: jumlah(dataKedatanganLuarDalam, "penumpang_pesawat") },
+      ],
+      donutSumberBerangkat: [
+        { kategori: "ABK Luar Negeri Berangkat", jumlah: jumlah(dataKeberangkatanLuarDalam, "abk_phqc_luar") },
+        { kategori: "ABK Dalam Negeri Berangkat", jumlah: jumlah(dataKeberangkatanLuarDalam, "abk_phqc_dalam") },
+        { kategori: "Penumpang Kapal Berangkat", jumlah: jumlah(dataKeberangkatanLuarDalam, "penumpang_kapal") },
+        { kategori: "Crew Pesawat Berangkat", jumlah: jumlah(dataKeberangkatanLuarDalam, "crew_pesawat") },
+        { kategori: "Penumpang Pesawat Berangkat", jumlah: jumlah(dataKeberangkatanLuarDalam, "penumpang_pesawat") },
+      ],
+    };
+  }, [dataKedatanganLuarDalam, dataKeberangkatanLuarDalam]);
+
+  const labelPeriode =
+    granularitas === "bulanan"
+      ? `${NAMA_BULAN[rentangBulan.awal - 1]}–${NAMA_BULAN[rentangBulan.akhir - 1]} ${tahunKalender}`
+      : `Mg ${rentangMinggu.awal}–${rentangMinggu.akhir} ${tahunEpid}`;
+
+  const angka = (n: number) => n.toLocaleString("id-ID");
+
+  // Donut: irisan bernilai 0 disembunyikan; kalau semuanya 0 tampil pesan kosong.
+  const donut = (judul: string, data: { kategori: string; jumlah: number }[]) => {
+    const terisi = data.filter((d) => d.jumlah > 0);
+    if (terisi.length === 0) {
+      return (
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
+          <h3 className="mb-3 text-center text-sm font-bold text-gray-800">{judul}</h3>
+          <p className="py-10 text-center text-sm text-gray-400">Belum ada data untuk periode ini.</p>
+        </div>
+      );
+    }
+    return <DonutChart judul={judul} data={terisi} />;
+  };
+
   const tipeChart = granularitas === "mingguan" ? "line" : "bar";
 
   const periodeKey =
@@ -237,7 +302,7 @@ export default function AbkCrewPenumpangClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <FilterWilker daftarWilker={daftarWilker}  />
+          <FilterWilker daftarWilker={daftarWilker} sembunyikanNonAktif={false} />
 
           <Link
             href="/lalu-lintas-orang"
@@ -318,6 +383,54 @@ export default function AbkCrewPenumpangClient({
         </p>
       )}
 
+      {/* ================= RINGKASAN: KARTU + DONUT ================= */}
+      <div className="space-y-3">
+        <p className="text-xs text-gray-500">
+          Ringkasan periode <strong>{labelPeriode}</strong>
+          {namaWilkerTerpilih ? ` · ${namaWilkerTerpilih}` : " · Semua wilayah kerja"} (mengikuti filter di atas)
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <KpiCard
+            label="Total Orang Datang"
+            value={angka(ringkasan.totalDatang)}
+            keterangan="Luar Negeri + Dalam Negeri"
+          />
+          <KpiCard
+            label="Kedatangan dari Luar Negeri"
+            value={angka(ringkasan.datangLuar)}
+            keterangan="ABK Kapal (COP)"
+          />
+          <KpiCard
+            label="Kedatangan dari Dalam Negeri"
+            value={angka(ringkasan.datangDalam)}
+            keterangan="ABK PHQC + Penumpang Kapal + Crew & Penumpang Pesawat"
+          />
+          <KpiCard
+            label="Total Orang Berangkat"
+            value={angka(ringkasan.totalBerangkat)}
+            keterangan="Luar Negeri + Dalam Negeri"
+          />
+          <KpiCard
+            label="Keberangkatan ke Luar Negeri"
+            value={angka(ringkasan.berangkatLuar)}
+            keterangan="ABK Kapal PHQC tujuan Luar Negeri"
+          />
+          <KpiCard
+            label="Keberangkatan ke Dalam Negeri"
+            value={angka(ringkasan.berangkatDalam)}
+            keterangan="ABK PHQC Dalam Negeri + Penumpang Kapal + Crew & Penumpang Pesawat"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {donut("Orang Datang: Luar Negeri vs Dalam Negeri", ringkasan.donutDatangLuarDalam)}
+          {donut("Orang Berangkat: Luar Negeri vs Dalam Negeri", ringkasan.donutBerangkatLuarDalam)}
+          {donut("Kedatangan Orang Menurut Sumber Data", ringkasan.donutSumberDatang)}
+          {donut("Keberangkatan Orang Menurut Sumber Data", ringkasan.donutSumberBerangkat)}
+        </div>
+      </div>
+
       {/* ================= KEDATANGAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
@@ -327,14 +440,14 @@ export default function AbkCrewPenumpangClient({
           Total gabungan ABK Kapal dari Luar Negeri + Crew Pesawat Datang + Penumpang Pesawat Datang + Penumpang Kapal Datang
         </p>
         <TrenChartPilihanSeri
-            data={dataKedatangan}
-            tipeChart={tipeChart}
-            tampilkanNilai={granularitas === "bulanan"}
-            sumberList={SUMBER_KEDATANGAN}
-            seriesHasil={[
-              { key: "total", label: "Total Kedatangan", warna: "#0F4C5C", sumber: KEY_SUMBER_UTAMA },
-            ]}
-          />
+          data={dataKedatangan}
+          tipeChart={tipeChart}
+          tampilkanNilai={granularitas === "bulanan"}
+          sumberList={SUMBER_KEDATANGAN}
+          seriesHasil={[
+            { key: "total", label: "Total Kedatangan", warna: "#0F4C5C", sumber: KEY_SUMBER_UTAMA },
+          ]}
+        />
       </div>
 
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
@@ -353,11 +466,11 @@ export default function AbkCrewPenumpangClient({
           Luar Negeri: ABK Kapal (COP). Dalam Negeri: ABK Kapal PHQC + Penumpang Kapal Datang + Crew &amp; Penumpang Pesawat Datang
         </p>
         <TrenChartPilihanSeri
-            data={dataKedatanganLuarDalam}
-            tipeChart={tipeChart}
-            sumberList={SUMBER_LUAR_DALAM_KEDATANGAN}
-            seriesHasil={HASIL_LUAR_DALAM_KEDATANGAN}
-          />
+          data={dataKedatanganLuarDalam}
+          tipeChart={tipeChart}
+          sumberList={SUMBER_LUAR_DALAM_KEDATANGAN}
+          seriesHasil={HASIL_LUAR_DALAM_KEDATANGAN}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -388,14 +501,14 @@ export default function AbkCrewPenumpangClient({
           Total gabungan ABK Kapal PHQC + Penumpang Kapal Berangkat + Crew Pesawat Berangkat + Penumpang Pesawat Berangkat
         </p>
         <TrenChartPilihanSeri
-            data={dataKeberangkatan}
-            tipeChart={tipeChart}
-            tampilkanNilai={granularitas === "bulanan"}
-            sumberList={SUMBER_KEBERANGKATAN}
-            seriesHasil={[
-              { key: "total", label: "Total Keberangkatan", warna: "#B71C1C", sumber: KEY_SUMBER_UTAMA },
-            ]}
-          />
+          data={dataKeberangkatan}
+          tipeChart={tipeChart}
+          tampilkanNilai={granularitas === "bulanan"}
+          sumberList={SUMBER_KEBERANGKATAN}
+          seriesHasil={[
+            { key: "total", label: "Total Keberangkatan", warna: "#B71C1C", sumber: KEY_SUMBER_UTAMA },
+          ]}
+        />
       </div>
 
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
@@ -414,11 +527,11 @@ export default function AbkCrewPenumpangClient({
           Luar Negeri: ABK Kapal PHQC tujuan Luar Negeri. Dalam Negeri: ABK Kapal PHQC tujuan Dalam Negeri + Penumpang Kapal Berangkat + Crew &amp; Penumpang Pesawat Berangkat
         </p>
         <TrenChartPilihanSeri
-            data={dataKeberangkatanLuarDalam}
-            tipeChart={tipeChart}
-            sumberList={SUMBER_LUAR_DALAM_KEBERANGKATAN}
-            seriesHasil={HASIL_LUAR_DALAM_KEBERANGKATAN}
-          />
+          data={dataKeberangkatanLuarDalam}
+          tipeChart={tipeChart}
+          sumberList={SUMBER_LUAR_DALAM_KEBERANGKATAN}
+          seriesHasil={HASIL_LUAR_DALAM_KEBERANGKATAN}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -446,11 +559,11 @@ export default function AbkCrewPenumpangClient({
           Distribusi Pengawasan Lalu Lintas Orang Datang & Berangkat di Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br />(Dalam {granularitas})
         </h2>
         <TrenChartPilihanSeri
-            data={dataPerbandingan}
-            tipeChart={tipeChart}
-            sumberList={SUMBER_PERBANDINGAN}
-            seriesHasil={HASIL_PERBANDINGAN}
-          />
+          data={dataPerbandingan}
+          tipeChart={tipeChart}
+          sumberList={SUMBER_PERBANDINGAN}
+          seriesHasil={HASIL_PERBANDINGAN}
+        />
       </div>
     </div>
   );

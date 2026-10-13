@@ -7,7 +7,7 @@ export function bolehLihatLaluLintas(): boolean {
   return true;
 }
 
-/** Unduh Excel: Petugas, Petugas Klinik, atau Admin. Tamu/publik hanya bisa lihat. */
+/** Unduh Excel: Petugas, Petugas Klinik, atau Admin dan Tamu/publik  */
 export function bolehUnduhLaluLintas(role: PeranUser | null): boolean {
-  return role === "admin" || role === "petugas" || role === "petugas_klinik";
+  return true;
 }

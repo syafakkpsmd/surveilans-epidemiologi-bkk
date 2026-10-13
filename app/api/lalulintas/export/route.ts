@@ -79,8 +79,8 @@ function tulisBlokTtd(sheet: ExcelJS.Worksheet, jumlahKolom: number, namaKatimke
 }
 
 export async function GET(req: NextRequest) {
-  const { sudahLogin, role } = await getStatusAkses();
-  if (!sudahLogin || !bolehUnduhLaluLintas(role)) {
+  const { role } = await getStatusAkses();
+  if (!bolehUnduhLaluLintas(role)) {
     return NextResponse.json({ error: "Tidak diizinkan" }, { status: 403 });
   }
 

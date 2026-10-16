@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { BarisTabelHotspot } from '@/lib/supabase/queries-karhutla-server';
 import { klasifikasiKabKota, CATATAN_METODE_KLASIFIKASI } from '@/lib/karhutla/klasifikasiKabKota';
+import { unduhExcel } from '@/lib/karhutla/excel';
 
 interface AgregatHotspotHarian {
   tanggal: string;
@@ -147,13 +148,51 @@ export default function TabelHotspotHarian({ data }: { data: BarisTabelHotspot[]
     setTanggalTerbuka((prev) => (prev === tanggal ? null : tanggal));
   }
 
+    function unduhHotspotExcel() {
+    unduhExcel(
+      `titik-panas-harian-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      'Titik Panas',
+      [
+        { key: 'tanggal', label: 'Tanggal' },
+        { key: 'jam', label: 'Jam' },
+        { key: 'kabKota', label: 'Kabupaten/Kota' },
+        { key: 'latitude', label: 'Latitude' },
+        { key: 'longitude', label: 'Longitude' },
+        { key: 'confidence', label: 'Confidence (%)' },
+        { key: 'satelit', label: 'Satelit' },
+        { key: 'frp', label: 'FRP' },
+      ],
+      agregat.flatMap((hari) =>
+        hari.titik.map((h) => ({
+          tanggal: formatTanggal(hari.tanggal),
+          jam: h.jam_deteksi ?? '',
+          kabKota: klasifikasiKabKota(h.latitude, h.longitude),
+          latitude: h.latitude,
+          longitude: h.longitude,
+          confidence: h.confidence ?? '',
+          satelit: h.satelit ?? '',
+          frp: h.frp ?? '',
+        }))
+      )
+    );
+  }
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between p-4 border-b border-gray-100">
-        <h2 className="text-base font-semibold text-gray-900">Riwayat Titik Panas (Hotspot)</h2>
-        <span className="text-xs text-gray-500">
-          {data.length} titik &middot; {jumlahHariUnik} hari terekam
-        </span>
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Riwayat Titik Panas (Hotspot)</h2>
+          <p className="text-xs text-gray-500">
+            {data.length} titik &middot; {jumlahHariUnik} hari terekam
+          </p>
+        </div>
+        <button
+          onClick={unduhHotspotExcel}
+          disabled={data.length === 0}
+          className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          ⬇ Unduh Excel
+        </button>
       </div>
 
       {agregat.length === 0 ? (

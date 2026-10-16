@@ -53,7 +53,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
       { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
       { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
-      { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
       { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
@@ -65,6 +64,7 @@ export const NAV_GROUPS: NavGroup[] = [
     singkat: "Travelers",
     items: [
       { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang", icon: Users, prefetch: false },
+      { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
       { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
       { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
       { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },

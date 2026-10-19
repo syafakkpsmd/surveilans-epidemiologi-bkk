@@ -1,0 +1,1502 @@
+diff --git a/app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx b/app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx
+index 94a2e04..85bd783 100644
+--- a/app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx
++++ b/app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx
+@@ -6,11 +6,18 @@ import PoskoInfografisClient from '@/components/posko/PoskoInfografisClient';
+ 
+ export const dynamic = 'force-dynamic';
+ 
+-export default async function PoskoInfografisPage({ params }: { params: Promise<{ jenis: string }> }) {
++export default async function PoskoInfografisPage({
++  params,
++  searchParams,
++}: {
++  params: Promise<{ jenis: string }>;
++  searchParams: Promise<{ tahun?: string }>;
++}) {
+   const { jenis } = await params;
++  const { tahun } = await searchParams;
+   const posko = SLUG_KE_JENIS[jenis];
+   if (!posko) notFound();
+ 
+-  const data = await ambilDataPosko(posko);
++  const data = await ambilDataPosko(posko, tahun && /^\d{4}$/.test(tahun) ? Number(tahun) : undefined);
+   return <PoskoInfografisClient slug={jenis} data={data} />;
+ }
+diff --git a/app/(dashboard)/dashboard/posko/[jenis]/input/page.tsx b/app/(dashboard)/dashboard/posko/[jenis]/input/page.tsx
+new file mode 100644
+index 0000000..a99a407
+--- /dev/null
++++ b/app/(dashboard)/dashboard/posko/[jenis]/input/page.tsx
+@@ -0,0 +1,61 @@
++// app/(dashboard)/dashboard/posko/[jenis]/input/page.tsx
++// Input data harian posko di aplikasi: pilih tanggal + wilayah, isian terisi otomatis bila sudah ada data.
++import { notFound } from 'next/navigation';
++import { getStatusAkses } from '@/lib/auth/getStatusAkses';
++import { bolehKelolaPosko } from '@/lib/auth/aksesPosko';
++import { SLUG_KE_JENIS, WILAYAH_POSKO, type WilayahPosko } from '@/lib/posko/konstanta';
++import { ambilInputHarianPosko, ambilPeriodePosko, hariIniWita } from '@/lib/posko/queries';
++import { tanggalSah } from '@/lib/posko/perintahInput';
++import PoskoInputClient from '@/components/posko/PoskoInputClient';
++
++export const dynamic = 'force-dynamic';
++
++export default async function PoskoInputPage({
++  params,
++  searchParams,
++}: {
++  params: Promise<{ jenis: string }>;
++  searchParams: Promise<{ tahun?: string; tanggal?: string; wilayah?: string }>;
++}) {
++  const { jenis } = await params;
++  const sp = await searchParams;
++  const posko = SLUG_KE_JENIS[jenis];
++  if (!posko) notFound();
++
++  const { role } = await getStatusAkses();
++  const bolehKelola = bolehKelolaPosko(role);
++  const tahun = sp.tahun && /^\d{4}$/.test(sp.tahun) ? Number(sp.tahun) : undefined;
++  const { periode, catatan } = await ambilPeriodePosko(posko, tahun);
++
++  const wilayah: WilayahPosko = (WILAYAH_POSKO as readonly string[]).includes(sp.wilayah ?? '')
++    ? (sp.wilayah as WilayahPosko)
++    : 'Samarinda';
++
++  // tanggal boleh diinput: dari mulai periode sampai min(selesai, hari ini WITA)
++  const hariIni = hariIniWita();
++  const tanggalMaks = periode ? (hariIni < periode.tanggalSelesai ? hariIni : periode.tanggalSelesai) : '';
++  const posokBelumMulai = !!periode && tanggalMaks < periode.tanggalMulai;
++  let tanggal = '';
++  if (periode && !posokBelumMulai) {
++    const diminta = sp.tanggal && tanggalSah(sp.tanggal) ? sp.tanggal : tanggalMaks;
++    tanggal = diminta < periode.tanggalMulai || diminta > tanggalMaks ? tanggalMaks : diminta;
++  }
++
++  const awal =
++    bolehKelola && periode && tanggal ? await ambilInputHarianPosko(posko, periode.tahun, tanggal, wilayah) : null;
++
++  return (
++    <PoskoInputClient
++      key={`${periode?.tahun}|${tanggal}|${wilayah}`} // ganti tanggal/wilayah -> form dimuat ulang dengan data tanggal itu
++      slug={jenis}
++      posko={posko}
++      periode={periode}
++      tanggal={tanggal}
++      wilayah={wilayah}
++      tanggalMaks={posokBelumMulai ? '' : tanggalMaks}
++      awal={awal}
++      bolehKelola={bolehKelola}
++      catatan={[...catatan, ...(awal?.catatan ?? [])]}
++    />
++  );
++}
+diff --git a/app/(dashboard)/dashboard/posko/[jenis]/page.tsx b/app/(dashboard)/dashboard/posko/[jenis]/page.tsx
+index 5ae3dad..49c343a 100644
+--- a/app/(dashboard)/dashboard/posko/[jenis]/page.tsx
++++ b/app/(dashboard)/dashboard/posko/[jenis]/page.tsx
+@@ -1,17 +1,29 @@
+ // app/(dashboard)/dashboard/posko/[jenis]/page.tsx
+-// /dashboard/posko/nataru  dan  /dashboard/posko/idul-fitri
++// /dashboard/posko/nataru  dan  /dashboard/posko/idul-fitri   (opsional: ?tahun=2027 untuk periode lain)
+ import { notFound } from 'next/navigation';
++import { getStatusAkses } from '@/lib/auth/getStatusAkses';
++import { bolehKelolaPosko } from '@/lib/auth/aksesPosko';
+ import { SLUG_KE_JENIS } from '@/lib/posko/konstanta';
+ import { ambilDataPosko } from '@/lib/posko/queries';
+ import PoskoDashboardClient from '@/components/posko/PoskoDashboardClient';
+ 
+ export const dynamic = 'force-dynamic';
+ 
+-export default async function PoskoPage({ params }: { params: Promise<{ jenis: string }> }) {
++export default async function PoskoPage({
++  params,
++  searchParams,
++}: {
++  params: Promise<{ jenis: string }>;
++  searchParams: Promise<{ tahun?: string }>;
++}) {
+   const { jenis } = await params;
++  const { tahun } = await searchParams;
+   const posko = SLUG_KE_JENIS[jenis];
+   if (!posko) notFound();
+ 
+-  const data = await ambilDataPosko(posko);
+-  return <PoskoDashboardClient slug={jenis} data={data} />;
++  const [data, { role }] = await Promise.all([
++    ambilDataPosko(posko, tahun && /^\d{4}$/.test(tahun) ? Number(tahun) : undefined),
++    getStatusAkses(),
++  ]);
++  return <PoskoDashboardClient key={data.periode?.tahun ?? 'kosong'} slug={jenis} data={data} bolehKelola={bolehKelolaPosko(role)} />;
+ }
+diff --git a/app/(dashboard)/dashboard/posko/actions.ts b/app/(dashboard)/dashboard/posko/actions.ts
+new file mode 100644
+index 0000000..b14a9a2
+--- /dev/null
++++ b/app/(dashboard)/dashboard/posko/actions.ts
+@@ -0,0 +1,109 @@
++'use server';
++
++// Server action modul Posko: atur periode & input data harian (penyakit, KLB, PTM) langsung dari aplikasi.
++// Tabel yang ditulis SAMA dengan yang diisi lewat Google Sheet (upsert, jadi tidak dobel).
++import { revalidatePath } from 'next/cache';
++import { getStatusAkses } from '@/lib/auth/getStatusAkses';
++import { bolehKelolaPosko } from '@/lib/auth/aksesPosko';
++import { getTursoClient } from '@/lib/turso/client';
++import { hariIniWita } from '@/lib/posko/queries';
++import { JENIS_KE_SLUG, type JenisPosko } from '@/lib/posko/konstanta';
++import {
++  bangunPerintahInputHarian,
++  tanggalSah,
++  validasiInputHarian,
++  type InputHarianPayload,
++} from '@/lib/posko/perintahInput';
++
++export type HasilAksiPosko = { ok: boolean; pesan: string };
++
++const BATAS_HARI_PERIODE = 120;
++
++async function pastikanBolehKelola(): Promise<HasilAksiPosko | null> {
++  const { role } = await getStatusAkses();
++  return bolehKelolaPosko(role)
++    ? null
++    : { ok: false, pesan: 'Hanya Admin, Petugas, atau Petugas Klinik yang bisa mengubah data posko. Silakan login.' };
++}
++
++function segarkan(posko: JenisPosko) {
++  const slug = JENIS_KE_SLUG[posko];
++  revalidatePath(`/dashboard/posko/${slug}`);
++  revalidatePath(`/dashboard/posko/${slug}/infografis`);
++  revalidatePath(`/dashboard/posko/${slug}/input`);
++}
++
++// ------------------------------------------------------------------ atur periode
++export async function simpanPeriodePosko(input: {
++  posko: JenisPosko;
++  tahun: number;
++  nama: string;
++  tanggalMulai: string;
++  tanggalSelesai: string;
++}): Promise<HasilAksiPosko> {
++  const ditolak = await pastikanBolehKelola();
++  if (ditolak) return ditolak;
++
++  if (input.posko !== 'nataru' && input.posko !== 'idul_fitri') return { ok: false, pesan: 'Jenis posko tidak dikenal.' };
++  if (!Number.isInteger(input.tahun) || input.tahun < 2020 || input.tahun > 2100) return { ok: false, pesan: 'Tahun posko tidak valid.' };
++  if (!tanggalSah(input.tanggalMulai) || !tanggalSah(input.tanggalSelesai)) return { ok: false, pesan: 'Tanggal mulai/selesai tidak valid.' };
++  if (input.tanggalMulai > input.tanggalSelesai) return { ok: false, pesan: 'Tanggal mulai tidak boleh setelah tanggal selesai.' };
++  const lamaHari =
++    (Date.parse(`${input.tanggalSelesai}T00:00:00Z`) - Date.parse(`${input.tanggalMulai}T00:00:00Z`)) / 86400000 + 1;
++  if (lamaHari > BATAS_HARI_PERIODE) return { ok: false, pesan: `Periode terlalu panjang (maksimal ${BATAS_HARI_PERIODE} hari).` };
++
++  const nama = String(input.nama ?? '').trim().slice(0, 120);
++  try {
++    await getTursoClient().execute({
++      sql: `INSERT INTO posko_periode (posko, tahun, nama, tanggal_mulai, tanggal_selesai) VALUES (?, ?, ?, ?, ?)
++            ON CONFLICT (posko, tahun) DO UPDATE SET
++              nama = excluded.nama, tanggal_mulai = excluded.tanggal_mulai, tanggal_selesai = excluded.tanggal_selesai`,
++      args: [input.posko, input.tahun, nama, input.tanggalMulai, input.tanggalSelesai],
++    });
++  } catch (err) {
++    const pesan = err instanceof Error ? err.message : String(err);
++    return {
++      ok: false,
++      pesan: pesan.includes('no such table')
++        ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
++        : `Gagal menyimpan periode: ${pesan}`,
++    };
++  }
++  segarkan(input.posko);
++  return { ok: true, pesan: 'Periode posko tersimpan.' };
++}
++
++// ------------------------------------------------------------------ input data harian
++export async function simpanInputHarianPosko(input: InputHarianPayload): Promise<HasilAksiPosko> {
++  const ditolak = await pastikanBolehKelola();
++  if (ditolak) return ditolak;
++
++  const salah = validasiInputHarian(input, hariIniWita());
++  if (salah) return { ok: false, pesan: salah };
++
++  try {
++    const db = getTursoClient();
++
++    // tanggal harus berada dalam salah satu periode posko ini; tahun diambil dari periode itu
++    const periode = await db.execute({
++      sql: `SELECT tahun FROM posko_periode WHERE posko = ? AND ? BETWEEN tanggal_mulai AND tanggal_selesai ORDER BY tahun DESC LIMIT 1`,
++      args: [input.posko, input.tanggal],
++    });
++    if (periode.rows.length === 0) {
++      return { ok: false, pesan: 'Tanggal ini di luar periode posko. Atur periode posko terlebih dulu.' };
++    }
++
++    await db.batch(bangunPerintahInputHarian(input, Number(periode.rows[0].tahun)), 'write'); // satu transaksi
++  } catch (err) {
++    const pesan = err instanceof Error ? err.message : String(err);
++    return {
++      ok: false,
++      pesan: pesan.includes('no such table')
++        ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
++        : `Gagal menyimpan: ${pesan}`,
++    };
++  }
++
++  segarkan(input.posko);
++  return { ok: true, pesan: `Data ${input.wilayah} tanggal ${input.tanggal} tersimpan.` };
++}
+diff --git a/components/karhutla/FormInputIspaHarian.tsx b/components/karhutla/FormInputIspaHarian.tsx
+index fd69e96..2de9e7d 100644
+--- a/components/karhutla/FormInputIspaHarian.tsx
++++ b/components/karhutla/FormInputIspaHarian.tsx
+@@ -74,6 +74,12 @@ export default function FormInputIspaHarian({
+             ))}
+           </select>
+         </div>
++        {daftarWilayah.find((w) => w.id === wilayahId)?.zona === 'Klinik Pelabuhan Samarinda' && (
++          <p className="sm:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
++            Data ISPA zona ini otomatis diambil dari modul Kunjungan Poliklinik. Input manual hanya dipakai untuk
++            tanggal yang tidak ada kunjungan poliklinik sama sekali.
++          </p>
++        )}
+         <div>
+           <label className="block text-sm font-medium text-gray-700 mb-1">Kasus ISPA Anak</label>
+           <input type="number" min={0} value={kasusAnak} onChange={(e) => setKasusAnak(e.target.value)} placeholder="0"
+diff --git a/components/karhutla/TabelDataKarhutla.tsx b/components/karhutla/TabelDataKarhutla.tsx
+index c18cea6..a10bf18 100644
+--- a/components/karhutla/TabelDataKarhutla.tsx
++++ b/components/karhutla/TabelDataKarhutla.tsx
+@@ -605,7 +605,10 @@ export default function TabelDataKarhutla({
+                     <td className="px-3 py-2 text-right">{d.kasus_ispa_anak}</td>
+                     <td className="px-3 py-2 text-right">{d.kasus_ispa_dewasa}</td>
+                     <td className="px-3 py-2 text-gray-500 max-w-xs truncate">{d.keterangan ?? '-'}</td>
+-                    {bolehKelola && (
++                    {bolehKelola && d.sumber === 'poliklinik' && (
++                      <td className="px-3 py-2 text-right whitespace-nowrap text-xs text-gray-400">Otomatis</td>
++                    )}
++                    {bolehKelola && d.sumber !== 'poliklinik' && (
+                       <td className="px-3 py-2 text-right whitespace-nowrap space-x-3">
+                         <button
+                           onClick={() => setEditIspa(d)}
+diff --git a/components/nav/menu-data.ts b/components/nav/menu-data.ts
+index 182e392..9cedb2e 100644
+--- a/components/nav/menu-data.ts
++++ b/components/nav/menu-data.ts
+@@ -113,14 +113,20 @@ export const NAV_GROUPS: NavGroup[] = [
+         href: "/dashboard/posko/nataru",
+         icon: CalendarDays,
+         prefetch: false,
+-        children: [{ label: "Info Grafis Harian", href: "/dashboard/posko/nataru/infografis", prefetch: false }],
++        children: [
++          { label: "Input Data Harian", href: "/dashboard/posko/nataru/input", prefetch: false },
++          { label: "Info Grafis Harian", href: "/dashboard/posko/nataru/infografis", prefetch: false },
++        ],
+       },
+       {
+         label: "Posko Idul Fitri",
+         href: "/dashboard/posko/idul-fitri",
+         icon: CalendarDays,
+         prefetch: false,
+-        children: [{ label: "Info Grafis Harian", href: "/dashboard/posko/idul-fitri/infografis", prefetch: false }],
++        children: [
++          { label: "Input Data Harian", href: "/dashboard/posko/idul-fitri/input", prefetch: false },
++          { label: "Info Grafis Harian", href: "/dashboard/posko/idul-fitri/infografis", prefetch: false },
++        ],
+       },
+     ],
+   },
+diff --git a/components/posko/PengaturPeriodePosko.tsx b/components/posko/PengaturPeriodePosko.tsx
+new file mode 100644
+index 0000000..2ab96e0
+--- /dev/null
++++ b/components/posko/PengaturPeriodePosko.tsx
+@@ -0,0 +1,156 @@
++'use client';
++
++import { useMemo, useState } from 'react';
++import { useRouter } from 'next/navigation';
++import { simpanPeriodePosko } from '@/app/(dashboard)/dashboard/posko/actions';
++import { JENDELA_BAWAAN, LABEL_POSKO, type JenisPosko, type PeriodePosko } from '@/lib/posko/konstanta';
++import { tambahHari, tanggalPanjang } from '@/lib/posko/hitung';
++
++/** Form "Atur Periode": pilih Hari H lalu N hari sebelum/sesudah, atau isi tanggal mulai-selesai manual. */
++export default function PengaturPeriodePosko({
++  posko,
++  periode,
++}: {
++  posko: JenisPosko;
++  periode: PeriodePosko | null;
++}) {
++  const router = useRouter();
++  const bawaan = JENDELA_BAWAAN[posko];
++
++  const [mode, setMode] = useState<'hariH' | 'manual'>('hariH');
++  const [hariH, setHariH] = useState(periode ? tambahHari(periode.tanggalMulai, bawaan.sebelum) : '');
++  const [sebelum, setSebelum] = useState(String(bawaan.sebelum));
++  const [sesudah, setSesudah] = useState(String(bawaan.sesudah));
++  const [mulaiManual, setMulaiManual] = useState(periode?.tanggalMulai ?? '');
++  const [selesaiManual, setSelesaiManual] = useState(periode?.tanggalSelesai ?? '');
++  const [tahunUbah, setTahunUbah] = useState<string | null>(null);
++  const [nama, setNama] = useState(periode?.nama ?? '');
++  const [menyimpan, setMenyimpan] = useState(false);
++  const [pesan, setPesan] = useState<{ ok: boolean; teks: string } | null>(null);
++
++  const hitung = useMemo(() => {
++    if (mode === 'hariH') {
++      const sb = Number(sebelum), sd = Number(sesudah);
++      if (!hariH || !Number.isInteger(sb) || !Number.isInteger(sd) || sb < 0 || sd < 0) {
++        return { mulai: '', selesai: '', tahunOtomatis: '' };
++      }
++      return { mulai: tambahHari(hariH, -sb), selesai: tambahHari(hariH, sd), tahunOtomatis: hariH.slice(0, 4) };
++    }
++    return { mulai: mulaiManual, selesai: selesaiManual, tahunOtomatis: mulaiManual.slice(0, 4) };
++  }, [mode, hariH, sebelum, sesudah, mulaiManual, selesaiManual]);
++
++  const tahun = tahunUbah ?? hitung.tahunOtomatis;
++  const lama = hitung.mulai && hitung.selesai
++    ? (Date.parse(`${hitung.selesai}T00:00:00Z`) - Date.parse(`${hitung.mulai}T00:00:00Z`)) / 86400000 + 1
++    : 0;
++
++  async function simpan() {
++    setMenyimpan(true);
++    setPesan(null);
++    try {
++      const hasil = await simpanPeriodePosko({
++        posko,
++        tahun: Number(tahun),
++        nama: nama.trim() || `${LABEL_POSKO[posko]} ${tahun}`,
++        tanggalMulai: hitung.mulai,
++        tanggalSelesai: hitung.selesai,
++      });
++      setPesan({ ok: hasil.ok, teks: hasil.pesan });
++      if (hasil.ok) router.replace(`/dashboard/posko/${posko === 'nataru' ? 'nataru' : 'idul-fitri'}?tahun=${tahun}`);
++      if (hasil.ok) router.refresh();
++    } catch (err) {
++      setPesan({ ok: false, teks: `Gagal menyimpan: ${err instanceof Error ? err.message : String(err)}` });
++    } finally {
++      setMenyimpan(false);
++    }
++  }
++
++  const input = 'rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-800';
++
++  return (
++    <div className="space-y-3 rounded-lg border border-[#0F4C5C]/30 bg-[#0F4C5C]/5 p-4 text-sm">
++      <div className="flex flex-wrap items-center gap-3">
++        <p className="font-semibold text-[#0F2A38]">Atur periode {LABEL_POSKO[posko]}</p>
++        <div className="flex rounded-md border border-gray-200 bg-white p-0.5 text-xs font-medium">
++          {(['hariH', 'manual'] as const).map((m) => (
++            <button
++              key={m}
++              type="button"
++              onClick={() => setMode(m)}
++              className={`rounded px-3 py-1 ${mode === m ? 'bg-[#0F4C5C] text-white' : 'text-gray-600'}`}
++            >
++              {m === 'hariH' ? 'Berdasarkan Hari H' : 'Tanggal manual'}
++            </button>
++          ))}
++        </div>
++      </div>
++
++      {mode === 'hariH' ? (
++        <div className="flex flex-wrap items-end gap-3">
++          <label className="text-xs text-gray-600">
++            Hari H <span className="text-gray-400">({bawaan.keteranganHariH})</span>
++            <input type="date" value={hariH} onChange={(e) => setHariH(e.target.value)} className={`${input} mt-1 block`} />
++          </label>
++          <label className="text-xs text-gray-600">
++            Hari sebelum H
++            <input type="number" min={0} max={60} value={sebelum} onChange={(e) => setSebelum(e.target.value)} className={`${input} mt-1 block w-24`} />
++          </label>
++          <label className="text-xs text-gray-600">
++            Hari sesudah H
++            <input type="number" min={0} max={60} value={sesudah} onChange={(e) => setSesudah(e.target.value)} className={`${input} mt-1 block w-24`} />
++          </label>
++        </div>
++      ) : (
++        <div className="flex flex-wrap items-end gap-3">
++          <label className="text-xs text-gray-600">
++            Tanggal mulai
++            <input type="date" value={mulaiManual} onChange={(e) => setMulaiManual(e.target.value)} className={`${input} mt-1 block`} />
++          </label>
++          <label className="text-xs text-gray-600">
++            Tanggal selesai
++            <input type="date" value={selesaiManual} onChange={(e) => setSelesaiManual(e.target.value)} className={`${input} mt-1 block`} />
++          </label>
++        </div>
++      )}
++
++      <div className="flex flex-wrap items-end gap-3">
++        <label className="text-xs text-gray-600">
++          Tahun posko
++          <input
++            type="number"
++            value={tahun}
++            onChange={(e) => setTahunUbah(e.target.value)}
++            className={`${input} mt-1 block w-24`}
++          />
++        </label>
++        <label className="min-w-[14rem] flex-1 text-xs text-gray-600">
++          Nama (opsional)
++          <input
++            value={nama}
++            onChange={(e) => setNama(e.target.value)}
++            placeholder={`${LABEL_POSKO[posko]} ${tahun || ''}`.trim()}
++            className={`${input} mt-1 block w-full`}
++          />
++        </label>
++      </div>
++
++      <p className="text-xs text-gray-600">
++        {hitung.mulai && hitung.selesai
++          ? `Periode: ${tanggalPanjang(hitung.mulai)} – ${tanggalPanjang(hitung.selesai)} (${lama} hari)`
++          : 'Isi tanggal untuk melihat periode.'}
++      </p>
++
++      <div className="flex items-center gap-3">
++        <button
++          type="button"
++          onClick={simpan}
++          disabled={menyimpan || !hitung.mulai || !hitung.selesai || !tahun}
++          className="rounded-md bg-[#0F4C5C] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0c3e4b] disabled:opacity-50"
++        >
++          {menyimpan ? 'Menyimpan…' : 'Simpan Periode'}
++        </button>
++        {pesan && <span className={`text-xs ${pesan.ok ? 'text-green-700' : 'text-red-700'}`}>{pesan.teks}</span>}
++      </div>
++    </div>
++  );
++}
+diff --git a/components/posko/PoskoDashboardClient.tsx b/components/posko/PoskoDashboardClient.tsx
+index 11ecc41..e6f44de 100644
+--- a/components/posko/PoskoDashboardClient.tsx
++++ b/components/posko/PoskoDashboardClient.tsx
+@@ -2,9 +2,11 @@
+ 
+ import { useMemo, useState } from 'react';
+ import Link from 'next/link';
++import { useRouter } from 'next/navigation';
+ import KpiCard from '@/components/vektor/KpiCard';
+ import TrenChartLine from '@/components/vektor/TrenChartLine';
+ import { DonutChart } from '@/components/klinik/DonutChart';
++import PengaturPeriodePosko from './PengaturPeriodePosko';
+ import {
+   LABEL_POSKO,
+   WILAYAH_POSKO,
+@@ -46,10 +48,20 @@ function Kosong({ pesan = 'Belum ada data untuk rentang ini.' }: { pesan?: strin
+   return <p className="py-10 text-center text-sm text-gray-400">{pesan}</p>;
+ }
+ 
+-export default function PoskoDashboardClient({ slug, data }: { slug: string; data: DataPosko }) {
+-  const { periode, tanggalAkhirTampil } = data;
++export default function PoskoDashboardClient({
++  slug,
++  data,
++  bolehKelola = false,
++}: {
++  slug: string;
++  data: DataPosko;
++  bolehKelola?: boolean;
++}) {
++  const router = useRouter();
++  const { periode, tanggalAkhirTampil, daftarPeriode } = data;
+   const judulPosko = LABEL_POSKO[data.posko];
+ 
++  const [aturPeriode, setAturPeriode] = useState(!periode && bolehKelola);
+   const [wilayah, setWilayah] = useState<WilayahPosko | ''>('');
+   const [dari, setDari] = useState(periode?.tanggalMulai ?? '');
+   const [sampai, setSampai] = useState(tanggalAkhirTampil ?? '');
+@@ -144,14 +156,45 @@ export default function PoskoDashboardClient({ slug, data }: { slug: string; dat
+                 : 'Periode posko belum diatur'}
+             </p>
+           </div>
+-          {periode && (
+-            <Link
+-              href={`/dashboard/posko/${slug}/infografis`}
+-              className="rounded-md border border-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-[#0F4C5C] transition-colors hover:bg-gray-50"
+-            >
+-              Info Grafis Harian
+-            </Link>
+-          )}
++          <div className="flex flex-wrap items-center gap-2">
++            {daftarPeriode.length > 1 && periode && (
++              <select
++                value={periode.tahun}
++                onChange={(e) => router.push(`/dashboard/posko/${slug}?tahun=${e.target.value}`)}
++                className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700"
++                aria-label="Pilih periode posko"
++              >
++                {daftarPeriode.map((d) => (
++                  <option key={d.tahun} value={d.tahun}>{d.nama || `${judulPosko} ${d.tahun}`}</option>
++                ))}
++              </select>
++            )}
++            {bolehKelola && (
++              <button
++                type="button"
++                onClick={() => setAturPeriode((v) => !v)}
++                className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
++              >
++                {aturPeriode ? 'Tutup Pengaturan' : periode ? 'Atur Periode' : 'Atur Periode Posko'}
++              </button>
++            )}
++            {bolehKelola && periode && (
++              <Link
++                href={`/dashboard/posko/${slug}/input?tahun=${periode.tahun}`}
++                className="rounded-md bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0c3e4b]"
++              >
++                Input Data Harian
++              </Link>
++            )}
++            {periode && (
++              <Link
++                href={`/dashboard/posko/${slug}/infografis?tahun=${periode.tahun}`}
++                className="rounded-md border border-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-[#0F4C5C] transition-colors hover:bg-gray-50"
++              >
++                Info Grafis Harian
++              </Link>
++            )}
++          </div>
+         </div>
+ 
+         {periode && tanggalAkhirTampil && (
+@@ -204,6 +247,8 @@ export default function PoskoDashboardClient({ slug, data }: { slug: string; dat
+         )}
+       </div>
+ 
++      {bolehKelola && aturPeriode && <PengaturPeriodePosko posko={data.posko} periode={periode} />}
++
+       {data.catatan.length > 0 && (
+         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+           {data.catatan.map((c) => (
+diff --git a/components/posko/PoskoInfografisClient.tsx b/components/posko/PoskoInfografisClient.tsx
+index 3bbd0fc..c79a90c 100644
+--- a/components/posko/PoskoInfografisClient.tsx
++++ b/components/posko/PoskoInfografisClient.tsx
+@@ -82,7 +82,7 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
+   return (
+     <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
+       <div>
+-        <Link href={`/dashboard/posko/${slug}`} className="text-sm font-medium text-[#0F4C5C] hover:underline">
++        <Link href={`/dashboard/posko/${slug}${periode ? `?tahun=${periode.tahun}` : ''}`} className="text-sm font-medium text-[#0F4C5C] hover:underline">
+           ← Kembali ke Dashboard {LABEL_POSKO[data.posko]}
+         </Link>
+         <h1 className="mt-1 text-xl font-bold text-[#0F2A38]">Info Grafis Harian {LABEL_POSKO[data.posko]}</h1>
+diff --git a/components/posko/PoskoInputClient.tsx b/components/posko/PoskoInputClient.tsx
+new file mode 100644
+index 0000000..3ce718e
+--- /dev/null
++++ b/components/posko/PoskoInputClient.tsx
+@@ -0,0 +1,290 @@
++'use client';
++
++import { useMemo, useState } from 'react';
++import Link from 'next/link';
++import { useRouter } from 'next/navigation';
++import { simpanInputHarianPosko } from '@/app/(dashboard)/dashboard/posko/actions';
++import {
++  DAFTAR_PENYAKIT,
++  DAFTAR_PTM,
++  LABEL_POSKO,
++  WILAYAH_POSKO,
++  type JenisPosko,
++  type PeriodePosko,
++  type WilayahPosko,
++} from '@/lib/posko/konstanta';
++import { tanggalPanjang } from '@/lib/posko/hitung';
++import type { InputHarianPosko } from '@/lib/posko/queries';
++
++const KOLOM = ['L <5', 'L ≥5', 'P <5', 'P ≥5'];
++const angka = (teks: string) => (teks.trim() === '' ? 0 : Number(teks));
++const bilanganBulat = (n: number) => Number.isInteger(n) && n >= 0;
++
++export default function PoskoInputClient({
++  slug,
++  posko,
++  periode,
++  tanggal,
++  wilayah,
++  tanggalMaks,
++  awal,
++  bolehKelola,
++  catatan,
++}: {
++  slug: string;
++  posko: JenisPosko;
++  periode: PeriodePosko | null;
++  tanggal: string;
++  wilayah: WilayahPosko;
++  /** tanggal terakhir yang boleh diinput = min(selesai periode, hari ini WITA); '' bila posko belum mulai */
++  tanggalMaks: string;
++  awal: InputHarianPosko | null;
++  bolehKelola: boolean;
++  catatan: string[];
++}) {
++  const router = useRouter();
++  const judul = LABEL_POSKO[posko];
++
++  const [penyakit, setPenyakit] = useState<Record<string, string[]>>(() =>
++    Object.fromEntries(
++      DAFTAR_PENYAKIT.map((j) => [j, awal?.penyakit[j] ? awal.penyakit[j].map(String) : Array(8).fill('')])
++    )
++  );
++  const [klbJumlah, setKlbJumlah] = useState(awal?.klbJumlah != null ? String(awal.klbJumlah) : '');
++  const [klbKet, setKlbKet] = useState(awal?.klbKeterangan ?? '');
++  const [ptm, setPtm] = useState<Record<string, string>>(() =>
++    Object.fromEntries(DAFTAR_PTM.map((j) => [j, awal?.ptm[j] != null ? String(awal.ptm[j]) : '']))
++  );
++  const [kotor, setKotor] = useState(false);
++  const [menyimpan, setMenyimpan] = useState(false);
++  const [pesan, setPesan] = useState<{ ok: boolean; teks: string } | null>(null);
++
++  const total = useMemo(() => {
++    let kasus = 0, mati = 0;
++    DAFTAR_PENYAKIT.forEach((j) => {
++      penyakit[j].forEach((v, i) => { if (i < 4) kasus += angka(v) || 0; else mati += angka(v) || 0; });
++    });
++    return { kasus, mati };
++  }, [penyakit]);
++
++  function pindah(tanggalBaru: string, wilayahBaru: string) {
++    if (kotor && !confirm('Ada isian yang belum disimpan. Pindah tanggal/wilayah dan buang isian ini?')) return;
++    const q = new URLSearchParams({ tanggal: tanggalBaru, wilayah: wilayahBaru });
++    if (periode) q.set('tahun', String(periode.tahun));
++    router.replace(`/dashboard/posko/${slug}/input?${q.toString()}`);
++  }
++
++  function ubahPenyakit(jenis: string, indeks: number, nilai: string) {
++    setKotor(true);
++    setPenyakit((lama) => ({ ...lama, [jenis]: lama[jenis].map((v, i) => (i === indeks ? nilai : v)) }));
++  }
++
++  async function simpan() {
++    setPesan(null);
++    const dataPenyakit = Object.fromEntries(DAFTAR_PENYAKIT.map((j) => [j, penyakit[j].map(angka)]));
++    const dataPtm = Object.fromEntries(DAFTAR_PTM.map((j) => [j, angka(ptm[j])]));
++    const semua = [...Object.values(dataPenyakit).flat(), ...Object.values(dataPtm), angka(klbJumlah)];
++    if (!semua.every(bilanganBulat)) {
++      setPesan({ ok: false, teks: 'Semua angka harus bilangan bulat 0 atau lebih (tanpa koma atau minus).' });
++      return;
++    }
++    setMenyimpan(true);
++    try {
++      const hasil = await simpanInputHarianPosko({
++        posko, tanggal, wilayah,
++        penyakit: dataPenyakit,
++        klbJumlah: angka(klbJumlah),
++        klbKeterangan: klbKet,
++        ptm: dataPtm,
++      });
++      setPesan({ ok: hasil.ok, teks: hasil.pesan });
++      if (hasil.ok) {
++        setKotor(false);
++        router.refresh();
++      }
++    } catch (err) {
++      setPesan({ ok: false, teks: `Gagal menyimpan: ${err instanceof Error ? err.message : String(err)}` });
++    } finally {
++      setMenyimpan(false);
++    }
++  }
++
++  const kotakAngka = 'w-14 rounded border border-gray-300 px-1.5 py-1 text-right text-xs text-gray-800';
++
++  return (
++    <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
++      <div>
++        <Link href={`/dashboard/posko/${slug}${periode ? `?tahun=${periode.tahun}` : ''}`} className="text-sm font-medium text-[#0F4C5C] hover:underline">
++          ← Kembali ke Dashboard {judul}
++        </Link>
++        <h1 className="mt-1 text-xl font-bold text-[#0F2A38]">Input Data Harian {judul}</h1>
++        <p className="text-xs text-gray-500">Penyakit potensial KLB, kejadian KLB, dan penyakit tidak menular per tanggal dan wilayah kerja.</p>
++      </div>
++
++      {catatan.length > 0 && (
++        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
++          {catatan.map((c) => (<p key={c}>{c}</p>))}
++        </div>
++      )}
++
++      {!bolehKelola ? (
++        <p className="rounded-xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-600">
++          Input data posko hanya untuk Admin, Petugas, atau Petugas Klinik.{' '}
++          <Link href="/login" className="font-semibold text-[#0F4C5C] hover:underline">Masuk</Link> terlebih dulu.
++        </p>
++      ) : !periode ? (
++        <p className="rounded-xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-600">
++          Periode posko belum diatur. Atur periode di{' '}
++          <Link href={`/dashboard/posko/${slug}`} className="font-semibold text-[#0F4C5C] hover:underline">dashboard {judul}</Link>.
++        </p>
++      ) : !tanggalMaks ? (
++        <p className="rounded-xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-600">
++          Posko belum dimulai (mulai {tanggalPanjang(periode.tanggalMulai)}). Data bisa diinput mulai tanggal tersebut.
++        </p>
++      ) : (
++        <>
++          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-100 bg-white p-4">
++            <label className="text-xs text-gray-600">
++              Tanggal
++              <input
++                type="date"
++                value={tanggal}
++                min={periode.tanggalMulai}
++                max={tanggalMaks}
++                onChange={(e) => e.target.value && pindah(e.target.value, wilayah)}
++                className="mt-1 block rounded-md border border-gray-300 px-2 py-1.5 text-sm"
++              />
++            </label>
++            <label className="text-xs text-gray-600">
++              Wilayah kerja
++              <select
++                value={wilayah}
++                onChange={(e) => pindah(tanggal, e.target.value)}
++                className="mt-1 block rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
++              >
++                {WILAYAH_POSKO.map((w) => (<option key={w} value={w}>{w}</option>))}
++              </select>
++            </label>
++            <p className="pb-1 text-xs text-gray-500">
++              Periode {tanggalPanjang(periode.tanggalMulai)} – {tanggalPanjang(periode.tanggalSelesai)}
++            </p>
++          </div>
++
++          <p
++            className={`rounded-lg px-4 py-2 text-xs ${
++              awal?.adaData ? 'border border-blue-200 bg-blue-50 text-blue-800' : 'border border-gray-200 bg-gray-50 text-gray-600'
++            }`}
++          >
++            {awal?.adaData
++              ? `Data ${wilayah} tanggal ${tanggalPanjang(tanggal)} sudah ada — Anda sedang mengedit.`
++              : `Belum ada data ${wilayah} untuk ${tanggalPanjang(tanggal)}. Kolom yang dikosongkan disimpan sebagai 0.`}
++          </p>
++
++          {/* PENYAKIT POTENSIAL KLB */}
++          <div className="rounded-xl border border-gray-100 bg-white p-4">
++            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
++              <h2 className="text-sm font-bold text-gray-800">Penyakit Potensial KLB</h2>
++              <p className="text-xs text-gray-500">
++                Total kasus <strong>{total.kasus}</strong> · meninggal <strong className={total.mati > 0 ? 'text-[#B71C1C]' : ''}>{total.mati}</strong>
++              </p>
++            </div>
++            <div className="overflow-x-auto">
++              <table className="w-full min-w-[820px] text-xs">
++                <thead>
++                  <tr className="bg-gray-50 text-gray-600">
++                    <th rowSpan={2} className="px-2 py-2 text-left">No</th>
++                    <th rowSpan={2} className="px-2 py-2 text-left">Jenis Penyakit</th>
++                    <th colSpan={4} className="border-l border-gray-200 px-2 py-1 text-center">Kasus</th>
++                    <th colSpan={4} className="border-l border-gray-200 px-2 py-1 text-center">Meninggal</th>
++                  </tr>
++                  <tr className="bg-gray-50 text-gray-600">
++                    {[...KOLOM, ...KOLOM].map((h, i) => (
++                      <th key={`${h}${i}`} className={`px-1 py-1 text-center ${i % 4 === 0 ? 'border-l border-gray-200' : ''}`}>{h}</th>
++                    ))}
++                  </tr>
++                </thead>
++                <tbody>
++                  {DAFTAR_PENYAKIT.map((jenis, no) => (
++                    <tr key={jenis} className="border-t border-gray-100">
++                      <td className="px-2 py-1 text-gray-500">{no + 1}</td>
++                      <td className="px-2 py-1 text-gray-800">{jenis}</td>
++                      {penyakit[jenis].map((nilai, i) => (
++                        <td key={i} className={`px-1 py-1 text-center ${i % 4 === 0 ? 'border-l border-gray-100' : ''}`}>
++                          <input
++                            type="number" min={0} step={1} inputMode="numeric" placeholder="0"
++                            value={nilai}
++                            onChange={(e) => ubahPenyakit(jenis, i, e.target.value)}
++                            className={kotakAngka}
++                            aria-label={`${jenis} ${i < 4 ? 'kasus' : 'meninggal'} ${KOLOM[i % 4]}`}
++                          />
++                        </td>
++                      ))}
++                    </tr>
++                  ))}
++                </tbody>
++              </table>
++            </div>
++            <p className="mt-2 text-[11px] text-gray-400">L = laki-laki, P = perempuan; &lt;5 = kurang dari 5 tahun, ≥5 = 5 tahun ke atas.</p>
++          </div>
++
++          {/* KLB */}
++          <div className="rounded-xl border border-gray-100 bg-white p-4">
++            <h2 className="mb-2 text-sm font-bold text-gray-800">Kejadian KLB Hari Ini</h2>
++            <div className="flex flex-wrap items-end gap-3">
++              <label className="text-xs text-gray-600">
++                Jumlah kejadian KLB
++                <input
++                  type="number" min={0} step={1} inputMode="numeric" placeholder="0"
++                  value={klbJumlah}
++                  onChange={(e) => { setKotor(true); setKlbJumlah(e.target.value); }}
++                  className="mt-1 block w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
++                />
++              </label>
++              <label className="min-w-[16rem] flex-1 text-xs text-gray-600">
++                Keterangan (opsional)
++                <input
++                  value={klbKet}
++                  maxLength={300}
++                  onChange={(e) => { setKotor(true); setKlbKet(e.target.value); }}
++                  placeholder="mis. keracunan pangan di ..."
++                  className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
++                />
++              </label>
++            </div>
++          </div>
++
++          {/* PTM */}
++          <div className="rounded-xl border border-gray-100 bg-white p-4">
++            <h2 className="mb-2 text-sm font-bold text-gray-800">Penyakit Tidak Menular</h2>
++            <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
++              {DAFTAR_PTM.map((jenis) => (
++                <label key={jenis} className="flex items-center justify-between gap-3 text-xs text-gray-700">
++                  {jenis}
++                  <input
++                    type="number" min={0} step={1} inputMode="numeric" placeholder="0"
++                    value={ptm[jenis]}
++                    onChange={(e) => { setKotor(true); setPtm((lama) => ({ ...lama, [jenis]: e.target.value })); }}
++                    className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm"
++                  />
++                </label>
++              ))}
++            </div>
++          </div>
++
++          <div className="sticky bottom-0 flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-md">
++            <button
++              type="button"
++              onClick={simpan}
++              disabled={menyimpan}
++              className="rounded-md bg-[#0F4C5C] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0c3e4b] disabled:opacity-50"
++            >
++              {menyimpan ? 'Menyimpan…' : `Simpan Data ${wilayah}`}
++            </button>
++            {kotor && !pesan && <span className="text-xs text-amber-700">Ada perubahan yang belum disimpan.</span>}
++            {pesan && <span className={`text-sm ${pesan.ok ? 'text-green-700' : 'text-red-700'}`}>{pesan.teks}</span>}
++          </div>
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/lib/auth/aksesPosko.ts b/lib/auth/aksesPosko.ts
+new file mode 100644
+index 0000000..2643478
+--- /dev/null
++++ b/lib/auth/aksesPosko.ts
+@@ -0,0 +1,15 @@
++// lib/auth/aksesPosko.ts
++import type { PeranUser } from '@/types/database.types';
++
++/** Melihat dashboard & info grafis Posko: publik (tanpa login). */
++export function bolehLihatPosko(): boolean {
++  return true;
++}
++
++/**
++ * Mengatur periode posko & menginput data harian (penyakit, KLB, PTM) lewat aplikasi:
++ * Admin, Petugas, atau Petugas Klinik. Ubah di sini bila hak aksesnya ingin diganti.
++ */
++export function bolehKelolaPosko(role: PeranUser | null): boolean {
++  return role === 'admin' || role === 'petugas' || role === 'petugas_klinik';
++}
+diff --git a/lib/karhutla/ispaPoliklinik.ts b/lib/karhutla/ispaPoliklinik.ts
+new file mode 100644
+index 0000000..c3da799
+--- /dev/null
++++ b/lib/karhutla/ispaPoliklinik.ts
+@@ -0,0 +1,114 @@
++// lib/karhutla/ispaPoliklinik.ts
++// Sumber data ISPA otomatis dari modul Kunjungan Poliklinik (Turso) untuk zona klinik tertentu.
++// HANYA untuk server (Server Component / Route Handler / Server Action).
++//
++// Aturan:
++//  - kasus ISPA = kunjungan poliklinik yang kolom `diagnosa`-nya mengandung kata ISPA
++//    (juga salah ketik "ISPAA"); "DISPAREUNIA" dsb. TIDAK ikut karena dicek per kata.
++//  - umur dibagi: anak = usia < BATAS_UMUR_ANAK tahun, dewasa = usia >= BATAS_UMUR_ANAK
++//    (usia kosong/tidak terbaca dihitung dewasa).
++//  - Tanggal yang ADA kunjungan poliklinik: data ISPA zona itu diambil dari poliklinik (0 bila tidak
++//    ada kasus ISPA). Tanggal tanpa kunjungan sama sekali: tetap memakai input manual ispa_harian.
++import { getTursoClient } from '@/lib/turso/client';
++
++/** Anak = usia di bawah angka ini (tahun). UBAH di sini bila batas anak/dewasa Karhutla berbeda. */
++export const BATAS_UMUR_ANAK = 15;
++
++/** Zona Karhutla yang datanya diambil dari poliklinik. Tambahkan baris lain bila ingin diperluas. */
++export const ZONA_ISPA_DARI_POLIKLINIK = [
++  { kode_wilker: 'WK01', zona: 'Klinik Pelabuhan Samarinda', wilayahPoliklinik: 'samarinda' },
++] as const;
++
++export type BarisIspaPoliklinik = {
++  tanggal: string;
++  kode_wilker: string;
++  zona: string;
++  kasus_ispa_anak: number;
++  kasus_ispa_dewasa: number;
++};
++
++export type HasilIspaPoliklinik = {
++  /** false bila Turso gagal -> pemanggil memakai data manual apa adanya */
++  tersedia: boolean;
++  /** 1 baris per tanggal yang ada kunjungan (kasus ISPA bisa 0) */
++  baris: BarisIspaPoliklinik[];
++};
++
++export function adalahDiagnosaIspa(diagnosa: unknown): boolean {
++  return /\bISPA+\b/i.test(String(diagnosa ?? ''));
++}
++
++export function klasifikasiUmur(usia: unknown): 'anak' | 'dewasa' {
++  const angka = parseInt(String(usia ?? '').match(/\d+/)?.[0] ?? '', 10);
++  return Number.isFinite(angka) && angka < BATAS_UMUR_ANAK ? 'anak' : 'dewasa';
++}
++
++export const SQL_ISPA_POLIKLINIK =
++  `SELECT date(tanggal_pemeriksaan) AS tgl, usia, diagnosa
++   FROM kunjungan_poliklinik
++   WHERE REPLACE(LOWER(wilayah_kerja), ' ', '') = ?
++     AND date(tanggal_pemeriksaan) BETWEEN ? AND ?`;
++
++export async function ambilIspaDariPoliklinik(
++  tanggalAwal: string,
++  tanggalAkhir: string
++): Promise<HasilIspaPoliklinik> {
++  try {
++    const baris: BarisIspaPoliklinik[] = [];
++    for (const z of ZONA_ISPA_DARI_POLIKLINIK) {
++      const hasil = await getTursoClient().execute({
++        sql: SQL_ISPA_POLIKLINIK,
++        args: [z.wilayahPoliklinik, tanggalAwal, tanggalAkhir],
++      });
++      const perTanggal = new Map<string, { anak: number; dewasa: number }>();
++      for (const r of hasil.rows as unknown as Record<string, unknown>[]) {
++        const tgl = String(r.tgl ?? '');
++        if (!tgl) continue;
++        const entri = perTanggal.get(tgl) ?? { anak: 0, dewasa: 0 };
++        if (adalahDiagnosaIspa(r.diagnosa)) entri[klasifikasiUmur(r.usia)] += 1;
++        perTanggal.set(tgl, entri);
++      }
++      perTanggal.forEach((v, tgl) =>
++        baris.push({
++          tanggal: tgl, kode_wilker: z.kode_wilker, zona: z.zona,
++          kasus_ispa_anak: v.anak, kasus_ispa_dewasa: v.dewasa,
++        })
++      );
++    }
++    return { tersedia: true, baris };
++  } catch (err) {
++    console.error('[karhutla] ISPA poliklinik gagal dimuat, memakai input manual:', err);
++    return { tersedia: false, baris: [] };
++  }
++}
++
++type DasarIspa = { tanggal: string; kode_wilker: string; zona: string | null };
++
++/**
++ * Menggabungkan baris ISPA manual (ispa_harian) dengan data poliklinik:
++ * baris manual zona terkait DIBUANG pada tanggal yang punya kunjungan poliklinik, lalu baris
++ * poliklinik ditambahkan. `lolos` = filter wilayah yang sama dengan filter query manual.
++ */
++export function gabungkanIspaPoliklinik<T extends DasarIspa>(
++  manual: T[],
++  poli: HasilIspaPoliklinik,
++  buat: (b: BarisIspaPoliklinik) => T,
++  lolos?: (kode_wilker: string, zona: string) => boolean
++): T[] {
++  if (!poli.tersedia) return manual;
++  const diganti = new Set(poli.baris.map((b) => `${b.kode_wilker}::${b.zona}|${b.tanggal}`));
++  const sisa = manual.filter((r) => !diganti.has(`${r.kode_wilker}::${r.zona ?? ''}|${r.tanggal}`));
++  const tambahan = poli.baris.filter((b) => !lolos || lolos(b.kode_wilker, b.zona)).map(buat);
++  return [...sisa, ...tambahan];
++}
++
++/** Padanan filter `wilayahKeys` ('WK01' atau 'WK01::Nama Zona') untuk baris poliklinik. */
++export function lolosWilayahKeys(wilayahKeys?: string[]) {
++  return (kode: string, zona: string) =>
++    !wilayahKeys || wilayahKeys.length === 0 || wilayahKeys.includes(`${kode}::${zona}`);
++}
++
++/** Padanan filter `.in('kode_wilker', [...])`. */
++export function lolosKodeWilker(kodeWilker: readonly string[]) {
++  return (kode: string) => kodeWilker.includes(kode);
++}
+diff --git a/lib/posko/hitung.ts b/lib/posko/hitung.ts
+index 9dec33a..877a174 100644
+--- a/lib/posko/hitung.ts
++++ b/lib/posko/hitung.ts
+@@ -167,6 +167,14 @@ export function tanggalPanjang(iso: string): string {
+   });
+ }
+ 
++/** "2026-12-25" + 3 -> "2026-12-28" (n boleh negatif). Tanggal tak valid -> ''. */
++export function tambahHari(iso: string, n: number): string {
++  const d = new Date(`${iso}T00:00:00Z`);
++  if (isNaN(d.getTime())) return '';
++  d.setUTCDate(d.getUTCDate() + n);
++  return d.toISOString().slice(0, 10);
++}
++
+ /** Hari ke-N sejak tanggal mulai (hari pertama = 1). */
+ export function hariKe(mulai: string, tanggal: string): number {
+   return Math.round((Date.parse(`${tanggal}T00:00:00Z`) - Date.parse(`${mulai}T00:00:00Z`)) / 86400000) + 1;
+diff --git a/lib/posko/konstanta.ts b/lib/posko/konstanta.ts
+index 6303a0a..c4c3097 100644
+--- a/lib/posko/konstanta.ts
++++ b/lib/posko/konstanta.ts
+@@ -125,6 +125,8 @@ export type BarisPtmPosko = {
+ export type DataPosko = {
+   posko: JenisPosko;
+   periode: PeriodePosko | null;
++  /** semua periode tersimpan untuk posko ini (terbaru dulu) -> untuk pilihan periode */
++  daftarPeriode: PeriodePosko[];
+   /** tanggal terakhir yang ditampilkan = min(selesai, hari ini WITA); null bila posko belum mulai */
+   tanggalAkhirTampil: string | null;
+   harian: BarisHarianPosko[];
+@@ -133,3 +135,13 @@ export type DataPosko = {
+   /** catatan untuk pengguna (mis. tabel belum dibuat, sumber data gagal dimuat) */
+   catatan: string[];
+ };
++
++/**
++ * Jendela periode bawaan relatif terhadap Hari H (bisa diubah di form "Atur Periode"):
++ *  - Idul Fitri: Hari H = 1 Syawal, 14 hari sebelum s/d 14 hari sesudah.
++ *  - Nataru    : Hari H = 25 Desember, 7 hari sebelum s/d 10 hari sesudah (mis. 18 Des - 4 Jan).
++ */
++export const JENDELA_BAWAAN: Record<JenisPosko, { sebelum: number; sesudah: number; keteranganHariH: string }> = {
++  idul_fitri: { sebelum: 14, sesudah: 14, keteranganHariH: 'Hari H = 1 Syawal (Idul Fitri)' },
++  nataru: { sebelum: 7, sesudah: 10, keteranganHariH: 'Hari H = 25 Desember (Natal)' },
++};
+diff --git a/lib/posko/perintahInput.ts b/lib/posko/perintahInput.ts
+new file mode 100644
+index 0000000..ff7b245
+--- /dev/null
++++ b/lib/posko/perintahInput.ts
+@@ -0,0 +1,83 @@
++// lib/posko/perintahInput.ts
++// Validasi + perintah SQL untuk input data harian posko (fungsi murni, tanpa Next/Turso -> mudah diuji).
++import {
++  DAFTAR_PENYAKIT,
++  DAFTAR_PTM,
++  WILAYAH_POSKO,
++  type JenisPosko,
++  type WilayahPosko,
++} from './konstanta';
++
++export type InputHarianPayload = {
++  posko: JenisPosko;
++  tanggal: string;
++  wilayah: WilayahPosko;
++  /** jenis penyakit -> 8 angka: kasus L<5, L>=5, P<5, P>=5, lalu meninggal L<5, L>=5, P<5, P>=5 */
++  penyakit: Record<string, number[]>;
++  klbJumlah: number;
++  klbKeterangan: string;
++  /** jenis PTM -> jumlah kasus */
++  ptm: Record<string, number>;
++};
++
++export const BATAS_ANGKA = 1_000_000;
++
++export function tanggalSah(s: unknown): s is string {
++  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
++  const d = new Date(`${s}T00:00:00Z`);
++  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
++}
++
++export function angkaSah(v: unknown): v is number {
++  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= BATAS_ANGKA;
++}
++
++/** null = lolos; selain itu pesan kesalahan. Semua angka diperiksa SEBELUM menulis apa pun. */
++export function validasiInputHarian(input: InputHarianPayload, hariIni: string): string | null {
++  if (input.posko !== 'nataru' && input.posko !== 'idul_fitri') return 'Jenis posko tidak dikenal.';
++  if (!tanggalSah(input.tanggal)) return 'Tanggal tidak valid.';
++  if (!(WILAYAH_POSKO as readonly string[]).includes(input.wilayah)) return 'Wilayah kerja tidak valid.';
++  if (input.tanggal > hariIni) return 'Tanggal belum tiba, data belum bisa diinput.';
++  if (!angkaSah(input.klbJumlah)) return 'Jumlah kejadian KLB harus bilangan bulat 0 atau lebih.';
++  for (const jenis of DAFTAR_PENYAKIT) {
++    const nilai = input.penyakit?.[jenis];
++    if (!Array.isArray(nilai) || nilai.length !== 8 || !nilai.every(angkaSah)) {
++      return `Angka penyakit "${jenis}" harus bilangan bulat 0 atau lebih.`;
++    }
++  }
++  for (const jenis of DAFTAR_PTM) {
++    if (!angkaSah(input.ptm?.[jenis])) return `Jumlah "${jenis}" harus bilangan bulat 0 atau lebih.`;
++  }
++  return null;
++}
++
++export const SQL_PENYAKIT =
++  `INSERT INTO posko_penyakit_harian (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit,
++     kasus_lk_lt5, kasus_lk_ge5, kasus_pr_lt5, kasus_pr_ge5, mati_lk_lt5, mati_lk_ge5, mati_pr_lt5, mati_pr_ge5)
++   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
++   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit) DO UPDATE SET
++     kasus_lk_lt5 = excluded.kasus_lk_lt5, kasus_lk_ge5 = excluded.kasus_lk_ge5,
++     kasus_pr_lt5 = excluded.kasus_pr_lt5, kasus_pr_ge5 = excluded.kasus_pr_ge5,
++     mati_lk_lt5 = excluded.mati_lk_lt5, mati_lk_ge5 = excluded.mati_lk_ge5,
++     mati_pr_lt5 = excluded.mati_pr_lt5, mati_pr_ge5 = excluded.mati_pr_ge5, diperbarui = datetime('now')`;
++
++export const SQL_KLB =
++  `INSERT INTO posko_klb_harian (posko, tahun, tanggal, wilayah_kerja, jumlah_klb, keterangan) VALUES (?, ?, ?, ?, ?, ?)
++   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja) DO UPDATE SET
++     jumlah_klb = excluded.jumlah_klb, keterangan = excluded.keterangan, diperbarui = datetime('now')`;
++
++export const SQL_PTM =
++  `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus) VALUES (?, ?, ?, ?, ?, ?)
++   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_ptm) DO UPDATE SET
++     jumlah_kasus = excluded.jumlah_kasus, diperbarui = datetime('now')`;
++
++/** 25 baris penyakit + 1 baris KLB + 7 baris PTM = 33 perintah (dijalankan sebagai satu transaksi). */
++export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: number) {
++  const dasar = [input.posko, tahun, input.tanggal, input.wilayah];
++  const ket = String(input.klbKeterangan ?? '').trim().slice(0, 300);
++  return [
++    ...DAFTAR_PENYAKIT.map((jenis) => ({ sql: SQL_PENYAKIT, args: [...dasar, jenis, ...input.penyakit[jenis]] })),
++    { sql: SQL_KLB, args: [...dasar, input.klbJumlah, ket === '' ? null : ket] },
++    ...DAFTAR_PTM.map((jenis) => ({ sql: SQL_PTM, args: [...dasar, jenis, input.ptm[jenis]] })),
++  ];
++}
+diff --git a/lib/posko/queries.ts b/lib/posko/queries.ts
+index 147e956..84bbfc1 100644
+--- a/lib/posko/queries.ts
++++ b/lib/posko/queries.ts
+@@ -123,29 +123,39 @@ async function ambilPesawat(mulai: string, akhir: string, catatan: string[]): Pr
+   return semua;
+ }
+ 
+-// ---------------------------------------------------------------- fungsi utama
+-export const ambilDataPosko = cache(async (posko: JenisPosko): Promise<DataPosko> => {
+-  const catatan: string[] = [];
+-  const kosong: DataPosko = {
+-    posko, periode: null, tanggalAkhirTampil: null, harian: [], penyakit: [], ptm: [], catatan,
+-  };
+-
+-  const barisPeriode = await jalankan(
+-    'SELECT posko, tahun, nama, tanggal_mulai, tanggal_selesai FROM posko_periode WHERE posko = ? ORDER BY tahun DESC LIMIT 1',
++// ---------------------------------------------------------------- periode
++export async function ambilDaftarPeriode(posko: JenisPosko, catatan: string[]): Promise<PeriodePosko[]> {
++  const baris = await jalankan(
++    'SELECT posko, tahun, nama, tanggal_mulai, tanggal_selesai FROM posko_periode WHERE posko = ? ORDER BY tahun DESC',
+     [posko], 'posko_periode', catatan
+   );
+-  if (barisPeriode.length === 0) {
+-    if (catatan.length === 0) catatan.push('Periode posko belum diisi di tabel posko_periode.');
+-    return kosong;
+-  }
+-  const p = barisPeriode[0];
+-  const periode: PeriodePosko = {
++  return baris.map((p) => ({
+     posko,
+     tahun: angka(p.tahun),
+     nama: String(p.nama ?? ''),
+     tanggalMulai: String(p.tanggal_mulai),
+     tanggalSelesai: String(p.tanggal_selesai),
++  }));
++}
++
++/** Periode terpilih (sesuai ?tahun=, atau yang terbaru) + daftar semua periode. */
++export const ambilPeriodePosko = cache(async (posko: JenisPosko, tahun?: number) => {
++  const catatan: string[] = [];
++  const daftarPeriode = await ambilDaftarPeriode(posko, catatan);
++  const periode = (tahun ? daftarPeriode.find((d) => d.tahun === tahun) : undefined) ?? daftarPeriode[0] ?? null;
++  if (!periode && catatan.length === 0) catatan.push('Periode posko belum diatur.');
++  return { periode, daftarPeriode, catatan };
++});
++
++// ---------------------------------------------------------------- fungsi utama
++export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): Promise<DataPosko> => {
++  const hasilPeriode = await ambilPeriodePosko(posko, tahun);
++  const catatan: string[] = [...hasilPeriode.catatan];
++  const { periode, daftarPeriode } = hasilPeriode;
++  const kosong: DataPosko = {
++    posko, periode: null, daftarPeriode, tanggalAkhirTampil: null, harian: [], penyakit: [], ptm: [], catatan,
+   };
++  if (!periode) return kosong;
+ 
+   const hariIni = hariIniWita();
+   if (hariIni < periode.tanggalMulai) {
+@@ -242,6 +252,7 @@ export const ambilDataPosko = cache(async (posko: JenisPosko): Promise<DataPosko
+   return {
+     posko,
+     periode,
++    daftarPeriode,
+     tanggalAkhirTampil: akhir,
+     harian: Array.from(peta.values()),
+     penyakit,
+@@ -249,3 +260,59 @@ export const ambilDataPosko = cache(async (posko: JenisPosko): Promise<DataPosko
+     catatan,
+   };
+ });
++
++// ---------------------------------------------------------------- data input harian (untuk prefill form)
++export type InputHarianPosko = {
++  adaData: boolean;
++  /** jenis penyakit -> [kasusLkLt5, kasusLkGe5, kasusPrLt5, kasusPrGe5, matiLkLt5, matiLkGe5, matiPrLt5, matiPrGe5] */
++  penyakit: Record<string, number[]>;
++  klbJumlah: number | null;
++  klbKeterangan: string;
++  ptm: Record<string, number>;
++  catatan: string[];
++};
++
++export async function ambilInputHarianPosko(
++  posko: JenisPosko,
++  tahun: number,
++  tanggal: string,
++  wilayah: WilayahPosko
++): Promise<InputHarianPosko> {
++  const catatan: string[] = [];
++  const args = [posko, tahun, tanggal, wilayah];
++  const [rPenyakit, rKlb, rPtm] = await Promise.all([
++    jalankan(
++      `SELECT jenis_penyakit, kasus_lk_lt5, kasus_lk_ge5, kasus_pr_lt5, kasus_pr_ge5,
++              mati_lk_lt5, mati_lk_ge5, mati_pr_lt5, mati_pr_ge5
++       FROM posko_penyakit_harian WHERE posko = ? AND tahun = ? AND tanggal = ? AND wilayah_kerja = ?`,
++      args, 'posko_penyakit_harian', catatan
++    ),
++    jalankan(
++      'SELECT jumlah_klb, keterangan FROM posko_klb_harian WHERE posko = ? AND tahun = ? AND tanggal = ? AND wilayah_kerja = ?',
++      args, 'posko_klb_harian', catatan
++    ),
++    jalankan(
++      'SELECT jenis_ptm, jumlah_kasus FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND tanggal = ? AND wilayah_kerja = ?',
++      args, 'posko_ptm_harian', catatan
++    ),
++  ]);
++
++  const penyakit: Record<string, number[]> = {};
++  rPenyakit.forEach((r) => {
++    penyakit[String(r.jenis_penyakit)] = [
++      angka(r.kasus_lk_lt5), angka(r.kasus_lk_ge5), angka(r.kasus_pr_lt5), angka(r.kasus_pr_ge5),
++      angka(r.mati_lk_lt5), angka(r.mati_lk_ge5), angka(r.mati_pr_lt5), angka(r.mati_pr_ge5),
++    ];
++  });
++  const ptm: Record<string, number> = {};
++  rPtm.forEach((r) => { ptm[String(r.jenis_ptm)] = angka(r.jumlah_kasus); });
++
++  return {
++    adaData: rPenyakit.length > 0 || rKlb.length > 0 || rPtm.length > 0,
++    penyakit,
++    klbJumlah: rKlb.length > 0 ? angka(rKlb[0].jumlah_klb) : null,
++    klbKeterangan: rKlb.length > 0 ? String(rKlb[0].keterangan ?? '') : '',
++    ptm,
++    catatan,
++  };
++}
+diff --git a/lib/supabase/queries-karhutla-server.ts b/lib/supabase/queries-karhutla-server.ts
+index 640609f..ba48e72 100644
+--- a/lib/supabase/queries-karhutla-server.ts
++++ b/lib/supabase/queries-karhutla-server.ts
+@@ -1,4 +1,10 @@
+ import 'server-only';
++import {
++  ambilIspaDariPoliklinik,
++  gabungkanIspaPoliklinik,
++  lolosKodeWilker,
++  lolosWilayahKeys,
++} from '@/lib/karhutla/ispaPoliklinik';
+ import { createClient } from '@/lib/supabase/server';
+ import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+ import { getDaftarWilayahKerjaSkdr } from '@/lib/supabase/queries';
+@@ -74,9 +80,10 @@ export async function ambilTrenIspaPm25(
+   if (filterOr) queryIspa = queryIspa.or(filterOr);
+ 
+   const [
+-    { data: dataIspa, error: errIspa },
++    { data: dataIspaManual, error: errIspa },
+     { data: dataUdara, error: errUdara },
+     { data: dataHotspot, error: errHotspot },
++    poliIspa,
+   ] = await Promise.all([
+     queryIspa,
+     supabase
+@@ -89,9 +96,12 @@ export async function ambilTrenIspaPm25(
+       .select('tanggal_deteksi, confidence')
+       .gte('tanggal_deteksi', tanggalAwal)
+       .gt('confidence', 80),
++    ambilIspaDariPoliklinik(tanggalAwal, tanggalAkhir),
+   ]);
+ 
+   if (errIspa) throw new Error(`Gagal mengambil tren ISPA: ${errIspa.message}`);
++  // zona klinik tertentu (Klinik Pelabuhan Samarinda) memakai data Kunjungan Poliklinik
++  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosWilayahKeys(wilayahKeys));
+   if (errUdara) throw new Error(`Gagal mengambil data PM2.5: ${errUdara.message}`);
+   if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
+ 
+@@ -470,6 +480,8 @@ export interface BarisTabelIspa {
+   kasus_ispa_anak: number;
+   kasus_ispa_dewasa: number;
+   keterangan: string | null;
++  /** 'poliklinik' = baris otomatis (hanya-baca); kosong = input manual di ispa_harian */
++  sumber?: 'poliklinik';
+ }
+ 
+ export async function ambilTabelIspa(hariTerakhir = 90): Promise<BarisTabelIspa[]> {
+@@ -477,14 +489,36 @@ export async function ambilTabelIspa(hariTerakhir = 90): Promise<BarisTabelIspa[
+   const sejak = new Date();
+   sejak.setDate(sejak.getDate() - hariTerakhir);
+ 
+-  const { data, error } = await supabase
+-    .from('ispa_harian')
+-    .select('id, tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa, keterangan')
+-    .gte('tanggal', sejak.toISOString().slice(0, 10))
+-    .order('tanggal', { ascending: false });
++  const tanggalAwal = sejak.toISOString().slice(0, 10);
++  const tanggalAkhir = new Date().toISOString().slice(0, 10);
++
++  const [{ data, error }, poli] = await Promise.all([
++    supabase
++      .from('ispa_harian')
++      .select('id, tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa, keterangan')
++      .gte('tanggal', tanggalAwal)
++      .order('tanggal', { ascending: false }),
++    ambilIspaDariPoliklinik(tanggalAwal, tanggalAkhir),
++  ]);
+ 
+   if (error) throw new Error(`Gagal mengambil data tabel ISPA: ${error.message}`);
+-  return data ?? [];
++
++  // Baris dari poliklinik bersifat hanya-baca (id berawalan "poliklinik-", tidak ada di ispa_harian)
++  const gabung = gabungkanIspaPoliklinik<BarisTabelIspa>(
++    (data ?? []) as BarisTabelIspa[],
++    poli,
++    (b) => ({
++      id: `poliklinik-${b.kode_wilker}-${b.tanggal}`,
++      tanggal: b.tanggal,
++      kode_wilker: b.kode_wilker,
++      zona: b.zona,
++      kasus_ispa_anak: b.kasus_ispa_anak,
++      kasus_ispa_dewasa: b.kasus_ispa_dewasa,
++      keterangan: 'Otomatis dari Kunjungan Poliklinik',
++      sumber: 'poliklinik',
++    })
++  );
++  return gabung.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+ }
+ 
+ export interface BarisTabelKualitasUdara {
+@@ -568,9 +602,10 @@ export async function ambilTrenHarianRentang(
+   if (lokasiUdara && lokasiUdara.length > 0) queryUdara = queryUdara.in('lokasi', lokasiUdara);
+ 
+   const [
+-    { data: dataIspa, error: errIspa },
++    { data: dataIspaManual, error: errIspa },
+     { data: dataUdara, error: errUdara },
+     { data: dataHotspot, error: errHotspot },
++    poliIspa,
+   ] = await Promise.all([
+     queryIspa,
+     queryUdara,
+@@ -580,9 +615,11 @@ export async function ambilTrenHarianRentang(
+       .gte('tanggal_deteksi', tanggalAwal)
+       .lte('tanggal_deteksi', tanggalAkhir)
+       .gt('confidence', 80),
++    ambilIspaDariPoliklinik(tanggalAwal, tanggalAkhir),
+   ]);
+ 
+   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
++  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosWilayahKeys(wilayahKeys));
+   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
+   if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
+ 
+@@ -740,7 +777,7 @@ export async function ambilRingkasanInfografisHarian(
+   //        data kalau tanggal yang diminta masih kosong (mis. cron belum
+   //        sempat jalan / belum ada input manual hari itu). ---
+   const tanggalMulaiCek = mundurkanTanggal(tanggalDiminta, 13);
+-  const [{ data: cekIspa }, { data: cekHotspot }] = await Promise.all([
++  const [{ data: cekIspa }, { data: cekHotspot }, poliCek] = await Promise.all([
+     supabase.from('ispa_harian').select('tanggal').gte('tanggal', tanggalMulaiCek).lte('tanggal', tanggalDiminta),
+     supabase
+       .from('hotspot_nasa_kaltim')
+@@ -748,10 +785,12 @@ export async function ambilRingkasanInfografisHarian(
+       .gte('tanggal_deteksi', tanggalMulaiCek)
+       .lte('tanggal_deteksi', tanggalDiminta)
+       .gt('confidence', 80),
++    ambilIspaDariPoliklinik(tanggalMulaiCek, tanggalDiminta),
+   ]);
+ 
+   const tanggalTersedia = new Set<string>();
+   for (const b of cekIspa ?? []) tanggalTersedia.add(b.tanggal);
++  for (const b of poliCek.baris) tanggalTersedia.add(b.tanggal); // tanggal yang ada kunjungan poliklinik juga dianggap ada data
+   for (const b of cekHotspot ?? []) tanggalTersedia.add(b.tanggal_deteksi);
+ 
+   let tanggalDitampilkan = tanggalDiminta;
+@@ -766,14 +805,15 @@ export async function ambilRingkasanInfografisHarian(
+ 
+    // --- 2. Ambil data mentah untuk tanggal efektif ---
+   const [
+-    { data: dataIspa, error: errIspa },
++    { data: dataIspaManual, error: errIspa },
+     { data: dataUdara, error: errUdara },
+     { data: dataHotspot, error: errHotspot },
+     daftarLokasiLengkap,
++    poliHari,
+   ] = await Promise.all([
+     supabase
+       .from('ispa_harian')
+-      .select('kode_wilker, kasus_ispa_anak, kasus_ispa_dewasa')
++      .select('tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa')
+       .eq('tanggal', tanggalDitampilkan),
+     supabase
+       .from('kualitas_udara_harian')
+@@ -785,9 +825,11 @@ export async function ambilRingkasanInfografisHarian(
+       .eq('tanggal_deteksi', tanggalDitampilkan)
+       .gt('confidence', 80),
+     ambilDaftarLokasiUdara(),
++    ambilIspaDariPoliklinik(tanggalDitampilkan, tanggalDitampilkan),
+   ]);
+ 
+   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
++  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliHari, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }));
+   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
+   if (errHotspot) throw new Error(`Gagal mengambil data titik panas: ${errHotspot.message}`);
+ 
+@@ -979,10 +1021,10 @@ export async function ambilRingkasanInfografisHarian(
+ 
+   // --- 5. Tren 7 hari terakhir (berakhir di tanggalDitampilkan) ---
+   const tanggalAwalTren = mundurkanTanggal(tanggalDitampilkan, 6);
+-  const [{ data: trenIspa }, { data: trenHotspot }] = await Promise.all([
++  const [{ data: trenIspaManual }, { data: trenHotspot }, poliTren] = await Promise.all([
+     supabase
+       .from('ispa_harian')
+-      .select('tanggal, kasus_ispa_anak, kasus_ispa_dewasa')
++      .select('tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa')
+       .gte('tanggal', tanggalAwalTren)
+       .lte('tanggal', tanggalDitampilkan),
+     supabase
+@@ -991,7 +1033,9 @@ export async function ambilRingkasanInfografisHarian(
+       .gte('tanggal_deteksi', tanggalAwalTren)
+       .lte('tanggal_deteksi', tanggalDitampilkan)
+       .gt('confidence', 80),
++    ambilIspaDariPoliklinik(tanggalAwalTren, tanggalDitampilkan),
+   ]);
++  const trenIspa = gabungkanIspaPoliklinik(trenIspaManual ?? [], poliTren, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }));
+ 
+   const mapTrenIspa = new Map<string, number>();
+   for (const b of trenIspa ?? []) {
+@@ -1139,14 +1183,15 @@ export async function ambilRingkasanLaporanKarhutla(
+ 
+   // --- 1. Data mentah rentang tanggal (pola sama seperti infografis, tanpa fallback) ---
+   const [
+-    { data: dataIspa, error: errIspa },
++    { data: dataIspaManual, error: errIspa },
+     { data: dataUdara, error: errUdara },
+     { data: dataHotspot, error: errHotspot },
+     daftarLokasiLengkap,
++    poliIspa,
+   ] = await Promise.all([
+     supabase
+       .from('ispa_harian')
+-      .select('tanggal, kode_wilker, kasus_ispa_anak, kasus_ispa_dewasa')
++      .select('tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa')
+       .gte('tanggal', periodeAwal)
+       .lte('tanggal', periodeAkhir)
+       .in('kode_wilker', filterWilker),
+@@ -1162,9 +1207,11 @@ export async function ambilRingkasanLaporanKarhutla(
+       .lte('tanggal_deteksi', periodeAkhir)
+       .gt('confidence', 80),
+     ambilDaftarLokasiUdara(),
++    ambilIspaDariPoliklinik(periodeAwal, periodeAkhir),
+   ]);
+ 
+   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
++  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosKodeWilker(filterWilker));
+   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
+   if (errHotspot) throw new Error(`Gagal mengambil data titik panas: ${errHotspot.message}`);
+ 

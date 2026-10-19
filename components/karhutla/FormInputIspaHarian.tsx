@@ -74,6 +74,12 @@ export default function FormInputIspaHarian({
             ))}
           </select>
         </div>
+        {daftarWilayah.find((w) => w.id === wilayahId)?.zona === 'Klinik Pelabuhan Samarinda' && (
+          <p className="sm:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Data ISPA zona ini otomatis diambil dari modul Kunjungan Poliklinik. Input manual hanya dipakai untuk
+            tanggal yang tidak ada kunjungan poliklinik sama sekali.
+          </p>
+        )}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Kasus ISPA Anak</label>
           <input type="number" min={0} value={kasusAnak} onChange={(e) => setKasusAnak(e.target.value)} placeholder="0"

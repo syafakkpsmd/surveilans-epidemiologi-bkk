@@ -12,7 +12,7 @@ import {
   Ship, PlaneTakeoff, Bug, Rat, Zap, Droplets, Plane, Wind, CircleDot, Building2,
   ShieldAlert, Siren, Newspaper, Globe, TrendingUp, Database, Microscope, Users,
   BarChart3, MapPin, ClipboardCheck, BuildingIcon, Table2, Book, Flame, Droplet,
-  BellRing, Package, PersonStanding,
+  BellRing, Package, PersonStanding, CalendarDays,
 } from "lucide-react";
 
 export type NavChild = { label: string; href: string; prefetch?: boolean };
@@ -105,6 +105,32 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: "Posko Matra",
+    singkat: "Matra",
+    items: [
+      {
+        label: "Posko Nataru",
+        href: "/dashboard/posko/nataru",
+        icon: CalendarDays,
+        prefetch: false,
+        children: [
+          { label: "Input Data Harian", href: "/dashboard/posko/nataru/input", prefetch: false },
+          { label: "Info Grafis Harian", href: "/dashboard/posko/nataru/infografis", prefetch: false },
+        ],
+      },
+      {
+        label: "Posko Idul Fitri",
+        href: "/dashboard/posko/idul-fitri",
+        icon: CalendarDays,
+        prefetch: false,
+        children: [
+          { label: "Input Data Harian", href: "/dashboard/posko/idul-fitri/input", prefetch: false },
+          { label: "Info Grafis Harian", href: "/dashboard/posko/idul-fitri/infografis", prefetch: false },
+        ],
+      },
+    ],
+  },
+  {
     title: "Klinik Binaan BKK",
     singkat: "Klinik Binaan",
     items: [
@@ -131,6 +157,18 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: "Data",
+    singkat: "Data",
+    items: [
+      { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
+      { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
+      { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
+      { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },
+      { label: "Laporan Timker 1", href: "https://drive.google.com/drive/folders/1ZMoZhPgy8WndyGsuU37LzBzxUry1B0Hl?usp=sharing", icon: Book, prefetch: false },
+      { label: "Laporan Indikator Kinerja", href: "https://s.kemkes.go.id/indikatorrenstrabkk2026", icon: Book, prefetch: false },
+    ],
+  },
+  {
     title: "Tautan",
     singkat: "Tautan",
     items: [
@@ -154,18 +192,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Kapal", href: "/dashboard/simulasi-wabah/kapal", icon: Ship },
       { label: "Pesawat", href: "/dashboard/simulasi-wabah/pesawat", icon: PlaneTakeoff },
-    ],
-  },
-  {
-    title: "Data",
-    singkat: "Data",
-    items: [
-      { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
-      { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
-      { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
-      { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },
-      { label: "Laporan Timker 1", href: "https://drive.google.com/drive/folders/1ZMoZhPgy8WndyGsuU37LzBzxUry1B0Hl?usp=sharing", icon: Book, prefetch: false },
-      { label: "Laporan Indikator Kinerja", href: "https://s.kemkes.go.id/indikatorrenstrabkk2026", icon: Book, prefetch: false },
     ],
   },
 ];

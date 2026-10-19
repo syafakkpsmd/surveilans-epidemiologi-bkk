@@ -605,7 +605,10 @@ export default function TabelDataKarhutla({
                     <td className="px-3 py-2 text-right">{d.kasus_ispa_anak}</td>
                     <td className="px-3 py-2 text-right">{d.kasus_ispa_dewasa}</td>
                     <td className="px-3 py-2 text-gray-500 max-w-xs truncate">{d.keterangan ?? '-'}</td>
-                    {bolehKelola && (
+                    {bolehKelola && d.sumber === 'poliklinik' && (
+                      <td className="px-3 py-2 text-right whitespace-nowrap text-xs text-gray-400">Otomatis</td>
+                    )}
+                    {bolehKelola && d.sumber !== 'poliklinik' && (
                       <td className="px-3 py-2 text-right whitespace-nowrap space-x-3">
                         <button
                           onClick={() => setEditIspa(d)}

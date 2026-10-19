@@ -1,4 +1,10 @@
 import 'server-only';
+import {
+  ambilIspaDariPoliklinik,
+  gabungkanIspaPoliklinik,
+  lolosKodeWilker,
+  lolosWilayahKeys,
+} from '@/lib/karhutla/ispaPoliklinik';
 import { createClient } from '@/lib/supabase/server';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 import { getDaftarWilayahKerjaSkdr } from '@/lib/supabase/queries';
@@ -74,9 +80,10 @@ export async function ambilTrenIspaPm25(
   if (filterOr) queryIspa = queryIspa.or(filterOr);
 
   const [
-    { data: dataIspa, error: errIspa },
+    { data: dataIspaManual, error: errIspa },
     { data: dataUdara, error: errUdara },
     { data: dataHotspot, error: errHotspot },
+    poliIspa,
   ] = await Promise.all([
     queryIspa,
     supabase
@@ -89,9 +96,12 @@ export async function ambilTrenIspaPm25(
       .select('tanggal_deteksi, confidence')
       .gte('tanggal_deteksi', tanggalAwal)
       .gt('confidence', 80),
+    ambilIspaDariPoliklinik(tanggalAwal, tanggalAkhir),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil tren ISPA: ${errIspa.message}`);
+  // zona klinik tertentu (Klinik Pelabuhan Samarinda) memakai data Kunjungan Poliklinik
+  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosWilayahKeys(wilayahKeys));
   if (errUdara) throw new Error(`Gagal mengambil data PM2.5: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
 
@@ -470,6 +480,8 @@ export interface BarisTabelIspa {
   kasus_ispa_anak: number;
   kasus_ispa_dewasa: number;
   keterangan: string | null;
+  /** 'poliklinik' = baris otomatis (hanya-baca); kosong = input manual di ispa_harian */
+  sumber?: 'poliklinik';
 }
 
 export async function ambilTabelIspa(hariTerakhir = 90): Promise<BarisTabelIspa[]> {
@@ -477,14 +489,36 @@ export async function ambilTabelIspa(hariTerakhir = 90): Promise<BarisTabelIspa[
   const sejak = new Date();
   sejak.setDate(sejak.getDate() - hariTerakhir);
 
-  const { data, error } = await supabase
-    .from('ispa_harian')
-    .select('id, tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa, keterangan')
-    .gte('tanggal', sejak.toISOString().slice(0, 10))
-    .order('tanggal', { ascending: false });
+  const tanggalAwal = sejak.toISOString().slice(0, 10);
+  const tanggalAkhir = new Date().toISOString().slice(0, 10);
+
+  const [{ data, error }, poli] = await Promise.all([
+    supabase
+      .from('ispa_harian')
+      .select('id, tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa, keterangan')
+      .gte('tanggal', tanggalAwal)
+      .order('tanggal', { ascending: false }),
+    ambilIspaDariPoliklinik(tanggalAwal, tanggalAkhir),
+  ]);
 
   if (error) throw new Error(`Gagal mengambil data tabel ISPA: ${error.message}`);
-  return data ?? [];
+
+  // Baris dari poliklinik bersifat hanya-baca (id berawalan "poliklinik-", tidak ada di ispa_harian)
+  const gabung = gabungkanIspaPoliklinik<BarisTabelIspa>(
+    (data ?? []) as BarisTabelIspa[],
+    poli,
+    (b) => ({
+      id: `poliklinik-${b.kode_wilker}-${b.tanggal}`,
+      tanggal: b.tanggal,
+      kode_wilker: b.kode_wilker,
+      zona: b.zona,
+      kasus_ispa_anak: b.kasus_ispa_anak,
+      kasus_ispa_dewasa: b.kasus_ispa_dewasa,
+      keterangan: 'Otomatis dari Kunjungan Poliklinik',
+      sumber: 'poliklinik',
+    })
+  );
+  return gabung.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
 }
 
 export interface BarisTabelKualitasUdara {
@@ -568,9 +602,10 @@ export async function ambilTrenHarianRentang(
   if (lokasiUdara && lokasiUdara.length > 0) queryUdara = queryUdara.in('lokasi', lokasiUdara);
 
   const [
-    { data: dataIspa, error: errIspa },
+    { data: dataIspaManual, error: errIspa },
     { data: dataUdara, error: errUdara },
     { data: dataHotspot, error: errHotspot },
+    poliIspa,
   ] = await Promise.all([
     queryIspa,
     queryUdara,
@@ -580,9 +615,11 @@ export async function ambilTrenHarianRentang(
       .gte('tanggal_deteksi', tanggalAwal)
       .lte('tanggal_deteksi', tanggalAkhir)
       .gt('confidence', 80),
+    ambilIspaDariPoliklinik(tanggalAwal, tanggalAkhir),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
+  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosWilayahKeys(wilayahKeys));
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
 
@@ -740,7 +777,7 @@ export async function ambilRingkasanInfografisHarian(
   //        data kalau tanggal yang diminta masih kosong (mis. cron belum
   //        sempat jalan / belum ada input manual hari itu). ---
   const tanggalMulaiCek = mundurkanTanggal(tanggalDiminta, 13);
-  const [{ data: cekIspa }, { data: cekHotspot }] = await Promise.all([
+  const [{ data: cekIspa }, { data: cekHotspot }, poliCek] = await Promise.all([
     supabase.from('ispa_harian').select('tanggal').gte('tanggal', tanggalMulaiCek).lte('tanggal', tanggalDiminta),
     supabase
       .from('hotspot_nasa_kaltim')
@@ -748,10 +785,12 @@ export async function ambilRingkasanInfografisHarian(
       .gte('tanggal_deteksi', tanggalMulaiCek)
       .lte('tanggal_deteksi', tanggalDiminta)
       .gt('confidence', 80),
+    ambilIspaDariPoliklinik(tanggalMulaiCek, tanggalDiminta),
   ]);
 
   const tanggalTersedia = new Set<string>();
   for (const b of cekIspa ?? []) tanggalTersedia.add(b.tanggal);
+  for (const b of poliCek.baris) tanggalTersedia.add(b.tanggal); // tanggal yang ada kunjungan poliklinik juga dianggap ada data
   for (const b of cekHotspot ?? []) tanggalTersedia.add(b.tanggal_deteksi);
 
   let tanggalDitampilkan = tanggalDiminta;
@@ -766,14 +805,15 @@ export async function ambilRingkasanInfografisHarian(
 
    // --- 2. Ambil data mentah untuk tanggal efektif ---
   const [
-    { data: dataIspa, error: errIspa },
+    { data: dataIspaManual, error: errIspa },
     { data: dataUdara, error: errUdara },
     { data: dataHotspot, error: errHotspot },
     daftarLokasiLengkap,
+    poliHari,
   ] = await Promise.all([
     supabase
       .from('ispa_harian')
-      .select('kode_wilker, kasus_ispa_anak, kasus_ispa_dewasa')
+      .select('tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa')
       .eq('tanggal', tanggalDitampilkan),
     supabase
       .from('kualitas_udara_harian')
@@ -785,9 +825,11 @@ export async function ambilRingkasanInfografisHarian(
       .eq('tanggal_deteksi', tanggalDitampilkan)
       .gt('confidence', 80),
     ambilDaftarLokasiUdara(),
+    ambilIspaDariPoliklinik(tanggalDitampilkan, tanggalDitampilkan),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
+  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliHari, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }));
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik panas: ${errHotspot.message}`);
 
@@ -979,10 +1021,10 @@ export async function ambilRingkasanInfografisHarian(
 
   // --- 5. Tren 7 hari terakhir (berakhir di tanggalDitampilkan) ---
   const tanggalAwalTren = mundurkanTanggal(tanggalDitampilkan, 6);
-  const [{ data: trenIspa }, { data: trenHotspot }] = await Promise.all([
+  const [{ data: trenIspaManual }, { data: trenHotspot }, poliTren] = await Promise.all([
     supabase
       .from('ispa_harian')
-      .select('tanggal, kasus_ispa_anak, kasus_ispa_dewasa')
+      .select('tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa')
       .gte('tanggal', tanggalAwalTren)
       .lte('tanggal', tanggalDitampilkan),
     supabase
@@ -991,7 +1033,9 @@ export async function ambilRingkasanInfografisHarian(
       .gte('tanggal_deteksi', tanggalAwalTren)
       .lte('tanggal_deteksi', tanggalDitampilkan)
       .gt('confidence', 80),
+    ambilIspaDariPoliklinik(tanggalAwalTren, tanggalDitampilkan),
   ]);
+  const trenIspa = gabungkanIspaPoliklinik(trenIspaManual ?? [], poliTren, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }));
 
   const mapTrenIspa = new Map<string, number>();
   for (const b of trenIspa ?? []) {
@@ -1139,14 +1183,15 @@ export async function ambilRingkasanLaporanKarhutla(
 
   // --- 1. Data mentah rentang tanggal (pola sama seperti infografis, tanpa fallback) ---
   const [
-    { data: dataIspa, error: errIspa },
+    { data: dataIspaManual, error: errIspa },
     { data: dataUdara, error: errUdara },
     { data: dataHotspot, error: errHotspot },
     daftarLokasiLengkap,
+    poliIspa,
   ] = await Promise.all([
     supabase
       .from('ispa_harian')
-      .select('tanggal, kode_wilker, kasus_ispa_anak, kasus_ispa_dewasa')
+      .select('tanggal, kode_wilker, zona, kasus_ispa_anak, kasus_ispa_dewasa')
       .gte('tanggal', periodeAwal)
       .lte('tanggal', periodeAkhir)
       .in('kode_wilker', filterWilker),
@@ -1162,9 +1207,11 @@ export async function ambilRingkasanLaporanKarhutla(
       .lte('tanggal_deteksi', periodeAkhir)
       .gt('confidence', 80),
     ambilDaftarLokasiUdara(),
+    ambilIspaDariPoliklinik(periodeAwal, periodeAkhir),
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
+  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosKodeWilker(filterWilker));
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik panas: ${errHotspot.message}`);
 

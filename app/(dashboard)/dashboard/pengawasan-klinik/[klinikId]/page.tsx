@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { ITEM_CHECKLIST, DAFTAR_KATEGORI } from '@/lib/pengawasan-klinik/itemChecklist';
+import { getTursoClient } from '@/lib/turso/client';
+import UploadRekomendasi from '@/components/pengawasan-klinik/UploadRekomendasi';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +96,20 @@ export default async function DetailPengawasanKlinikPage({
   }
   const fotoPerJenis = (jenis: string) => semuaFoto.filter((f) => f.jenis_dokumen === jenis);
 
+    let namaFileRekomendasi: string | null = null;
+  if (terpilih) {
+    try {
+      const turso = getTursoClient();
+      const rek = await turso.execute({
+        sql: 'SELECT nama_file FROM pengawasan_klinik_rekomendasi WHERE pengawasan_id = ?',
+        args: [terpilih.id],
+      });
+      namaFileRekomendasi = (rek.rows[0]?.nama_file as string) ?? null;
+    } catch {
+      namaFileRekomendasi = null;
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-5 px-4 py-6">
       <Link href="/dashboard/pengawasan-klinik" className="text-sm text-blue-700 hover:underline">
@@ -149,8 +165,8 @@ export default async function DetailPengawasanKlinikPage({
                   {LABEL_STATUS[terpilih.status_kepatuhan] ?? terpilih.status_kepatuhan}
                 </span>
               )}
-              {terpilih.persentase_kepatuhan != null && (
-                <span className="text-sm text-gray-600">Kepatuhan {terpilih.persentase_kepatuhan}%</span>
+              {terpilih.status_kepatuhan && terpilih.status_kepatuhan !== 'memenuhi_syarat' && (
+                <UploadRekomendasi pengawasanId={terpilih.id} namaFile={namaFileRekomendasi} />
               )}
             </div>
 

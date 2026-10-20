@@ -102,10 +102,10 @@ function Kotak({ label, nilai, sub, warna = W.teal }: { label: string; nilai: nu
   );
 }
 
-/** Logo BerAKHLAK (SVG, gradien merah, dengan tanda segitiga di atas). Aman untuk html-to-image. */
-function LogoBerAkhlak({ lebar = 190 }: { lebar?: number }) {
+/** Logo BerAKHLAK (SVG, gradien merah/putih, dengan tanda segitiga di atas). Aman untuk html-to-image. */
+function LogoBerAkhlak({ lebar = 170 }: { lebar?: number }) {
   const MERAH = '#ffffff'; // Diubah jadi putih agar kontras dengan background gelap header
-  const WARNA_TEKS_SEKUNDER = '#cbd5e1'; // Abu-abu terang agar teks core values terbaca jelas di background gelap
+  const WARNA_TEKS_SEKUNDER = '#cbd5e1'; // Abu-abu terang agar teks core values terbaca jelas
   return (
     <svg width={lebar} height={(lebar * 108) / 310} viewBox="0 0 310 108" style={{ display: 'block' }}>
       <defs>
@@ -204,35 +204,36 @@ export default function InfografisPoskoPoster({
   ];
 
   // ---- Penyakit Potensial KLB ----
-const kasusHariIni = new Map(pHari.perJenis.map((p) => [p.jenis, p.kasusTotal]));
+  const kasusHariIni = new Map(pHari.perJenis.map((p) => [p.jenis, p.kasusTotal]));
 
-const penyakitTerisi = pKum.perJenis
-  .filter((p) => p.kasusTotal > 0 || p.matiTotal > 0)
-  .sort((a, b) => b.kasusTotal - a.kasusTotal || b.matiTotal - a.matiTotal);
+  const penyakitTerisi = pKum.perJenis
+    .filter((p) => p.kasusTotal > 0 || p.matiTotal > 0)
+    .sort((a, b) => b.kasusTotal - a.kasusTotal || b.matiTotal - a.matiTotal);
 
-let penyakitTampil: typeof pKum.perJenis = [];
-let sisaPenyakit = 0;
+  let penyakitTampil: typeof pKum.perJenis = [];
+  let sisaPenyakit = 0;
 
-if (penyakitTerisi.length > 0) {
-  // Jika ada kasus yang terlaporkan
-  penyakitTampil = penyakitTerisi.slice(0, 10);
-  sisaPenyakit = penyakitTerisi.length - penyakitTampil.length;
-} else {
-  // Jika MASIH KOSONG (0 Kasus):
-  // Tampilkan penyakit prioritas dengan nilai 0
-  penyakitTampil = DAFTAR_KLB_PRIORITAS.map((jenis) => ({
-    jenis,
-    kasusTotal: 0,
-    matiTotal: 0,
-  })) as typeof pKum.perJenis;
-}
+  if (penyakitTerisi.length > 0) {
+    // Jika ada kasus yang terlaporkan
+    penyakitTampil = penyakitTerisi.slice(0, 10);
+    sisaPenyakit = penyakitTerisi.length - penyakitTampil.length;
+  } else {
+    // Jika MASIH KOSONG (0 Kasus):
+    // Tampilkan penyakit prioritas dengan nilai 0
+    penyakitTampil = DAFTAR_KLB_PRIORITAS.map((jenis) => ({
+      jenis,
+      kasusTotal: 0,
+      matiTotal: 0,
+    })) as typeof pKum.perJenis;
+  }
 
-const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
-  label: p.jenis,
-  nilai: p.kasusTotal,
-  nilai2: p.matiTotal,
-  tambahan: (kasusHariIni.get(p.jenis) ?? 0) > 0 ? `+${kasusHariIni.get(p.jenis)}` : undefined,
-}));
+  const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
+    label: p.jenis,
+    nilai: p.kasusTotal,
+    nilai2: p.matiTotal,
+    tambahan: (kasusHariIni.get(p.jenis) ?? 0) > 0 ? `+${kasusHariIni.get(p.jenis)}` : undefined,
+  }));
+  
   const [lkKasus, prKasus] = donutJenisKelamin(pKum.total, 'kasus');
 
   // ---- PTM ----
@@ -254,24 +255,24 @@ const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
     <div
       ref={ref}
       style={{
-        width: LEBAR_POSTER, background: W.putih, color: W.teks,
+        width: LEBAR_POSTER,
+        background: W.putih,
+        color: W.teks,
         fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
+        borderRadius: 16,
+        overflow: 'hidden',
       }}
     >
       {/* HEADER */}
       <div
         style={{
           background: `linear-gradient(100deg, #050d1a 0%, ${W.navy} 30%, #17678a 72%, #1ba3a0 100%)`,
-          // Padding kanan dikecilkan dari 48px menjadi 24px agar logo lebih ke kanan
           padding: '24px 24px 24px 48px',
           display: 'flex',
           alignItems: 'center',
           gap: 20,
-          width: '100%', // Memastikan lebar penuh 100% dari LEBAR_POSTER (1080px)
+          width: '100%',
           boxSizing: 'border-box',
-          // Mengikuti kelengkungan sudut atas poster jika pembungkus luarnya menggunakan border-radius
-          borderTopLeftRadius: 'inherit',
-          borderTopRightRadius: 'inherit',
         }}
       >
         {/* Logo Kemenkes */}
@@ -282,7 +283,7 @@ const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
           style={{ height: 70, flexShrink: 0, display: 'block' }}
         />
         
-        {/* Judul & Keterangan (flex: 1 agar mendorong logo ke kanan) */}
+        {/* Judul & Keterangan */}
         <div style={{ flex: 1, minWidth: 0, paddingRight: 10 }}>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: 2, color: W.cyan, textTransform: 'uppercase' }}>
             Info Grafis Harian
@@ -298,7 +299,7 @@ const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
           </p>
         </div>
 
-        {/* Logo BerAKHLAK (Didorong maksimal ke kanan) */}
+        {/* Logo BerAKHLAK */}
         <div style={{ flexShrink: 0, marginLeft: 'auto' }}>
           <LogoBerAkhlak lebar={170} />
         </div>
@@ -323,7 +324,7 @@ const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
 
         {/* ALAT ANGKUT */}
         <Seksi
-          judul="Pergerakan Alat Angkut (Kapal Penumpang & Pesawat)"
+          judul="Pengawasan Alat Angkut (Kapal Penumpang & Pesawat)"
           keterangan={`Data ${tanggalPendek(tanggalData)}: datang ${fmt(th.alatAngkutDatang)} · berangkat ${fmt(th.alatAngkutBerangkat)} · total ${fmt(th.alatAngkutTotal)}.  Kumulatif ${rentang}: datang ${fmt(tk.alatAngkutDatang)} · berangkat ${fmt(tk.alatAngkutBerangkat)}.`}
         >
           <DuaKolom
@@ -334,7 +335,7 @@ const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
 
         {/* ORANG */}
         <Seksi
-          judul="Pergerakan Penumpang, ABK & Crew"
+          judul="Pengawasan Penumpang, ABK & Crew"
           warna={W.oranye}
           keterangan={`Data ${tanggalPendek(tanggalData)}: datang ${fmt(th.orangDatang)} · berangkat ${fmt(th.orangBerangkat)}.  Kumulatif ${rentang}: datang ${fmt(tk.orangDatang)} · berangkat ${fmt(tk.orangBerangkat)}.  (ABK kapal + penumpang kapal + crew pesawat + penumpang pesawat)`}
         >

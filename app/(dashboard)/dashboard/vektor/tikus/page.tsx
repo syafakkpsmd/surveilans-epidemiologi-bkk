@@ -19,27 +19,12 @@ export default async function VektorTikusPage({
   const { wilker, tahun: tahunParam } = await searchParams;
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
 
-  // sudahLogin & role dari sumber yang sama dipakai di seluruh project (bukan getUserRole terpisah)
   const { sudahLogin, role } = await getStatusAkses();
 
   const { tahunEpid, mingguEpid } = getMingguEpidSaatIni();
   const mingguBerjalan = Math.max(1, mingguEpid - 1);
-  const bulanBerjalan = new Date().getMonth() + 1; // untuk periodeKey Analisis/Prediksi AI mode Bulanan
+  const bulanBerjalan = new Date().getMonth() + 1;
 
-  // ============================================================
-  // BATCH-FETCH HASIL AI -- beda dengan TPP, periodeKey default di
-  // sini murni fungsi tanggal berjalan (tahunEpid/mingguEpid/bulan),
-  // TIDAK bergantung pada data hasil query -- jadi bisa digabung ke
-  // Promise.all utama di bawah (jalan paralel, tidak menambah waktu
-  // tunggu), sama seperti pola di halaman pesawat.
-  //
-  // Hanya cover state landing awal: toggle periodeType default
-  // "mingguan" -- konteks "vektor-tikus-bulanan" TIDAK di-prefetch di
-  // sini karena baru kepakai setelah user klik toggle Bulanan (Box
-  // akan fallback fetch sendiri saat itu terjadi). Kedua boks lab
-  // (tikus-lab-mingguan & tikus-lab-bulanan) SELALU tampil bersamaan
-  // apa pun toggle-nya, jadi keduanya di-prefetch penuh.
-  // ============================================================
   const wilayahKerjaAI = wilker && wilker !== "semua" ? wilker : undefined;
   const periodeKeyMingguanDefault = `${tahunEpid}-W1_W${mingguBerjalan}`;
   const periodeKeyBulananDefault = `${tahunEpid}-M1_M${bulanBerjalan}`;
@@ -53,7 +38,7 @@ export default async function VektorTikusPage({
     { konteks: "tikus-lab-bulanan", periodeKey: periodeKeyBulananDefault, wilayahKerja: wilayahKerjaAI, tipe: "prediksi" },
   ];
 
-  const [daftarWilker, ringkasanMingguan, ringkasanBulanan, ujiLabMingguan, ujiLabBulanan, hasilAI] =
+  const [wilkerRefRaw, ringkasanMingguan, ringkasanBulanan, ujiLabMingguan, ujiLabBulanan, hasilAI] =
     await Promise.all([
       getWilkerRef(),
       getRingkasanVektorTikus(tahun, wilker),
@@ -62,6 +47,12 @@ export default async function VektorTikusPage({
       getUjiLabVektorTikusBulanan(tahun, wilker),
       getBanyakHasilAI(permintaanAI),
     ]);
+
+  // Saring daftar wilker untuk menyembunyikan Kantor Induk
+  // (menyesuaikan dengan pola filter Bontang/Tanjung Bara yang sudah ada di client)
+  const daftarWilker = wilkerRefRaw.filter(
+    (w: any) => !/kantor induk|bontang|tanjung bara/i.test(w.nama) && w.kode !== "INDUK"
+  );
 
   const dataMingguan = ringkasanMingguan.map((r: any) => ({
     minggu_epid: r.minggu_epid || 0,

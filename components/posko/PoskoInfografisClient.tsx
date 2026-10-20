@@ -152,13 +152,13 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
 
           {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
 
-          <div ref={wadahRef} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <div style={{ width: LEBAR_POSTER * skala, height: tinggi * skala }}>
-              <div style={{ width: LEBAR_POSTER, transform: `scale(${skala})`, transformOrigin: 'top left' }}>
-                <InfografisPoskoPoster ref={posterRef} data={data} tanggalLaporan={tanggal} />
-              </div>
-            </div>
-          </div>
+          <div ref={wadahRef} className="w-full overflow-hidden rounded-xl bg-slate-100 p-2 flex justify-center">
+  <div style={{ width: LEBAR_POSTER * skala, height: tinggi * skala }}>
+    <div style={{ width: LEBAR_POSTER, transform: `scale(${skala})`, transformOrigin: 'top left' }} className="shadow-lg rounded-xl overflow-hidden">
+      <InfografisPoskoPoster ref={posterRef} data={data} tanggalLaporan={tanggal} />
+    </div>
+  </div>
+</div>
         </>
       )}
     </div>

@@ -52,8 +52,13 @@ export default function PoskoInputClient({
   );
   const [klbJumlah, setKlbJumlah] = useState(awal?.klbJumlah != null ? String(awal.klbJumlah) : '');
   const [klbKet, setKlbKet] = useState(awal?.klbKeterangan ?? '');
-  const [ptm, setPtm] = useState<Record<string, string>>(() =>
-    Object.fromEntries(DAFTAR_PTM.map((j) => [j, awal?.ptm[j] != null ? String(awal.ptm[j]) : '']))
+  const [ptm, setPtm] = useState<Record<string, { lk: string; pr: string }>>(() =>
+    Object.fromEntries(
+      DAFTAR_PTM.map((j) => [
+        j,
+        awal?.ptm[j] != null ? { lk: String(awal.ptm[j].lk), pr: String(awal.ptm[j].pr) } : { lk: '', pr: '' },
+      ])
+    )
   );
   const [kotor, setKotor] = useState(false);
   const [menyimpan, setMenyimpan] = useState(false);
@@ -82,8 +87,12 @@ export default function PoskoInputClient({
   async function simpan() {
     setPesan(null);
     const dataPenyakit = Object.fromEntries(DAFTAR_PENYAKIT.map((j) => [j, penyakit[j].map(angka)]));
-    const dataPtm = Object.fromEntries(DAFTAR_PTM.map((j) => [j, angka(ptm[j])]));
-    const semua = [...Object.values(dataPenyakit).flat(), ...Object.values(dataPtm), angka(klbJumlah)];
+    const dataPtm = Object.fromEntries(DAFTAR_PTM.map((j) => [j, { lk: angka(ptm[j].lk), pr: angka(ptm[j].pr) }]));
+    const semua = [
+      ...Object.values(dataPenyakit).flat(),
+      ...Object.values(dataPtm).flatMap((v) => [v.lk, v.pr]),
+      angka(klbJumlah),
+    ];
     if (!semua.every(bilanganBulat)) {
       setPesan({ ok: false, teks: 'Semua angka harus bilangan bulat 0 atau lebih (tanpa koma atau minus).' });
       return;
@@ -256,18 +265,43 @@ export default function PoskoInputClient({
           {/* PTM */}
           <div className="rounded-xl border border-gray-100 bg-white p-4">
             <h2 className="mb-2 text-sm font-bold text-gray-800">Penyakit Tidak Menular</h2>
-            <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-              {DAFTAR_PTM.map((jenis) => (
-                <label key={jenis} className="flex items-center justify-between gap-3 text-xs text-gray-700">
-                  {jenis}
-                  <input
-                    type="number" min={0} step={1} inputMode="numeric" placeholder="0"
-                    value={ptm[jenis]}
-                    onChange={(e) => { setKotor(true); setPtm((lama) => ({ ...lama, [jenis]: e.target.value })); }}
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm"
-                  />
-                </label>
-              ))}
+            {awal?.ptmPerluRincian && (
+              <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Sebagian data PTM lama belum dirinci jenis kelamin. Totalnya sementara ditaruh di kolom Laki-laki; mohon
+                dirinci lalu simpan ulang.
+              </p>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="px-2 py-2 text-left">Jenis PTM</th>
+                    <th className="px-2 py-2 text-center">Laki-laki</th>
+                    <th className="px-2 py-2 text-center">Perempuan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DAFTAR_PTM.map((jenis) => (
+                    <tr key={jenis} className="border-t border-gray-100">
+                      <td className="px-2 py-1.5 text-gray-800">{jenis}</td>
+                      {(['lk', 'pr'] as const).map((jk) => (
+                        <td key={jk} className="px-2 py-1.5 text-center">
+                          <input
+                            type="number" min={0} step={1} inputMode="numeric" placeholder="0"
+                            value={ptm[jenis][jk]}
+                            onChange={(e) => {
+                              setKotor(true);
+                              setPtm((lama) => ({ ...lama, [jenis]: { ...lama[jenis], [jk]: e.target.value } }));
+                            }}
+                            className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm"
+                            aria-label={`${jenis} ${jk === 'lk' ? 'laki-laki' : 'perempuan'}`}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 

@@ -9,6 +9,7 @@ import { getTursoClient } from '@/lib/turso/client';
 import { hariIniWita } from '@/lib/posko/queries';
 import { JENIS_KE_SLUG, type JenisPosko } from '@/lib/posko/konstanta';
 import {
+  adalahGalatKolomBelumAda,
   bangunPerintahInputHarian,
   tanggalSah,
   validasiInputHarian,
@@ -100,7 +101,9 @@ export async function simpanInputHarianPosko(input: InputHarianPayload): Promise
       ok: false,
       pesan: pesan.includes('no such table')
         ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
-        : `Gagal menyimpan: ${pesan}`,
+        : adalahGalatKolomBelumAda(pesan)
+          ? 'Kolom jenis kelamin PTM belum ada di Turso. Jalankan file posko_ptm_jenis_kelamin.sql terlebih dulu.'
+          : `Gagal menyimpan: ${pesan}`,
     };
   }
 

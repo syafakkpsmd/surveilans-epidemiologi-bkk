@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { LABEL_POSKO, type DataPosko } from '@/lib/posko/konstanta';
-import { tanggalPanjang } from '@/lib/posko/hitung';
+import { tambahHari, tanggalPanjang } from '@/lib/posko/hitung';
 import InfografisPoskoPoster, { LEBAR_POSTER } from './InfografisPoskoPoster';
 
 function geserTanggal(iso: string, hari: number): string {
@@ -13,8 +13,16 @@ function geserTanggal(iso: string, hari: number): string {
 }
 
 export default function PoskoInfografisClient({ slug, data }: { slug: string; data: DataPosko }) {
-  const { periode, tanggalAkhirTampil } = data;
-  const [tanggal, setTanggal] = useState(tanggalAkhirTampil ?? '');
+  const { periode, hariIni } = data;
+
+  // Tanggal yang dipilih = TANGGAL LAPORAN; isi poster = data hari sebelumnya (H-1).
+  // Rentang tanggal laporan: dari (mulai + 1 hari) sampai min(selesai + 1 hari, hari ini).
+  const tanggalMin = periode ? tambahHari(periode.tanggalMulai, 1) : '';
+  const tanggalMaksPeriode = periode ? tambahHari(periode.tanggalSelesai, 1) : '';
+  const tanggalMaks = periode ? (hariIni < tanggalMaksPeriode ? hariIni : tanggalMaksPeriode) : '';
+  const tersedia = !!periode && tanggalMaks >= tanggalMin;
+
+  const [tanggal, setTanggal] = useState(tersedia ? tanggalMaks : '');
   const [sedangUnduh, setSedangUnduh] = useState<'jpeg' | 'png' | 'pdf' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,10 +44,11 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
     return () => ro.disconnect();
   }, [tanggal, periode]);
 
-  const adaPoster = useMemo(() => !!periode && !!tanggalAkhirTampil && !!tanggal, [periode, tanggalAkhirTampil, tanggal]);
+  const adaPoster = useMemo(() => tersedia && !!tanggal, [tersedia, tanggal]);
+  const tanggalData = tanggal ? tambahHari(tanggal, -1) : '';
 
-  const bisaMundur = !!periode && tanggal > periode.tanggalMulai;
-  const bisaMaju = !!tanggalAkhirTampil && tanggal < tanggalAkhirTampil;
+  const bisaMundur = tersedia && tanggal > tanggalMin;
+  const bisaMaju = tersedia && tanggal < tanggalMaks;
 
   async function unduh(format: 'jpeg' | 'png' | 'pdf') {
     if (!posterRef.current) return;
@@ -49,7 +58,7 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
       const { toJpeg, toPng } = await import('html-to-image');
       const node = posterRef.current;
       const opsi = { pixelRatio: 3, backgroundColor: '#ffffff', width: LEBAR_POSTER, height: node.scrollHeight };
-      const namaFile = `infografis-${slug}-${tanggal}`;
+      const namaFile = `infografis-${slug}-laporan-${tanggal}`;
 
       if (format === 'jpeg') {
         const a = document.createElement('a');
@@ -96,9 +105,11 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
         </div>
       )}
 
-      {!adaPoster || !periode || !tanggalAkhirTampil ? (
+      {!adaPoster || !periode ? (
         <p className="rounded-xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-500">
-          Info grafis belum bisa dibuat: periode posko belum diatur atau posko belum dimulai.
+          {periode
+            ? `Info grafis belum bisa dibuat: data hari pertama posko (${tanggalPanjang(periode.tanggalMulai)}) baru tersedia untuk laporan tanggal ${tanggalPanjang(tanggalMin)}.`
+            : 'Info grafis belum bisa dibuat: periode posko belum diatur.'}
         </p>
       ) : (
         <>
@@ -106,19 +117,24 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
             <button className={tombol} disabled={!bisaMundur} onClick={() => setTanggal(geserTanggal(tanggal, -1))}>
               ← Sebelumnya
             </button>
-            <input
-              type="date"
-              value={tanggal}
-              min={periode.tanggalMulai}
-              max={tanggalAkhirTampil}
-              onChange={(e) => e.target.value && setTanggal(e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              aria-label="Tanggal info grafis"
-            />
+            <label className="flex items-center gap-2 text-xs text-gray-600">
+              Tanggal laporan
+              <input
+                type="date"
+                value={tanggal}
+                min={tanggalMin}
+                max={tanggalMaks}
+                onChange={(e) => e.target.value && setTanggal(e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-800"
+                aria-label="Tanggal laporan info grafis"
+              />
+            </label>
             <button className={tombol} disabled={!bisaMaju} onClick={() => setTanggal(geserTanggal(tanggal, 1))}>
               Berikutnya →
             </button>
-            <span className="text-xs text-gray-500">{tanggalPanjang(tanggal)}</span>
+            <span className="text-xs text-gray-500">
+              Data yang ditampilkan: <strong>{tanggalPanjang(tanggalData)}</strong> (H-1)
+            </span>
 
             <div className="ml-auto flex gap-2">
               {(['jpeg', 'png', 'pdf'] as const).map((f) => (
@@ -139,7 +155,7 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
           <div ref={wadahRef} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
             <div style={{ width: LEBAR_POSTER * skala, height: tinggi * skala }}>
               <div style={{ width: LEBAR_POSTER, transform: `scale(${skala})`, transformOrigin: 'top left' }}>
-                <InfografisPoskoPoster ref={posterRef} data={data} tanggal={tanggal} />
+                <InfografisPoskoPoster ref={posterRef} data={data} tanggalLaporan={tanggal} />
               </div>
             </div>
           </div>

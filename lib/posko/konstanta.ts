@@ -119,11 +119,16 @@ export type BarisPtmPosko = {
   tanggal: string;
   wilayah: WilayahPosko;
   jenis: string;
+  /** total kasus (laki-laki + perempuan; data lama tanpa rincian tetap terbaca di sini) */
   jumlah: number;
+  jumlahLk: number;
+  jumlahPr: number;
 };
 
 export type DataPosko = {
   posko: JenisPosko;
+  /** hari ini menurut WITA (YYYY-MM-DD), dari server */
+  hariIni: string;
   periode: PeriodePosko | null;
   /** semua periode tersimpan untuk posko ini (terbaru dulu) -> untuk pilihan periode */
   daftarPeriode: PeriodePosko[];

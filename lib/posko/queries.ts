@@ -6,6 +6,7 @@
 import { cache } from 'react';
 import { getTursoClient } from '@/lib/turso/client';
 import { createClient } from '@/lib/supabase/server';
+import { adalahGalatKolomBelumAda } from './perintahInput';
 import {
   DAFTAR_PENYAKIT,
   DAFTAR_PTM,
@@ -123,6 +124,30 @@ async function ambilPesawat(mulai: string, akhir: string, catatan: string[]): Pr
   return semua;
 }
 
+/**
+ * Baca PTM dengan kolom jenis kelamin (jumlah_lk/jumlah_pr). Bila kolom itu belum ada di Turso
+ * (belum menjalankan posko_ptm_jenis_kelamin.sql), PTM tetap terbaca tanpa rincian jenis kelamin.
+ */
+async function ambilPtm(kondisi: string, args: (string | number)[], catatan: string[]): Promise<BarisMentah[]> {
+  const kolomBaru = 'tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus, jumlah_lk, jumlah_pr';
+  const kolomLama = 'tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus';
+  const dasar = `FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND ${kondisi}`;
+  try {
+    const hasil = await getTursoClient().execute({ sql: `SELECT ${kolomBaru} ${dasar}`, args });
+    return hasil.rows as unknown as BarisMentah[];
+  } catch (err) {
+    const pesan = err instanceof Error ? err.message : String(err);
+    if (!adalahGalatKolomBelumAda(pesan)) {
+      catatan.push(
+        pesan.includes('no such table') ? 'Tabel posko_ptm_harian belum dibuat di Turso.' : `posko_ptm_harian gagal dimuat: ${pesan}`
+      );
+      return [];
+    }
+    catatan.push('Kolom jenis kelamin PTM belum ada di Turso. Jalankan posko_ptm_jenis_kelamin.sql agar PTM bisa dirinci laki-laki/perempuan.');
+    return jalankan(`SELECT ${kolomLama} ${dasar}`, args, 'posko_ptm_harian', catatan);
+  }
+}
+
 // ---------------------------------------------------------------- periode
 export async function ambilDaftarPeriode(posko: JenisPosko, catatan: string[]): Promise<PeriodePosko[]> {
   const baris = await jalankan(
@@ -153,7 +178,8 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
   const catatan: string[] = [...hasilPeriode.catatan];
   const { periode, daftarPeriode } = hasilPeriode;
   const kosong: DataPosko = {
-    posko, periode: null, daftarPeriode, tanggalAkhirTampil: null, harian: [], penyakit: [], ptm: [], catatan,
+    posko, hariIni: hariIniWita(), periode: null, daftarPeriode, tanggalAkhirTampil: null,
+    harian: [], penyakit: [], ptm: [], catatan,
   };
   if (!periode) return kosong;
 
@@ -176,10 +202,7 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
       'SELECT tanggal, wilayah_kerja, jumlah_klb FROM posko_klb_harian WHERE posko = ? AND tahun = ? AND tanggal BETWEEN ? AND ?',
       [posko, periode.tahun, mulai, akhir], 'posko_klb_harian', catatan
     ),
-    jalankan(
-      'SELECT tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND tanggal BETWEEN ? AND ?',
-      [posko, periode.tahun, mulai, akhir], 'posko_ptm_harian', catatan
-    ),
+    ambilPtm('tanggal BETWEEN ? AND ?', [posko, periode.tahun, mulai, akhir], catatan),
     jalankan(SQL_POLIKLINIK, [mulai, akhir], 'kunjungan_poliklinik', catatan),
     jalankan(SQL_KAPAL_DATANG, [mulai, akhir], 'data_penumpang_kapal', catatan),
     jalankan(SQL_KAPAL_BERANGKAT, [mulai, akhir], 'data_penumpang_kapal', catatan),
@@ -246,11 +269,17 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
     const w = normalisasiWilayah(String(r.wilayah_kerja));
     const jenis = String(r.jenis_ptm);
     if (!w || !jenisPtmSah.has(jenis)) return;
-    ptm.push({ tanggal: String(r.tanggal).slice(0, 10), wilayah: w, jenis, jumlah: angka(r.jumlah_kasus) });
+    const lk = angka(r.jumlah_lk);
+    const pr = angka(r.jumlah_pr);
+    ptm.push({
+      tanggal: String(r.tanggal).slice(0, 10), wilayah: w, jenis,
+      jumlah: angka(r.jumlah_kasus), jumlahLk: lk, jumlahPr: pr,
+    });
   });
 
   return {
     posko,
+    hariIni,
     periode,
     daftarPeriode,
     tanggalAkhirTampil: akhir,
@@ -268,7 +297,9 @@ export type InputHarianPosko = {
   penyakit: Record<string, number[]>;
   klbJumlah: number | null;
   klbKeterangan: string;
-  ptm: Record<string, number>;
+  ptm: Record<string, { lk: number; pr: number }>;
+  /** true bila ada data PTM lama tanpa rincian jenis kelamin (total ditaruh di kolom laki-laki saat diedit) */
+  ptmPerluRincian: boolean;
   catatan: string[];
 };
 
@@ -291,10 +322,7 @@ export async function ambilInputHarianPosko(
       'SELECT jumlah_klb, keterangan FROM posko_klb_harian WHERE posko = ? AND tahun = ? AND tanggal = ? AND wilayah_kerja = ?',
       args, 'posko_klb_harian', catatan
     ),
-    jalankan(
-      'SELECT jenis_ptm, jumlah_kasus FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND tanggal = ? AND wilayah_kerja = ?',
-      args, 'posko_ptm_harian', catatan
-    ),
+    ambilPtm('tanggal = ? AND wilayah_kerja = ?', args, catatan),
   ]);
 
   const penyakit: Record<string, number[]> = {};
@@ -304,8 +332,19 @@ export async function ambilInputHarianPosko(
       angka(r.mati_lk_lt5), angka(r.mati_lk_ge5), angka(r.mati_pr_lt5), angka(r.mati_pr_ge5),
     ];
   });
-  const ptm: Record<string, number> = {};
-  rPtm.forEach((r) => { ptm[String(r.jenis_ptm)] = angka(r.jumlah_kasus); });
+  const ptm: Record<string, { lk: number; pr: number }> = {};
+  let ptmPerluRincian = false;
+  rPtm.forEach((r) => {
+    const lk = angka(r.jumlah_lk);
+    const pr = angka(r.jumlah_pr);
+    if (lk + pr === 0 && angka(r.jumlah_kasus) > 0) {
+      // data lama tanpa rincian: total ditaruh di laki-laki supaya tidak hilang saat diedit
+      ptmPerluRincian = true;
+      ptm[String(r.jenis_ptm)] = { lk: angka(r.jumlah_kasus), pr: 0 };
+    } else {
+      ptm[String(r.jenis_ptm)] = { lk, pr };
+    }
+  });
 
   return {
     adaData: rPenyakit.length > 0 || rKlb.length > 0 || rPtm.length > 0,
@@ -313,6 +352,7 @@ export async function ambilInputHarianPosko(
     klbJumlah: rKlb.length > 0 ? angka(rKlb[0].jumlah_klb) : null,
     klbKeterangan: rKlb.length > 0 ? String(rKlb[0].keterangan ?? '') : '',
     ptm,
+    ptmPerluRincian,
     catatan,
   };
 }

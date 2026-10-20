@@ -374,20 +374,25 @@ export default function PoskoDashboardClient({
           </div>
 
           {/* DONUT */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {donut('Kasus Penyakit Potensial KLB: Jenis Kelamin & Umur', donutKelompok(rPenyakit.total, 'kasus'))}
             {donut('Kematian Penyakit Potensial KLB: Jenis Kelamin & Umur', donutKelompok(rPenyakit.total, 'mati'))}
             {donut(
               'Kasus Penyakit Tidak Menular per Jenis',
               rPtm.perJenis.map((p) => ({ kategori: p.jenis, jumlah: p.jumlah }))
             )}
+            {donut('Kasus Penyakit Tidak Menular: Jenis Kelamin', [
+              { kategori: 'Laki-laki', jumlah: rPtm.totalLk },
+              { kategori: 'Perempuan', jumlah: rPtm.totalPr },
+              { kategori: 'Tanpa rincian', jumlah: rPtm.tanpaRincian },
+            ])}
           </div>
 
           {/* TABEL PENYAKIT POTENSIAL KLB */}
           <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
             <h3 className="mb-3 text-sm font-bold text-gray-800">Penyakit Potensial KLB (akumulasi rentang terpilih)</h3>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-xs">
+              <table className="w-full min-w-205 text-xs">
                 <thead>
                   <tr className="bg-gray-50 text-gray-600">
                     <th rowSpan={2} className="px-2 py-2 text-left">No</th>
@@ -443,7 +448,7 @@ export default function PoskoDashboardClient({
           <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
             <h3 className="mb-3 text-sm font-bold text-gray-800">Penyakit Tidak Menular (akumulasi rentang terpilih)</h3>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[480px] text-xs">
+              <table className="w-full min-w-140 text-xs">
                 <thead>
                   <tr className="bg-gray-50 text-gray-600">
                     <th className="px-2 py-2 text-left">Jenis PTM</th>
@@ -451,6 +456,8 @@ export default function PoskoDashboardClient({
                       <th key={w} className="px-2 py-2 text-right">{w}</th>
                     ))}
                     <th className="px-2 py-2 text-right">Total</th>
+                    <th className="px-2 py-2 text-right">Laki-laki</th>
+                    <th className="px-2 py-2 text-right">Perempuan</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -463,6 +470,8 @@ export default function PoskoDashboardClient({
                         </td>
                       ))}
                       <td className="px-2 py-1.5 text-right font-semibold">{fmt(p.jumlah)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmt(p.lk)}</td>
+                      <td className="px-2 py-1.5 text-right">{fmt(p.pr)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -475,6 +484,8 @@ export default function PoskoDashboardClient({
                       </td>
                     ))}
                     <td className="px-2 py-2 text-right">{fmt(rPtm.total)}</td>
+                    <td className="px-2 py-2 text-right">{fmt(rPtm.totalLk)}</td>
+                    <td className="px-2 py-2 text-right">{fmt(rPtm.totalPr)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -487,7 +498,7 @@ export default function PoskoDashboardClient({
               Rincian Harian {wilayah ? `· ${wilayah}` : '· Semua Wilayah Kerja'}
             </h3>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-xs">
+              <table className="w-full min-w-190 text-xs">
                 <thead>
                   <tr className="bg-gray-50 text-gray-600">
                     <th className="px-2 py-2 text-left">Tanggal</th>

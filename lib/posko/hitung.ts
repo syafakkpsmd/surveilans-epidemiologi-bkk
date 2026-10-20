@@ -140,14 +140,36 @@ export function donutKelompok(t: TotalPenyakit, tipe: 'kasus' | 'mati') {
 
 // ------------------------------------------------------------ PTM
 export function ringkasPtm(rows: BarisPtmPosko[]) {
-  const perJenis = new Map<string, number>();
-  DAFTAR_PTM.forEach((j) => perJenis.set(j, 0));
-  let total = 0;
+  const perJenis = new Map<string, { jumlah: number; lk: number; pr: number }>();
+  DAFTAR_PTM.forEach((j) => perJenis.set(j, { jumlah: 0, lk: 0, pr: 0 }));
+  let total = 0, totalLk = 0, totalPr = 0;
   for (const r of rows) {
-    perJenis.set(r.jenis, (perJenis.get(r.jenis) ?? 0) + r.jumlah);
-    total += r.jumlah;
+    const t = perJenis.get(r.jenis) ?? { jumlah: 0, lk: 0, pr: 0 };
+    perJenis.set(r.jenis, t);
+    t.jumlah += r.jumlah; t.lk += r.jumlahLk; t.pr += r.jumlahPr;
+    total += r.jumlah; totalLk += r.jumlahLk; totalPr += r.jumlahPr;
   }
-  return { perJenis: Array.from(perJenis.entries()).map(([jenis, jumlah]) => ({ jenis, jumlah })), total };
+  return {
+    perJenis: Array.from(perJenis.entries()).map(([jenis, t]) => ({ jenis, ...t })),
+    total,
+    totalLk,
+    totalPr,
+    /** kasus yang tercatat tanpa rincian jenis kelamin (data lama) */
+    tanpaRincian: Math.max(0, total - totalLk - totalPr),
+  };
+}
+
+/** Irisan donut/pie jenis kelamin dari total penyakit potensial KLB. */
+export function donutJenisKelamin(t: TotalPenyakit, tipe: 'kasus' | 'mati') {
+  return tipe === 'kasus'
+    ? [
+        { kategori: 'Laki-laki', jumlah: t.kasusLkLt5 + t.kasusLkGe5 },
+        { kategori: 'Perempuan', jumlah: t.kasusPrLt5 + t.kasusPrGe5 },
+      ]
+    : [
+        { kategori: 'Laki-laki', jumlah: t.matiLkLt5 + t.matiLkGe5 },
+        { kategori: 'Perempuan', jumlah: t.matiPrLt5 + t.matiPrGe5 },
+      ];
 }
 
 // ------------------------------------------------------------ tren harian

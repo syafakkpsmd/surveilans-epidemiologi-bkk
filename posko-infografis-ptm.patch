@@ -1,0 +1,1270 @@
+diff --git a/app/(dashboard)/dashboard/posko/actions.ts b/app/(dashboard)/dashboard/posko/actions.ts
+index b14a9a2..ed34257 100644
+--- a/app/(dashboard)/dashboard/posko/actions.ts
++++ b/app/(dashboard)/dashboard/posko/actions.ts
+@@ -9,6 +9,7 @@ import { getTursoClient } from '@/lib/turso/client';
+ import { hariIniWita } from '@/lib/posko/queries';
+ import { JENIS_KE_SLUG, type JenisPosko } from '@/lib/posko/konstanta';
+ import {
++  adalahGalatKolomBelumAda,
+   bangunPerintahInputHarian,
+   tanggalSah,
+   validasiInputHarian,
+@@ -100,7 +101,9 @@ export async function simpanInputHarianPosko(input: InputHarianPayload): Promise
+       ok: false,
+       pesan: pesan.includes('no such table')
+         ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
+-        : `Gagal menyimpan: ${pesan}`,
++        : adalahGalatKolomBelumAda(pesan)
++          ? 'Kolom jenis kelamin PTM belum ada di Turso. Jalankan file posko_ptm_jenis_kelamin.sql terlebih dulu.'
++          : `Gagal menyimpan: ${pesan}`,
+     };
+   }
+ 
+diff --git a/components/posko/GrafikPoster.tsx b/components/posko/GrafikPoster.tsx
+new file mode 100644
+index 0000000..b202fb9
+--- /dev/null
++++ b/components/posko/GrafikPoster.tsx
+@@ -0,0 +1,226 @@
++/**
++ * Grafik untuk poster info grafis Posko. Sengaja SVG/HTML biasa dengan ukuran tetap (tanpa Recharts,
++ * tanpa animasi, tanpa ResizeObserver) supaya hasil unduhan JPEG/PNG/PDF (html-to-image) selalu sama
++ * dengan pratinjau.
++ */
++import type { CSSProperties } from 'react';
++
++const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
++const TEKS = '#0F2A38';
++const REDUP = '#5b6b78';
++const GARIS = '#dbe3ea';
++const LATAR = '#f4f8fb';
++
++const fmt = (n: number) => n.toLocaleString('id-ID');
++
++/** Naikkan ke angka "bulat" (1, 2, 5 x 10^k) untuk batas atas sumbu. */
++export function batasAtasBulat(nilai: number): number {
++  if (nilai <= 0) return 1;
++  const pangkat = Math.pow(10, Math.floor(Math.log10(nilai)));
++  const sisa = nilai / pangkat;
++  const kelipatan = sisa <= 1 ? 1 : sisa <= 2 ? 2 : sisa <= 5 ? 5 : 10;
++  return kelipatan * pangkat;
++}
++
++// ===================================================================== batang harian (2 seri)
++export type TitikHarian = { label: string; a: number; b: number };
++
++export function GrafikBatangHarian({
++  data, namaA, namaB, warnaA, warnaB, lebar, tinggi = 230,
++}: {
++  data: TitikHarian[];
++  namaA: string; namaB: string; warnaA: string; warnaB: string;
++  lebar: number; tinggi?: number;
++}) {
++  const kiri = 38, kanan = 8, atas = 30, bawah = 26;
++  const areaW = lebar - kiri - kanan;
++  const areaH = tinggi - atas - bawah;
++  const n = Math.max(data.length, 1);
++  const lebarGrup = areaW / n;
++  const lebarBatang = Math.max(3, Math.min(18, lebarGrup * 0.36));
++  const celah = 2;
++  const maks = batasAtasBulat(Math.max(0, ...data.map((d) => Math.max(d.a, d.b))));
++  const semuaNol = data.every((d) => d.a === 0 && d.b === 0);
++  const yDari = (v: number) => atas + areaH - (v / maks) * areaH;
++  const tampilkanNilai = lebarGrup >= 24;
++  const labelSelang = lebarGrup >= 26 ? 1 : lebarGrup >= 14 ? 2 : 3;
++
++  return (
++    <svg width={lebar} height={tinggi} viewBox={`0 0 ${lebar} ${tinggi}`} style={{ display: 'block', fontFamily: FONT }}>
++      {/* legenda */}
++      <rect x={kiri} y={6} width={11} height={11} rx={2} fill={warnaA} />
++      <text x={kiri + 16} y={15.5} fontSize={12} fill={TEKS}>{namaA}</text>
++      <rect x={kiri + 24 + namaA.length * 6.4 + 12} y={6} width={11} height={11} rx={2} fill={warnaB} />
++      <text x={kiri + 24 + namaA.length * 6.4 + 28} y={15.5} fontSize={12} fill={TEKS}>{namaB}</text>
++
++      {/* garis bantu */}
++      {[0, 0.5, 1].map((t) => {
++        const y = yDari(maks * t);
++        return (
++          <g key={t}>
++            <line x1={kiri} x2={lebar - kanan} y1={y} y2={y} stroke={t === 0 ? '#9fb0bd' : GARIS} strokeWidth={1} strokeDasharray={t === 0 ? undefined : '3 3'} />
++            <text x={kiri - 6} y={y + 3.5} fontSize={10} fill={REDUP} textAnchor="end">{fmt(Math.round(maks * t))}</text>
++          </g>
++        );
++      })}
++
++      {semuaNol ? (
++        <text x={kiri + areaW / 2} y={atas + areaH / 2} fontSize={13} fill={REDUP} textAnchor="middle">
++          Belum ada pergerakan pada periode ini
++        </text>
++      ) : (
++        data.map((d, i) => {
++          const x0 = kiri + i * lebarGrup + (lebarGrup - (2 * lebarBatang + celah)) / 2;
++          const terakhir = i === data.length - 1;
++          const batang = (v: number, x: number, warna: string) => {
++            const h = (v / maks) * areaH;
++            return (
++              <g key={x}>
++                <rect x={x} y={yDari(v)} width={lebarBatang} height={Math.max(h, v > 0 ? 1 : 0)} rx={2} fill={warna} />
++                {v > 0 && (tampilkanNilai || terakhir) && (
++                  <text x={x + lebarBatang / 2} y={yDari(v) - 3} fontSize={9} fill={TEKS} textAnchor="middle" fontWeight={terakhir ? 700 : 400}>
++                    {fmt(v)}
++                  </text>
++                )}
++              </g>
++            );
++          };
++          return (
++            <g key={i}>
++              {terakhir && <rect x={kiri + i * lebarGrup} y={atas - 4} width={lebarGrup} height={areaH + 4} fill="#eef6fb" />}
++              {batang(d.a, x0, warnaA)}
++              {batang(d.b, x0 + lebarBatang + celah, warnaB)}
++              {(i % labelSelang === 0 || terakhir) && (
++                <text x={kiri + i * lebarGrup + lebarGrup / 2} y={tinggi - 9} fontSize={9.5} fill={terakhir ? TEKS : REDUP} textAnchor="middle" fontWeight={terakhir ? 700 : 400}>
++                  {d.label}
++                </text>
++              )}
++            </g>
++          );
++        })
++      )}
++    </svg>
++  );
++}
++
++// ===================================================================== donut + legenda
++export type IrisanDonut = { label: string; nilai: number; warna: string };
++
++export function DonutPoster({
++  data, lebar, ukuran = 170, tengah,
++}: {
++  data: IrisanDonut[];
++  lebar: number;
++  ukuran?: number;
++  /** teks kecil di bawah angka total di tengah donut */
++  tengah?: string;
++}) {
++  const total = data.reduce((a, d) => a + d.nilai, 0);
++  const r = ukuran * 0.36;
++  const tebal = ukuran * 0.17;
++  const keliling = 2 * Math.PI * r;
++  const c = ukuran / 2;
++  let dipakai = 0;
++
++  const barisLegenda: CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: TEKS, padding: '2px 0' };
++
++  return (
++    <div style={{ width: lebar, fontFamily: FONT }}>
++      <svg width={ukuran} height={ukuran} viewBox={`0 0 ${ukuran} ${ukuran}`} style={{ display: 'block', margin: '0 auto' }}>
++        <circle cx={c} cy={c} r={r} fill="none" stroke={total === 0 ? GARIS : LATAR} strokeWidth={tebal} />
++        {total > 0 &&
++          data.filter((d) => d.nilai > 0).map((d) => {
++            const panjang = (d.nilai / total) * keliling;
++            const irisan = (
++              <circle
++                key={d.label}
++                cx={c} cy={c} r={r} fill="none" stroke={d.warna} strokeWidth={tebal}
++                strokeDasharray={`${panjang} ${keliling - panjang}`}
++                strokeDashoffset={-dipakai}
++                transform={`rotate(-90 ${c} ${c})`}
++              />
++            );
++            dipakai += panjang;
++            return irisan;
++          })}
++        <text x={c} y={c + 2} fontSize={ukuran * 0.17} fontWeight={800} fill={TEKS} textAnchor="middle">{fmt(total)}</text>
++        {tengah && <text x={c} y={c + ukuran * 0.13} fontSize={10.5} fill={REDUP} textAnchor="middle">{tengah}</text>}
++      </svg>
++      <div style={{ marginTop: 8 }}>
++        {data.map((d) => (
++          <div key={d.label} style={barisLegenda}>
++            <span style={{ width: 11, height: 11, borderRadius: 3, background: d.warna, flexShrink: 0 }} />
++            <span style={{ flex: 1 }}>{d.label}</span>
++            <span style={{ fontWeight: 700 }}>{fmt(d.nilai)}</span>
++            <span style={{ color: REDUP, width: 46, textAlign: 'right' }}>
++              {total > 0 ? `${Math.round((d.nilai / total) * 100)}%` : '0%'}
++            </span>
++          </div>
++        ))}
++      </div>
++    </div>
++  );
++}
++
++// ===================================================================== batang horizontal (HTML)
++export type BarisHorizontal = {
++  label: string;
++  nilai: number;
++  /** seri kedua (mis. meninggal), opsional */
++  nilai2?: number;
++  /** keterangan kecil setelah label, mis. "+3 hari ini" */
++  tambahan?: string;
++};
++
++export function BatangHorizontal({
++  data, lebar, warna, nama, warna2, nama2, labelLebar = 230, pesanKosong = 'Belum ada data.',
++}: {
++  data: BarisHorizontal[];
++  lebar: number;
++  warna: string; nama: string;
++  warna2?: string; nama2?: string;
++  labelLebar?: number;
++  pesanKosong?: string;
++}) {
++  const adaSeri2 = !!warna2 && data.some((d) => (d.nilai2 ?? 0) > 0);
++  const maks = batasAtasBulat(Math.max(0, ...data.map((d) => Math.max(d.nilai, d.nilai2 ?? 0))));
++  const tinggiBatang = adaSeri2 ? 11 : 16;
++
++  if (data.length === 0) {
++    return <p style={{ margin: 0, padding: '14px 16px', background: LATAR, borderRadius: 10, fontSize: 13.5, color: REDUP, width: lebar, boxSizing: 'border-box', fontFamily: FONT }}>{pesanKosong}</p>;
++  }
++
++  const lajur = (nilai: number, warnaBatang: string) => (
++    <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: tinggiBatang + 2 }}>
++      <div style={{ height: tinggiBatang, width: `${(nilai / maks) * 100}%`, minWidth: nilai > 0 ? 3 : 0, background: warnaBatang, borderRadius: 3 }} />
++      <span style={{ fontSize: 11.5, fontWeight: 700, color: TEKS, lineHeight: 1 }}>{fmt(nilai)}</span>
++    </div>
++  );
++
++  return (
++    <div style={{ width: lebar, fontFamily: FONT }}>
++      <div style={{ display: 'flex', gap: 14, fontSize: 12, color: TEKS, marginBottom: 6 }}>
++        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
++          <span style={{ width: 11, height: 11, borderRadius: 3, background: warna }} />{nama}
++        </span>
++        {adaSeri2 && (
++          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
++            <span style={{ width: 11, height: 11, borderRadius: 3, background: warna2 }} />{nama2}
++          </span>
++        )}
++      </div>
++      {data.map((d) => (
++        <div key={d.label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderTop: `1px solid ${GARIS}` }}>
++          <div style={{ width: labelLebar, flexShrink: 0, fontSize: 12.5, lineHeight: 1.25, color: TEKS }}>
++            {d.label}
++            {d.tambahan && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: warna }}>{d.tambahan}</span>}
++          </div>
++          <div style={{ flex: 1, minWidth: 0 }}>
++            {lajur(d.nilai, warna)}
++            {adaSeri2 && lajur(d.nilai2 ?? 0, warna2!)}
++          </div>
++        </div>
++      ))}
++    </div>
++  );
++}
+diff --git a/components/posko/InfografisPoskoPoster.tsx b/components/posko/InfografisPoskoPoster.tsx
+index 530f062..ba0da1d 100644
+--- a/components/posko/InfografisPoskoPoster.tsx
++++ b/components/posko/InfografisPoskoPoster.tsx
+@@ -1,11 +1,29 @@
+ /**
+  * Poster info grafis HARIAN Posko Nataru / Idul Fitri (lebar tetap 1080px).
+- * Sengaja memakai inline style, <img> biasa, dan TANPA backdrop-filter/blur supaya
+- * html-to-image bisa menangkapnya jadi JPEG/PNG/PDF dengan benar (sama seperti poster Karhutla).
++ * - Tanggal yang dipilih = TANGGAL LAPORAN; data yang ditampilkan = data H-1 (hari sebelumnya).
++ * - Memakai inline style, <img> biasa, dan tanpa backdrop-filter/blur supaya html-to-image bisa menangkapnya
++ *   jadi JPEG/PNG/PDF dengan benar (sama seperti poster Karhutla).
+  */
+ import type { CSSProperties, ReactNode, Ref } from 'react';
+ import { LABEL_POSKO, WILAYAH_POSKO, type DataPosko } from '@/lib/posko/konstanta';
+-import { hariKe, jumlahkanHarian, ringkasPenyakit, ringkasPtm, tanggalPanjang } from '@/lib/posko/hitung';
++import {
++  donutJenisKelamin,
++  hariKe,
++  jumlahkanHarian,
++  ringkasPenyakit,
++  ringkasPtm,
++  tambahHari,
++  tanggalPanjang,
++  tanggalPendek,
++  trenHarian,
++} from '@/lib/posko/hitung';
++import {
++  BatangHorizontal,
++  DonutPoster,
++  GrafikBatangHarian,
++  type BarisHorizontal,
++  type TitikHarian,
++} from './GrafikPoster';
+ 
+ export const LEBAR_POSTER = 1080;
+ 
+@@ -15,6 +33,8 @@ const W = {
+   cyan: '#3ee8ff',
+   oranye: '#EA580C',
+   merah: '#B71C1C',
++  biru: '#2563EB',
++  merahMuda: '#DB2777',
+   teks: '#0F2A38',
+   redup: '#5b6b78',
+   garis: '#dbe3ea',
+@@ -22,6 +42,10 @@ const W = {
+   putih: '#ffffff',
+ };
+ 
++const KIRI = 620; // lebar kolom grafik
++const KANAN = 340; // lebar kolom donut
++const JARAK = 24;
++
+ const fmt = (n: number) => n.toLocaleString('id-ID');
+ 
+ const sel: CSSProperties = { padding: '7px 10px', fontSize: 14, borderTop: `1px solid ${W.garis}` };
+@@ -30,70 +54,117 @@ const kepala: CSSProperties = {
+   padding: '8px 10px', fontSize: 12, fontWeight: 700, color: W.redup, background: W.latar,
+   textTransform: 'uppercase', letterSpacing: 0.4,
+ };
++const tabel: CSSProperties = {
++  width: '100%', borderCollapse: 'collapse', border: `1px solid ${W.garis}`, borderRadius: 10, overflow: 'hidden',
++};
+ 
+-function Seksi({ judul, warna = W.teal, children }: { judul: string; warna?: string; children: ReactNode }) {
++function Seksi({ judul, warna = W.teal, keterangan, children }: { judul: string; warna?: string; keterangan?: string; children: ReactNode }) {
+   return (
+-    <section style={{ marginBottom: 26 }}>
+-      <h2
+-        style={{
+-          margin: '0 0 10px', fontSize: 18, fontWeight: 800, color: W.teks,
+-          borderLeft: `6px solid ${warna}`, paddingLeft: 10,
+-        }}
+-      >
++    <section style={{ marginBottom: 28 }}>
++      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: W.teks, borderLeft: `6px solid ${warna}`, paddingLeft: 10 }}>
+         {judul}
+       </h2>
++      {keterangan && <p style={{ margin: '4px 0 10px 16px', fontSize: 12.5, color: W.redup, lineHeight: 1.4 }}>{keterangan}</p>}
++      {!keterangan && <div style={{ height: 10 }} />}
+       {children}
+     </section>
+   );
+ }
+ 
++function DuaKolom({ kiri, kanan }: { kiri: ReactNode; kanan: ReactNode }) {
++  return (
++    <div style={{ display: 'flex', gap: JARAK, alignItems: 'flex-start' }}>
++      <div style={{ width: KIRI, flexShrink: 0 }}>{kiri}</div>
++      <div style={{ width: KANAN, flexShrink: 0 }}>{kanan}</div>
++    </div>
++  );
++}
++
+ function Kotak({ label, nilai, sub, warna = W.teal }: { label: string; nilai: number; sub?: string; warna?: string }) {
+   return (
+     <div style={{ flex: 1, background: W.latar, border: `1px solid ${W.garis}`, borderRadius: 12, padding: '14px 16px' }}>
+-      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: W.redup, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+-        {label}
+-      </p>
++      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: W.redup, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</p>
+       <p style={{ margin: '4px 0 0', fontSize: 34, fontWeight: 800, color: warna, lineHeight: 1.1 }}>{fmt(nilai)}</p>
+       {sub && <p style={{ margin: '4px 0 0', fontSize: 12, color: W.redup }}>{sub}</p>}
+     </div>
+   );
+ }
+ 
+-const tabel: CSSProperties = {
+-  width: '100%', borderCollapse: 'collapse', border: `1px solid ${W.garis}`, borderRadius: 10, overflow: 'hidden',
+-};
+-
+ export default function InfografisPoskoPoster({
+   data,
+-  tanggal,
++  tanggalLaporan,
+   ref,
+ }: {
+   data: DataPosko;
+-  tanggal: string;
++  /** tanggal laporan; data yang tampil adalah data hari sebelumnya (H-1) */
++  tanggalLaporan: string;
+   ref?: Ref<HTMLDivElement>;
+ }) {
+   const periode = data.periode!;
+   const judul = LABEL_POSKO[data.posko];
++  const tanggalData = tambahHari(tanggalLaporan, -1);
+ 
+-  const harianHari = data.harian.filter((r) => r.tanggal === tanggal);
+-  const harianKum = data.harian.filter((r) => r.tanggal <= tanggal);
++  const harianHari = data.harian.filter((r) => r.tanggal === tanggalData);
++  const harianKum = data.harian.filter((r) => r.tanggal <= tanggalData);
+   const th = jumlahkanHarian(harianHari);
+   const tk = jumlahkanHarian(harianKum);
+ 
+-  const pHari = ringkasPenyakit(data.penyakit.filter((r) => r.tanggal === tanggal));
+-  const pKum = ringkasPenyakit(data.penyakit.filter((r) => r.tanggal <= tanggal));
+-  const ptmHari = ringkasPtm(data.ptm.filter((r) => r.tanggal === tanggal));
+-  const ptmKum = ringkasPtm(data.ptm.filter((r) => r.tanggal <= tanggal));
++  const pHari = ringkasPenyakit(data.penyakit.filter((r) => r.tanggal === tanggalData));
++  const pKum = ringkasPenyakit(data.penyakit.filter((r) => r.tanggal <= tanggalData));
++  const ptmHari = ringkasPtm(data.ptm.filter((r) => r.tanggal === tanggalData));
++  const ptmKum = ringkasPtm(data.ptm.filter((r) => r.tanggal <= tanggalData));
++
++  const hari = hariKe(periode.tanggalMulai, tanggalData);
++  const totalHari = hariKe(periode.tanggalMulai, periode.tanggalSelesai);
++  const rentang = `${tanggalPendek(periode.tanggalMulai)} – ${tanggalPendek(tanggalData)}`;
++
++  // ---- grafik harian (alat angkut & orang) ----
++  const dataHarian = (ambil: (t: ReturnType<typeof jumlahkanHarian>) => { a: number; b: number }): TitikHarian[] =>
++    trenHarian(harianKum, (rows) => ambil(jumlahkanHarian(rows))).map((x) => ({
++      label: x.name, a: Number(x.a), b: Number(x.b),
++    }));
++  const trenAlat = dataHarian((t) => ({ a: t.alatAngkutDatang, b: t.alatAngkutBerangkat }));
++  const trenOrang = dataHarian((t) => ({ a: t.orangDatang, b: t.orangBerangkat }));
++
++  const donutAlat = [
++    { label: 'Kapal penumpang', nilai: tk.kapalDatang + tk.kapalBerangkat, warna: W.teal },
++    { label: 'Pesawat', nilai: tk.pesawatDatang + tk.pesawatBerangkat, warna: W.oranye },
++  ];
++  const donutOrang = [
++    { label: 'Kapal (ABK + penumpang)', nilai: tk.abkDatang + tk.abkBerangkat + tk.penumpangKapalDatang + tk.penumpangKapalBerangkat, warna: W.teal },
++    { label: 'Pesawat (crew + penumpang)', nilai: tk.crewDatang + tk.crewBerangkat + tk.penumpangPesawatDatang + tk.penumpangPesawatBerangkat, warna: W.oranye },
++  ];
++
++  // ---- penyakit potensial KLB ----
++  const kasusHariIni = new Map(pHari.perJenis.map((p) => [p.jenis, p.kasusTotal]));
++  const penyakitTerisi = pKum.perJenis
++    .filter((p) => p.kasusTotal > 0 || p.matiTotal > 0)
++    .sort((a, b) => b.kasusTotal - a.kasusTotal || b.matiTotal - a.matiTotal);
++  const penyakitTampil = penyakitTerisi.slice(0, 12);
++  const sisaPenyakit = penyakitTerisi.length - penyakitTampil.length;
++  const barPenyakit: BarisHorizontal[] = penyakitTampil.map((p) => ({
++    label: p.jenis,
++    nilai: p.kasusTotal,
++    nilai2: p.matiTotal,
++    tambahan: (kasusHariIni.get(p.jenis) ?? 0) > 0 ? `+${kasusHariIni.get(p.jenis)}` : undefined,
++  }));
++  const [lkKasus, prKasus] = donutJenisKelamin(pKum.total, 'kasus');
++
++  // ---- PTM ----
++  const ptmHariIni = new Map(ptmHari.perJenis.map((p) => [p.jenis, p.jumlah]));
++  const barPtm: BarisHorizontal[] = [...ptmKum.perJenis]
++    .sort((a, b) => b.jumlah - a.jumlah)
++    .map((p) => ({
++      label: p.jenis,
++      nilai: p.jumlah,
++      tambahan: (ptmHariIni.get(p.jenis) ?? 0) > 0 ? `+${ptmHariIni.get(p.jenis)}` : undefined,
++    }));
+ 
+-  const penyakitHariIni = pHari.perJenis.filter((p) => p.kasusTotal > 0 || p.matiTotal > 0);
+   const barisWilayah = WILAYAH_POSKO.map((w) => ({
+     wilayah: w,
+     ...jumlahkanHarian(harianHari.filter((r) => r.wilayah === w)),
+   }));
+ 
+-  const hari = hariKe(periode.tanggalMulai, tanggal);
+-  const totalHari = hariKe(periode.tanggalMulai, periode.tanggalSelesai);
+-
+   return (
+     <div
+       ref={ref}
+@@ -106,33 +177,46 @@ export default function InfografisPoskoPoster({
+       <div
+         style={{
+           background: `linear-gradient(160deg, #050d1a 0%, ${W.navy} 40%, #17678a 82%, #1ba3a0 100%)`,
+-          padding: '30px 48px', display: 'flex', alignItems: 'center', gap: 28,
++          padding: '28px 48px', display: 'flex', alignItems: 'center', gap: 26,
+         }}
+       >
+-        {/* eslint-disable-next-line @next/next/no-img-element -- sengaja <img> biasa (bukan next/image) agar html-to-image tidak kosong */}
++        {/* logo bertransparansi (tanpa kotak hitam); <img> biasa agar html-to-image tidak kosong */}
++        {/* eslint-disable-next-line @next/next/no-img-element */}
+         <img
+-          src="/logo-header-infografis.png"
++          src="/logo-header-transparan.png"
+           alt="Kemenkes RI - BKK Kelas I Samarinda"
+-          style={{ height: 76, flexShrink: 0, display: 'block', mixBlendMode: 'lighten' }}
++          style={{ height: 74, flexShrink: 0, display: 'block' }}
+         />
+         <div style={{ flex: 1, minWidth: 0 }}>
+           <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: 2, color: W.cyan, textTransform: 'uppercase' }}>
+             Info Grafis Harian
+           </p>
+-          <h1 style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1.15 }}>
++          <h1 style={{ margin: '4px 0 0', fontSize: 30, fontWeight: 800, color: '#fff', lineHeight: 1.15 }}>
+             {judul} {periode.tahun}
+           </h1>
+-          <p style={{ margin: '6px 0 0', fontSize: 15, color: '#a9c2d1' }}>
+-            {tanggalPanjang(tanggal)} &middot; Hari ke-{hari} dari {totalHari} &middot; Samarinda, APT Pranoto &amp; Lhoktuan
++          <p style={{ margin: '6px 0 0', fontSize: 15, fontWeight: 600, color: '#e3eef5' }}>
++            Laporan {tanggalPanjang(tanggalLaporan)}
++          </p>
++          <p style={{ margin: '3px 0 0', fontSize: 13, color: '#a9c2d1', lineHeight: 1.35 }}>
++            Data {tanggalPanjang(tanggalData)} (H-1) &middot; Hari ke-{hari} dari {totalHari} &middot; Samarinda, APT Pranoto &amp; Lhoktuan
+           </p>
+         </div>
++        {/* BerAKHLAK */}
++        <div style={{ flexShrink: 0, textAlign: 'right', borderLeft: '1px solid rgba(255,255,255,0.28)', paddingLeft: 22 }}>
++          <div style={{ fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1, letterSpacing: 0.5 }}>
++            <span style={{ fontSize: 24, fontWeight: 600, color: W.cyan }}>Ber</span>AKHLAK
++          </div>
++          <div style={{ marginTop: 7, fontSize: 10.5, fontWeight: 600, letterSpacing: 1.6, color: '#a9c2d1', textTransform: 'uppercase' }}>
++            Bangga Melayani Bangsa
++          </div>
++        </div>
+       </div>
+ 
+-      <div style={{ padding: '30px 48px 24px' }}>
++      <div style={{ padding: '28px 48px 24px' }}>
+         {/* POLIKLINIK */}
+         <Seksi judul="Kunjungan Poliklinik">
+           <div style={{ display: 'flex', gap: 12 }}>
+-            <Kotak label="Total Hari Ini" nilai={th.poliklinik} sub={`Kumulatif ${fmt(tk.poliklinik)}`} />
++            <Kotak label="Total" nilai={th.poliklinik} sub={`Kumulatif ${fmt(tk.poliklinik)}`} />
+             {barisWilayah.map((b) => (
+               <Kotak
+                 key={b.wilayah}
+@@ -146,145 +230,96 @@ export default function InfografisPoskoPoster({
+         </Seksi>
+ 
+         {/* ALAT ANGKUT */}
+-        <Seksi judul="Pergerakan Alat Angkut (Kapal Penumpang & Pesawat)">
+-          <table style={tabel}>
+-            <thead>
+-              <tr>
+-                <th style={{ ...kepala, textAlign: 'left' }} rowSpan={2}>Arah</th>
+-                <th style={{ ...kepala, textAlign: 'center' }} colSpan={3}>Hari Ini</th>
+-                <th style={{ ...kepala, textAlign: 'center', borderLeft: `1px solid ${W.garis}` }} colSpan={3}>Kumulatif</th>
+-              </tr>
+-              <tr>
+-                {['Kapal', 'Pesawat', 'Total', 'Kapal', 'Pesawat', 'Total'].map((h, i) => (
+-                  <th key={`${h}${i}`} style={{ ...kepala, textAlign: 'right', ...(i === 3 ? { borderLeft: `1px solid ${W.garis}` } : {}) }}>{h}</th>
+-                ))}
+-              </tr>
+-            </thead>
+-            <tbody>
+-              {[
+-                { arah: 'Datang', a: th.kapalDatang, b: th.pesawatDatang, c: th.alatAngkutDatang, d: tk.kapalDatang, e: tk.pesawatDatang, f: tk.alatAngkutDatang },
+-                { arah: 'Berangkat', a: th.kapalBerangkat, b: th.pesawatBerangkat, c: th.alatAngkutBerangkat, d: tk.kapalBerangkat, e: tk.pesawatBerangkat, f: tk.alatAngkutBerangkat },
+-                { arah: 'Total', a: th.kapalDatang + th.kapalBerangkat, b: th.pesawatDatang + th.pesawatBerangkat, c: th.alatAngkutTotal, d: tk.kapalDatang + tk.kapalBerangkat, e: tk.pesawatDatang + tk.pesawatBerangkat, f: tk.alatAngkutTotal },
+-              ].map((r) => (
+-                <tr key={r.arah} style={r.arah === 'Total' ? { fontWeight: 800, background: W.latar } : undefined}>
+-                  <td style={sel}>{r.arah}</td>
+-                  <td style={selKanan}>{fmt(r.a)}</td>
+-                  <td style={selKanan}>{fmt(r.b)}</td>
+-                  <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(r.c)}</td>
+-                  <td style={{ ...selKanan, borderLeft: `1px solid ${W.garis}` }}>{fmt(r.d)}</td>
+-                  <td style={selKanan}>{fmt(r.e)}</td>
+-                  <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(r.f)}</td>
+-                </tr>
+-              ))}
+-            </tbody>
+-          </table>
++        <Seksi
++          judul="Pergerakan Alat Angkut (Kapal Penumpang & Pesawat)"
++          keterangan={`Data ${tanggalPendek(tanggalData)}: datang ${fmt(th.alatAngkutDatang)} · berangkat ${fmt(th.alatAngkutBerangkat)} · total ${fmt(th.alatAngkutTotal)}.  Kumulatif ${rentang}: datang ${fmt(tk.alatAngkutDatang)} · berangkat ${fmt(tk.alatAngkutBerangkat)}.`}
++        >
++          <DuaKolom
++            kiri={<GrafikBatangHarian data={trenAlat} namaA="Datang" namaB="Berangkat" warnaA={W.teal} warnaB={W.oranye} lebar={KIRI} />}
++            kanan={<DonutPoster data={donutAlat} lebar={KANAN} tengah="alat angkut" />}
++          />
+         </Seksi>
+ 
+         {/* ORANG */}
+-        <Seksi judul="Pergerakan Orang" warna={W.oranye}>
+-          <table style={tabel}>
+-            <thead>
+-              <tr>
+-                <th style={{ ...kepala, textAlign: 'left' }} rowSpan={2}>Kelompok</th>
+-                <th style={{ ...kepala, textAlign: 'center' }} colSpan={2}>Hari Ini</th>
+-                <th style={{ ...kepala, textAlign: 'center', borderLeft: `1px solid ${W.garis}` }} colSpan={2}>Kumulatif</th>
+-              </tr>
+-              <tr>
+-                {['Datang', 'Berangkat', 'Datang', 'Berangkat'].map((h, i) => (
+-                  <th key={`${h}${i}`} style={{ ...kepala, textAlign: 'right', ...(i === 2 ? { borderLeft: `1px solid ${W.garis}` } : {}) }}>{h}</th>
+-                ))}
+-              </tr>
+-            </thead>
+-            <tbody>
+-              {[
+-                { n: 'ABK Kapal Penumpang', a: th.abkDatang, b: th.abkBerangkat, c: tk.abkDatang, d: tk.abkBerangkat },
+-                { n: 'Penumpang Kapal', a: th.penumpangKapalDatang, b: th.penumpangKapalBerangkat, c: tk.penumpangKapalDatang, d: tk.penumpangKapalBerangkat },
+-                { n: 'Crew Pesawat', a: th.crewDatang, b: th.crewBerangkat, c: tk.crewDatang, d: tk.crewBerangkat },
+-                { n: 'Penumpang Pesawat', a: th.penumpangPesawatDatang, b: th.penumpangPesawatBerangkat, c: tk.penumpangPesawatDatang, d: tk.penumpangPesawatBerangkat },
+-                { n: 'TOTAL ORANG', a: th.orangDatang, b: th.orangBerangkat, c: tk.orangDatang, d: tk.orangBerangkat },
+-              ].map((r) => {
+-                const total = r.n === 'TOTAL ORANG';
+-                return (
+-                  <tr key={r.n} style={total ? { fontWeight: 800, background: W.latar } : undefined}>
+-                    <td style={sel}>{r.n}</td>
+-                    <td style={selKanan}>{fmt(r.a)}</td>
+-                    <td style={selKanan}>{fmt(r.b)}</td>
+-                    <td style={{ ...selKanan, borderLeft: `1px solid ${W.garis}` }}>{fmt(r.c)}</td>
+-                    <td style={selKanan}>{fmt(r.d)}</td>
+-                  </tr>
+-                );
+-              })}
+-            </tbody>
+-          </table>
++        <Seksi
++          judul="Pergerakan Penumpang, ABK & Crew"
++          warna={W.oranye}
++          keterangan={`Data ${tanggalPendek(tanggalData)}: datang ${fmt(th.orangDatang)} · berangkat ${fmt(th.orangBerangkat)}.  Kumulatif ${rentang}: datang ${fmt(tk.orangDatang)} · berangkat ${fmt(tk.orangBerangkat)}.  (ABK kapal + penumpang kapal + crew pesawat + penumpang pesawat)`}
++        >
++          <DuaKolom
++            kiri={<GrafikBatangHarian data={trenOrang} namaA="Datang" namaB="Berangkat" warnaA={W.teal} warnaB={W.merah} lebar={KIRI} />}
++            kanan={<DonutPoster data={donutOrang} lebar={KANAN} tengah="orang" />}
++          />
+         </Seksi>
+ 
+         {/* PENYAKIT POTENSIAL KLB */}
+-        <Seksi judul="Penyakit Potensial KLB" warna={W.merah}>
+-          <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+-            <Kotak label="Kasus Hari Ini" nilai={pHari.total.kasusTotal} sub={`Kumulatif ${fmt(pKum.total.kasusTotal)}`} warna={W.oranye} />
+-            <Kotak label="Meninggal Hari Ini" nilai={pHari.total.matiTotal} sub={`Kumulatif ${fmt(pKum.total.matiTotal)}`} warna={W.merah} />
+-            <Kotak label="Kejadian KLB Hari Ini" nilai={th.jumlahKlb} sub={`Kumulatif ${fmt(tk.jumlahKlb)}`} warna={W.merah} />
++        <Seksi
++          judul="Penyakit Potensial KLB"
++          warna={W.merah}
++          keterangan={`Grafik kumulatif ${rentang}. Tanda +N = tambahan kasus pada ${tanggalPendek(tanggalData)}.`}
++        >
++          <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
++            <Kotak label={`Kasus ${tanggalPendek(tanggalData)}`} nilai={pHari.total.kasusTotal} sub={`Kumulatif ${fmt(pKum.total.kasusTotal)}`} warna={W.oranye} />
++            <Kotak label={`Meninggal ${tanggalPendek(tanggalData)}`} nilai={pHari.total.matiTotal} sub={`Kumulatif ${fmt(pKum.total.matiTotal)}`} warna={W.merah} />
++            <Kotak label={`Kejadian KLB ${tanggalPendek(tanggalData)}`} nilai={th.jumlahKlb} sub={`Kumulatif ${fmt(tk.jumlahKlb)}`} warna={W.merah} />
+           </div>
+-          {penyakitHariIni.length === 0 ? (
+-            <p style={{ margin: 0, padding: '12px 14px', background: W.latar, borderRadius: 10, fontSize: 14, color: W.redup }}>
+-              Tidak ada kasus penyakit potensial KLB yang dilaporkan pada tanggal ini.
+-            </p>
+-          ) : (
+-            <table style={tabel}>
+-              <thead>
+-                <tr>
+-                  <th style={{ ...kepala, textAlign: 'left' }}>Jenis Penyakit</th>
+-                  {['L <5', 'L ≥5', 'P <5', 'P ≥5', 'Kasus', 'Meninggal'].map((h) => (
+-                    <th key={h} style={{ ...kepala, textAlign: 'right' }}>{h}</th>
+-                  ))}
+-                </tr>
+-              </thead>
+-              <tbody>
+-                {penyakitHariIni.map((p) => (
+-                  <tr key={p.jenis}>
+-                    <td style={sel}>{p.jenis}</td>
+-                    <td style={selKanan}>{fmt(p.kasusLkLt5)}</td>
+-                    <td style={selKanan}>{fmt(p.kasusLkGe5)}</td>
+-                    <td style={selKanan}>{fmt(p.kasusPrLt5)}</td>
+-                    <td style={selKanan}>{fmt(p.kasusPrGe5)}</td>
+-                    <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(p.kasusTotal)}</td>
+-                    <td style={{ ...selKanan, fontWeight: 700, color: p.matiTotal > 0 ? W.merah : W.teks }}>{fmt(p.matiTotal)}</td>
+-                  </tr>
+-                ))}
+-              </tbody>
+-            </table>
+-          )}
++          <DuaKolom
++            kiri={
++              <>
++                <BatangHorizontal
++                  data={barPenyakit}
++                  lebar={KIRI}
++                  warna={W.oranye} nama="Kasus"
++                  warna2={W.merah} nama2="Meninggal"
++                  pesanKosong="Tidak ada kasus penyakit potensial KLB yang dilaporkan sampai tanggal ini."
++                />
++                {sisaPenyakit > 0 && (
++                  <p style={{ margin: '6px 0 0', fontSize: 11.5, color: W.redup }}>dan {sisaPenyakit} jenis penyakit lainnya.</p>
++                )}
++              </>
++            }
++            kanan={
++              <>
++                <p style={{ margin: '0 0 6px', fontSize: 12.5, fontWeight: 700, color: W.teks, textAlign: 'center' }}>Kasus menurut jenis kelamin</p>
++                <DonutPoster
++                  data={[
++                    { label: lkKasus.kategori, nilai: lkKasus.jumlah, warna: W.biru },
++                    { label: prKasus.kategori, nilai: prKasus.jumlah, warna: W.merahMuda },
++                  ]}
++                  lebar={KANAN}
++                  tengah="kasus"
++                />
++              </>
++            }
++          />
+         </Seksi>
+ 
+         {/* PTM */}
+-        <Seksi judul="Penyakit Tidak Menular">
+-          <table style={tabel}>
+-            <thead>
+-              <tr>
+-                <th style={{ ...kepala, textAlign: 'left' }}>Jenis</th>
+-                <th style={{ ...kepala, textAlign: 'right' }}>Hari Ini</th>
+-                <th style={{ ...kepala, textAlign: 'right' }}>Kumulatif</th>
+-              </tr>
+-            </thead>
+-            <tbody>
+-              {ptmHari.perJenis.map((p, i) => (
+-                <tr key={p.jenis}>
+-                  <td style={sel}>{p.jenis}</td>
+-                  <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(p.jumlah)}</td>
+-                  <td style={selKanan}>{fmt(ptmKum.perJenis[i]?.jumlah ?? 0)}</td>
+-                </tr>
+-              ))}
+-              <tr style={{ fontWeight: 800, background: W.latar }}>
+-                <td style={sel}>TOTAL</td>
+-                <td style={selKanan}>{fmt(ptmHari.total)}</td>
+-                <td style={selKanan}>{fmt(ptmKum.total)}</td>
+-              </tr>
+-            </tbody>
+-          </table>
++        <Seksi
++          judul="Penyakit Tidak Menular"
++          keterangan={`Grafik kumulatif ${rentang}. Tanda +N = tambahan kasus pada ${tanggalPendek(tanggalData)}.`}
++        >
++          <DuaKolom
++            kiri={<BatangHorizontal data={barPtm} lebar={KIRI} warna={W.teal} nama="Kasus" pesanKosong="Belum ada data penyakit tidak menular." />}
++            kanan={
++              <>
++                <p style={{ margin: '0 0 6px', fontSize: 12.5, fontWeight: 700, color: W.teks, textAlign: 'center' }}>Kasus menurut jenis kelamin</p>
++                <DonutPoster
++                  data={[
++                    { label: 'Laki-laki', nilai: ptmKum.totalLk, warna: W.biru },
++                    { label: 'Perempuan', nilai: ptmKum.totalPr, warna: W.merahMuda },
++                    ...(ptmKum.tanpaRincian > 0 ? [{ label: 'Tanpa rincian', nilai: ptmKum.tanpaRincian, warna: '#9fb0bd' }] : []),
++                  ]}
++                  lebar={KANAN}
++                  tengah="kasus"
++                />
++              </>
++            }
++          />
+         </Seksi>
+ 
+         {/* PER WILAYAH */}
+-        <Seksi judul="Rekap per Wilayah Kerja (Hari Ini)">
++        <Seksi judul={`Rekap per Wilayah Kerja (${tanggalPendek(tanggalData)})`}>
+           <table style={tabel}>
+             <thead>
+               <tr>
+diff --git a/components/posko/PoskoDashboardClient.tsx b/components/posko/PoskoDashboardClient.tsx
+index e6f44de..00e7156 100644
+--- a/components/posko/PoskoDashboardClient.tsx
++++ b/components/posko/PoskoDashboardClient.tsx
+@@ -374,13 +374,18 @@ export default function PoskoDashboardClient({
+           </div>
+ 
+           {/* DONUT */}
+-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
++          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+             {donut('Kasus Penyakit Potensial KLB: Jenis Kelamin & Umur', donutKelompok(rPenyakit.total, 'kasus'))}
+             {donut('Kematian Penyakit Potensial KLB: Jenis Kelamin & Umur', donutKelompok(rPenyakit.total, 'mati'))}
+             {donut(
+               'Kasus Penyakit Tidak Menular per Jenis',
+               rPtm.perJenis.map((p) => ({ kategori: p.jenis, jumlah: p.jumlah }))
+             )}
++            {donut('Kasus Penyakit Tidak Menular: Jenis Kelamin', [
++              { kategori: 'Laki-laki', jumlah: rPtm.totalLk },
++              { kategori: 'Perempuan', jumlah: rPtm.totalPr },
++              { kategori: 'Tanpa rincian', jumlah: rPtm.tanpaRincian },
++            ])}
+           </div>
+ 
+           {/* TABEL PENYAKIT POTENSIAL KLB */}
+@@ -443,7 +448,7 @@ export default function PoskoDashboardClient({
+           <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
+             <h3 className="mb-3 text-sm font-bold text-gray-800">Penyakit Tidak Menular (akumulasi rentang terpilih)</h3>
+             <div className="overflow-x-auto">
+-              <table className="w-full min-w-[480px] text-xs">
++              <table className="w-full min-w-[560px] text-xs">
+                 <thead>
+                   <tr className="bg-gray-50 text-gray-600">
+                     <th className="px-2 py-2 text-left">Jenis PTM</th>
+@@ -451,6 +456,8 @@ export default function PoskoDashboardClient({
+                       <th key={w} className="px-2 py-2 text-right">{w}</th>
+                     ))}
+                     <th className="px-2 py-2 text-right">Total</th>
++                    <th className="px-2 py-2 text-right">Laki-laki</th>
++                    <th className="px-2 py-2 text-right">Perempuan</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+@@ -463,6 +470,8 @@ export default function PoskoDashboardClient({
+                         </td>
+                       ))}
+                       <td className="px-2 py-1.5 text-right font-semibold">{fmt(p.jumlah)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(p.lk)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(p.pr)}</td>
+                     </tr>
+                   ))}
+                 </tbody>
+@@ -475,6 +484,8 @@ export default function PoskoDashboardClient({
+                       </td>
+                     ))}
+                     <td className="px-2 py-2 text-right">{fmt(rPtm.total)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPtm.totalLk)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPtm.totalPr)}</td>
+                   </tr>
+                 </tfoot>
+               </table>
+diff --git a/components/posko/PoskoInfografisClient.tsx b/components/posko/PoskoInfografisClient.tsx
+index c79a90c..41bf540 100644
+--- a/components/posko/PoskoInfografisClient.tsx
++++ b/components/posko/PoskoInfografisClient.tsx
+@@ -3,7 +3,7 @@
+ import { useEffect, useMemo, useRef, useState } from 'react';
+ import Link from 'next/link';
+ import { LABEL_POSKO, type DataPosko } from '@/lib/posko/konstanta';
+-import { tanggalPanjang } from '@/lib/posko/hitung';
++import { tambahHari, tanggalPanjang } from '@/lib/posko/hitung';
+ import InfografisPoskoPoster, { LEBAR_POSTER } from './InfografisPoskoPoster';
+ 
+ function geserTanggal(iso: string, hari: number): string {
+@@ -13,8 +13,16 @@ function geserTanggal(iso: string, hari: number): string {
+ }
+ 
+ export default function PoskoInfografisClient({ slug, data }: { slug: string; data: DataPosko }) {
+-  const { periode, tanggalAkhirTampil } = data;
+-  const [tanggal, setTanggal] = useState(tanggalAkhirTampil ?? '');
++  const { periode, hariIni } = data;
++
++  // Tanggal yang dipilih = TANGGAL LAPORAN; isi poster = data hari sebelumnya (H-1).
++  // Rentang tanggal laporan: dari (mulai + 1 hari) sampai min(selesai + 1 hari, hari ini).
++  const tanggalMin = periode ? tambahHari(periode.tanggalMulai, 1) : '';
++  const tanggalMaksPeriode = periode ? tambahHari(periode.tanggalSelesai, 1) : '';
++  const tanggalMaks = periode ? (hariIni < tanggalMaksPeriode ? hariIni : tanggalMaksPeriode) : '';
++  const tersedia = !!periode && tanggalMaks >= tanggalMin;
++
++  const [tanggal, setTanggal] = useState(tersedia ? tanggalMaks : '');
+   const [sedangUnduh, setSedangUnduh] = useState<'jpeg' | 'png' | 'pdf' | null>(null);
+   const [error, setError] = useState<string | null>(null);
+ 
+@@ -36,10 +44,11 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
+     return () => ro.disconnect();
+   }, [tanggal, periode]);
+ 
+-  const adaPoster = useMemo(() => !!periode && !!tanggalAkhirTampil && !!tanggal, [periode, tanggalAkhirTampil, tanggal]);
++  const adaPoster = useMemo(() => tersedia && !!tanggal, [tersedia, tanggal]);
++  const tanggalData = tanggal ? tambahHari(tanggal, -1) : '';
+ 
+-  const bisaMundur = !!periode && tanggal > periode.tanggalMulai;
+-  const bisaMaju = !!tanggalAkhirTampil && tanggal < tanggalAkhirTampil;
++  const bisaMundur = tersedia && tanggal > tanggalMin;
++  const bisaMaju = tersedia && tanggal < tanggalMaks;
+ 
+   async function unduh(format: 'jpeg' | 'png' | 'pdf') {
+     if (!posterRef.current) return;
+@@ -49,7 +58,7 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
+       const { toJpeg, toPng } = await import('html-to-image');
+       const node = posterRef.current;
+       const opsi = { pixelRatio: 3, backgroundColor: '#ffffff', width: LEBAR_POSTER, height: node.scrollHeight };
+-      const namaFile = `infografis-${slug}-${tanggal}`;
++      const namaFile = `infografis-${slug}-laporan-${tanggal}`;
+ 
+       if (format === 'jpeg') {
+         const a = document.createElement('a');
+@@ -96,9 +105,11 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
+         </div>
+       )}
+ 
+-      {!adaPoster || !periode || !tanggalAkhirTampil ? (
++      {!adaPoster || !periode ? (
+         <p className="rounded-xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-500">
+-          Info grafis belum bisa dibuat: periode posko belum diatur atau posko belum dimulai.
++          {periode
++            ? `Info grafis belum bisa dibuat: data hari pertama posko (${tanggalPanjang(periode.tanggalMulai)}) baru tersedia untuk laporan tanggal ${tanggalPanjang(tanggalMin)}.`
++            : 'Info grafis belum bisa dibuat: periode posko belum diatur.'}
+         </p>
+       ) : (
+         <>
+@@ -106,19 +117,24 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
+             <button className={tombol} disabled={!bisaMundur} onClick={() => setTanggal(geserTanggal(tanggal, -1))}>
+               ← Sebelumnya
+             </button>
+-            <input
+-              type="date"
+-              value={tanggal}
+-              min={periode.tanggalMulai}
+-              max={tanggalAkhirTampil}
+-              onChange={(e) => e.target.value && setTanggal(e.target.value)}
+-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+-              aria-label="Tanggal info grafis"
+-            />
++            <label className="flex items-center gap-2 text-xs text-gray-600">
++              Tanggal laporan
++              <input
++                type="date"
++                value={tanggal}
++                min={tanggalMin}
++                max={tanggalMaks}
++                onChange={(e) => e.target.value && setTanggal(e.target.value)}
++                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-800"
++                aria-label="Tanggal laporan info grafis"
++              />
++            </label>
+             <button className={tombol} disabled={!bisaMaju} onClick={() => setTanggal(geserTanggal(tanggal, 1))}>
+               Berikutnya →
+             </button>
+-            <span className="text-xs text-gray-500">{tanggalPanjang(tanggal)}</span>
++            <span className="text-xs text-gray-500">
++              Data yang ditampilkan: <strong>{tanggalPanjang(tanggalData)}</strong> (H-1)
++            </span>
+ 
+             <div className="ml-auto flex gap-2">
+               {(['jpeg', 'png', 'pdf'] as const).map((f) => (
+@@ -139,7 +155,7 @@ export default function PoskoInfografisClient({ slug, data }: { slug: string; da
+           <div ref={wadahRef} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
+             <div style={{ width: LEBAR_POSTER * skala, height: tinggi * skala }}>
+               <div style={{ width: LEBAR_POSTER, transform: `scale(${skala})`, transformOrigin: 'top left' }}>
+-                <InfografisPoskoPoster ref={posterRef} data={data} tanggal={tanggal} />
++                <InfografisPoskoPoster ref={posterRef} data={data} tanggalLaporan={tanggal} />
+               </div>
+             </div>
+           </div>
+diff --git a/components/posko/PoskoInputClient.tsx b/components/posko/PoskoInputClient.tsx
+index 3ce718e..d31979f 100644
+--- a/components/posko/PoskoInputClient.tsx
++++ b/components/posko/PoskoInputClient.tsx
+@@ -52,8 +52,13 @@ export default function PoskoInputClient({
+   );
+   const [klbJumlah, setKlbJumlah] = useState(awal?.klbJumlah != null ? String(awal.klbJumlah) : '');
+   const [klbKet, setKlbKet] = useState(awal?.klbKeterangan ?? '');
+-  const [ptm, setPtm] = useState<Record<string, string>>(() =>
+-    Object.fromEntries(DAFTAR_PTM.map((j) => [j, awal?.ptm[j] != null ? String(awal.ptm[j]) : '']))
++  const [ptm, setPtm] = useState<Record<string, { lk: string; pr: string }>>(() =>
++    Object.fromEntries(
++      DAFTAR_PTM.map((j) => [
++        j,
++        awal?.ptm[j] != null ? { lk: String(awal.ptm[j].lk), pr: String(awal.ptm[j].pr) } : { lk: '', pr: '' },
++      ])
++    )
+   );
+   const [kotor, setKotor] = useState(false);
+   const [menyimpan, setMenyimpan] = useState(false);
+@@ -82,8 +87,12 @@ export default function PoskoInputClient({
+   async function simpan() {
+     setPesan(null);
+     const dataPenyakit = Object.fromEntries(DAFTAR_PENYAKIT.map((j) => [j, penyakit[j].map(angka)]));
+-    const dataPtm = Object.fromEntries(DAFTAR_PTM.map((j) => [j, angka(ptm[j])]));
+-    const semua = [...Object.values(dataPenyakit).flat(), ...Object.values(dataPtm), angka(klbJumlah)];
++    const dataPtm = Object.fromEntries(DAFTAR_PTM.map((j) => [j, { lk: angka(ptm[j].lk), pr: angka(ptm[j].pr) }]));
++    const semua = [
++      ...Object.values(dataPenyakit).flat(),
++      ...Object.values(dataPtm).flatMap((v) => [v.lk, v.pr]),
++      angka(klbJumlah),
++    ];
+     if (!semua.every(bilanganBulat)) {
+       setPesan({ ok: false, teks: 'Semua angka harus bilangan bulat 0 atau lebih (tanpa koma atau minus).' });
+       return;
+@@ -256,18 +265,43 @@ export default function PoskoInputClient({
+           {/* PTM */}
+           <div className="rounded-xl border border-gray-100 bg-white p-4">
+             <h2 className="mb-2 text-sm font-bold text-gray-800">Penyakit Tidak Menular</h2>
+-            <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+-              {DAFTAR_PTM.map((jenis) => (
+-                <label key={jenis} className="flex items-center justify-between gap-3 text-xs text-gray-700">
+-                  {jenis}
+-                  <input
+-                    type="number" min={0} step={1} inputMode="numeric" placeholder="0"
+-                    value={ptm[jenis]}
+-                    onChange={(e) => { setKotor(true); setPtm((lama) => ({ ...lama, [jenis]: e.target.value })); }}
+-                    className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm"
+-                  />
+-                </label>
+-              ))}
++            {awal?.ptmPerluRincian && (
++              <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
++                Sebagian data PTM lama belum dirinci jenis kelamin. Totalnya sementara ditaruh di kolom Laki-laki; mohon
++                dirinci lalu simpan ulang.
++              </p>
++            )}
++            <div className="overflow-x-auto">
++              <table className="w-full min-w-[420px] text-xs">
++                <thead>
++                  <tr className="bg-gray-50 text-gray-600">
++                    <th className="px-2 py-2 text-left">Jenis PTM</th>
++                    <th className="px-2 py-2 text-center">Laki-laki</th>
++                    <th className="px-2 py-2 text-center">Perempuan</th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {DAFTAR_PTM.map((jenis) => (
++                    <tr key={jenis} className="border-t border-gray-100">
++                      <td className="px-2 py-1.5 text-gray-800">{jenis}</td>
++                      {(['lk', 'pr'] as const).map((jk) => (
++                        <td key={jk} className="px-2 py-1.5 text-center">
++                          <input
++                            type="number" min={0} step={1} inputMode="numeric" placeholder="0"
++                            value={ptm[jenis][jk]}
++                            onChange={(e) => {
++                              setKotor(true);
++                              setPtm((lama) => ({ ...lama, [jenis]: { ...lama[jenis], [jk]: e.target.value } }));
++                            }}
++                            className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-right text-sm"
++                            aria-label={`${jenis} ${jk === 'lk' ? 'laki-laki' : 'perempuan'}`}
++                          />
++                        </td>
++                      ))}
++                    </tr>
++                  ))}
++                </tbody>
++              </table>
+             </div>
+           </div>
+ 
+diff --git a/lib/posko/hitung.ts b/lib/posko/hitung.ts
+index 877a174..7cc9dc3 100644
+--- a/lib/posko/hitung.ts
++++ b/lib/posko/hitung.ts
+@@ -140,14 +140,36 @@ export function donutKelompok(t: TotalPenyakit, tipe: 'kasus' | 'mati') {
+ 
+ // ------------------------------------------------------------ PTM
+ export function ringkasPtm(rows: BarisPtmPosko[]) {
+-  const perJenis = new Map<string, number>();
+-  DAFTAR_PTM.forEach((j) => perJenis.set(j, 0));
+-  let total = 0;
++  const perJenis = new Map<string, { jumlah: number; lk: number; pr: number }>();
++  DAFTAR_PTM.forEach((j) => perJenis.set(j, { jumlah: 0, lk: 0, pr: 0 }));
++  let total = 0, totalLk = 0, totalPr = 0;
+   for (const r of rows) {
+-    perJenis.set(r.jenis, (perJenis.get(r.jenis) ?? 0) + r.jumlah);
+-    total += r.jumlah;
++    const t = perJenis.get(r.jenis) ?? { jumlah: 0, lk: 0, pr: 0 };
++    perJenis.set(r.jenis, t);
++    t.jumlah += r.jumlah; t.lk += r.jumlahLk; t.pr += r.jumlahPr;
++    total += r.jumlah; totalLk += r.jumlahLk; totalPr += r.jumlahPr;
+   }
+-  return { perJenis: Array.from(perJenis.entries()).map(([jenis, jumlah]) => ({ jenis, jumlah })), total };
++  return {
++    perJenis: Array.from(perJenis.entries()).map(([jenis, t]) => ({ jenis, ...t })),
++    total,
++    totalLk,
++    totalPr,
++    /** kasus yang tercatat tanpa rincian jenis kelamin (data lama) */
++    tanpaRincian: Math.max(0, total - totalLk - totalPr),
++  };
++}
++
++/** Irisan donut/pie jenis kelamin dari total penyakit potensial KLB. */
++export function donutJenisKelamin(t: TotalPenyakit, tipe: 'kasus' | 'mati') {
++  return tipe === 'kasus'
++    ? [
++        { kategori: 'Laki-laki', jumlah: t.kasusLkLt5 + t.kasusLkGe5 },
++        { kategori: 'Perempuan', jumlah: t.kasusPrLt5 + t.kasusPrGe5 },
++      ]
++    : [
++        { kategori: 'Laki-laki', jumlah: t.matiLkLt5 + t.matiLkGe5 },
++        { kategori: 'Perempuan', jumlah: t.matiPrLt5 + t.matiPrGe5 },
++      ];
+ }
+ 
+ // ------------------------------------------------------------ tren harian
+diff --git a/lib/posko/konstanta.ts b/lib/posko/konstanta.ts
+index c4c3097..1369bd8 100644
+--- a/lib/posko/konstanta.ts
++++ b/lib/posko/konstanta.ts
+@@ -119,11 +119,16 @@ export type BarisPtmPosko = {
+   tanggal: string;
+   wilayah: WilayahPosko;
+   jenis: string;
++  /** total kasus (laki-laki + perempuan; data lama tanpa rincian tetap terbaca di sini) */
+   jumlah: number;
++  jumlahLk: number;
++  jumlahPr: number;
+ };
+ 
+ export type DataPosko = {
+   posko: JenisPosko;
++  /** hari ini menurut WITA (YYYY-MM-DD), dari server */
++  hariIni: string;
+   periode: PeriodePosko | null;
+   /** semua periode tersimpan untuk posko ini (terbaru dulu) -> untuk pilihan periode */
+   daftarPeriode: PeriodePosko[];
+diff --git a/lib/posko/perintahInput.ts b/lib/posko/perintahInput.ts
+index ff7b245..0e1f4e0 100644
+--- a/lib/posko/perintahInput.ts
++++ b/lib/posko/perintahInput.ts
+@@ -16,12 +16,20 @@ export type InputHarianPayload = {
+   penyakit: Record<string, number[]>;
+   klbJumlah: number;
+   klbKeterangan: string;
+-  /** jenis PTM -> jumlah kasus */
+-  ptm: Record<string, number>;
++  /** jenis PTM -> jumlah kasus laki-laki & perempuan */
++  ptm: Record<string, { lk: number; pr: number }>;
+ };
+ 
+ export const BATAS_ANGKA = 1_000_000;
+ 
++/**
++ * Kolom belum ada di tabel Turso. SQLite memakai kalimat berbeda: "no such column: x" (SELECT/UPDATE)
++ * dan "table t has no column named x" (INSERT) -> keduanya harus dikenali.
++ */
++export function adalahGalatKolomBelumAda(pesan: string): boolean {
++  return /no such column|has no column named/i.test(pesan);
++}
++
+ export function tanggalSah(s: unknown): s is string {
+   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+   const d = new Date(`${s}T00:00:00Z`);
+@@ -46,7 +54,10 @@ export function validasiInputHarian(input: InputHarianPayload, hariIni: string):
+     }
+   }
+   for (const jenis of DAFTAR_PTM) {
+-    if (!angkaSah(input.ptm?.[jenis])) return `Jumlah "${jenis}" harus bilangan bulat 0 atau lebih.`;
++    const nilai = input.ptm?.[jenis];
++    if (!nilai || !angkaSah(nilai.lk) || !angkaSah(nilai.pr)) {
++      return `Jumlah "${jenis}" (laki-laki & perempuan) harus bilangan bulat 0 atau lebih.`;
++    }
+   }
+   return null;
+ }
+@@ -67,9 +78,11 @@ export const SQL_KLB =
+      jumlah_klb = excluded.jumlah_klb, keterangan = excluded.keterangan, diperbarui = datetime('now')`;
+ 
+ export const SQL_PTM =
+-  `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus) VALUES (?, ?, ?, ?, ?, ?)
++  `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus, jumlah_lk, jumlah_pr)
++   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_ptm) DO UPDATE SET
+-     jumlah_kasus = excluded.jumlah_kasus, diperbarui = datetime('now')`;
++     jumlah_kasus = excluded.jumlah_kasus, jumlah_lk = excluded.jumlah_lk, jumlah_pr = excluded.jumlah_pr,
++     diperbarui = datetime('now')`;
+ 
+ /** 25 baris penyakit + 1 baris KLB + 7 baris PTM = 33 perintah (dijalankan sebagai satu transaksi). */
+ export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: number) {
+@@ -78,6 +91,9 @@ export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: numb
+   return [
+     ...DAFTAR_PENYAKIT.map((jenis) => ({ sql: SQL_PENYAKIT, args: [...dasar, jenis, ...input.penyakit[jenis]] })),
+     { sql: SQL_KLB, args: [...dasar, input.klbJumlah, ket === '' ? null : ket] },
+-    ...DAFTAR_PTM.map((jenis) => ({ sql: SQL_PTM, args: [...dasar, jenis, input.ptm[jenis]] })),
++    ...DAFTAR_PTM.map((jenis) => {
++      const { lk, pr } = input.ptm[jenis];
++      return { sql: SQL_PTM, args: [...dasar, jenis, lk + pr, lk, pr] };
++    }),
+   ];
+ }
+diff --git a/lib/posko/queries.ts b/lib/posko/queries.ts
+index 84bbfc1..a280e0b 100644
+--- a/lib/posko/queries.ts
++++ b/lib/posko/queries.ts
+@@ -6,6 +6,7 @@
+ import { cache } from 'react';
+ import { getTursoClient } from '@/lib/turso/client';
+ import { createClient } from '@/lib/supabase/server';
++import { adalahGalatKolomBelumAda } from './perintahInput';
+ import {
+   DAFTAR_PENYAKIT,
+   DAFTAR_PTM,
+@@ -123,6 +124,30 @@ async function ambilPesawat(mulai: string, akhir: string, catatan: string[]): Pr
+   return semua;
+ }
+ 
++/**
++ * Baca PTM dengan kolom jenis kelamin (jumlah_lk/jumlah_pr). Bila kolom itu belum ada di Turso
++ * (belum menjalankan posko_ptm_jenis_kelamin.sql), PTM tetap terbaca tanpa rincian jenis kelamin.
++ */
++async function ambilPtm(kondisi: string, args: (string | number)[], catatan: string[]): Promise<BarisMentah[]> {
++  const kolomBaru = 'tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus, jumlah_lk, jumlah_pr';
++  const kolomLama = 'tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus';
++  const dasar = `FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND ${kondisi}`;
++  try {
++    const hasil = await getTursoClient().execute({ sql: `SELECT ${kolomBaru} ${dasar}`, args });
++    return hasil.rows as unknown as BarisMentah[];
++  } catch (err) {
++    const pesan = err instanceof Error ? err.message : String(err);
++    if (!adalahGalatKolomBelumAda(pesan)) {
++      catatan.push(
++        pesan.includes('no such table') ? 'Tabel posko_ptm_harian belum dibuat di Turso.' : `posko_ptm_harian gagal dimuat: ${pesan}`
++      );
++      return [];
++    }
++    catatan.push('Kolom jenis kelamin PTM belum ada di Turso. Jalankan posko_ptm_jenis_kelamin.sql agar PTM bisa dirinci laki-laki/perempuan.');
++    return jalankan(`SELECT ${kolomLama} ${dasar}`, args, 'posko_ptm_harian', catatan);
++  }
++}
++
+ // ---------------------------------------------------------------- periode
+ export async function ambilDaftarPeriode(posko: JenisPosko, catatan: string[]): Promise<PeriodePosko[]> {
+   const baris = await jalankan(
+@@ -153,7 +178,8 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
+   const catatan: string[] = [...hasilPeriode.catatan];
+   const { periode, daftarPeriode } = hasilPeriode;
+   const kosong: DataPosko = {
+-    posko, periode: null, daftarPeriode, tanggalAkhirTampil: null, harian: [], penyakit: [], ptm: [], catatan,
++    posko, hariIni: hariIniWita(), periode: null, daftarPeriode, tanggalAkhirTampil: null,
++    harian: [], penyakit: [], ptm: [], catatan,
+   };
+   if (!periode) return kosong;
+ 
+@@ -176,10 +202,7 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
+       'SELECT tanggal, wilayah_kerja, jumlah_klb FROM posko_klb_harian WHERE posko = ? AND tahun = ? AND tanggal BETWEEN ? AND ?',
+       [posko, periode.tahun, mulai, akhir], 'posko_klb_harian', catatan
+     ),
+-    jalankan(
+-      'SELECT tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND tanggal BETWEEN ? AND ?',
+-      [posko, periode.tahun, mulai, akhir], 'posko_ptm_harian', catatan
+-    ),
++    ambilPtm('tanggal BETWEEN ? AND ?', [posko, periode.tahun, mulai, akhir], catatan),
+     jalankan(SQL_POLIKLINIK, [mulai, akhir], 'kunjungan_poliklinik', catatan),
+     jalankan(SQL_KAPAL_DATANG, [mulai, akhir], 'data_penumpang_kapal', catatan),
+     jalankan(SQL_KAPAL_BERANGKAT, [mulai, akhir], 'data_penumpang_kapal', catatan),
+@@ -246,11 +269,17 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
+     const w = normalisasiWilayah(String(r.wilayah_kerja));
+     const jenis = String(r.jenis_ptm);
+     if (!w || !jenisPtmSah.has(jenis)) return;
+-    ptm.push({ tanggal: String(r.tanggal).slice(0, 10), wilayah: w, jenis, jumlah: angka(r.jumlah_kasus) });
++    const lk = angka(r.jumlah_lk);
++    const pr = angka(r.jumlah_pr);
++    ptm.push({
++      tanggal: String(r.tanggal).slice(0, 10), wilayah: w, jenis,
++      jumlah: angka(r.jumlah_kasus), jumlahLk: lk, jumlahPr: pr,
++    });
+   });
+ 
+   return {
+     posko,
++    hariIni,
+     periode,
+     daftarPeriode,
+     tanggalAkhirTampil: akhir,
+@@ -268,7 +297,9 @@ export type InputHarianPosko = {
+   penyakit: Record<string, number[]>;
+   klbJumlah: number | null;
+   klbKeterangan: string;
+-  ptm: Record<string, number>;
++  ptm: Record<string, { lk: number; pr: number }>;
++  /** true bila ada data PTM lama tanpa rincian jenis kelamin (total ditaruh di kolom laki-laki saat diedit) */
++  ptmPerluRincian: boolean;
+   catatan: string[];
+ };
+ 
+@@ -291,10 +322,7 @@ export async function ambilInputHarianPosko(
+       'SELECT jumlah_klb, keterangan FROM posko_klb_harian WHERE posko = ? AND tahun = ? AND tanggal = ? AND wilayah_kerja = ?',
+       args, 'posko_klb_harian', catatan
+     ),
+-    jalankan(
+-      'SELECT jenis_ptm, jumlah_kasus FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND tanggal = ? AND wilayah_kerja = ?',
+-      args, 'posko_ptm_harian', catatan
+-    ),
++    ambilPtm('tanggal = ? AND wilayah_kerja = ?', args, catatan),
+   ]);
+ 
+   const penyakit: Record<string, number[]> = {};
+@@ -304,8 +332,19 @@ export async function ambilInputHarianPosko(
+       angka(r.mati_lk_lt5), angka(r.mati_lk_ge5), angka(r.mati_pr_lt5), angka(r.mati_pr_ge5),
+     ];
+   });
+-  const ptm: Record<string, number> = {};
+-  rPtm.forEach((r) => { ptm[String(r.jenis_ptm)] = angka(r.jumlah_kasus); });
++  const ptm: Record<string, { lk: number; pr: number }> = {};
++  let ptmPerluRincian = false;
++  rPtm.forEach((r) => {
++    const lk = angka(r.jumlah_lk);
++    const pr = angka(r.jumlah_pr);
++    if (lk + pr === 0 && angka(r.jumlah_kasus) > 0) {
++      // data lama tanpa rincian: total ditaruh di laki-laki supaya tidak hilang saat diedit
++      ptmPerluRincian = true;
++      ptm[String(r.jenis_ptm)] = { lk: angka(r.jumlah_kasus), pr: 0 };
++    } else {
++      ptm[String(r.jenis_ptm)] = { lk, pr };
++    }
++  });
+ 
+   return {
+     adaData: rPenyakit.length > 0 || rKlb.length > 0 || rPtm.length > 0,
+@@ -313,6 +352,7 @@ export async function ambilInputHarianPosko(
+     klbJumlah: rKlb.length > 0 ? angka(rKlb[0].jumlah_klb) : null,
+     klbKeterangan: rKlb.length > 0 ? String(rKlb[0].keterangan ?? '') : '',
+     ptm,
++    ptmPerluRincian,
+     catatan,
+   };
+ }

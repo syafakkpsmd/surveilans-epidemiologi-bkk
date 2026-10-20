@@ -16,11 +16,19 @@ export type InputHarianPayload = {
   penyakit: Record<string, number[]>;
   klbJumlah: number;
   klbKeterangan: string;
-  /** jenis PTM -> jumlah kasus */
-  ptm: Record<string, number>;
+  /** jenis PTM -> jumlah kasus laki-laki & perempuan */
+  ptm: Record<string, { lk: number; pr: number }>;
 };
 
 export const BATAS_ANGKA = 1_000_000;
+
+/**
+ * Kolom belum ada di tabel Turso. SQLite memakai kalimat berbeda: "no such column: x" (SELECT/UPDATE)
+ * dan "table t has no column named x" (INSERT) -> keduanya harus dikenali.
+ */
+export function adalahGalatKolomBelumAda(pesan: string): boolean {
+  return /no such column|has no column named/i.test(pesan);
+}
 
 export function tanggalSah(s: unknown): s is string {
   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
@@ -46,7 +54,10 @@ export function validasiInputHarian(input: InputHarianPayload, hariIni: string):
     }
   }
   for (const jenis of DAFTAR_PTM) {
-    if (!angkaSah(input.ptm?.[jenis])) return `Jumlah "${jenis}" harus bilangan bulat 0 atau lebih.`;
+    const nilai = input.ptm?.[jenis];
+    if (!nilai || !angkaSah(nilai.lk) || !angkaSah(nilai.pr)) {
+      return `Jumlah "${jenis}" (laki-laki & perempuan) harus bilangan bulat 0 atau lebih.`;
+    }
   }
   return null;
 }
@@ -67,9 +78,11 @@ export const SQL_KLB =
      jumlah_klb = excluded.jumlah_klb, keterangan = excluded.keterangan, diperbarui = datetime('now')`;
 
 export const SQL_PTM =
-  `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus) VALUES (?, ?, ?, ?, ?, ?)
+  `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus, jumlah_lk, jumlah_pr)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
    ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_ptm) DO UPDATE SET
-     jumlah_kasus = excluded.jumlah_kasus, diperbarui = datetime('now')`;
+     jumlah_kasus = excluded.jumlah_kasus, jumlah_lk = excluded.jumlah_lk, jumlah_pr = excluded.jumlah_pr,
+     diperbarui = datetime('now')`;
 
 /** 25 baris penyakit + 1 baris KLB + 7 baris PTM = 33 perintah (dijalankan sebagai satu transaksi). */
 export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: number) {
@@ -78,6 +91,9 @@ export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: numb
   return [
     ...DAFTAR_PENYAKIT.map((jenis) => ({ sql: SQL_PENYAKIT, args: [...dasar, jenis, ...input.penyakit[jenis]] })),
     { sql: SQL_KLB, args: [...dasar, input.klbJumlah, ket === '' ? null : ket] },
-    ...DAFTAR_PTM.map((jenis) => ({ sql: SQL_PTM, args: [...dasar, jenis, input.ptm[jenis]] })),
+    ...DAFTAR_PTM.map((jenis) => {
+      const { lk, pr } = input.ptm[jenis];
+      return { sql: SQL_PTM, args: [...dasar, jenis, lk + pr, lk, pr] };
+    }),
   ];
 }

@@ -35,9 +35,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 // Lihat / unduh
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const turso = await getTursoClient();
+  const unduh = req.nextUrl.searchParams.get('download') === '1';
+  const turso = getTursoClient();
+
   const r = await turso.execute({
     sql: 'SELECT nama_file, isi_pdf FROM pengawasan_klinik_rekomendasi WHERE pengawasan_id = ?',
     args: [id],
@@ -45,10 +47,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (r.rows.length === 0) return new NextResponse('Tidak ditemukan', { status: 404 });
 
   const row = r.rows[0];
+  const nama = String(row.nama_file);
   return new NextResponse(row.isi_pdf as ArrayBuffer, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${encodeURIComponent(String(row.nama_file))}"`,
+      'Content-Disposition': `${unduh ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(nama)}`,
+      'Cache-Control': 'private, no-store',
     },
   });
 }

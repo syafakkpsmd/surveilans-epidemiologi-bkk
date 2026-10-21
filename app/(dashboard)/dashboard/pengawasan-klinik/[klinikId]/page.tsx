@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { ITEM_CHECKLIST, DAFTAR_KATEGORI } from '@/lib/pengawasan-klinik/itemChecklist';
 import { getTursoClient } from '@/lib/turso/client';
 import UploadRekomendasi from '@/components/pengawasan-klinik/UploadRekomendasi';
+import { ambilPerbaikan, type DataPerbaikan } from '@/lib/pengawasan-klinik/perbaikan';
+import LinkPerbaikan from '@/components/pengawasan-klinik/LinkPerbaikan';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +112,15 @@ export default async function DetailPengawasanKlinikPage({
     }
   }
 
+  let perbaikan: DataPerbaikan = {};
+  if (terpilih) {
+    try {
+      perbaikan = await ambilPerbaikan(terpilih.id);
+    } catch {
+      perbaikan = {};
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-5 px-4 py-6">
       <Link href="/dashboard/pengawasan-klinik" className="text-sm text-blue-700 hover:underline">
@@ -166,7 +177,10 @@ export default async function DetailPengawasanKlinikPage({
                 </span>
               )}
               {terpilih.status_kepatuhan && terpilih.status_kepatuhan !== 'memenuhi_syarat' && (
-                <UploadRekomendasi pengawasanId={terpilih.id} namaFile={namaFileRekomendasi} />
+                <>
+                  <UploadRekomendasi pengawasanId={terpilih.id} namaFile={namaFileRekomendasi} />
+                  <LinkPerbaikan pengawasanId={terpilih.id} />
+                </>
               )}
             </div>
 
@@ -243,6 +257,30 @@ export default async function DetailPengawasanKlinikPage({
                         </span>
                       </div>
                       <GaleriFoto foto={foto} />
+                                            {!nilai && perbaikan[item.key] && (
+                        <div className="mt-2 rounded-md border border-green-200 bg-green-50 p-3 text-xs">
+                          <p className="font-semibold text-green-800">
+                            Dokumentasi perbaikan dari klinik
+                            {perbaikan[item.key].tanggal ? ` · ${formatTanggal(perbaikan[item.key].tanggal)}` : ''}
+                          </p>
+                          {perbaikan[item.key].keterangan && (
+                            <p className="mt-1 text-gray-700">{perbaikan[item.key].keterangan}</p>
+                          )}
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {perbaikan[item.key].foto.map((id) => (
+                              <a key={id} href={`/api/perbaikan-foto/${id}`} target="_blank" rel="noopener noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={`/api/perbaikan-foto/${id}`}
+                                  alt="Foto perbaikan"
+                                  loading="lazy"
+                                  className="h-24 w-24 rounded-md border border-gray-200 object-cover hover:opacity-90"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </li>
                   );
                 })}

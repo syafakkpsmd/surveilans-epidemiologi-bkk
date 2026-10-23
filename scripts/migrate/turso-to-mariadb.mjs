@@ -45,22 +45,43 @@ const T_DT = new Set(['datetime', 'timestamp']);
 
 const dua = (n) => String(n).padStart(2, '0');
 
+// Nama bulan (Indonesia dan Inggris) untuk tanggal yang diketik manual di Sheets, mis. "01 OKT 2026".
+const BULAN = {
+  jan: 1, januari: 1, feb: 2, februari: 2, mar: 3, maret: 3, apr: 4, april: 4, mei: 5, may: 5,
+  jun: 6, juni: 6, jul: 7, juli: 7, agu: 8, agt: 8, ags: 8, agustus: 8, aug: 8,
+  sep: 9, sept: 9, september: 9, okt: 10, oktober: 10, oct: 10, nov: 11, november: 11,
+  des: 12, desember: 12, dec: 12,
+};
+const KOSONG = new Set(['', '-', '–', '—', 'n/a', 'na', 'null']);
+
+function tanggalKalender(y, mo, d) {
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return null;
+  return `${String(y).padStart(4, '0')}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
 function normDate(v) {
   if (v == null) return { value: null };
   const s = String(v).trim();
-  if (s === '') return { value: null };
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  if (!m) return { error: 'format tanggal tidak dikenal' };
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const t = new Date(Date.UTC(y, mo - 1, d));
-  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) return { error: 'tanggal tidak ada di kalender' };
-  return { value: `${m[1]}-${m[2]}-${m[3]}` };
+  if (KOSONG.has(s.toLowerCase())) return { value: null };
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) {
+    const t = tanggalKalender(Number(m[1]), Number(m[2]), Number(m[3]));
+    return t ? { value: t } : { error: 'tanggal tidak ada di kalender' };
+  }
+  // "01 OKT 2026", "5 Agustus 2026", "12-okt-2026"
+  m = /^(\d{1,2})[\s.\-\/]+([A-Za-z]+)[\s.\-\/,]+(\d{4})$/.exec(s);
+  if (m && BULAN[m[2].toLowerCase()]) {
+    const t = tanggalKalender(Number(m[3]), BULAN[m[2].toLowerCase()], Number(m[1]));
+    return t ? { value: t } : { error: 'tanggal tidak ada di kalender' };
+  }
+  return { error: 'format tanggal tidak dikenal' };
 }
 
 function normDateTime(v) {
   if (v == null) return { value: null };
   const s = String(v).trim();
-  if (s === '') return { value: null };
+  if (KOSONG.has(s.toLowerCase())) return { value: null };
   const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/.exec(s);
   if (!m) {
     const d = normDate(s);

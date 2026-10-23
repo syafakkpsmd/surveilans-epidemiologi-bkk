@@ -35,8 +35,7 @@
     "react-simple-maps": "^3.0.0",
     "recharts": "^3.9.2",
     "server-only": "^0.0.1",
-    "source-map-js": "^1.2.1",
-    "xlsx": "^0.18.5"
+    "source-map-js": "^1.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

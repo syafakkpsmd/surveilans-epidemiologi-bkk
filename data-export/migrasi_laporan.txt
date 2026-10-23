@@ -1,0 +1,28 @@
+Laporan migrasi Turso -> MariaDB (TULIS) 2026-10-23T10:21:50.606Z
+
+tabel	sumber	ditulis	dilewati	gagal	diubah	tujuan_sebelum	tujuan_sesudah	status
+data_hiv_vct	0	0	0	0	0	0	0	OK
+data_icv	13895	13895	0	0	0	0	13895	OK
+data_penumpang_kapal	225	221	4	0	0	0	221	OK
+hiv_data	188	188	0	0	0	0	188	OK
+kier_kesehatan	190	190	0	0	0	0	190	OK
+kunjungan_poliklinik	422	422	0	0	0	0	422	OK
+migrasi_malaria	485	485	0	0	0	0	485	OK
+pengawasan_klinik_link_perbaikan	1	1	0	0	0	0	1	OK
+pengawasan_klinik_perbaikan	0	0	0	0	0	0	0	OK
+pengawasan_klinik_perbaikan_foto	0	0	0	0	0	0	0	OK
+pengawasan_klinik_rekomendasi	0	0	0	0	0	0	0	OK
+posko_klb_harian	0	0	0	0	0	0	0	OK
+posko_penyakit_harian	0	0	0	0	0	0	0	OK
+posko_periode	1	1	0	0	0	0	1	OK
+posko_ptm_harian	0	0	0	0	0	0	0	OK
+siaos	298	298	0	0	0	0	298	OK
+sklt_penumpang	1252	1252	0	0	0	0	1252	OK
+stok_vaksin	36599	36599	0	0	0	0	36599	OK
+tb_data	671	671	0	0	0	0	671	OK
+
+Catatan (4):
+[data_penumpang_kapal] DILEWATI id=1944 -> kolom tanggal_tiba wajib diisi tetapi format tanggal tidak dikenal nilai="-"
+[data_penumpang_kapal] DILEWATI id=3904 -> kolom tanggal_tiba wajib diisi tetapi format tanggal tidak dikenal nilai="01 OKT 2026"
+[data_penumpang_kapal] DILEWATI id=3905 -> kolom tanggal_tiba wajib diisi tetapi format tanggal tidak dikenal nilai="06 OKT 2026"
+[data_penumpang_kapal] DILEWATI id=5021 -> kolom tanggal_tiba wajib diisi tetapi format tanggal tidak dikenal nilai="12 OKT 2026"

@@ -23,6 +23,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.24.0",
     "maplibre-gl": "^6.6.0",
+    "mysql2": "^3.24.6",
     "next": "^16.2.10",
     "papaparse": "^5.5.4",
     "pdfkit": "^0.20.2",

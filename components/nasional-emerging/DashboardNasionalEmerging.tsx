@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -26,10 +26,17 @@ const NasionalEmergingPeta = dynamic(
 );
 
 // ==== Konfigurasi ====
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Dibuat saat pertama dipakai (bukan saat file dimuat) agar build tidak gagal bila env belum tersedia.
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return _supabase;
+}
 
 const DAFTAR_PENYAKIT = DAFTAR_PENYAKIT_NASIONAL;
 const OPSI_PETA_PENYAKIT = ['Semua Penyakit', ...DAFTAR_PENYAKIT_NASIONAL];
@@ -134,7 +141,7 @@ export default function DashboardNasionalEmerging({ sudahLogin, role, hasilAwalI
 useEffect(() => {
   async function ambilData() {
     setLoading(true);
-    const { data: rows, error } = await supabase
+    const { data: rows, error } = await getSupabase()
       .from('laporan_penyakit_nasional')
       .select('*')
       .eq('penyakit', penyakit)
@@ -148,7 +155,7 @@ useEffect(() => {
 // 2. INI YANG BARU — khusus untuk peta
 useEffect(() => {
   async function ambilDataPeta() {
-    const { data: rows, error } = await supabase
+    const { data: rows, error } = await getSupabase()
       .from('laporan_penyakit_nasional')
       .select('*')
       .eq('tahun_epid', tahun);

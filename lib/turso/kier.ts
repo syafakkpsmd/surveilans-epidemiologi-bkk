@@ -8,8 +8,6 @@
 
 import { getTursoClient } from '@/lib/turso/client';
 
-const tursoClient = getTursoClient();
-
 export const DAFTAR_WILKER_KIER = ['Samarinda', 'APT Pranoto', 'Tanjung Laut', 'Lhoktuan', 'Sangatta'];
  
 export interface BarisKier {
@@ -69,7 +67,7 @@ async function ambilBarisTahun(tahun: number, wilayahKerja?: string): Promise<Ba
   const args: any[] = [String(tahun)];
   if (wilayahKerja) args.push(wilayahKerja);
  
-  const result = await tursoClient.execute({
+  const result = await getTursoClient().execute({
     sql: `SELECT wilayah_kerja, no_baris, nama, tanggal_lahir, jenis_kelamin, alamat,
                  tujuan_pemeriksaan, tanggal_pemeriksaan, kesimpulan, tempat_terbit
           FROM kier_kesehatan
@@ -183,7 +181,7 @@ export async function getTrenBulananKier(
  
 /** Daftar tahun yang tersedia di data, untuk dropdown filter tahun */
 export async function getDaftarTahunKier(): Promise<number[]> {
-  const result = await tursoClient.execute({
+  const result = await getTursoClient().execute({
     sql: `SELECT DISTINCT substr(tanggal_pemeriksaan, 1, 4) AS tahun
           FROM kier_kesehatan
           WHERE tanggal_pemeriksaan IS NOT NULL AND tanggal_pemeriksaan != ''
@@ -200,7 +198,7 @@ export async function getDaftarTahunKier(): Promise<number[]> {
  * diam-diam — supaya kelihatan kalau ada nama wilker yang tidak konsisten.
  */
 export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
-  const result = await tursoClient.execute({
+  const result = await getTursoClient().execute({
     sql: `SELECT DISTINCT wilayah_kerja
           FROM kier_kesehatan
           WHERE substr(tanggal_pemeriksaan, 1, 4) = ?

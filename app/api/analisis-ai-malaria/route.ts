@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/server';
+import { getPengguna } from '@/lib/auth/session';
+import { getDbClient } from '@/lib/db/client';
+import { keIsoUtc } from '@/lib/db/json';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { panggilAI } from '@/lib/ai';
 import {
@@ -20,23 +21,6 @@ function labelWilayahDariKode(kodeWilker: string | null | undefined): string {
   return kodeWilker; // fallback sederhana; frontend yang tahu label lengkapnya bisa mengirim labelnya sendiri kalau perlu lebih rapi
 }
 
-/**
- * Client Supabase pakai service-role key (bypass RLS), dibuat lokal di sini
- * karena saya tidak tahu path export createServiceRoleClient yang sebenarnya
- * di repo kamu. Ganti dengan import dari lib/supabase kamu kalau ada versi
- * bersama yang sudah teruji — cukup ganti nama env var di bawah kalau beda.
- */
-function buatServiceRoleClientLokal() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceKey) {
-    throw new Error(
-      'NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY belum diset di environment variables.'
-    );
-  }
-  return createSupabaseClient(url, serviceKey);
-}
-
 // GET -- baca hasil terakhir yang tersimpan (siapa saja boleh, tidak menjalankan AI baru).
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -47,21 +31,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Parameter tahun wajib diisi.' }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  let query = supabase
-    .from('riwayat_analisis_ai')
-    .select('*')
-    .eq('konteks', KONTEKS)
-    .eq('periode_key', tahun)
-    .order('dibuat_pada', { ascending: false })
-    .limit(1);
+  let data: Record<string, any> | undefined;
+  try {
+    const kondisi = ['konteks = ?', 'periode_key = ?'];
+    const args: string[] = [KONTEKS, tahun];
+    if (kodeWilker) { kondisi.push('wilayah_kerja = ?'); args.push(kodeWilker); } else { kondisi.push('wilayah_kerja IS NULL'); }
 
-  query = kodeWilker ? query.eq('wilayah_kerja', kodeWilker) : query.is('wilayah_kerja', null);
-
-  const { data, error } = await query.maybeSingle();
-
-  if (error) {
-    console.error('Gagal membaca riwayat_analisis_ai (migrasi-malaria):', error.message);
+    const { rows } = await getDbClient().execute({
+      sql: `SELECT * FROM riwayat_analisis_ai WHERE ${kondisi.join(' AND ')} ORDER BY dibuat_pada DESC LIMIT 1`,
+      args,
+    });
+    data = rows[0];
+  } catch (error: any) {
+    console.error('Gagal membaca riwayat_analisis_ai (migrasi-malaria):', error?.message);
     return NextResponse.json({ error: 'Gagal memuat hasil Analisis AI.' }, { status: 503 });
   }
 
@@ -75,7 +57,7 @@ export async function GET(req: Request) {
     anomali: data.anomali,
     rekomendasi: data.rekomendasi,
     providerDipakai: data.provider_dipakai,
-    dibuatPada: data.dibuat_pada,
+    dibuatPada: keIsoUtc(data.dibuat_pada),
   });
 }
 
@@ -103,12 +85,15 @@ export async function POST(req: Request) {
     );
   }
 
-  const supabaseServiceRole = buatServiceRoleClientLokal();
-  const { data: daftarProviderAktif, error: pengaturanError } = await supabaseServiceRole
-    .from('pengaturan_ai')
-    .select('*')
-    .eq('aktif', true)
-    .order('urutan_prioritas', { ascending: true });
+  let daftarProviderAktif: any[] = [];
+  let pengaturanError: { message: string } | null = null;
+  try {
+    ({ rows: daftarProviderAktif } = await getDbClient().execute(
+      'SELECT * FROM pengaturan_ai WHERE aktif = 1 ORDER BY urutan_prioritas ASC'
+    ));
+  } catch (e: any) {
+    pengaturanError = { message: e?.message ?? String(e) };
+  }
 
   if (pengaturanError) {
     console.error('Gagal mengambil pengaturan_ai:', pengaturanError.message);
@@ -162,30 +147,32 @@ export async function POST(req: Request) {
     );
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getPengguna();
 
   const providerDipakai = `${pengaturanTerpakai.nama_tampilan} (${pengaturanTerpakai.model})`;
 
-  // Simpan sebagai cache/riwayat — kalau gagal (mis. constraint kolom konteks belum
-  // mengenal 'migrasi-malaria' di database), JANGAN gagalkan response, cukup log.
-  const { error: insertError } = await supabase.from('riwayat_analisis_ai').insert({
-    konteks: KONTEKS,
-    periode_key: String(tahun),
-    wilayah_kerja: kodeWilker ?? null,
-    tipe: 'analisis',
-    metrik: null,
-    provider_dipakai: providerDipakai,
-    ringkasan: hasil.ringkasan,
-    anomali: hasil.anomali,
-    rekomendasi: hasil.rekomendasi,
-    dibuat_oleh: user?.id ?? null,
-  });
-
-  if (insertError) {
-    console.error('Gagal menyimpan riwayat_analisis_ai (migrasi-malaria):', insertError.message);
+  // Simpan sebagai cache/riwayat -- kalau gagal (mis. constraint kolom konteks), JANGAN gagalkan
+  // response, cukup log.
+  try {
+    await getDbClient().execute({
+      sql: `INSERT INTO riwayat_analisis_ai
+              (konteks, periode_key, wilayah_kerja, tipe, metrik, provider_dipakai, ringkasan, anomali, rekomendasi, dibuat_oleh)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        KONTEKS,
+        String(tahun),
+        kodeWilker ?? null,
+        'analisis',
+        null,
+        providerDipakai,
+        hasil.ringkasan,
+        hasil.anomali ?? null,
+        hasil.rekomendasi ?? null,
+        user?.id ?? null,
+      ],
+    });
+  } catch (insertError: any) {
+    console.error('Gagal menyimpan riwayat_analisis_ai (migrasi-malaria):', insertError?.message);
   }
 
   return NextResponse.json({

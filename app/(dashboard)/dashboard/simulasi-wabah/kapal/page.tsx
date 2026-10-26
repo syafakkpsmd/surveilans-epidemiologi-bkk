@@ -1,4 +1,6 @@
-import { createClient } from "@/lib/supabase/server";
+import { getPengguna } from "@/lib/auth/session";
+import { getDbClient } from "@/lib/db/client";
+import { parseKolomJson } from "@/lib/db/json";
 import { SimulasiKapalClient } from "@/components/simulasi-wabah/SimulasiKapalClient";
 import { PeranUser } from "@/types/database.types";
 
@@ -11,42 +13,35 @@ const WILAYAH_KAPAL = [
   { value: "Sangkulirang", label: "Pelabuhan Sangkulirang" },
 ] as const;
 
+type Penyakit = { id: number; kategori: string; r0_default: number };
+
 export default async function HalamanSimulasiKapal() {
-  const supabase = await createClient();
+  const db = getDbClient();
 
-  const [
-    { data: { user } },
-    { data: daftarPenyakit },
-    { data: daftarWilayah },
-  ] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.from("referensi_parameter_penyakit").select("*").order("kategori"),
-    supabase.from("wilker_ref").select("kode, nama").order("nama"),
-  ]);
+  const [user, { rows: daftarPenyakit }, { rows: daftarWilayah }, { rows: riwayatMentah }] =
+    await Promise.all([
+      getPengguna(),
+      db.execute("SELECT * FROM referensi_parameter_penyakit ORDER BY kategori"),
+      db.execute("SELECT kode, nama FROM wilker_ref ORDER BY nama"),
+      db.execute("SELECT * FROM simulasi_wabah_kapal ORDER BY created_at DESC LIMIT 20"),
+    ]);
 
-  let role: string | null = null;
-  if (user) {
-    const { data: profil } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    role = profil?.role ?? null;
-  }
-
-  const { data: riwayatSimulasi } = await supabase
-    .from("simulasi_wabah_kapal")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const riwayatSimulasi = riwayatMentah.map((r) =>
+    parseKolomJson(r, [
+      "hasil_kurva_kapal",
+      "hasil_kurva_tkbm",
+      "risiko_petugas",
+      "daftar_kota_tujuan_lanjutan",
+    ])
+  );
 
   return (
     <SimulasiKapalClient
       sudahLogin={!!user}
-      role={role as PeranUser | null}
-      daftarPenyakit={daftarPenyakit ?? []}
+      role={(user?.role ?? null) as PeranUser | null}
+      daftarPenyakit={daftarPenyakit as Penyakit[]}
       daftarWilayah={WILAYAH_KAPAL as unknown as { value: string; label: string }[]}
-      riwayatSimulasi={riwayatSimulasi ?? []}
+      riwayatSimulasi={riwayatSimulasi}
     />
   );
 }

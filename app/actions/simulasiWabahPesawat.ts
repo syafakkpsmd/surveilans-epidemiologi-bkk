@@ -1,6 +1,9 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { randomUUID } from "node:crypto";
+import { getPengguna } from "@/lib/auth/session";
+import { getDbClient } from "@/lib/db/client";
+import { keJson, parseKolomJson } from "@/lib/db/json";
 import {
   estimasiKontakEratPesawat,
   estimasiRisikoGroundCrew,
@@ -22,28 +25,21 @@ export async function jalankanSimulasiWabahPesawat(input: {
   penggunaanApdPersen: number;
   daftarKotaTujuanLanjutan?: { kota: string; jumlahPenumpang: number }[];
 }) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getPengguna();
   if (!user) throw new Error("Harus login");
 
-  const { data: profil } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profil || !["admin", "petugas"].includes(profil.role)) {
+  if (!["admin", "petugas"].includes(user.role)) {
     throw new Error("Hanya admin/petugas yang bisa menjalankan simulasi");
   }
 
-  const { data: parameterPenyakit, error: errParam } = await supabase
-    .from("referensi_parameter_penyakit")
-    .select("*")
-    .eq("id", input.kategoriPenyakitId)
-    .single();
+  const db = getDbClient();
 
-  if (errParam || !parameterPenyakit) {
+  const { rows: [parameterPenyakit] } = await db.execute({
+    sql: "SELECT * FROM referensi_parameter_penyakit WHERE id = ? LIMIT 1",
+    args: [input.kategoriPenyakitId],
+  });
+
+  if (!parameterPenyakit) {
     throw new Error("Kategori penyakit tidak ditemukan");
   }
 
@@ -72,31 +68,41 @@ export async function jalankanSimulasiWabahPesawat(input: {
     adaKotaTujuanLanjutan: (input.daftarKotaTujuanLanjutan?.length ?? 0) > 0,
   });
 
-  const { data: hasilTersimpan, error: errSimpan } = await supabase
-    .from("simulasi_wabah_pesawat")
-    .insert({
-      kegiatan_pesawat_id: input.kegiatanPesawatId ?? null,
-      kode_wilker: input.kodeWilker,
-      nomor_penerbangan: input.nomorPenerbangan ?? null,
-      tanggal_kejadian: input.tanggalKejadian,
-      kategori_penyakit_id: input.kategoriPenyakitId,
-      total_penumpang: input.totalPenumpang,
-      total_kru: input.totalKru,
-      jumlah_bergejala: input.jumlahBergejala,
-      radius_kontak_baris: input.radiusKontakBaris,
-      durasi_penerbangan_jam: input.durasiPenerbanganJam,
-      jumlah_ground_crew: input.jumlahGroundCrew,
-      penggunaan_apd_persen: input.penggunaanApdPersen,
-      estimasi_kontak_erat: estimasiKontakErat,
-      daftar_kota_tujuan_lanjutan: input.daftarKotaTujuanLanjutan ?? [],
-      risiko_ground_crew: risikoGroundCrew,
-      rekomendasi_kebijakan: rekomendasi,
-      dibuat_oleh: user.id,
-    })
-    .select()
-    .single();
+  const id = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO simulasi_wabah_pesawat
+            (id, kegiatan_pesawat_id, kode_wilker, nomor_penerbangan, tanggal_kejadian,
+             kategori_penyakit_id, total_penumpang, total_kru, jumlah_bergejala,
+             radius_kontak_baris, durasi_penerbangan_jam, jumlah_ground_crew,
+             penggunaan_apd_persen, estimasi_kontak_erat, daftar_kota_tujuan_lanjutan,
+             risiko_ground_crew, rekomendasi_kebijakan, dibuat_oleh)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id,
+      input.kegiatanPesawatId ?? null,
+      input.kodeWilker,
+      input.nomorPenerbangan ?? null,
+      input.tanggalKejadian,
+      input.kategoriPenyakitId,
+      input.totalPenumpang,
+      input.totalKru,
+      input.jumlahBergejala,
+      input.radiusKontakBaris,
+      input.durasiPenerbanganJam,
+      input.jumlahGroundCrew,
+      input.penggunaanApdPersen,
+      estimasiKontakErat,
+      keJson(input.daftarKotaTujuanLanjutan ?? []),
+      keJson(risikoGroundCrew),
+      rekomendasi,
+      user.id,
+    ],
+  });
 
-  if (errSimpan) throw errSimpan;
+  const { rows: [hasilTersimpan] } = await db.execute({
+    sql: "SELECT * FROM simulasi_wabah_pesawat WHERE id = ?",
+    args: [id],
+  });
 
-  return hasilTersimpan;
+  return parseKolomJson(hasilTersimpan, ["daftar_kota_tujuan_lanjutan", "risiko_ground_crew"]);
 }

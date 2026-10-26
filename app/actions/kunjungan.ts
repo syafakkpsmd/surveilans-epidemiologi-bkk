@@ -19,16 +19,14 @@
  * karena itu errornya ditelan (catch) dan hanya di-log ke console.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { getDbClient } from '@/lib/db/client';
 
 export async function catatKunjungan(halaman: string): Promise<void> {
   try {
-    const supabase = await createClient();
-    const { error } = await supabase.from('kunjungan_tamu').insert({ halaman });
-
-    if (error) {
-      console.error('Gagal mencatat kunjungan tamu:', error.message);
-    }
+    await getDbClient().execute({
+      sql: 'INSERT INTO kunjungan_tamu (halaman) VALUES (?)',
+      args: [halaman],
+    });
   } catch (err) {
     console.error('Gagal mencatat kunjungan tamu:', err);
   }

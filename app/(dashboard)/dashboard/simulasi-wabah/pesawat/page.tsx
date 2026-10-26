@@ -1,42 +1,33 @@
-import { createClient } from "@/lib/supabase/server";
+import { getPengguna } from "@/lib/auth/session";
+import { getDbClient } from "@/lib/db/client";
+import { parseKolomJson } from "@/lib/db/json";
 import { SimulasiPesawatClient } from "@/components/simulasi-wabah/SimulasiPesawatClient";
 
+type Penyakit = { id: number; kategori: string; r0_default: number };
+type Wilker = { kode: string; nama: string };
+
 export default async function HalamanSimulasiPesawat() {
-  const supabase = await createClient();
+  const db = getDbClient();
 
-  const [
-    { data: { user } },
-    { data: daftarPenyakit },
-    { data: daftarWilker },
-  ] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.from("referensi_parameter_penyakit").select("*").order("kategori"),
-    supabase.from("wilker_ref").select("kode, nama").eq("jenis", "Bandara").order("nama"),
-  ]);
+  const [user, { rows: daftarPenyakit }, { rows: daftarWilker }, { rows: riwayatMentah }] =
+    await Promise.all([
+      getPengguna(),
+      db.execute("SELECT * FROM referensi_parameter_penyakit ORDER BY kategori"),
+      db.execute("SELECT kode, nama FROM wilker_ref WHERE jenis = 'Bandara' ORDER BY nama"),
+      db.execute("SELECT * FROM simulasi_wabah_pesawat ORDER BY created_at DESC LIMIT 20"),
+    ]);
 
-  let role: string | null = null;
-  if (user) {
-    const { data: profil } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    role = profil?.role ?? null;
-  }
-
-  const { data: riwayatSimulasi } = await supabase
-    .from("simulasi_wabah_pesawat")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(20);
+  const riwayatSimulasi = riwayatMentah.map((r) =>
+    parseKolomJson(r, ["daftar_kota_tujuan_lanjutan", "risiko_ground_crew"])
+  );
 
   return (
     <SimulasiPesawatClient
       sudahLogin={!!user}
-      role={role}
-      daftarPenyakit={daftarPenyakit ?? []}
-      daftarWilker={daftarWilker ?? []}
-      riwayatSimulasi={riwayatSimulasi ?? []}
+      role={user?.role ?? null}
+      daftarPenyakit={daftarPenyakit as Penyakit[]}
+      daftarWilker={daftarWilker as Wilker[]}
+      riwayatSimulasi={riwayatSimulasi}
     />
   );
 }

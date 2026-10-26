@@ -14,6 +14,7 @@
 
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import { getDbClient } from '@/lib/db/client';
 
 // ---------------------------------------------------------------------
 // TIPE DATA
@@ -98,36 +99,15 @@ export const ambilBarisFinal = cache(async (
   tahun: number,
   kodeWilker?: string
 ): Promise<BarisRekapPesawat[]> => {
-  const supabase = await createClient();
-
-  const UKURAN_HALAMAN = 1000;
-  let semuaBaris: BarisRekapPesawat[] = [];
-  let halaman = 0;
-
-  while (true) {
-    let query = supabase
-      .from('v_kegiatan_pesawat_rekap')
-      .select('*')
-      .eq('tahun', tahun)
-      .eq('status_data', 'final')
-      .range(halaman * UKURAN_HALAMAN, (halaman + 1) * UKURAN_HALAMAN - 1);
-
-    if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    const baris = (data ?? []) as BarisRekapPesawat[];
-    semuaBaris = semuaBaris.concat(baris);
-
-    // Kalau hasil yang didapat lebih sedikit dari ukuran halaman,
-    // berarti sudah sampai baris terakhir -- stop loop.
-    if (baris.length < UKURAN_HALAMAN) break;
-
-    halaman += 1;
-  }
-
-  return semuaBaris;
+  // Satu query ke MariaDB lokal (tanpa pagination 1000 baris seperti saat lewat Supabase).
+  const args: (string | number)[] = [tahun];
+  let kondisi = "tahun = ? AND status_data = 'final'";
+  if (kodeWilker) { kondisi += ' AND kode_wilker = ?'; args.push(kodeWilker); }
+  const { rows } = await getDbClient().execute({
+    sql: `SELECT * FROM v_kegiatan_pesawat_rekap WHERE ${kondisi}`,
+    args,
+  });
+  return rows as BarisRekapPesawat[];
 });
 
 // ---------------------------------------------------------------------

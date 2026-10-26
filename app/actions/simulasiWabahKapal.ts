@@ -1,6 +1,9 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { randomUUID } from "node:crypto";
+import { getPengguna } from "@/lib/auth/session";
+import { getDbClient } from "@/lib/db/client";
+import { keJson, parseKolomJson } from "@/lib/db/json";
 import {
   simulasiKapal,
   estimasiRisikoTkbm,
@@ -25,31 +28,23 @@ export async function jalankanSimulasiWabahKapal(input: {
   jumlahPetugasKesehatan: number;
   jumlahPetugasNonKesehatan: number;
   durasiKontakPetugasJam: number;
-  // [BARU]
   daftarKotaTujuanLanjutan?: { kota: string; jumlahAbk: number }[];
 }) {
-  const supabase = await createClient();
-
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getPengguna();
   if (!user) throw new Error("Harus login");
 
-  const { data: profil } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profil || !["admin", "petugas"].includes(profil.role)) {
+  if (!["admin", "petugas"].includes(user.role)) {
     throw new Error("Hanya admin/petugas yang bisa menjalankan simulasi");
   }
 
-  const { data: parameterPenyakit, error: errParam } = await supabase
-    .from("referensi_parameter_penyakit")
-    .select("*")
-    .eq("id", input.kategoriPenyakitId)
-    .single();
+  const db = getDbClient();
 
-  if (errParam || !parameterPenyakit) {
+  const { rows: [parameterPenyakit] } = await db.execute({
+    sql: "SELECT * FROM referensi_parameter_penyakit WHERE id = ? LIMIT 1",
+    args: [input.kategoriPenyakitId],
+  });
+
+  if (!parameterPenyakit) {
     throw new Error("Kategori penyakit tidak ditemukan");
   }
 
@@ -83,12 +78,11 @@ export async function jalankanSimulasiWabahKapal(input: {
     beta: hasilKapal.betaDipakai,
   });
 
-  const { data: populasiWilker } = await supabase
-    .from("referensi_populasi_wilker")
-    .select("populasi_kota_sekitar")
-    .eq("jenis_wilker", "Pelabuhan")
-    .eq("wilayah_kerja", input.wilayahKerja)
-    .maybeSingle();
+  const { rows: [populasiWilker] } = await db.execute({
+    sql: `SELECT populasi_kota_sekitar FROM referensi_populasi_wilker
+           WHERE jenis_wilker = 'Pelabuhan' AND wilayah_kerja = ? LIMIT 1`,
+    args: [input.wilayahKerja],
+  });
 
   const risikoRelatifKota = hitungRisikoRelatifKota(
     risikoTkbm.estimasiTkbmTerinfeksi +
@@ -107,42 +101,59 @@ export async function jalankanSimulasiWabahKapal(input: {
     risikoRelatifKota,
   });
 
-  const { data: hasilTersimpan, error: errSimpan } = await supabase
-    .from("simulasi_wabah_kapal")
-    .insert({
-      kegiatan_cop_id: input.kegiatanCopId ?? null,
-      wilayah_kerja: input.wilayahKerja,
-      nama_kapal: input.namaKapal,
-      tanggal_kejadian: input.tanggalKejadian,
-      kategori_penyakit_id: input.kategoriPenyakitId,
-      total_abk: input.totalAbk,
-      abk_bergejala: input.abkBergejala,
-      r0_override: input.r0Override ?? null,
-      efektivitas_isolasi_persen: input.efektivitasIsolasiPersen,
-      jumlah_tkbm: input.jumlahTkbm,
-      durasi_kontak_jam: input.durasiKontakJam,
-      penggunaan_apd_persen: input.penggunaanApdPersen,
-      jumlah_petugas_kesehatan: input.jumlahPetugasKesehatan,
-      jumlah_petugas_non_kesehatan: input.jumlahPetugasNonKesehatan,
-      hasil_kurva_kapal: {
+  const id = randomUUID();
+  await db.execute({
+    sql: `INSERT INTO simulasi_wabah_kapal
+            (id, kegiatan_cop_id, wilayah_kerja, nama_kapal, tanggal_kejadian,
+             kategori_penyakit_id, total_abk, abk_bergejala, r0_override,
+             efektivitas_isolasi_persen, jumlah_tkbm, durasi_kontak_jam,
+             penggunaan_apd_persen, jumlah_petugas_kesehatan, jumlah_petugas_non_kesehatan,
+             hasil_kurva_kapal, hasil_kurva_tkbm, risiko_petugas,
+             r_efektif_kapal, r_efektif_tanpa_isolasi, r_efektif_tkbm,
+             estimasi_kasus_impor_kota, rekomendasi_kebijakan,
+             daftar_kota_tujuan_lanjutan, dibuat_oleh)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id,
+      input.kegiatanCopId ?? null,
+      input.wilayahKerja,
+      input.namaKapal,
+      input.tanggalKejadian,
+      input.kategoriPenyakitId,
+      input.totalAbk,
+      input.abkBergejala,
+      input.r0Override ?? null,
+      input.efektivitasIsolasiPersen,
+      input.jumlahTkbm,
+      input.durasiKontakJam,
+      input.penggunaanApdPersen,
+      input.jumlahPetugasKesehatan,
+      input.jumlahPetugasNonKesehatan,
+      keJson({
         tanpaIsolasi: hasilKapal.kurvaTanpaIsolasi,
         denganIsolasi: hasilKapal.kurvaDenganIsolasi,
-      },
-      hasil_kurva_tkbm: risikoTkbm,
-      risiko_petugas: risikoPetugas,
-      r_efektif_kapal: hasilKapal.rEfektifDenganIsolasi,
-      r_efektif_tanpa_isolasi: hasilKapal.rEfektifTanpaIsolasi,
-      r_efektif_tkbm: null,
-      estimasi_kasus_impor_kota: risikoTkbm.estimasiTkbmTerinfeksi,
-      rekomendasi_kebijakan: rekomendasi,
-      // [BARU] simpan daftar kota tujuan lanjutan sebagai JSONB, default array kosong
-      daftar_kota_tujuan_lanjutan: input.daftarKotaTujuanLanjutan ?? [],
-      dibuat_oleh: user.id,
-    })
-    .select()
-    .single();
+      }),
+      keJson(risikoTkbm),
+      keJson(risikoPetugas),
+      hasilKapal.rEfektifDenganIsolasi,
+      hasilKapal.rEfektifTanpaIsolasi,
+      null,
+      risikoTkbm.estimasiTkbmTerinfeksi,
+      rekomendasi,
+      keJson(input.daftarKotaTujuanLanjutan ?? []),
+      user.id,
+    ],
+  });
 
-  if (errSimpan) throw errSimpan;
+  const { rows: [hasilTersimpan] } = await db.execute({
+    sql: "SELECT * FROM simulasi_wabah_kapal WHERE id = ?",
+    args: [id],
+  });
 
-  return hasilTersimpan;
+  return parseKolomJson(hasilTersimpan, [
+    "hasil_kurva_kapal",
+    "hasil_kurva_tkbm",
+    "risiko_petugas",
+    "daftar_kota_tujuan_lanjutan",
+  ]);
 }

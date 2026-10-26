@@ -1,11 +1,12 @@
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { getDbClient } from '@/lib/db/client';
 
 export async function getStandarHariVaksin(): Promise<number> {
-  const supabase = createServiceRoleClient();
-  const { data } = await supabase
-    .from('pengaturan_klinik')
-    .select('standar_hari_vaksin')
-    .eq('id', 1)
-    .single();
-  return data?.standar_hari_vaksin ?? 14; // fallback aman kalau tabel kosong
+  try {
+    const { rows } = await getDbClient().execute(
+      'SELECT standar_hari_vaksin FROM pengaturan_klinik WHERE id = 1 LIMIT 1'
+    );
+    return rows[0]?.standar_hari_vaksin ?? 14; // fallback aman kalau tabel kosong
+  } catch {
+    return 14;
+  }
 }

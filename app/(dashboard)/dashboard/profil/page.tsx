@@ -1,20 +1,11 @@
-import { createClient } from '@/lib/supabase/server';
+import { getPengguna } from '@/lib/auth/session';
 import { redirect } from 'next/navigation';
 import ProfilForm from './ProfilForm';
 
 export default async function ProfilPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getPengguna();
 
   if (!user) redirect('/login');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('nama_lengkap, role, status')
-    .eq('id', user.id)
-    .single();
 
   return (
     <main className="p-6 max-w-md mx-auto">
@@ -27,10 +18,10 @@ export default async function ProfilPage() {
         </div>
         <div className="text-sm">
           <p className="text-[#0F2A38]/60">Peran</p>
-          <p className="font-medium text-[#0F2A38] capitalize">{profile?.role ?? '-'}</p>
+          <p className="font-medium text-[#0F2A38] capitalize">{user.role ?? '-'}</p>
         </div>
 
-        <ProfilForm namaAwal={profile?.nama_lengkap ?? ''} />
+        <ProfilForm namaAwal={user.namaLengkap ?? ''} />
       </div>
     </main>
   );

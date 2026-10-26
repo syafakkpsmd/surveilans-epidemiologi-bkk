@@ -11,6 +11,13 @@
  */
 
 import { createClient } from './server';
+import { getDbClient } from '@/lib/db/client';
+
+/** Jalankan SELECT ke MariaDB lokal dan kembalikan barisnya. */
+async function ambilBaris(sql: string, args: (string | number)[] = []): Promise<Record<string, any>[]> {
+  const { rows } = await getDbClient().execute({ sql, args });
+  return rows;
+}
 import type {
   RingkasanMingguanCop,
   RingkasanMingguanPhqc,
@@ -59,18 +66,8 @@ export async function getRingkasanMingguan(
   tabel: JenisTabel,
   tahun: number
 ): Promise<RingkasanMingguanCop[] | RingkasanMingguanPhqc[]> {
-  const supabase = await createClient();
   const view = tabel === 'cop' ? 'view_mingguan_ringkasan' : 'view_mingguan_ringkasan_phqc';
-
-  const { data, error } = await supabase
-    .from(view)
-    .select('*')
-    .eq('tahun_epid', tahun)
-    .order('minggu_epid', { ascending: true });
-
-  if (error) {
-    throw new Error(`Gagal mengambil ringkasan mingguan (${tabel}): ${error.message}`);
-  }
+  const data = await ambilBaris(`SELECT * FROM ${view} WHERE tahun_epid = ? ORDER BY minggu_epid ASC`, [tahun]);
 
   return (data ?? []).map((row) => ({
     tahun_epid: row.tahun_epid ?? tahun,
@@ -106,18 +103,8 @@ export async function getRingkasanBulanan(
   tabel: JenisTabel,
   tahun: number
 ): Promise<RingkasanBulananCop[] | RingkasanBulananPhqc[]> {
-  const supabase = await createClient();
   const view = tabel === 'cop' ? 'view_bulanan_ringkasan' : 'view_bulanan_ringkasan_phqc';
-
-  const { data, error } = await supabase
-    .from(view)
-    .select('*')
-    .eq('tahun', tahun)
-    .order('bulan', { ascending: true });
-
-  if (error) {
-    throw new Error(`Gagal mengambil ringkasan bulanan (${tabel}): ${error.message}`);
-  }
+  const data = await ambilBaris(`SELECT * FROM ${view} WHERE tahun = ? ORDER BY bulan ASC`, [tahun]);
 
   return (data ?? []).map((row) => ({
     tahun: row.tahun ?? tahun,
@@ -170,15 +157,10 @@ export async function getKotaPesawatBulanan(
   tahun: number,
   arah: ArahPesawat
 ): Promise<KotaPesawatBulanan[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('view_pesawat_kota_bulanan')
-    .select('*')
-    .eq('tahun', tahun)
-    .eq('arah', arah)
-    .order('bulan');
-
-  if (error) throw new Error(`Gagal ambil data kota pesawat: ${error.message}`);
+  const data = await ambilBaris(
+    `SELECT * FROM view_pesawat_kota_bulanan WHERE tahun = ? AND arah = ? ORDER BY bulan`,
+    [tahun, arah]
+  );
 
   return (data ?? []).map((row) => ({
     tahun: row.tahun ?? tahun,
@@ -372,18 +354,11 @@ export async function getRingkasanVektorDbd(
   tahun: number,
   kodeWilker?: string
 ): Promise<RingkasanVektorDbdMingguan[]> {
-  const supabase = await createClient();
-  let query = supabase
-    .from('view_vektor_dbd_mingguan')
-    .select('*')
-    .eq('tahun_epid', tahun)
-    .order('minggu_epid');
-
-  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
-
-  const { data, error } = await query;
-  if (error) throw new Error(`Gagal ambil ringkasan DBD: ${error.message}`);
-  return data ?? [];
+  const args: (string | number)[] = [tahun];
+  let kondisi = 'tahun_epid = ?';
+  if (kodeWilker) { kondisi += ' AND kode_wilker = ?'; args.push(kodeWilker); }
+  const data = await ambilBaris(`SELECT * FROM view_vektor_dbd_mingguan WHERE ${kondisi} ORDER BY minggu_epid`, args);
+  return data as unknown as RingkasanVektorDbdMingguan[];
 }
 
 // ── Vektor Tikus ──
@@ -1103,30 +1078,24 @@ export async function getDaftarWilayahKerjaSanitasi(): Promise<string[]> {
 }
 
 export async function getRingkasanTppBulanan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
-  let query = (supabase as any).from('view_tpp_bulanan').select('*').eq('tahun', tahun).order('bulan');
-  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
-  const { data, error } = await query;
-  if (error) throw new Error(`Gagal ambil ringkasan TPP: ${error.message}`);
-  return (data ?? []) as any[];
+  const args: (string | number)[] = [tahun];
+  let kondisi = 'tahun = ?';
+  if (wilayahKerja) { kondisi += ' AND wilayah_kerja = ?'; args.push(wilayahKerja); }
+  return (await ambilBaris(`SELECT * FROM view_tpp_bulanan WHERE ${kondisi} ORDER BY bulan`, args)) as any[];
 }
 
 export async function getRingkasanTtuBulanan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
-  let query = (supabase as any).from('view_ttu_bulanan').select('*').eq('tahun', tahun).order('bulan');
-  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
-  const { data, error } = await query;
-  if (error) throw new Error(`Gagal ambil ringkasan TTU: ${error.message}`);
-  return (data ?? []) as any[];
+  const args: (string | number)[] = [tahun];
+  let kondisi = 'tahun = ?';
+  if (wilayahKerja) { kondisi += ' AND wilayah_kerja = ?'; args.push(wilayahKerja); }
+  return (await ambilBaris(`SELECT * FROM view_ttu_bulanan WHERE ${kondisi} ORDER BY bulan`, args)) as any[];
 }
 
 export async function getRingkasanPabBulanan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
-  let query = (supabase as any).from('view_pab_bulanan').select('*').eq('tahun', tahun).order('bulan');
-  if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
-  const { data, error } = await query;
-  if (error) throw new Error(`Gagal ambil ringkasan PAB: ${error.message}`);
-  return (data ?? []) as any[];
+  const args: (string | number)[] = [tahun];
+  let kondisi = 'tahun = ?';
+  if (wilayahKerja) { kondisi += ' AND wilayah_kerja = ?'; args.push(wilayahKerja); }
+  return (await ambilBaris(`SELECT * FROM view_pab_bulanan WHERE ${kondisi} ORDER BY bulan`, args)) as any[];
 }
 
 // Tambahkan 3 fungsi ini SETELAH getRingkasanPabBulanan() yang sudah kamu

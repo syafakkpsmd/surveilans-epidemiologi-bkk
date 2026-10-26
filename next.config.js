@@ -3,6 +3,8 @@ const nextConfig = {
   /* config options here */
   env: {
     TZ: 'Asia/Makassar',
+    // Satu saklar: DATA_BACKEND=mariadb di .env.local berlaku untuk server dan browser.
+    NEXT_PUBLIC_DATA_BACKEND: process.env.DATA_BACKEND ?? '',
   },
   images: {
     remotePatterns: [

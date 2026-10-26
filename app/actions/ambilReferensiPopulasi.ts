@@ -1,27 +1,23 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getDbClient } from "@/lib/db/client";
 
 export async function ambilPrefillPopulasiKapal(wilayahKerja: string) {
   if (!wilayahKerja) return null;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("referensi_populasi_wilker")
-    .select("*")
-    .eq("jenis_wilker", "Pelabuhan")
-    .eq("wilayah_kerja", wilayahKerja)
-    .maybeSingle();
-  return data;
+  const { rows } = await getDbClient().execute({
+    sql: `SELECT * FROM referensi_populasi_wilker
+           WHERE jenis_wilker = 'Pelabuhan' AND wilayah_kerja = ? LIMIT 1`,
+    args: [wilayahKerja],
+  });
+  return rows[0] ?? null;
 }
 
 export async function ambilPrefillPopulasiPesawat(kodeWilker: string) {
   if (!kodeWilker) return null;
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("referensi_populasi_wilker")
-    .select("*")
-    .eq("jenis_wilker", "Bandara")
-    .eq("kode_wilker", kodeWilker)
-    .maybeSingle();
-  return data;
+  const { rows } = await getDbClient().execute({
+    sql: `SELECT * FROM referensi_populasi_wilker
+           WHERE jenis_wilker = 'Bandara' AND kode_wilker = ? LIMIT 1`,
+    args: [kodeWilker],
+  });
+  return rows[0] ?? null;
 }

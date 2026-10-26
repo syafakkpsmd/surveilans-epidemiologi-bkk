@@ -1,113 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { getStatusAkses } from "@/lib/auth/getStatusAkses";
+// app/api/klinik/pengaturan/route.ts
+import { NextResponse } from 'next/server';
+import { getPengguna } from '@/lib/auth/session';
+import { getDbClient } from '@/lib/db/client';
+import { getStandarHariVaksin } from '@/lib/klinik/pengaturan';
 
-
-export async function GET(req: NextRequest) {
-  const supabase = await createClient();
-  const { searchParams } = new URL(req.url);
-  const kategori = searchParams.get("kategori");
-  const cari = searchParams.get("cari");
-
-  let query = (supabase.from("peraturan" as any) as any)
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (kategori) query = query.eq("kategori", kategori);
-  if (cari) query = query.ilike("judul", `%${cari}%`);
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data });
+export async function GET() {
+  return NextResponse.json({ success: true, standar_hari_vaksin: await getStandarHariVaksin() });
 }
 
-export async function POST(req: NextRequest) {
-  const { role } = await getStatusAkses();
-  if (role !== "admin" && role !== "petugas") {
-    return NextResponse.json({ error: "Tidak diizinkan" }, { status: 403 });
-  }
+export async function POST(req: Request) {
+  const user = await getPengguna();
+  if (!user) return NextResponse.json({ success: false, error: 'Belum login' }, { status: 401 });
 
-  try {
-    const body = await req.json();
-    const {
-      judul,
-      deskripsi,
-      kategori,
-      nomor_peraturan,
-      tahun,
-      file_url,
-      file_type,
-      nama_file_asli,
-    } = body;
-
-    if (!file_url || !judul || !kategori) {
-      return NextResponse.json({ error: "Judul, kategori, dan file wajib diisi" }, { status: 400 });
-    }
-
-    if (!["pdf", "docx", "xlsx"].includes(file_type)) {
-      return NextResponse.json({ error: "Format file harus PDF, DOCX, atau XLSX" }, { status: 400 });
-    }
-
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const { data, error } = await (supabase.from("peraturan" as any) as any)
-      .insert({
-        judul,
-        deskripsi: deskripsi || null,
-        kategori,
-        nomor_peraturan: nomor_peraturan || null,
-        tahun: tahun ? Number(tahun) : null,
-        file_url,
-        file_type,
-        nama_file_asli,
-        diunggah_oleh: user?.id ?? null,
-      })
-      .select()
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ data });
-  } catch (err) {
-    console.error("Simpan peraturan error:", err);
-    return NextResponse.json({ error: "Gagal menyimpan" }, { status: 500 });
-  }
-}
-
-export async function PUT(req: NextRequest) {
-  const { role } = await getStatusAkses();
-  if (role !== "admin" && role !== "petugas") {
-    return NextResponse.json({ error: "Tidak diizinkan" }, { status: 403 });
+  if (user.role !== 'admin') {
+    return NextResponse.json({ success: false, error: 'Hanya admin yang bisa mengubah pengaturan ini' }, { status: 403 });
   }
 
   const body = await req.json();
-  const { id, judul, deskripsi, kategori, nomor_peraturan, tahun } = body;
-  if (!id) return NextResponse.json({ error: "ID wajib diisi" }, { status: 400 });
-
-  const supabase = await createClient();
-  const { data, error } = await (supabase.from("peraturan" as any) as any)
-    .update({ judul, deskripsi, kategori, nomor_peraturan, tahun, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data });
-}
-
-export async function DELETE(req: NextRequest) {
-  const { role } = await getStatusAkses();
-  if (role !== "admin" && role !== "petugas") {
-    return NextResponse.json({ error: "Tidak diizinkan" }, { status: 403 });
+  const standarHariBaru = Number(body.standar_hari_vaksin);
+  if (!Number.isInteger(standarHariBaru) || standarHariBaru <= 0) {
+    return NextResponse.json({ success: false, error: 'Nilai harus bilangan bulat positif' }, { status: 400 });
   }
 
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "ID wajib diisi" }, { status: 400 });
-
-  const supabase = await createClient();
-  const { error } = await (supabase.from("peraturan" as any) as any).delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
+  try {
+    // UPSERT: baris id=1 dibuat bila belum ada (update Supabase lama diam-diam tidak berbuat apa-apa)
+    await getDbClient().execute({
+      sql: `INSERT INTO pengaturan_klinik (id, standar_hari_vaksin, updated_by) VALUES (1, ?, ?)
+            ON DUPLICATE KEY UPDATE standar_hari_vaksin = VALUES(standar_hari_vaksin),
+                                    updated_by = VALUES(updated_by), updated_at = NOW()`,
+      args: [standarHariBaru, user.id],
+    });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err?.message ?? 'Gagal menyimpan' }, { status: 500 });
+  }
+  return NextResponse.json({ success: true, standar_hari_vaksin: standarHariBaru });
 }

@@ -21,6 +21,7 @@ import 'server-only';
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
+import { pakaiMariaDbTanpaRls } from '@/lib/db/hybrid';
 
 export function createServiceRoleClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,11 +33,12 @@ export function createServiceRoleClient() {
     );
   }
 
-  return createSupabaseClient<Database>(url, serviceRoleKey, {
+  const klien = createSupabaseClient<Database>(url, serviceRoleKey, {
     auth: {
       // Client ini tidak mewakili user mana pun -- jangan simpan/refresh sesi.
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+  return pakaiMariaDbTanpaRls(klien);
 }

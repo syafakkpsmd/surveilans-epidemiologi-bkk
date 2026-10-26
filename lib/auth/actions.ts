@@ -18,7 +18,7 @@ const PESAN_MASUK = {
 } as const;
 
 /** Dipanggil dari <form action={formAction}> di app/login/page.tsx. */
-export async function login(prevState: any, formData: FormData): Promise<{ error?: string } | void> {
+export async function login(prevState: any, formData: FormData): Promise<{ error?: string; ok?: boolean } | void> {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
 
@@ -35,7 +35,8 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
     console.error('[catatLogin Error]:', err);
   });
 
-  redirect('/dashboard');
+  // Halaman login memanggil window.location.assign('/dashboard') saat ok === true
+  return { ok: true };
 }
 
 export async function registerPetugas(formData: FormData) {

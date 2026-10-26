@@ -1,20 +1,11 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { getPengguna } from "@/lib/auth/session";
 import PetaWilkerClient from "@/components/peta/PetaWilkerClient";
 
 export default async function PetaPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getPengguna();
 
-  const { data: profile } = user
-    ? await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single()
-    : { data: null };
-
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = user?.role === "admin";
 
   return (
     <div className="p-6 space-y-4">

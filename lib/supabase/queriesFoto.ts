@@ -1,4 +1,4 @@
-import { createClient } from './server';
+import { getDbClient } from '@/lib/db/client';
 
 export interface JenisKegiatanFoto {
   id: number;
@@ -18,29 +18,20 @@ export interface FotoKegiatan {
 }
 
 export async function getJenisKegiatanFoto(): Promise<JenisKegiatanFoto[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('jenis_kegiatan_foto')
-    .select('id, nama')
-    .order('nama', { ascending: true });
-
-  if (error) throw new Error(`Gagal ambil jenis kegiatan: ${error.message}`);
-  return data ?? [];
+  const { rows } = await getDbClient().execute('SELECT id, nama FROM jenis_kegiatan_foto ORDER BY nama ASC');
+  return rows as JenisKegiatanFoto[];
 }
 
 export async function getGaleriFoto(limit?: number): Promise<FotoKegiatan[]> {
-  const supabase = await createClient();
-  let query = supabase
-    .from('foto_kegiatan')
-    .select('*, jenis_kegiatan_foto(id, nama)')
-    .order('dibuat_pada', { ascending: false });
+  const batas = limit ? ` LIMIT ${Math.max(1, Math.floor(Number(limit)))}` : '';
+  const { rows } = await getDbClient().execute(
+    `SELECT f.*, j.nama AS jenis_nama
+       FROM foto_kegiatan f
+       LEFT JOIN jenis_kegiatan_foto j ON j.id = f.jenis_kegiatan_id
+      ORDER BY f.dibuat_pada DESC${batas}`
+  );
 
-  if (limit) query = query.limit(limit);
-
-  const { data, error } = await query;
-  if (error) throw new Error(`Gagal ambil galeri foto: ${error.message}`);
-
-  return (data ?? []).map((row: any) => ({
+  return rows.map((row: any) => ({
     id: row.id,
     judul: row.judul,
     deskripsi: row.deskripsi,
@@ -49,6 +40,6 @@ export async function getGaleriFoto(limit?: number): Promise<FotoKegiatan[]> {
     diupload_oleh: row.diupload_oleh,
     dibuat_pada: row.dibuat_pada,
     jenis_kegiatan_id: row.jenis_kegiatan_id,
-    jenis_kegiatan_nama: row.jenis_kegiatan_foto?.nama ?? null,
+    jenis_kegiatan_nama: row.jenis_nama ?? null,
   }));
 }

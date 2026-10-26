@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserRole } from '@/lib/auth/get-user-role';
-import { createClient } from '@/lib/supabase/server';
+import { getPengguna } from '@/lib/auth/session';
+import { getDbClient } from '@/lib/db/client';
 import cloudinary from '@/lib/cloudinary';
 
 export async function POST(req: NextRequest) {
@@ -35,22 +36,23 @@ export async function POST(req: NextRequest) {
       .end(buffer);
   });
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getPengguna();
 
-  const { error: errorInsert } = await supabase.from('foto_kegiatan').insert({
-    judul,
-    deskripsi: deskripsi || null,
-    url_gambar: hasilUpload.secure_url,
-    public_id: hasilUpload.public_id,
-    diupload_oleh: user?.id ?? null,
-    jenis_kegiatan_id: jenisKegiatanId,
-  });
-
-  if (errorInsert) {
-    return NextResponse.json({ error: `Gagal simpan metadata: ${errorInsert.message}` }, { status: 500 });
+  try {
+    await getDbClient().execute({
+      sql: `INSERT INTO foto_kegiatan (judul, deskripsi, url_gambar, public_id, diupload_oleh, jenis_kegiatan_id)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [
+        judul,
+        deskripsi || null,
+        hasilUpload.secure_url,
+        hasilUpload.public_id,
+        user?.id ?? null,
+        jenisKegiatanId,
+      ],
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: `Gagal simpan metadata: ${err?.message ?? err}` }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
@@ -69,25 +71,30 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'id dan judul wajib diisi.' }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('foto_kegiatan')
-    .update({
-      judul: judulBersih,
-      deskripsi: deskripsi ? String(deskripsi).trim() || null : null,
-      jenis_kegiatan_id: jenisKegiatanId ?? null,
-    })
-    .eq('id', id)
-    .select('id, judul, deskripsi, jenis_kegiatan_id');
+  const db = getDbClient();
+  try {
+    await db.execute({
+      sql: 'UPDATE foto_kegiatan SET judul = ?, deskripsi = ?, jenis_kegiatan_id = ? WHERE id = ?',
+      args: [
+        judulBersih,
+        deskripsi ? String(deskripsi).trim() || null : null,
+        jenisKegiatanId ?? null,
+        id,
+      ],
+    });
 
-  if (error) {
-    return NextResponse.json({ error: `Gagal update foto: ${error.message}` }, { status: 500 });
-  }
-  if (!data || data.length === 0) {
-    return NextResponse.json({ error: 'Tidak ada foto yang diupdate.' }, { status: 403 });
-  }
+    const { rows } = await db.execute({
+      sql: 'SELECT id, judul, deskripsi, jenis_kegiatan_id FROM foto_kegiatan WHERE id = ?',
+      args: [id],
+    });
 
-  return NextResponse.json({ success: true, data: data[0] });
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Tidak ada foto yang diupdate.' }, { status: 403 });
+    }
+    return NextResponse.json({ success: true, data: rows[0] });
+  } catch (err: any) {
+    return NextResponse.json({ error: `Gagal update foto: ${err?.message ?? err}` }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest) {
@@ -103,11 +110,10 @@ export async function DELETE(req: NextRequest) {
 
   await cloudinary.uploader.destroy(publicId);
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('foto_kegiatan').delete().eq('id', id);
-
-  if (error) {
-    return NextResponse.json({ error: `Gagal hapus data: ${error.message}` }, { status: 500 });
+  try {
+    await getDbClient().execute({ sql: 'DELETE FROM foto_kegiatan WHERE id = ?', args: [id] });
+  } catch (err: any) {
+    return NextResponse.json({ error: `Gagal hapus data: ${err?.message ?? err}` }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

@@ -1,22 +1,11 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getPengguna } from "@/lib/auth/session";
 import KelolaFasilitasClient from "@/components/peta/KelolaFasilitasClient";
 
 export default async function KelolaPelabuhanPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getPengguna();
 
-  if (!user) {
-    redirect("/dashboard/peta");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
+  if (!user || user.role !== "admin") {
     redirect("/dashboard/peta");
   }
 

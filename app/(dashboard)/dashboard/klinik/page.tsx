@@ -3,23 +3,19 @@ import { getRingkasanKlinikMingguan, getRingkasanKlinikBulanan } from '@/lib/kli
 import { getDatasetKlinik } from '@/lib/klinik/dataset';
 import { ringkasanKartuIcv, donutJenisKelamin, donutUmur, donutJenisDokumenIcv, donutWus } from '@/lib/klinik/agregasiIcv';
 import { getStandarHariVaksin } from '@/lib/klinik/pengaturan';
-import { createClient } from '@/lib/supabase/server';
+import { getPengguna } from '@/lib/auth/session';
+import { getDbClient } from '@/lib/db/client';
 import { periodeMingguanDariTanggal, periodeBulananDariTanggal } from '@/lib/ai/periode';
 
 const kategoriEfektif = (k: any) => k.kategori ?? 'klinik';
 
 export default async function KlinikPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getPengguna();
 
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
-    : { data: null };
-
-  const [dataMingguanAll, dataBulananAll, { data: daftarKlinikRow }, dataset, standarHariVaksin] = await Promise.all([
+  const [dataMingguanAll, dataBulananAll, { rows: daftarKlinikRow }, dataset, standarHariVaksin] = await Promise.all([
     getRingkasanKlinikMingguan(),
     getRingkasanKlinikBulanan(),
-    supabase.from('klinik_binaan').select('nama_klinik, kategori').order('nama_klinik'),
+    getDbClient().execute('SELECT nama_klinik, kategori FROM klinik_binaan ORDER BY nama_klinik'),
     getDatasetKlinik(),
     getStandarHariVaksin(),
   ]);
@@ -55,7 +51,7 @@ export default async function KlinikPage() {
       daftarBkkNama={daftarBkkNama}
       rekapGabungan={rekapGabungan}
       klinikGagalDimuat={klinikGagalDimuat}
-      role={profile?.role ?? 'publik'}
+      role={user?.role ?? 'publik'}
       tahunBerjalan={periodeBulanSekarang.tahun}
       bulanBerjalan={periodeBulanSekarang.bulan}
       tahunEpidBerjalan={periodeMingguSekarang.tahun}

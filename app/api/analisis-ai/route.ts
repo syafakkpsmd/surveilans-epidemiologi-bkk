@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { getPengguna } from '@/lib/auth/session';
+import { getDbClient } from '@/lib/db/client';
+import { keIsoUtc } from '@/lib/db/json';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import {
   ambilDataAnalisis,
@@ -140,24 +141,19 @@ export async function GET(request: Request) {
 
   const tipe: TipeAnalisis = tipeParam === 'prediksi' ? 'prediksi' : 'analisis';
 
-  const supabase = await createClient();
+  let data: Record<string, any>[] = [];
+  try {
+    const kondisi = ['konteks = ?', 'periode_key = ?', 'tipe = ?'];
+    const args: string[] = [konteks, periodeKey, tipe];
+    if (wilayahKerja) { kondisi.push('wilayah_kerja = ?'); args.push(wilayahKerja); } else { kondisi.push('wilayah_kerja IS NULL'); }
+    if (metrik) { kondisi.push('metrik = ?'); args.push(metrik); } else { kondisi.push('metrik IS NULL'); }
 
-  let query = supabase
-    .from('riwayat_analisis_ai')
-    .select('*')
-    .eq('konteks', konteks)
-    .eq('periode_key', periodeKey)
-    .eq('tipe', tipe)
-    .order('dibuat_pada', { ascending: false })
-    .limit(1);
-
-  query = wilayahKerja ? query.eq('wilayah_kerja', wilayahKerja) : query.is('wilayah_kerja', null);
-  query = metrik ? query.eq('metrik', metrik) : query.is('metrik', null);
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Gagal membaca riwayat_analisis_ai:', error.message);
+    ({ rows: data } = await getDbClient().execute({
+      sql: `SELECT * FROM riwayat_analisis_ai WHERE ${kondisi.join(' AND ')} ORDER BY dibuat_pada DESC LIMIT 1`,
+      args,
+    }));
+  } catch (error: any) {
+    console.error('Gagal membaca riwayat_analisis_ai:', error?.message);
     return NextResponse.json({ error: 'Gagal memuat hasil Analisis AI.' }, { status: 500 });
   }
 
@@ -172,7 +168,7 @@ export async function GET(request: Request) {
     anomali: cache.anomali,
     rekomendasi: cache.rekomendasi,
     providerDipakai: cache.provider_dipakai,
-    dibuatPada: cache.dibuat_pada,
+    dibuatPada: keIsoUtc(cache.dibuat_pada),
   });
 }
 
@@ -365,30 +361,24 @@ export async function POST(request: Request) {
     wilayahKerja = isWilayahValid(wilayah_kerja) ? wilayah_kerja : undefined;
   }
 
-  const supabase = await createClient();
-
   if (!paksaPerbarui) {
     const { mulaiUtc, akhirUtc } = rentangHariIniWita();
 
-    let queryCache = supabase
-      .from('riwayat_analisis_ai')
-      .select('*')
-      .eq('konteks', konteks)
-      .eq('periode_key', periodeKey)
-      .eq('tipe', tipe)
-      .gte('dibuat_pada', mulaiUtc.toISOString())
-      .lt('dibuat_pada', akhirUtc.toISOString())
-      .order('dibuat_pada', { ascending: false })
-      .limit(1);
+    let cacheRows: Record<string, any>[] = [];
+    let cacheError: { message?: string } | null = null;
+    try {
+      const kondisi = ['konteks = ?', 'periode_key = ?', 'tipe = ?', 'dibuat_pada >= ?', 'dibuat_pada < ?'];
+      const args: (string | Date)[] = [konteks, periodeKey, tipe, mulaiUtc, akhirUtc];
+      if (wilayahKerja) { kondisi.push('wilayah_kerja = ?'); args.push(wilayahKerja); } else { kondisi.push('wilayah_kerja IS NULL'); }
+      if (metrikUntukCache) { kondisi.push('metrik = ?'); args.push(metrikUntukCache); } else { kondisi.push('metrik IS NULL'); }
 
-    queryCache = wilayahKerja
-      ? queryCache.eq('wilayah_kerja', wilayahKerja)
-      : queryCache.is('wilayah_kerja', null);
-
-    queryCache = metrikUntukCache
-      ? queryCache.eq('metrik', metrikUntukCache)
-      : queryCache.is('metrik', null);
-        const { data: cacheRows, error: cacheError } = await queryCache;
+      ({ rows: cacheRows } = await getDbClient().execute({
+        sql: `SELECT * FROM riwayat_analisis_ai WHERE ${kondisi.join(' AND ')} ORDER BY dibuat_pada DESC LIMIT 1`,
+        args,
+      }));
+    } catch (e: any) {
+      cacheError = { message: e?.message ?? String(e) };
+    }
 
     if (cacheError) {
       console.error('Gagal cek cache riwayat_analisis_ai:', cacheError.message);
@@ -399,18 +389,21 @@ export async function POST(request: Request) {
         anomali: cache.anomali,
         rekomendasi: cache.rekomendasi,
         providerDipakai: cache.provider_dipakai,
-        dibuatPada: cache.dibuat_pada,
+        dibuatPada: keIsoUtc(cache.dibuat_pada),
         dariCache: true,
       });
     }
   }
 
-  const supabaseServiceRole = createServiceRoleClient();
-  const { data: daftarProviderAktif, error: pengaturanError } = await supabaseServiceRole
-    .from('pengaturan_ai')
-    .select('*')
-    .eq('aktif', true)
-    .order('urutan_prioritas', { ascending: true });
+  let daftarProviderAktif: any[] = [];
+  let pengaturanError: { message: string } | null = null;
+  try {
+    ({ rows: daftarProviderAktif } = await getDbClient().execute(
+      'SELECT * FROM pengaturan_ai WHERE aktif = 1 ORDER BY urutan_prioritas ASC'
+    ));
+  } catch (e: any) {
+    pengaturanError = { message: e?.message ?? String(e) };
+  }
 
   if (pengaturanError) {
     console.error('Gagal mengambil pengaturan_ai:', pengaturanError.message);
@@ -676,27 +669,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getPengguna();
 
   const providerDipakai = `${pengaturanTerpakai.nama_tampilan} (${pengaturanTerpakai.model})`;
 
-  const { error: insertError } = await supabase.from('riwayat_analisis_ai').insert({
-    konteks,
-    periode_key: periodeKey,
-    wilayah_kerja: wilayahKerja ?? null,
-    tipe,
-    metrik: metrikUntukCache,
-    provider_dipakai: providerDipakai,
-    ringkasan: hasil.ringkasan,
-    anomali: hasil.anomali,
-    rekomendasi: hasil.rekomendasi,
-    dibuat_oleh: user?.id ?? null,
-  });
-
-  if (insertError) {
-    console.error('Gagal menyimpan riwayat_analisis_ai:', insertError.message);
+  try {
+    await getDbClient().execute({
+      sql: `INSERT INTO riwayat_analisis_ai
+              (konteks, periode_key, wilayah_kerja, tipe, metrik, provider_dipakai, ringkasan, anomali, rekomendasi, dibuat_oleh)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        konteks,
+        periodeKey,
+        wilayahKerja ?? null,
+        tipe,
+        metrikUntukCache ?? null,
+        providerDipakai,
+        hasil.ringkasan,
+        hasil.anomali ?? null,
+        hasil.rekomendasi ?? null,
+        user?.id ?? null,
+      ],
+    });
+  } catch (insertError: any) {
+    console.error('Gagal menyimpan riwayat_analisis_ai:', insertError?.message);
   }
 
   return NextResponse.json({

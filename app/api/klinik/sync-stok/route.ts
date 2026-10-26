@@ -1,15 +1,11 @@
 // app/api/klinik/sync-stok/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { getPengguna } from '@/lib/auth/session';
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
-    : { data: null };
+  const user = await getPengguna();
 
-  if (!profile || (profile.role !== 'admin' && profile.role !== 'petugas')) {
+  if (!user || (user.role !== 'admin' && user.role !== 'petugas')) {
     return NextResponse.json({ error: 'Tidak diizinkan' }, { status: 403 });
   }
 

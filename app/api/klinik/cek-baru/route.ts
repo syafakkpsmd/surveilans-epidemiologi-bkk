@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { getPengguna } from '@/lib/auth/session';
 import { cekKlinikBaru } from '@/lib/klinik/deteksi-klinik-baru';
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = user
-    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
-    : { data: null };
+  const user = await getPengguna();
 
-  if (!profile || profile.role !== 'admin') {
+  if (!user || user.role !== 'admin') {
     return NextResponse.json({ error: 'Tidak diizinkan' }, { status: 403 });
   }
 

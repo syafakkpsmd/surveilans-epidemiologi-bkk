@@ -8,10 +8,14 @@
 
 import { createBrowserClient } from '@supabase/ssr';
 import type { Database } from '@/types/database.types';
+import { pakaiMariaDbDiBrowser } from '@/lib/db/browser-client';
 
 export function createClient() {
-  return createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  // DATA_BACKEND=mariadb: .from()/.rpc() lewat POST /api/db; .auth tetap Supabase.
+  return pakaiMariaDbDiBrowser(
+    createBrowserClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
   );
 }

@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS sb_hiv_data, sb_tb_data;

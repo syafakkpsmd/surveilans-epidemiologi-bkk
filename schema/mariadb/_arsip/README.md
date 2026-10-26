@@ -1,0 +1,1 @@
+Arsip: `04_fungsi_epid.sql` dan `05_views.sql` adalah versi lain terjemahan view/fungsi Supabase (dari sesi Claude lain). Digantikan oleh `../04_supabase_views.sql` (sudah diuji terhadap PostgreSQL asli). JANGAN dijalankan; disimpan hanya sebagai pembanding.

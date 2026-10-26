@@ -1,18 +1,18 @@
 -- =====================================================================
--- 03_supabase_views.sql
--- Fungsi, 44 view, dan 2 prosedur Supabase (PostgreSQL) -> MariaDB 10.11
+-- 04_supabase_views.sql
+-- Fungsi, 42 view, dan 2 prosedur Supabase (PostgreSQL) -> MariaDB 10.11
 -- Sumber: schema-dump/supabase_schema.json (view_definition + fungsi). Dibuat 24 Okt 2026.
 --
 -- Prasyarat: 01_turso_modules.sql dan 02_supabase_tables.sql sudah dimuat.
 -- Cara pakai (database utf8mb4; berkas ini memakai DELIMITER, jadi muat lewat klien CLI / phpMyAdmin,
 -- BUKAN lewat mysql2):
---   docker exec -i mariadb-epic mariadb -uroot -p epic_ai < schema/mariadb/03_supabase_views.sql
+--   docker exec -i mariadb-epic mariadb -uroot -p epic_ai < schema/mariadb/04_supabase_views.sql
 -- Idempoten (CREATE OR REPLACE). Pengguna aplikasi perlu SELECT pada view/tabel dan EXECUTE pada fungsi
 -- dan prosedur (view dibuat SQL SECURITY INVOKER, jadi hak diperiksa atas pengguna yang memanggil).
 --
 -- ISI
 --   1. Fungsi minggu epidemiologi: epi_week1_start, epi_week_start, mmwr_tahun, mmwr_minggu
---   2. 44 view (urutan mengikuti dependensi)
+--   2. 42 view (view_hiv_mingguan dan view_tb_mingguan dibuang) (urutan mengikuti dependensi)
 --   3. Prosedur: status_lapor_bulanan, status_lapor_mingguan  (CALL ..., hasil = result set)
 --   Tidak diterjemahkan: is_admin() dan 90+ kebijakan RLS (pembantu RLS Supabase; pemeriksaan role pindah ke
 --   server pada Tahap 5), serta 6 trigger yang sudah ada di 02_supabase_tables.sql.
@@ -21,7 +21,7 @@
 --  * mmwr_week(d) adalah fungsi BERTABEL + CROSS JOIN LATERAL; MariaDB tidak punya keduanya. Dipecah menjadi
 --    mmwr_tahun(d) dan mmwr_minggu(d). LATERAL membuang baris bertanggal NULL, jadi tiap view menambah
 --    WHERE tanggal IS NOT NULL pada tabel turunan.
---  * Tabel hiv_data / tb_data Supabase dibaca dari sb_hiv_data / sb_tb_data.
+--  * view_hiv_mingguan / view_tb_mingguan tidak dibuat (tabel dummy HIV/TB Supabase dibuang).
 --  * EXTRACT(isoyear/week ...) -> YEARWEEK(d, 3) DIV 100 dan WEEK(d, 3) (minggu ISO, BUKAN MMWR).
 --  * count(*) FILTER (WHERE c) -> COUNT(CASE WHEN c THEN 1 END);  tanggal + N -> DATE_ADD(.., INTERVAL N DAY)
 --    (di MariaDB `tanggal + 4` adalah penjumlahan numerik pada YYYYMMDD dan menghasilkan NULL/salah).
@@ -442,16 +442,6 @@ SELECT tahun_kalender AS tahun,
   GROUP BY tahun_kalender, bulan_kalender, wilayah_kerja
   ORDER BY tahun_kalender, bulan_kalender, (wilayah_kerja IS NULL), wilayah_kerja;
 
-CREATE OR REPLACE SQL SECURITY INVOKER VIEW `view_hiv_mingguan` AS
-SELECT h.mw_tahun AS tahun_epid,
-    h.mw_minggu AS minggu_epid,
-    h.kode_wilker,
-    sum(h.jml_diperiksa) AS total_diperiksa,
-    sum(h.jml_reaktif) AS total_reaktif,
-    sum(h.jml_konfirmasi_positif) AS total_konfirmasi_positif
-   FROM (SELECT h.*, mmwr_tahun(h.tgl_skrining) AS mw_tahun, mmwr_minggu(h.tgl_skrining) AS mw_minggu FROM sb_hiv_data h WHERE h.tgl_skrining IS NOT NULL) h
-  GROUP BY h.mw_tahun, h.mw_minggu, h.kode_wilker;
-
 CREATE OR REPLACE SQL SECURITY INVOKER VIEW `view_hotspot_kaltim_bulanan` AS
 SELECT YEAR(tanggal_deteksi) AS tahun,
     MONTH(tanggal_deteksi) AS bulan,
@@ -796,16 +786,6 @@ FROM (SELECT s.id, s.tahun_epid, s.minggu_epid, s.wilayah_kerja, s.jenis_penyaki
       WINDOW w AS (PARTITION BY s.wilayah_kerja, s.jenis_penyakit_id ORDER BY s.tahun_epid, s.minggu_epid
                    ROWS BETWEEN 4 PRECEDING AND 1 PRECEDING)) x
 ORDER BY x.wilayah_kerja, x.jenis_penyakit_id, x.tahun_epid, x.minggu_epid;
-
-CREATE OR REPLACE SQL SECURITY INVOKER VIEW `view_tb_mingguan` AS
-SELECT t.mw_tahun AS tahun_epid,
-    t.mw_minggu AS minggu_epid,
-    t.kode_wilker,
-    sum(t.jml_suspek) AS total_suspek,
-    sum(t.jml_diperiksa_tcm) AS total_diperiksa_tcm,
-    sum(t.jml_positif_tcm) AS total_positif_tcm
-   FROM (SELECT t.*, mmwr_tahun(t.tgl_penemuan) AS mw_tahun, mmwr_minggu(t.tgl_penemuan) AS mw_minggu FROM sb_tb_data t WHERE t.tgl_penemuan IS NOT NULL) t
-  GROUP BY t.mw_tahun, t.mw_minggu, t.kode_wilker;
 
 CREATE OR REPLACE SQL SECURITY INVOKER VIEW `view_tpp_bulanan` AS
 SELECT YEAR(tanggal_kegiatan) AS tahun,

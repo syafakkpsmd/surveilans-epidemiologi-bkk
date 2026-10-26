@@ -199,14 +199,6 @@ export type RingkasanMalariaMingguan = SafeDatabase extends { public: { Views: {
   ? SafeDatabase['public']['Views']['view_malaria_mingguan']['Row']
   : any;
 
-export type RingkasanTbMingguan = SafeDatabase extends { public: { Views: { view_tb_mingguan: { Row: any } } } }
-  ? SafeDatabase['public']['Views']['view_tb_mingguan']['Row']
-  : any;
-
-export type RingkasanHivMingguan = SafeDatabase extends { public: { Views: { view_hiv_mingguan: { Row: any } } } }
-  ? SafeDatabase['public']['Views']['view_hiv_mingguan']['Row']
-  : any;
-
 export type TipeProviderAi = 'gemini' | 'openai_compatible';
 
 export type PengaturanAi = SafeDatabase extends { public: { Tables: { pengaturan_ai: { Row: any } } } }

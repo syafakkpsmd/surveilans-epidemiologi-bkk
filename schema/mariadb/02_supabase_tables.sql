@@ -324,8 +324,7 @@ CREATE TABLE IF NOT EXISTS `fasilitas_foto` (
 -- ---------------------------------------------------------------------
 -- BATCH 3: KEGIATAN KARANTINA, INSPEKSI, SIMULASI WABAH, SKRINING
 -- Catatan umum batch ini:
---  * Kolom `bigint` tanpa default di sumber (kegiatan_phqc, pab, tpp, ttu, malaria_migrasi,
---    sb_hiv_data, sb_tb_data) dibuat BIGINT AUTO_INCREMENT. Flag identity-nya tidak ada di
+--  * Kolom `bigint` tanpa default di sumber (kegiatan_phqc, pab, tpp, ttu, malaria_migrasi) dibuat BIGINT AUTO_INCREMENT. Flag identity-nya tidak ada di
 --    ekspor dan datanya masuk lewat skrip luar repo, jadi tidak terkonfirmasi; AUTO_INCREMENT
 --    aman di kedua kemungkinan (id eksplisit tetap diterima, id kosong diisi otomatis).
 --  * Indeks yang sudah tercakup awalan kunci UNIQUE/PK/FK dihapus (kegiatan_cop: wilayah_kerja
@@ -612,51 +611,7 @@ CREATE TABLE IF NOT EXISTS `malaria_migrasi` (
   CONSTRAINT `chk_malaria_migrasi_jenis_transportasi` CHECK (`jenis_transportasi` IN ('Kapal','Pesawat','Feri'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- hiv_data Supabase -> sb_hiv_data (nama `hiv_data` sudah dipakai modul Turso di 01_*.sql).
--- Data agregat skrining; tetap perlakukan sebagai data kesehatan sensitif.
-CREATE TABLE IF NOT EXISTS `sb_hiv_data` (
-  `id`                      BIGINT NOT NULL AUTO_INCREMENT,
-  `tgl_skrining`            DATE NOT NULL,
-  `kode_wilker`             VARCHAR(50) COLLATE utf8mb4_bin NOT NULL,
-  `kelompok_sasaran`        VARCHAR(255) NULL,
-  `metode_skrining`         VARCHAR(255) NULL,
-  `jml_ditawarkan`          INT NULL DEFAULT 0,
-  `jml_bersedia`            INT NULL DEFAULT 0,
-  `jml_diperiksa`           INT NULL DEFAULT 0,
-  `jml_reaktif`             INT NULL DEFAULT 0,
-  `jml_dirujuk_vct`         INT NULL DEFAULT 0,
-  `jml_konfirmasi_positif`  INT NULL DEFAULT 0,
-  `keterangan`              TEXT NULL,
-  `input_oleh`              VARCHAR(255) NULL,
-  `dibuat_pada`             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_sb_hiv_data_kode_wilker` (`kode_wilker`),
-  CONSTRAINT `fk_sb_hiv_data_kode_wilker`
-    FOREIGN KEY (`kode_wilker`) REFERENCES `wilker_ref` (`kode`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- tb_data Supabase -> sb_tb_data (nama `tb_data` sudah dipakai modul Turso).
-CREATE TABLE IF NOT EXISTS `sb_tb_data` (
-  `id`                    BIGINT NOT NULL AUTO_INCREMENT,
-  `tgl_penemuan`          DATE NOT NULL,
-  `kode_wilker`           VARCHAR(50) COLLATE utf8mb4_bin NOT NULL,
-  `kelompok_sasaran`      VARCHAR(255) NULL,
-  `jml_suspek`            INT NULL DEFAULT 0,
-  `jml_diperiksa_tcm`     INT NULL DEFAULT 0,
-  `jml_positif_tcm`       INT NULL DEFAULT 0,
-  `sensitivitas_oat`      VARCHAR(100) NULL,
-  `jml_kontak_erat`       INT NULL DEFAULT 0,
-  `jml_kontak_diperiksa`  INT NULL DEFAULT 0,
-  `jml_mulai_pengobatan`  INT NULL DEFAULT 0,
-  `kategori_pasien`       VARCHAR(255) NULL,
-  `keterangan`            TEXT NULL,
-  `input_oleh`            VARCHAR(255) NULL,
-  `dibuat_pada`           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_sb_tb_data_kode_wilker` (`kode_wilker`),
-  CONSTRAINT `fk_sb_tb_data_kode_wilker`
-    FOREIGN KEY (`kode_wilker`) REFERENCES `wilker_ref` (`kode`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- (hiv_data dan tb_data Supabase adalah tabel dummy; sengaja TIDAK dimigrasi. Keputusan pengguna, 26 Okt 2026.)
 
 -- ---------------------------------------------------------------------
 -- BATCH 4: SURVEILANS VEKTOR (4 tabel) + 4 TRIGGER HITUNG INDIKATOR

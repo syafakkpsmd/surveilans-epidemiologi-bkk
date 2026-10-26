@@ -352,8 +352,6 @@ import type {
   RingkasanVektorAnophelesMingguan,
   RingkasanVektorDiareMingguan,
   RingkasanMalariaMingguan,
-  RingkasanTbMingguan,
-  RingkasanHivMingguan,
   WilkerRef,
 } from '@/types/database.types';
 
@@ -466,44 +464,6 @@ export async function getRingkasanMalaria(
 
   const { data, error } = await query;
   if (error) throw new Error(`Gagal ambil ringkasan Malaria: ${error.message}`);
-  return data ?? [];
-}
-
-// ── Surveilans TB ──
-export async function getRingkasanTb(
-  tahun: number,
-  kodeWilker?: string
-): Promise<RingkasanTbMingguan[]> {
-  const supabase = await createClient();
-  let query = supabase
-    .from('view_tb_mingguan')
-    .select('*')
-    .eq('tahun_epid', tahun)
-    .order('minggu_epid');
-
-  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
-
-  const { data, error } = await query;
-  if (error) throw new Error(`Gagal ambil ringkasan TB: ${error.message}`);
-  return data ?? [];
-}
-
-// ── Surveilans HIV ──
-export async function getRingkasanHiv(
-  tahun: number,
-  kodeWilker?: string
-): Promise<RingkasanHivMingguan[]> {
-  const supabase = await createClient();
-  let query = supabase
-    .from('view_hiv_mingguan')
-    .select('*')
-    .eq('tahun_epid', tahun)
-    .order('minggu_epid');
-
-  if (kodeWilker) query = query.eq('kode_wilker', kodeWilker);
-
-  const { data, error } = await query;
-  if (error) throw new Error(`Gagal ambil ringkasan HIV: ${error.message}`);
   return data ?? [];
 }
 

@@ -1,7 +1,8 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { sql } from '@/lib/auth/db';
+import { getPengguna } from '@/lib/auth/session';
 
 export async function updateNamaLengkap(formData: FormData) {
   const nama = String(formData.get('nama_lengkap') ?? '').trim();
@@ -10,22 +11,15 @@ export async function updateNamaLengkap(formData: FormData) {
     return { ok: false, error: 'Nama tidak boleh kosong.' };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const user = await getPengguna();
   if (!user) {
     return { ok: false, error: 'Anda belum login.' };
   }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ nama_lengkap: nama })
-    .eq('id', user.id);
-
-  if (error) {
-    return { ok: false, error: error.message };
+  try {
+    await sql(`UPDATE profiles SET nama_lengkap = ? WHERE id = ?`, [nama, user.id]);
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'Gagal menyimpan.' };
   }
 
   revalidatePath('/dashboard/profil');

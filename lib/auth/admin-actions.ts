@@ -1,71 +1,59 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { getUserRole } from '@/lib/auth/get-user-role'; // sesuaikan path file getUserRole yang sudah ada
 import { revalidatePath } from 'next/cache';
+import { sql } from '@/lib/auth/db';
+import { requireAdmin } from '@/lib/auth/guard';
+import { hapusSesiPengguna } from '@/lib/auth/session';
+import { hashPassword } from '@/lib/auth/password';
 import type { PeranUser } from '@/types/domain.types';
 
-async function assertAdmin() {
-  const role = await getUserRole();
-  if (role !== 'admin') {
-    throw new Error('Tidak diizinkan: hanya Admin.');
+const ROLE_VALID = ['admin', 'petugas', 'petugas_klinik'];
+const MIN_PASSWORD = 8;
+
+export async function updateUserRole(userId: string, role: PeranUser) {
+  const admin = await requireAdmin();
+  if (!ROLE_VALID.includes(role as string)) throw new Error('Role tidak valid.');
+  if (admin.id === userId && role !== 'admin') {
+    throw new Error('Tidak bisa mengubah role akun sendiri.');
   }
+  await sql(`UPDATE profiles SET role = ? WHERE id = ?`, [role, userId]);
+  revalidatePath('/admin/users');
 }
 
-   export async function updateUserRole(userId: string, role: PeranUser) {
-     await assertAdmin();
-     const supabase = await createClient();
-     const { data: { user } } = await supabase.auth.getUser();
-     if (user?.id === userId && role !== 'admin') {
-       throw new Error('Tidak bisa mengubah role akun sendiri.');
-     }
-     const { error } = await supabase
-       .from('profiles')
-       .update({ role })
-       .eq('id', userId);
-     if (error) throw new Error(error.message);
-     revalidatePath('/admin/users');
-   }
-
 export async function approveUser(userId: string) {
-  await assertAdmin();
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ status: 'approved' })
-    .eq('id', userId);
-  if (error) throw new Error(error.message);
+  await requireAdmin();
+  await sql(`UPDATE profiles SET status = 'approved' WHERE id = ?`, [userId]);
   revalidatePath('/admin/users');
 }
 
 export async function suspendUser(userId: string) {
-  await assertAdmin();
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ status: 'suspended' })
-    .eq('id', userId);
-  if (error) throw new Error(error.message);
+  const admin = await requireAdmin();
+  if (admin.id === userId) throw new Error('Tidak bisa menangguhkan akun sendiri.');
+  await sql(`UPDATE profiles SET status = 'suspended' WHERE id = ?`, [userId]);
+  await hapusSesiPengguna(userId);
   revalidatePath('/admin/users');
 }
 
 export async function deleteUser(userId: string) {
-  await assertAdmin();
-  const admin = createAdminClient();
-  const { error } = await admin.auth.admin.deleteUser(userId);
-  if (error) throw new Error(error.message);
-  // baris di public.profiles idealnya di-cascade lewat FK on delete cascade
-  // ke auth.users; kalau belum, hapus manual di sini juga.
+  const admin = await requireAdmin();
+  if (admin.id === userId) throw new Error('Tidak bisa menghapus akun sendiri.');
+  await hapusSesiPengguna(userId);
+  await sql(`DELETE FROM auth_kredensial WHERE user_id = ?`, [userId]);
+  await sql(`DELETE FROM profiles WHERE id = ?`, [userId]);
   revalidatePath('/admin/users');
 }
+
 export async function updateUserNama(userId: string, nama: string) {
-  await assertAdmin();
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ nama_lengkap: nama })
-    .eq('id', userId);
-  if (error) throw new Error(error.message);
+  await requireAdmin();
+  await sql(`UPDATE profiles SET nama_lengkap = ? WHERE id = ?`, [nama, userId]);
+  revalidatePath('/admin/users');
+}
+
+/** BARU: admin mengatur ulang kata sandi pengguna (pengganti email reset). */
+export async function resetPasswordUser(userId: string, passwordBaru: string) {
+  await requireAdmin();
+  if (passwordBaru.length < MIN_PASSWORD) throw new Error(`Kata sandi minimal ${MIN_PASSWORD} karakter.`);
+  await sql(`UPDATE auth_kredensial SET password_hash = ? WHERE user_id = ?`, [await hashPassword(passwordBaru), userId]);
+  await hapusSesiPengguna(userId);
   revalidatePath('/admin/users');
 }

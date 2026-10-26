@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { approveUser, suspendUser, deleteUser, updateUserNama, updateUserRole } from '@/lib/auth/admin-actions';
+import { approveUser, suspendUser, deleteUser, updateUserNama, updateUserRole, resetPasswordUser } from '@/lib/auth/admin-actions';
 import { Pencil, Check, X } from 'lucide-react';
+
 
 interface Props {
   id: string;
@@ -39,6 +40,23 @@ export default function UserRow({ id, namaAwal, role: roleAwal, status }: Props)
       setEditingRole(false);
     });
   };
+
+  const aturSandi = () => {
+  const sandi = window.prompt('Kata sandi baru (minimal 8 karakter):');
+  if (!sandi) return;
+  if (sandi.length < 8) {
+    alert('Kata sandi minimal 8 karakter.');
+    return;
+  }
+  startTransition(async () => {
+    try {
+      await resetPasswordUser(id, sandi);
+      alert('Kata sandi diubah. Pengguna perlu login ulang.');
+    } catch {
+      alert('Gagal mengubah kata sandi.');
+    }
+  });
+};
 
   return (
     <tr>
@@ -176,6 +194,13 @@ export default function UserRow({ id, namaAwal, role: roleAwal, status }: Props)
             className="text-xs px-3 py-1.5 rounded-md bg-[#D62839] text-white hover:bg-[#B01F30] disabled:opacity-50"
           >
             Hapus
+          </button>
+          <button
+            disabled={isPending}
+            onClick={aturSandi}
+            className="text-xs px-3 py-1.5 rounded-md bg-[#0F4C5C] text-white hover:bg-[#0B3A47] disabled:opacity-50"
+          >
+            Atur sandi
           </button>
         </div>
       </td>

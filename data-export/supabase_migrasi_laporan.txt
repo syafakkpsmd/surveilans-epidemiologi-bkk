@@ -1,0 +1,18 @@
+# Migrasi data Supabase -> MariaDB  
+Mulai: 2026-10-26T02:31:10.493Z
+  dilewati: hiv_data (dummy, sengaja dilewati)
+  dilewati: tb_data (dummy, sengaja dilewati)
+Tabel yang diproses: 1
+
+== wilker_nama_alias
+  sumber 12 baris; masuk 12; gagal 0
+  verifikasi kolom: sama
+
+== Pemeriksaan baris yatim (FK)
+  tidak ada baris yatim
+
+== Ringkasan
+  wilker_nama_alias                    sumber      12  masuk      12  gagal 0
+
+SELESAI TANPA MASALAH.
+Catatan: bandingkan juga keluaran view (node scripts/migrate/bandingkan-view.mjs) pada data asli.

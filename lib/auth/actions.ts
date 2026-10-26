@@ -1,13 +1,23 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
+import { randomUUID } from 'node:crypto';
 import { catatLogin } from '@/lib/analytics/log';
+import { sql } from '@/lib/auth/db';
+import { masuk, keluar, getPengguna } from '@/lib/auth/session';
+import { hashPassword } from '@/lib/auth/password';
 
-/**
- * Dipanggil dari <form action={formAction}> di app/login/page.tsx.
- * Redirect ke /dashboard setelah berhasil.
- */
+const MIN_PASSWORD = 8;
+
+const PESAN_MASUK = {
+  salah: 'Email atau kata sandi salah.',
+  terkunci: 'Terlalu banyak percobaan gagal. Coba lagi dalam 15 menit.',
+  belum_disetujui: 'Akun Anda belum disetujui.',
+  role_tidak_dikenal: 'Role akun tidak dikenali.',
+} as const;
+
+/** Dipanggil dari <form action={formAction}> di app/login/page.tsx. */
 export async function login(prevState: any, formData: FormData): Promise<{ error?: string } | void> {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
@@ -16,116 +26,77 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
     return { error: 'Email dan kata sandi wajib diisi.' };
   }
 
-  const supabase = await createClient();
+  const ip = ((await headers()).get('x-forwarded-for') ?? '').split(',')[0].trim();
+  const hasil = await masuk(email, password, ip);
+  if (!hasil.ok) return { error: PESAN_MASUK[hasil.alasan] };
 
-  // 1. Lakukan proses sign in
-  const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
-
-  if (error || !authData.user) {
-    return { error: 'Email atau kata sandi salah.' };
-  }
-
-  // 2. Ambil data profil dari database (asumsi tabel 'profiles')
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role, status')
-    .eq('id', authData.user.id)
-    .single();
-
-  if (profileError || profile?.status !== 'approved') {
-    return { error: 'Akun Anda belum disetujui.' };
-  }
-
-  if (
-    profile.role !== 'petugas' &&
-    profile.role !== 'admin' &&
-    profile.role !== 'petugas_klinik'
-  ) {
-    console.error('[login] role tidak dikenali:', profile.role);
-    return { error: 'Role akun tidak dikenali.' };
-  }
-
-  // 3. Catat login secara non-blocking (jalan di background tanpa bikin gantung)
-  catatLogin(profile.role, authData.user.id).catch((err) => {
+  // Catat login secara non-blocking
+  catatLogin(hasil.role as any, hasil.userId).catch((err) => {
     console.error('[catatLogin Error]:', err);
   });
 
-  // 4. Redirect ke dashboard
   redirect('/dashboard');
 }
 
 export async function registerPetugas(formData: FormData) {
-  const email = String(formData.get('email') ?? '');
+  const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const password = String(formData.get('password') ?? '');
-  const nama = String(formData.get('nama') ?? '');
+  const nama = String(formData.get('nama') ?? '').trim();
 
-  console.log('[registerPetugas] mulai daftar:', email);
+  const gagal = (pesan: string) => redirect(`/register?error=${encodeURIComponent(pesan)}`);
 
-  const supabase = await createClient();
+  if (!email.includes('@')) gagal('Email tidak valid.');
+  if (password.length < MIN_PASSWORD) gagal(`Kata sandi minimal ${MIN_PASSWORD} karakter.`);
 
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const ada = await sql(`SELECT 1 FROM auth_kredensial WHERE email = ? LIMIT 1`, [email]);
+  if (ada.length > 0) gagal('Email sudah terdaftar.');
 
-  if (error || !data.user) {
-    console.error('[registerPetugas] signUp GAGAL:', JSON.stringify(error, null, 2));
-    redirect(`/register?error=${encodeURIComponent(error?.message ?? 'Gagal mendaftar')}`);
+  const id = randomUUID();
+  let galat: string | null = null;
+  try {
+    await sql(`INSERT INTO profiles (id, nama_lengkap, role, status) VALUES (?, ?, 'petugas', 'pending')`, [id, nama]);
+    try {
+      await sql(`INSERT INTO auth_kredensial (user_id, email, password_hash) VALUES (?, ?, ?)`,
+        [id, email, await hashPassword(password)]);
+    } catch (e) {
+      await sql(`DELETE FROM profiles WHERE id = ?`, [id]);
+      throw e;
+    }
+  } catch (e: any) {
+    console.error('[registerPetugas] gagal:', e?.message);
+    galat = 'Gagal mendaftar. Coba lagi.';
   }
+  if (galat) gagal(galat);
 
-  console.log('[registerPetugas] signUp OK, user id:', data.user.id);
-
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: data.user.id,
-    nama_lengkap: nama,
-    role: 'petugas',
-    status: 'pending',
-  });
-
-  if (profileError) {
-    console.error('[registerPetugas] insert profiles GAGAL:', JSON.stringify(profileError, null, 2));
-    redirect(`/register?error=${encodeURIComponent(profileError.message)}`);
-  }
-
-  console.log('[registerPetugas] BERHASIL total');
   redirect('/register/berhasil');
 }
 
-/**
- * Dipanggil dari tombol Logout di navbar.
- * Kembali ke /dashboard sebagai Tamu.
- */
+/** Tombol Logout di navbar. Kembali ke /dashboard sebagai Tamu. */
 export async function logout(): Promise<void> {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  await keluar();
   redirect('/dashboard');
 }
 
 /**
- * Mengirim email reset password lewat Supabase Auth.
+ * Reset password kini dilakukan admin (halaman /admin/users). Bila nanti SMTP tersedia,
+ * fungsi ini dapat diganti dengan pengiriman tautan reset.
  */
-export async function requestPasswordReset(formData: FormData) {
-  const email = String(formData.get('email') ?? '');
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/reset-password`,
-  });
-
-  if (error) {
-    redirect(`/forgot-password?error=${encodeURIComponent(error.message)}`);
-  }
-  redirect('/forgot-password?sent=1');
+export async function requestPasswordReset(_formData: FormData) {
+  redirect(`/forgot-password?error=${encodeURIComponent('Hubungi admin untuk mengatur ulang kata sandi Anda.')}`);
 }
 
-/**
- * Memperbarui kata sandi user setelah klik link reset.
- */
+/** Ganti kata sandi akun yang sedang login. */
 export async function updatePassword(formData: FormData) {
   const password = String(formData.get('password') ?? '');
-  const supabase = await createClient();
+  const p = await getPengguna();
+  if (!p) redirect('/login');
 
-  const { error } = await supabase.auth.updateUser({ password });
-
-  if (error) {
-    redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+  if (password.length < MIN_PASSWORD) {
+    redirect(`/reset-password?error=${encodeURIComponent(`Kata sandi minimal ${MIN_PASSWORD} karakter.`)}`);
   }
+
+  await sql(`UPDATE auth_kredensial SET password_hash = ? WHERE user_id = ?`, [await hashPassword(password), p!.id]);
+  await sql(`DELETE FROM auth_sesi WHERE user_id = ?`, [p!.id]);
+  await keluar();
   redirect('/login?reset=1');
 }

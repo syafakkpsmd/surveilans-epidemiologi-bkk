@@ -1,0 +1,689 @@
+From f15b2e7f70d12cf8f5e557bd64d86e81837f02d4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 08:51:30 +0800
+Subject: [PATCH] Tambah skrip migrasi data Supabase -> MariaDB, pembanding
+ view, dan uji
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01An6M23JY59d1bD377na3Tj
+---
+ docs/MIGRASI_MARIADB.md                  |   4 +-
+ scripts/migrate/bandingkan-view.mjs      |  63 +++++
+ scripts/migrate/supabase-migrasi-lib.mjs | 188 +++++++++++++++
+ scripts/migrate/supabase-to-mariadb.mjs  | 282 +++++++++++++++++++++++
+ scripts/migrate/uji-supabase-migrasi.mjs |  87 +++++++
+ 5 files changed, 623 insertions(+), 1 deletion(-)
+ create mode 100644 scripts/migrate/bandingkan-view.mjs
+ create mode 100644 scripts/migrate/supabase-migrasi-lib.mjs
+ create mode 100644 scripts/migrate/supabase-to-mariadb.mjs
+ create mode 100644 scripts/migrate/uji-supabase-migrasi.mjs
+
+diff --git a/docs/MIGRASI_MARIADB.md b/docs/MIGRASI_MARIADB.md
+index f3b3d2a..f8f1537 100644
+--- a/docs/MIGRASI_MARIADB.md
++++ b/docs/MIGRASI_MARIADB.md
+@@ -166,7 +166,8 @@ Usulan desain (belum disetujui):
+ - **Penggabungan dua akun:** akun A menulis `03_supabase_views.sql` (kini `04_supabase_views.sql`), akun B menulis `04_fungsi_epid.sql` + `05_views.sql` (42 view, belum selesai diuji). Keduanya mengerjakan hal yang sama. **Dipakai: versi akun A** (sudah terbukti terhadap PostgreSQL asli dan memperhitungkan kolasi). Versi akun B dipindah ke `schema/mariadb/_arsip/` (jangan dijalankan). `02_wilayah_kerja.sql` (versi lama) dan salinan ganda `bersihkan-master-wilker.sql` di folder schema dihapus
+ - **Kelemahan fungsi minggu epidemiologi (ikut tersalin, sengaja, agar angka tidak bergeser):** pada tahun ketika 1 Januari tahun berikutnya jatuh hari Minggu-Rabu, tanggal akhir Desember yang menurut MMWR masuk minggu 1 tahun berikutnya dihitung "minggu 53" tahun berjalan. 53 dari 21.915 tanggal (2010-2069) berbeda dari aturan MMWR, antara lain 30-31 Des 2018, 29-31 Des 2019, 31 Des 2023, 29-31 Des 2024. Periode Nataru 2026/2027 aman. `lib/epi-week.ts` memuat logika sama (harus sinkron). **Keputusan pengguna: _(belum diputuskan: perbaiki di kedua tempat, atau biarkan)_**
+ - [ ] Ukur kolom `numeric` tanpa presisi (61 kolom), panjang `text`, pecahan detik, dan kolom identity: jalankan `scripts/migrate/supabase-column-stats.sql` di Supabase SQL Editor, simpan sebagai `schema-dump/supabase_column_stats.json` (hanya angka agregat). Kolom bertanda `[VERIFIKASI]` di `02_supabase_tables.sql` (sementara `DECIMAL(38,18)`) dipersempit setelahnya. **Catatan:** skrip `supabase-column-stats.sql` dibuat akun A dan mungkin belum ada di repo; bila tidak ada, minta dibuat ulang
+-- [ ] **`scripts/migrate/supabase-to-mariadb.mjs`** (skrip data Supabase → MariaDB). Wajib: koneksi `utf8mb4` dan verifikasi `@@character_set_client` saat mulai; `SET @lewati_trigger_hitung = 1` pada koneksinya sendiri sebelum menyalin 4 tabel vektor, lalu verifikasi kolom indikator sama dengan sumber; `TRUNCATE` `kegiatan_pesawat_backup_juli_agustus` sebelum mengisi; `jsonb` lewat `JSON.stringify`; bandingkan nilai `numeric` asal vs tujuan (MariaDB membulatkan kelebihan desimal tanpa error); impor `wilker_ref`/`wilker_nama_alias` memakai upsert (koordinat asli menimpa benih, termasuk WK06); setelah data masuk, bandingkan keluaran tiap view terhadap Supabase pada data NYATA (jumlah baris + checksum numerik)
++- [~] **`scripts/migrate/supabase-to-mariadb.mjs`** (26 Okt 2026): **ditulis; belum dijalankan pada MariaDB/Supabase asli.** Membaca Supabase langsung lewat Postgres (`SUPABASE_DB_URL`, paket `pg`: `npm install --save-dev pg`), transaksi read-only; menulis dengan upsert PK; memaksa koneksi utf8mb4 + mode strict (berhenti bila tidak); `SET @lewati_trigger_hitung = 1`; melewati `hiv_data`/`tb_data`; baris bermasalah dicatat per PK tanpa isi data; verifikasi per kolom (hitung, jumlah angka, min/maks tanggal, panjang teks) dan pemeriksaan baris yatim FK; opsi `--dry-run` dan `--tabel=`; laporan di `data-export/supabase_migrasi_laporan.txt`. Fungsi murninya diuji (`node --test scripts/migrate/uji-supabase-migrasi.mjs`, 9 uji lulus) dan pembacaan tipe Postgres nyata (numeric, timestamptz, jsonb, text[], date, time, boolean) diuji di PostgreSQL 16. **Sisi tulis ke MariaDB belum teruji**: jalankan `--dry-run` dulu, lalu satu tabel kecil (`--tabel=wilker_ref`), baru semua
++- [ ] `scripts/migrate/bandingkan-view.mjs` ditulis (membandingkan keluaran tiap view Supabase vs MariaDB per kolom, tanpa mencetak isi data); jalankan setelah migrasi data tanpa masalah
+ - [ ] Gantikan klien `supabase.from(...)` (sekitar 167 file) dengan query builder/adapter, bertahap per modul agar aplikasi selalu bisa jalan
+ - [ ] `is_admin()` dan 103 policy RLS → pemeriksaan role di server (Tahap 5)
+ - [ ] Verifikasi agregat dashboard (lama vs baru)
+@@ -262,6 +263,7 @@ Percobaan tambahan jalur 1: lewat SSH Access, cek `node -v`. Kalau belum ada, ta
+ | 2026-10-24 (malam, lanjutan) | Pengguna menjalankan `bersihkan-master-wilker.sql`, `02_supabase_tables.sql` (kini 51 pernyataan, lebih panjang dari versi 42 pernyataan yang diuji Claude, jadi ada tambahan batch yang belum ditinjau) dan `03_wilayah_kerja.sql` (belum = 0, 21 baris master). Langkah B-1 selesai: modul `lib/wilayah-kerja` + 7 daftar diganti, teruji. Temuan: koordinat WK06 berbeda ~110 km antara dua berkas | Pengguna menerapkan `langkah-b-wilayah-kerja.patch` dan zip, menjalankan `uji-wilayah-kerja.ts`, memeriksa koordinat WK06, mengirim `02_supabase_tables.sql` terbaru dan `supabase_column_stats.json`; Claude meninjau batch baru dan lanjut B-2 atau Tahap 4 |
+ | 2026-10-24 (malam, lanjutan 2) | Pengguna menyatakan berkas Supabase belum dijalankan (menunggu lengkap), tetapi catatan terminalnya menunjukkan `02_supabase_tables.sql` dijalankan dengan 51 pernyataan; berkas yang diterima Claude hanya 42 pernyataan (md5 0f44888f13a5), jadi berkas di repo pengguna lebih baru dan **belum ditinjau**. Inventaris 44 view/11 fungsi selesai; `04_fungsi_epid.sql` selesai dan teruji (0 beda dari logika asli untuk 21.915 tanggal); kelemahan akhir-Desember fungsi asli dikuantifikasi (53 tanggal) | Pengguna mengirim `02_supabase_tables.sql` terbaru (satu berkas), menjalankan `04_fungsi_epid.sql`, dan memutuskan soal kelemahan minggu epidemiologi; Claude menulis `05_views.sql` |
+ | 2026-10-26 | **Dua dokumen dari dua akun Claude digabung** (basis: dokumen akun yang memuat Turso lengkap, Tahap 3/3b/3c). Hasil Tahap 4 akun lain (`02_supabase_tables.sql` 46 tabel, view+fungsi+prosedur diuji terhadap PostgreSQL) dimasukkan. Duplikat view/fungsi akun B diarsipkan, penomoran SQL dirapikan. Tabel dummy HIV/TB Supabase dibuang. Keputusan: tanpa uji di `next.bkksmr.tech` | Pengguna menjalankan ulang urutan SQL 01→04 di MariaDB lokal, menjalankan `supabase-column-stats.sql`, memutuskan soal minggu epidemiologi akhir Desember; Claude menulis `supabase-to-mariadb.mjs`, lalu adapter klien Supabase |
++| 2026-10-26 (siang) | `supabase-to-mariadb.mjs`, `supabase-migrasi-lib.mjs`, `bandingkan-view.mjs`, `uji-supabase-migrasi.mjs` ditulis; uji murni 9/9 lulus, pembacaan tipe Postgres diuji di PostgreSQL 16. Sisi tulis MariaDB belum teruji (tidak ada MariaDB di lingkungan Claude). `supabase_column_stats.json` sudah ada di repo | Pengguna: `npm i -D pg`, set `SUPABASE_DB_URL`, jalankan `--dry-run`, lalu `--tabel=wilker_ref`, lalu semua, lalu `bandingkan-view.mjs`; kirim hanya `supabase_migrasi_laporan.txt`; Claude mempersempit kolom `DECIMAL(38,18)` memakai `supabase_column_stats.json` |
+ 
+ ## 9. Risiko yang diketahui
+ 
+diff --git a/scripts/migrate/bandingkan-view.mjs b/scripts/migrate/bandingkan-view.mjs
+new file mode 100644
+index 0000000..faeab8f
+--- /dev/null
++++ b/scripts/migrate/bandingkan-view.mjs
+@@ -0,0 +1,63 @@
++// Bandingkan keluaran SETIAP view antara Supabase (PostgreSQL) dan MariaDB pada data yang sama.
++// Jalankan SETELAH supabase-to-mariadb.mjs selesai tanpa masalah:
++//   node --env-file=.env.local scripts/migrate/bandingkan-view.mjs
++//   node --env-file=.env.local scripts/migrate/bandingkan-view.mjs --view=view_pab_bulanan
++// Env: SUPABASE_DB_URL (+ SUPABASE_DB_SSL=off untuk lokal), DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME/DB_SOCKET.
++// Cara kerja: tiap kolom dibandingkan sebagai kumpulan nilai terurut (angka dibulatkan 8 desimal, waktu dipotong
++// ke detik). Yang dilaporkan hanya jumlah baris dan NAMA kolom yang berbeda, tanpa isi data.
++import mysql from 'mysql2/promise';
++import { createHash } from 'node:crypto';
++import { mkdirSync, writeFileSync } from 'node:fs';
++import { bukaPg, qp, qm, normalisasiSel } from './supabase-migrasi-lib.mjs';
++
++const ONLY = (process.argv.find((a) => a.startsWith('--view=')) ?? '').slice(7).split(',').filter(Boolean);
++for (const k of ['SUPABASE_DB_URL', 'DB_USER', 'DB_NAME']) {
++  if (!process.env[k]) { console.error(`Variabel ${k} belum diisi.`); process.exit(1); }
++}
++const pgc = await bukaPg(process.env.SUPABASE_DB_URL, { ssl: process.env.SUPABASE_DB_SSL !== 'off' });
++const my = await mysql.createConnection({
++  host: process.env.DB_HOST || 'localhost', port: Number(process.env.DB_PORT || 3306),
++  user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME,
++  socketPath: process.env.DB_SOCKET || undefined, charset: 'utf8mb4', timezone: '+00:00',
++  dateStrings: true, supportBigNumbers: true, bigNumberStrings: true,
++});
++await my.query("SET time_zone = '+00:00'");
++
++const [vm] = await my.query("SELECT TABLE_NAME n FROM information_schema.VIEWS WHERE TABLE_SCHEMA=? ORDER BY 1", [process.env.DB_NAME]);
++const { rows: vp } = await pgc.query("SELECT table_name n FROM information_schema.views WHERE table_schema='public'");
++const adaPg = new Set(vp.map((r) => r.n));
++let views = vm.map((r) => r.n);
++if (ONLY.length) views = views.filter((v) => ONLY.includes(v));
++
++const hashKolom = (rows, kol) =>
++  createHash('sha1').update(rows.map((r) => normalisasiSel(r[kol])).sort().join('\u0001')).digest('hex');
++
++const out = [];
++const log = (s) => { console.log(s); out.push(s); };
++let beda = 0;
++for (const v of views) {
++  if (!adaPg.has(v)) { log(`?  ${v}: tidak ada di Supabase`); continue; }
++  let rp; let rm;
++  try {
++    rp = (await pgc.query(`SELECT * FROM ${qp(v)}`)).rows;
++    [rm] = await my.query(`SELECT * FROM ${qm(v)}`);
++  } catch (e) { beda++; log(`!! ${v}: galat saat membaca (${e.code ?? e.message?.slice(0, 80)})`); continue; }
++  const kp = rp.length ? Object.keys(rp[0]) : [];
++  const km = rm.length ? Object.keys(rm[0]) : [];
++  const masalah = [];
++  if (rp.length !== rm.length) masalah.push(`jumlah baris ${rp.length} vs ${rm.length}`);
++  if (rp.length && rm.length) {
++    const ks = new Set(kp);
++    const hilang = km.filter((c) => !ks.has(c)); const lebih = kp.filter((c) => !km.includes(c));
++    if (hilang.length || lebih.length) masalah.push(`kolom beda: ${[...hilang, ...lebih].join(',')}`);
++    const sama = kp.filter((c) => km.includes(c));
++    const bedaKol = sama.filter((c) => hashKolom(rp, c) !== hashKolom(rm, c));
++    if (bedaKol.length) masalah.push(`isi kolom beda: ${bedaKol.join(',')}`);
++  }
++  if (masalah.length) { beda++; log(`!! ${v}: ${masalah.join('; ')}`); } else log(`ok ${v} (${rp.length} baris)`);
++}
++log(`\n${views.length} view dibandingkan; ${beda} bermasalah.`);
++await pgc.query('ROLLBACK'); await pgc.end(); await my.end();
++mkdirSync('data-export', { recursive: true });
++writeFileSync('data-export/bandingkan_view_laporan.txt', out.join('\n') + '\n', 'utf8');
++process.exit(beda ? 1 : 0);
+diff --git a/scripts/migrate/supabase-migrasi-lib.mjs b/scripts/migrate/supabase-migrasi-lib.mjs
+new file mode 100644
+index 0000000..e06a0b6
+--- /dev/null
++++ b/scripts/migrate/supabase-migrasi-lib.mjs
+@@ -0,0 +1,188 @@
++// Fungsi bantu untuk supabase-to-mariadb.mjs dan bandingkan-view.mjs.
++// Dipisah supaya bagian murni (tanpa koneksi) bisa diuji: lihat uji-supabase-migrasi.mjs.
++import pg from 'pg';
++
++// Tabel Supabase yang SENGAJA tidak dipindah (tabel dummy; keputusan pengguna 26 Okt 2026).
++export const TABEL_DIKECUALIKAN = new Set(['hiv_data', 'tb_data']);
++
++// ---------- Koneksi PostgreSQL (sumber, hanya dibaca) ----------
++
++/** Nilai mentah dari pg: tanggal/waktu/json sebagai TEKS agar tidak ada konversi zona atau parse ganda. */
++export function pasangParserPg() {
++  const mentah = (v) => v;
++  for (const oid of [1082, 1083, 1114, 1184, 114, 3802]) pg.types.setTypeParser(oid, mentah);
++}
++
++export async function bukaPg(url, { ssl = true } = {}) {
++  pasangParserPg();
++  const client = new pg.Client({
++    connectionString: url,
++    // Sertifikat Supabase tidak ada di daftar CA Node; koneksi tetap terenkripsi.
++    ssl: ssl ? { rejectUnauthorized: false } : false,
++  });
++  await client.connect();
++  await client.query("SET TIME ZONE 'UTC'");
++  // Satu gambaran data yang konsisten selama seluruh pembacaan; tidak mungkin menulis.
++  await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
++  return client;
++}
++
++export const qp = (id) => '"' + String(id).replace(/"/g, '""') + '"';
++export const qm = (id) => '`' + String(id).replace(/`/g, '``') + '`';
++
++// ---------- Normalisasi nilai pg -> MariaDB ----------
++
++const BATAS_BYTE = { tinytext: 255, text: 65535, mediumtext: 16777215, longtext: 4294967295 };
++const RE_INT = /^-?\d+$/;
++const RE_DEC = /^(-?)(\d+)(?:\.(\d+))?$/;
++
++/**
++ * kol: { nama, tipe (DATA_TYPE huruf kecil di MariaDB), presisi, skala, panjang }
++ * Hasil: { value, catatan? } atau { error }.
++ *  catatan = hal yang diubah tetapi bukan kegagalan ('pecahan_detik_dibuang').
++ */
++export function ubahNilai(v, kol) {
++  if (v === null || v === undefined) return { value: null };
++  const t = kol.tipe;
++
++  if (t === 'tinyint' || t === 'smallint' || t === 'mediumint' || t === 'int' || t === 'integer' || t === 'bigint') {
++    if (typeof v === 'boolean') return { value: v ? 1 : 0 };
++    const s = String(v).trim();
++    if (!RE_INT.test(s)) return { error: 'bukan bilangan bulat' };
++    return { value: t === 'bigint' ? s : Number(s) };
++  }
++
++  if (t === 'decimal' || t === 'numeric') {
++    const s = String(v).trim();
++    const m = RE_DEC.exec(s);
++    if (!m) return { error: 'bukan bilangan desimal' };
++    const [, tanda, bulat, pecah = ''] = m;
++    const skala = kol.skala ?? 0;
++    const maxBulat = (kol.presisi ?? 65) - skala;
++    if (bulat.replace(/^0+(?=\d)/, '').length > maxBulat) return { error: 'bagian bulat melebihi kolom' };
++    const sisa = pecah.slice(skala);
++    if (/[1-9]/.test(sisa)) return { error: 'pecahan melebihi skala kolom (akan dibulatkan diam-diam)' };
++    const pecahOk = pecah.slice(0, skala);
++    return { value: tanda + bulat + (pecahOk ? '.' + pecahOk : '') };
++  }
++
++  if (t === 'double' || t === 'float' || t === 'real') {
++    const n = Number(v);
++    if (!Number.isFinite(n)) return { error: 'bukan bilangan hingga' };
++    return { value: n };
++  }
++
++  if (t === 'date') {
++    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v));
++    if (!m) return { error: 'tanggal tak dikenal (infinity?)' };
++    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
++    if (d.getUTCMonth() !== +m[2] - 1) return { error: 'tanggal tidak ada di kalender' };
++    return { value: String(v) };
++  }
++
++  if (t === 'datetime' || t === 'timestamp') {
++    // Sesi pg diset UTC: '2026-10-20 22:15:01.226328+00' atau tanpa zona (timestamp biasa).
++    const m = /^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})(?:\.(\d+))?(?:\+00(?::00)?)?$/.exec(String(v));
++    if (!m) return { error: 'waktu tak dikenal (infinity atau zona bukan UTC)' };
++    const r = { value: `${m[1]} ${m[2]}` };
++    if (m[3] && /[1-9]/.test(m[3])) r.catatan = 'pecahan_detik_dibuang';
++    return r;
++  }
++
++  if (t === 'time') {
++    const m = /^(\d{2}:\d{2}:\d{2})(?:\.(\d+))?$/.exec(String(v));
++    if (!m) return { error: 'waktu tak dikenal' };
++    const r = { value: m[1] };
++    if (m[2] && /[1-9]/.test(m[2])) r.catatan = 'pecahan_detik_dibuang';
++    return r;
++  }
++
++  if (t === 'binary' || t === 'varbinary' || t === 'blob' || t === 'mediumblob' || t === 'longblob' || t === 'tinyblob') {
++    return { value: Buffer.isBuffer(v) ? v : Buffer.from(String(v)) };
++  }
++
++  // Teks (char/varchar/*text), uuid (char), json (longtext), array.
++  let s;
++  if (Array.isArray(v)) s = JSON.stringify(v); // array teks Postgres -> JSON
++  else if (typeof v === 'object') s = JSON.stringify(v);
++  else if (typeof v === 'boolean') s = v ? '1' : '0';
++  else s = String(v);
++
++  if (kol.panjang != null && (t === 'char' || t === 'varchar')) {
++    if ([...s].length > kol.panjang) return { error: `teks lebih panjang dari ${kol.panjang} karakter` };
++  } else if (BATAS_BYTE[t] && Buffer.byteLength(s, 'utf8') > BATAS_BYTE[t]) {
++    return { error: 'teks melebihi batas tipe kolom' };
++  }
++  return { value: s };
++}
++
++// ---------- Urutan tabel dan kueri tulis ----------
++
++/** edges: [anak, induk]. Hasil: urutan induk dulu. Tabel yang saling mengait tetap dimasukkan di akhir. */
++export function urutkanTabel(tabel, edges) {
++  const set = new Set(tabel);
++  const induk = new Map(tabel.map((t) => [t, new Set()]));
++  for (const [anak, ibu] of edges) {
++    if (anak !== ibu && set.has(anak) && set.has(ibu)) induk.get(anak).add(ibu);
++  }
++  const hasil = [];
++  const sisa = new Set(tabel);
++  while (sisa.size) {
++    const siap = [...sisa].filter((t) => [...induk.get(t)].every((p) => !sisa.has(p))).sort();
++    if (!siap.length) {
++      hasil.push(...[...sisa].sort()); // siklus: FOREIGN_KEY_CHECKS=0 + pemeriksaan yatim sesudahnya
++      break;
++    }
++    for (const t of siap) {
++      hasil.push(t);
++      sisa.delete(t);
++    }
++  }
++  return hasil;
++}
++
++export function bangunInsert(tabel, kolom, pk, jumlahBaris) {
++  const baris = '(' + kolom.map(() => '?').join(',') + ')';
++  const nilai = Array.from({ length: jumlahBaris }, () => baris).join(',');
++  let sql = `INSERT INTO ${qm(tabel)} (${kolom.map(qm).join(',')}) VALUES ${nilai}`;
++  if (pk.length) {
++    const ubah = kolom.filter((k) => !pk.includes(k));
++    const set = ubah.length ? ubah.map((k) => `${qm(k)}=VALUES(${qm(k)})`) : [`${qm(pk[0])}=${qm(pk[0])}`];
++    sql += ' ON DUPLICATE KEY UPDATE ' + set.join(',');
++  }
++  return sql;
++}
++
++/** Pesan galat MariaDB bisa memuat NILAI data; simpan hanya kode dan nama kolom. */
++export function galatAman(e) {
++  const kol = /column '([^']+)'/i.exec(e?.sqlMessage ?? e?.message ?? '');
++  return `${e?.code ?? 'GALAT'}${kol ? ' kolom ' + kol[1] : ''}`;
++}
++
++// ---------- Perbandingan ----------
++
++const kosongNol = (s) => (s == null ? null : String(s));
++
++/** Bandingkan dua angka (string) dengan toleransi relatif; keduanya null dianggap sama. */
++export function samaAngka(a, b, eps = 1e-9) {
++  a = kosongNol(a);
++  b = kosongNol(b);
++  if (a === null || b === null) return a === b;
++  const x = Number(a);
++  const y = Number(b);
++  if (!Number.isFinite(x) || !Number.isFinite(y)) return a === b;
++  return Math.abs(x - y) <= eps * Math.max(1, Math.abs(x), Math.abs(y));
++}
++
++/** Nilai pada hasil view -> bentuk teks seragam untuk dibandingkan antara pg dan MariaDB. */
++export function normalisasiSel(v) {
++  if (v === null || v === undefined) return '∅';
++  if (typeof v === 'boolean') return v ? '1' : '0';
++  if (typeof v === 'bigint') return v.toString();
++  if (Buffer.isBuffer(v)) return 'bin:' + v.toString('hex');
++  if (typeof v === 'number') return String(Number(v.toFixed(8)));
++  const s = String(v);
++  if (/^-?\d+(\.\d+)?$/.test(s)) return String(Number(Number(s).toFixed(8)));
++  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(s)) return s.slice(0, 19).replace('T', ' ');
++  return s;
++}
+diff --git a/scripts/migrate/supabase-to-mariadb.mjs b/scripts/migrate/supabase-to-mariadb.mjs
+new file mode 100644
+index 0000000..86b57a2
+--- /dev/null
++++ b/scripts/migrate/supabase-to-mariadb.mjs
+@@ -0,0 +1,282 @@
++// Pindahkan DATA dari Supabase (PostgreSQL) ke MariaDB.
++//
++// Prasyarat: schema/mariadb/01 .. 04 sudah dimuat di MariaDB tujuan (urutan di docs/MIGRASI_MARIADB.md).
++// Jalankan dari root repo:
++//   npm install --save-dev pg            (sekali saja)
++//   node --env-file=.env.local scripts/migrate/supabase-to-mariadb.mjs --dry-run   (baca + cek, TANPA menulis)
++//   node --env-file=.env.local scripts/migrate/supabase-to-mariadb.mjs             (pindahkan data)
++//   node --env-file=.env.local scripts/migrate/supabase-to-mariadb.mjs --tabel=wilker_ref,profiles
++//
++// Variabel env:
++//   SUPABASE_DB_URL  string koneksi Postgres (Supabase -> Project Settings -> Database -> Connection string;
++//                    pakai "Session pooler" bila jaringan Anda tidak mendukung IPv6). JANGAN dikirim ke chat
++//                    dan jangan di-commit. SUPABASE_DB_SSL=off hanya untuk Postgres lokal.
++//   DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SOCKET   tujuan MariaDB (sama dengan aplikasi)
++//
++// Sifat skrip:
++//  * Sumber hanya DIBACA (transaksi read-only, satu gambaran data konsisten).
++//  * Aman diulang: INSERT ... ON DUPLICATE KEY UPDATE dengan PK asal; tabel tanpa PK dikosongkan dulu.
++//  * Koneksi MariaDB dipaksa utf8mb4 dan mode strict; bila tidak, skrip berhenti (server berdefault latin1
++//    dan akan merusak emoji/karakter 4-byte TANPA error).
++//  * Trigger hitung indikator (4 tabel vektor) dilewati lewat `SET @lewati_trigger_hitung = 1` pada koneksi
++//    ini saja, supaya nilai historis tidak ditimpa hitung ulang.
++//  * Tidak memotong/membulatkan diam-diam: pecahan desimal berlebih, teks kepanjangan, tanggal tak valid
++//    dicatat sebagai GAGAL pada barisnya. Hanya pecahan detik (kolom DATETIME tanpa pecahan) yang dibuang,
++//    dan jumlahnya dilaporkan.
++//  * Laporan (tanpa isi data, hanya hitungan, nama kolom, dan nilai PK) ditulis ke
++//    data-export/supabase_migrasi_laporan.txt. Folder itu jangan di-commit.
++import mysql from 'mysql2/promise';
++import { mkdirSync, writeFileSync } from 'node:fs';
++import {
++  TABEL_DIKECUALIKAN, bukaPg, qp, qm, ubahNilai, urutkanTabel, bangunInsert, galatAman, samaAngka,
++} from './supabase-migrasi-lib.mjs';
++
++const argv = process.argv.slice(2);
++const DRY = argv.includes('--dry-run');
++const ONLY = (argv.find((a) => a.startsWith('--tabel=')) ?? '').slice(8).split(',').map((s) => s.trim()).filter(Boolean);
++const HALAMAN = 2000;
++const CHUNK_BARIS = 500;
++
++for (const k of ['SUPABASE_DB_URL', 'DB_USER', 'DB_NAME']) {
++  if (!process.env[k]) {
++    console.error(`Variabel ${k} belum diisi.`);
++    process.exit(1);
++  }
++}
++
++const laporan = [];
++const log = (s = '') => { console.log(s); laporan.push(s); };
++let adaMasalah = false;
++const masalah = (s) => { adaMasalah = true; log('  !! ' + s); };
++
++// ---------- Koneksi ----------
++const pgc = await bukaPg(process.env.SUPABASE_DB_URL, { ssl: process.env.SUPABASE_DB_SSL !== 'off' });
++const my = await mysql.createConnection({
++  host: process.env.DB_HOST || 'localhost',
++  port: Number(process.env.DB_PORT || 3306),
++  user: process.env.DB_USER,
++  password: process.env.DB_PASSWORD,
++  database: process.env.DB_NAME,
++  socketPath: process.env.DB_SOCKET || undefined,
++  charset: 'utf8mb4',
++  timezone: '+00:00',
++  dateStrings: true,
++  supportBigNumbers: true,
++  bigNumberStrings: true,
++  decimalNumbers: false,
++});
++await my.query("SET time_zone = '+00:00'");
++await my.query('SET SESSION foreign_key_checks = 0');
++await my.query('SET @lewati_trigger_hitung = 1');
++await my.query('SET SESSION group_concat_max_len = 1048576');
++
++const [[cs]] = await my.query('SELECT @@character_set_client c, @@character_set_connection n, @@character_set_results r, @@sql_mode m');
++if (![cs.c, cs.n, cs.r].every((x) => x === 'utf8mb4')) {
++  console.error(`Koneksi MariaDB bukan utf8mb4 (${cs.c}/${cs.n}/${cs.r}); dihentikan agar karakter tidak rusak.`);
++  process.exit(1);
++}
++if (!/STRICT_(ALL|TRANS)_TABLES/.test(cs.m)) {
++  console.error('Mode SQL MariaDB tidak strict; dihentikan agar data tidak dipotong diam-diam.');
++  process.exit(1);
++}
++
++// ---------- Metadata ----------
++const DB = process.env.DB_NAME;
++const [tblM] = await my.query(
++  "SELECT TABLE_NAME n FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_TYPE='BASE TABLE'", [DB]);
++const tabelMaria = new Set(tblM.map((r) => r.n));
++
++const [kolM] = await my.query(
++  `SELECT TABLE_NAME t, COLUMN_NAME c, DATA_TYPE d, NUMERIC_PRECISION p, NUMERIC_SCALE s,
++          CHARACTER_MAXIMUM_LENGTH l, ORDINAL_POSITION o
++     FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? ORDER BY TABLE_NAME, ORDINAL_POSITION`, [DB]);
++const kolomMaria = new Map();
++for (const r of kolM) {
++  if (!kolomMaria.has(r.t)) kolomMaria.set(r.t, []);
++  kolomMaria.get(r.t).push({ nama: r.c, tipe: String(r.d).toLowerCase(), presisi: r.p == null ? null : Number(r.p), skala: r.s == null ? null : Number(r.s), panjang: r.l == null ? null : Number(r.l) });
++}
++const [pkM] = await my.query(
++  `SELECT TABLE_NAME t, COLUMN_NAME c FROM information_schema.KEY_COLUMN_USAGE
++    WHERE TABLE_SCHEMA=? AND CONSTRAINT_NAME='PRIMARY' ORDER BY TABLE_NAME, ORDINAL_POSITION`, [DB]);
++const pkMaria = new Map();
++for (const r of pkM) pkMaria.set(r.t, [...(pkMaria.get(r.t) ?? []), r.c]);
++const [fkM] = await my.query(
++  `SELECT CONSTRAINT_NAME k, TABLE_NAME t, COLUMN_NAME c, REFERENCED_TABLE_NAME rt, REFERENCED_COLUMN_NAME rc
++     FROM information_schema.KEY_COLUMN_USAGE
++    WHERE TABLE_SCHEMA=? AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION`, [DB]);
++
++const { rows: tblP } = await pgc.query(
++  "SELECT table_name n FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY 1");
++const { rows: kolP } = await pgc.query(
++  "SELECT table_name t, column_name c, data_type d FROM information_schema.columns WHERE table_schema='public'");
++const kolomPg = new Map();
++for (const r of kolP) {
++  if (!kolomPg.has(r.t)) kolomPg.set(r.t, new Map());
++  kolomPg.get(r.t).set(r.c, r.d);
++}
++const { rows: pkP } = await pgc.query(
++  `SELECT c.relname t, a.attname col FROM pg_index i JOIN pg_class c ON c.oid=i.indrelid
++     JOIN pg_namespace n ON n.oid=c.relnamespace
++     JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum = ANY(i.indkey)
++    WHERE i.indisprimary AND n.nspname='public' ORDER BY c.relname, array_position(i.indkey, a.attnum)`);
++const pkPg = new Map();
++for (const r of pkP) pkPg.set(r.t, [...(pkPg.get(r.t) ?? []), r.col]);
++
++// ---------- Pilih tabel ----------
++log(`# Migrasi data Supabase -> MariaDB  ${DRY ? '(DRY-RUN, tidak menulis)' : ''}`);
++log(`Mulai: ${new Date().toISOString()}`);
++const dilewati = [];
++let daftar = tblP.map((r) => r.n).filter((n) => {
++  if (TABEL_DIKECUALIKAN.has(n)) { dilewati.push(`${n} (dummy, sengaja dilewati)`); return false; }
++  if (!tabelMaria.has(n)) { dilewati.push(`${n} (TIDAK ADA di MariaDB)`); adaMasalah = true; return false; }
++  return true;
++});
++if (ONLY.length) {
++  const tak = ONLY.filter((t) => !daftar.includes(t));
++  if (tak.length) { console.error('Tabel tidak dikenal/tak bisa dipindah: ' + tak.join(', ')); process.exit(1); }
++  daftar = daftar.filter((t) => ONLY.includes(t));
++}
++daftar = urutkanTabel(daftar, fkM.map((r) => [r.t, r.rt]));
++for (const d of dilewati) log('  dilewati: ' + d);
++log(`Tabel yang diproses: ${daftar.length}\n`);
++
++// ---------- Pindahkan ----------
++const ringkas = [];
++
++for (const tabel of daftar) {
++  const kolMaria = kolomMaria.get(tabel);
++  const kolSumber = kolomPg.get(tabel);
++  const kolom = kolMaria.filter((k) => kolSumber.has(k.nama));
++  const hanyaSumber = [...kolSumber.keys()].filter((c) => !kolMaria.some((k) => k.nama === c));
++  const pk = pkMaria.get(tabel) ?? [];
++  const urut = (pkPg.get(tabel) ?? []).length ? pkPg.get(tabel).map(qp).join(',') : 'ctid';
++  const nama = kolom.map((k) => k.nama);
++  log(`== ${tabel}`);
++  if (hanyaSumber.length) masalah(`kolom ada di Supabase tapi tidak di MariaDB (tidak dipindah): ${hanyaSumber.join(', ')}`);
++  if (!pk.length) log('  (tanpa PK: tabel tujuan dikosongkan dulu)');
++
++  const { rows: [{ n: totalSumber }] } = await pgc.query(`SELECT count(*)::text n FROM ${qp(tabel)}`);
++  const stat = { masuk: 0, gagal: 0, pecahan: 0 };
++  const gagal = [];
++
++  if (!DRY && !pk.length) await my.query(`DELETE FROM ${qm(tabel)}`);
++
++  for (let off = 0; off < Number(totalSumber); off += HALAMAN) {
++    const { rows } = await pgc.query(
++      `SELECT ${nama.map(qp).join(',')} FROM ${qp(tabel)} ORDER BY ${urut} LIMIT ${HALAMAN} OFFSET ${off}`);
++    const siap = [];
++    for (const r of rows) {
++      const nilai = [];
++      let galat = null;
++      for (const k of kolom) {
++        const h = ubahNilai(r[k.nama], k);
++        if (h.error) { galat = `${k.nama}: ${h.error}`; break; }
++        if (h.catatan === 'pecahan_detik_dibuang') stat.pecahan++;
++        nilai.push(h.value);
++      }
++      const idBaris = pk.length ? pk.map((c) => `${c}=${r[c]}`).join(',') : `#${off + siap.length + stat.gagal}`;
++      if (galat) { stat.gagal++; gagal.push(`${idBaris} -> ${galat}`); } else siap.push({ nilai, idBaris });
++    }
++    if (DRY) { stat.masuk += siap.length; continue; }
++
++    for (let i = 0; i < siap.length; i += CHUNK_BARIS) {
++      const bagian = siap.slice(i, i + CHUNK_BARIS);
++      try {
++        await my.beginTransaction();
++        await my.execute(bangunInsert(tabel, nama, pk, bagian.length), bagian.flatMap((b) => b.nilai));
++        await my.commit();
++        stat.masuk += bagian.length;
++      } catch {
++        await my.rollback();
++        for (const b of bagian) { // cari baris yang bermasalah satu per satu
++          try {
++            await my.execute(bangunInsert(tabel, nama, pk, 1), b.nilai);
++            stat.masuk++;
++          } catch (e2) {
++            stat.gagal++;
++            gagal.push(`${b.idBaris} -> ${galatAman(e2)}`);
++          }
++        }
++      }
++    }
++  }
++
++  log(`  sumber ${totalSumber} baris; ${DRY ? 'siap' : 'masuk'} ${stat.masuk}; gagal ${stat.gagal}` +
++      (stat.pecahan ? `; pecahan detik dibuang pada ${stat.pecahan} nilai` : ''));
++  if (stat.gagal) { adaMasalah = true; for (const g of gagal.slice(0, 50)) log('   GAGAL ' + g); if (gagal.length > 50) log(`   ... dan ${gagal.length - 50} lagi`); }
++
++  // ---------- Verifikasi (hanya bila menulis) ----------
++  if (!DRY) {
++    const [[{ n: totalTujuan }]] = await my.query(`SELECT COUNT(*) n FROM ${qm(tabel)}`);
++    if (String(totalTujuan) !== String(totalSumber)) {
++      const lebih = Number(totalTujuan) > Number(totalSumber);
++      masalah(`jumlah baris beda: sumber ${totalSumber}, tujuan ${totalTujuan}` +
++              (lebih ? ' (tujuan lebih banyak: mungkin benih/baris lama, periksa)' : ''));
++    }
++    const bedaKolom = [];
++    for (const k of kolom) {
++      const t = kolSumber.get(k.nama);
++      const q1 = qp(k.nama);
++      const q2 = qm(k.nama);
++      let sp; let sm;
++      if (['smallint', 'integer', 'bigint', 'numeric', 'real', 'double precision'].includes(t) && k.tipe !== 'char') {
++        sp = (await pgc.query(`SELECT COUNT(${q1})::text n, SUM(${q1})::text s FROM ${qp(tabel)}`)).rows[0];
++        [[sm]] = await my.query(`SELECT COUNT(${q2}) n, SUM(${q2}) s FROM ${qm(tabel)}`);
++        if (String(sp.n) !== String(sm.n) || !samaAngka(sp.s, sm.s)) bedaKolom.push(`${k.nama} (hitung/jumlah)`);
++      } else if (t === 'boolean') {
++        sp = (await pgc.query(`SELECT COUNT(${q1})::text n, COUNT(*) FILTER (WHERE ${q1})::text s FROM ${qp(tabel)}`)).rows[0];
++        [[sm]] = await my.query(`SELECT COUNT(${q2}) n, SUM(${q2}) s FROM ${qm(tabel)}`);
++        if (String(sp.n) !== String(sm.n) || !samaAngka(sp.s, sm.s ?? 0)) bedaKolom.push(`${k.nama} (boolean)`);
++      } else if (t === 'date' || t.startsWith('timestamp')) {
++        const potong = t === 'date' ? 10 : 19;
++        sp = (await pgc.query(`SELECT COUNT(${q1})::text n, MIN(${q1})::text a, MAX(${q1})::text b FROM ${qp(tabel)}`)).rows[0];
++        [[sm]] = await my.query(`SELECT COUNT(${q2}) n, MIN(${q2}) a, MAX(${q2}) b FROM ${qm(tabel)}`);
++        const c = (x) => (x == null ? null : String(x).slice(0, potong));
++        if (String(sp.n) !== String(sm.n) || c(sp.a) !== c(sm.a) || c(sp.b) !== c(sm.b)) bedaKolom.push(`${k.nama} (tanggal)`);
++      } else if (t === 'text' || t === 'character varying' || t === 'character' || t === 'uuid' || t === 'jsonb' || t === 'json') {
++        sp = (await pgc.query(`SELECT COUNT(${q1})::text n, COALESCE(SUM(char_length(${q1}::text)),0)::text s FROM ${qp(tabel)}`)).rows[0];
++        [[sm]] = await my.query(`SELECT COUNT(${q2}) n, COALESCE(SUM(CHAR_LENGTH(${q2})),0) s FROM ${qm(tabel)}`);
++        if (String(sp.n) !== String(sm.n) || String(sp.s) !== String(sm.s)) bedaKolom.push(`${k.nama} (jumlah/panjang teks)`);
++      } else {
++        sp = (await pgc.query(`SELECT COUNT(${q1})::text n FROM ${qp(tabel)}`)).rows[0];
++        [[sm]] = await my.query(`SELECT COUNT(${q2}) n FROM ${qm(tabel)}`);
++        if (String(sp.n) !== String(sm.n)) bedaKolom.push(`${k.nama} (jumlah terisi)`);
++      }
++    }
++    if (bedaKolom.length) masalah('kolom BEDA setelah pindah: ' + bedaKolom.join('; '));
++    else log('  verifikasi kolom: sama');
++  }
++  ringkas.push({ tabel, sumber: totalSumber, ...stat });
++}
++
++// ---------- Pemeriksaan FK yatim ----------
++if (!DRY) {
++  log('\n== Pemeriksaan baris yatim (FK)');
++  const perFk = new Map();
++  for (const r of fkM) perFk.set(r.k + '|' + r.t, [...(perFk.get(r.k + '|' + r.t) ?? []), r]);
++  let yatim = 0;
++  for (const [kunci, kolFk] of perFk) {
++    const t = kolFk[0].t;
++    const rt = kolFk[0].rt;
++    if (!daftar.includes(t) && !daftar.includes(rt)) continue;
++    const on = kolFk.map((r) => `a.${qm(r.c)} = b.${qm(r.rc)}`).join(' AND ');
++    const adaNilai = kolFk.map((r) => `a.${qm(r.c)} IS NOT NULL`).join(' AND ');
++    const [[{ n }]] = await my.query(
++      `SELECT COUNT(*) n FROM ${qm(t)} a LEFT JOIN ${qm(rt)} b ON ${on} WHERE ${adaNilai} AND b.${qm(kolFk[0].rc)} IS NULL`);
++    if (Number(n) > 0) { yatim += Number(n); masalah(`${kunci.split('|')[0]}: ${n} baris di ${t} merujuk ${rt} yang tidak ada`); }
++  }
++  if (!yatim) log('  tidak ada baris yatim');
++}
++
++// ---------- Penutup ----------
++log('\n== Ringkasan');
++for (const r of ringkas) log(`  ${r.tabel.padEnd(36)} sumber ${String(r.sumber).padStart(7)}  ${DRY ? 'siap' : 'masuk'} ${String(r.masuk).padStart(7)}  gagal ${r.gagal}`);
++log(adaMasalah ? '\nSELESAI DENGAN CATATAN (lihat baris "!!" dan "GAGAL"). Jangan lanjut sebelum dibahas.' : '\nSELESAI TANPA MASALAH.');
++log('Catatan: bandingkan juga keluaran view (node scripts/migrate/bandingkan-view.mjs) pada data asli.');
++
++await pgc.query('ROLLBACK');
++await pgc.end();
++await my.end();
++mkdirSync('data-export', { recursive: true });
++writeFileSync('data-export/supabase_migrasi_laporan.txt', laporan.join('\n') + '\n', 'utf8');
++process.exit(adaMasalah ? 1 : 0);
+diff --git a/scripts/migrate/uji-supabase-migrasi.mjs b/scripts/migrate/uji-supabase-migrasi.mjs
+new file mode 100644
+index 0000000..1c19fbd
+--- /dev/null
++++ b/scripts/migrate/uji-supabase-migrasi.mjs
+@@ -0,0 +1,87 @@
++// Uji bagian murni skrip migrasi Supabase. Jalankan: node scripts/migrate/uji-supabase-migrasi.mjs
++// (butuh `pg` terpasang; tidak butuh koneksi apa pun)
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { ubahNilai, urutkanTabel, bangunInsert, galatAman, samaAngka, normalisasiSel } from './supabase-migrasi-lib.mjs';
++
++const K = (o) => ({ nama: 'x', presisi: null, skala: null, panjang: null, ...o });
++
++test('desimal: pecahan berlebih ditolak, nol di ujung dibuang, bulat berlebih ditolak', () => {
++  const d = K({ tipe: 'decimal', presisi: 10, skala: 4 });
++  assert.equal(ubahNilai('1.23450000', d).value, '1.2345');
++  assert.ok(ubahNilai('1.23456789', d).error);
++  assert.equal(ubahNilai('-0.5', d).value, '-0.5');
++  assert.ok(ubahNilai('1234567.1', d).error);
++  assert.equal(ubahNilai('123456.1', d).value, '123456.1');
++  assert.ok(ubahNilai('abc', d).error);
++  assert.equal(ubahNilai(null, d).value, null);
++});
++
++test('waktu: pecahan detik dibuang dan dicatat; zona bukan UTC ditolak', () => {
++  const t = K({ tipe: 'datetime' });
++  assert.deepEqual(ubahNilai('2026-10-20 22:15:01.226328+00', t), { value: '2026-10-20 22:15:01', catatan: 'pecahan_detik_dibuang' });
++  assert.deepEqual(ubahNilai('2026-10-20 22:15:01+00', t), { value: '2026-10-20 22:15:01' });
++  assert.deepEqual(ubahNilai('2026-10-20 22:15:01.000000+00', t), { value: '2026-10-20 22:15:01' });
++  assert.ok(ubahNilai('2026-10-21 06:15:01+08', t).error);
++  assert.ok(ubahNilai('infinity', t).error);
++});
++
++test('tanggal: kalender divalidasi', () => {
++  const d = K({ tipe: 'date' });
++  assert.equal(ubahNilai('2024-02-29', d).value, '2024-02-29');
++  assert.ok(ubahNilai('2026-02-30', d).error);
++  assert.ok(ubahNilai('infinity', d).error);
++});
++
++test('boolean, bigint, int, float', () => {
++  assert.equal(ubahNilai(true, K({ tipe: 'tinyint' })).value, 1);
++  assert.equal(ubahNilai(false, K({ tipe: 'tinyint' })).value, 0);
++  assert.equal(ubahNilai('9007199254740993', K({ tipe: 'bigint' })).value, '9007199254740993');
++  assert.equal(ubahNilai('12', K({ tipe: 'int' })).value, 12);
++  assert.ok(ubahNilai('1.5', K({ tipe: 'int' })).error);
++  assert.equal(ubahNilai(1.25, K({ tipe: 'double' })).value, 1.25);
++});
++
++test('teks: array/objek jadi JSON, jsonb mentah dipertahankan, panjang dicek, emoji utuh', () => {
++  const l = K({ tipe: 'longtext' });
++  assert.equal(ubahNilai(['a', 'b'], l).value, '["a","b"]');
++  assert.equal(ubahNilai('{"a": 1}', l).value, '{"a": 1}');
++  assert.equal(ubahNilai('"teks"', l).value, '"teks"');
++  assert.equal(ubahNilai('😀 Samarinda', l).value, '😀 Samarinda');
++  const v = K({ tipe: 'varchar', panjang: 5 });
++  assert.equal(ubahNilai('😀😀😀😀😀', v).value, '😀😀😀😀😀');
++  assert.ok(ubahNilai('123456', v).error);
++  assert.ok(ubahNilai('x'.repeat(65536), K({ tipe: 'text' })).error);
++});
++
++test('urutan tabel: induk lebih dulu, self-reference dan siklus tidak menggantung', () => {
++  const o = urutkanTabel(['c', 'b', 'a'], [['c', 'b'], ['b', 'a']]);
++  assert.deepEqual(o, ['a', 'b', 'c']);
++  assert.deepEqual(urutkanTabel(['a', 'b'], [['a', 'a']]), ['a', 'b']);
++  assert.equal(urutkanTabel(['a', 'b'], [['a', 'b'], ['b', 'a']]).length, 2);
++});
++
++test('INSERT: upsert tanpa mengubah PK; tanpa PK = insert biasa', () => {
++  assert.equal(bangunInsert('t', ['id', 'n'], ['id'], 2),
++    'INSERT INTO `t` (`id`,`n`) VALUES (?,?),(?,?) ON DUPLICATE KEY UPDATE `n`=VALUES(`n`)');
++  assert.equal(bangunInsert('t', ['id'], ['id'], 1),
++    'INSERT INTO `t` (`id`) VALUES (?) ON DUPLICATE KEY UPDATE `id`=`id`');
++  assert.equal(bangunInsert('t', ['a'], [], 1), 'INSERT INTO `t` (`a`) VALUES (?)');
++});
++
++test('galatAman tidak membocorkan nilai data', () => {
++  const e = { code: 'ER_TRUNCATED_WRONG_VALUE', sqlMessage: "Incorrect date value: '2026-13-45' for column `x`.`t`.`tgl` at row 1" };
++  assert.ok(!galatAman(e).includes('2026-13-45'));
++  assert.ok(galatAman({ code: 'ER_DATA_TOO_LONG', sqlMessage: "Data too long for column 'nama' at row 1" }).includes('nama'));
++});
++
++test('perbandingan angka dan normalisasi sel', () => {
++  assert.ok(samaAngka('10.50', '10.5'));
++  assert.ok(samaAngka(null, null));
++  assert.ok(!samaAngka('1', null));
++  assert.ok(!samaAngka('100', '101'));
++  assert.equal(normalisasiSel('12.50'), '12.5');
++  assert.equal(normalisasiSel('2026-10-20 22:15:01.226+00'), '2026-10-20 22:15:01');
++  assert.equal(normalisasiSel(true), '1');
++  assert.equal(normalisasiSel(null), '∅');
++});
+-- 
+2.43.0
+

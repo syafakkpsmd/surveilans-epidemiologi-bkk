@@ -1,14 +1,9 @@
 "use client";
+import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
 
 const WILKER_LIST = [
   { kode: "INDUK", nama: "🏢 Kantor Induk BKK Kelas I Samarinda" },
-  { kode: "WK01", nama: "Samarinda" },
-  { kode: "WK02", nama: "Tanjung Santan" },
-  { kode: "WK03", nama: "Tanjung Laut" },
-  { kode: "WK04", nama: "Lhoktuan" },
-  { kode: "WK05", nama: "Sangatta" },
-  { kode: "WK06", nama: "Sangkulirang" },
-  { kode: "WK07", nama: "Bandara APT Pranoto" },
+  ...OPSI_WILKER_PETA,
 ];
 
 export default function WilkerSelector({

@@ -6,7 +6,7 @@ import {
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell
 } from 'recharts';
 import type { RingkasanHiv } from '@/lib/turso/hiv';
-import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from '@/lib/turso/hiv';
+import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from '@/lib/turso/hivKonstanta';
 
 const WARNA_DONUT = ['#0d9488', '#f59e0b', '#3b82f6', '#dc2626', '#6366f1', '#64748b', '#be185d'];
 const PALET_WILAYAH = ['#0d9488', '#dc2626', '#f59e0b', '#6366f1', '#0f766e', '#64748b', '#be185d'];

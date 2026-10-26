@@ -6,19 +6,8 @@
 // Analysis/Prediksi (sesuai permintaan), jadi tidak ada dependensi ke
 // lib/ai/data.ts atau DataAnalisis di sini.
 
-import { createClient, type Client } from '@libsql/client';
+import { getTursoClient } from '@/lib/turso/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
-
-let _client: Client | null = null;
-function getTursoClient(): Client {
-  if (!_client) {
-    _client = createClient({
-      url: process.env.TURSO_DATABASE_URL!,
-      authToken: process.env.TURSO_AUTH_TOKEN!,
-    });
-  }
-  return _client;
-}
 
 export const DAFTAR_WILKER_POLIKLINIK = [
   'Samarinda',
@@ -49,7 +38,7 @@ export async function getKunjunganRawData(tahun?: number, wilayahKerja?: string)
   const args: (string | number)[] = [];
 
   if (tahun) {
-    kondisi.push(`strftime('%Y', tanggal_pemeriksaan) = ?`);
+    kondisi.push(`DATE_FORMAT(tanggal_pemeriksaan, '%Y') = ?`);
     args.push(String(tahun));
   }
   if (wilayahKerja) {

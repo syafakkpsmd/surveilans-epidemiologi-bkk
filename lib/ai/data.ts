@@ -19,6 +19,7 @@
   getRingkasanRatGuardMingguan, 
   getRingkasanRatGuardBulanan,
 } from '@/lib/supabase/queries';
+import { NAMA_PANJANG_BY_KODE } from '@/lib/wilayah-kerja';
 import { getTrenDiareMultiVariabel, getTrenDiareBulanan, getHasilPengamatanPerWilker, getHasilPengamatanPerWilkerBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
 import type { KategoriCop } from "@/types/domain.types";
 import {
@@ -1650,15 +1651,7 @@ async function topKategoriUmum(
     .slice(0, 8);
 }
 
-const NAMA_WILKER: Record<string, string> = {
-  WK01: 'Pelabuhan Samarinda',
-  WK02: 'Pelabuhan Tanjung Santan',
-  WK03: 'Pelabuhan Tanjung Laut',
-  WK04: 'Pelabuhan Lhoktuan',
-  WK05: 'Pelabuhan Sangatta',
-  WK06: 'Pelabuhan Sangkulirang',
-  WK07: 'Bandara APT Pranoto',
-};
+const NAMA_WILKER: Record<string, string> = NAMA_PANJANG_BY_KODE;
 
 const DAFTAR_WILAYAH_COP = [
   'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',

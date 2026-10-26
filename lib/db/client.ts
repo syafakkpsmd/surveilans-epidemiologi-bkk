@@ -101,6 +101,7 @@ function normalisasiArgumen(args: DbValue[] | Record<string, DbValue> | undefine
   return args.map((v) => {
     if (v === undefined) return null;
     if (v instanceof ArrayBuffer) return Buffer.from(v);
+    if (ArrayBuffer.isView(v) && !Buffer.isBuffer(v)) return Buffer.from(v.buffer, v.byteOffset, v.byteLength);
     if (typeof v === 'bigint') return v.toString();
     return v;
   });
@@ -131,13 +132,15 @@ async function jalankan(sambungan: Pool | PoolConnection, stmt: DbStatement): Pr
 
 export function getDbClient(): DbClient {
   if (g.__epicDbClient) return g.__epicDbClient;
-  const pool = getDbPool();
+  // Pool baru dibuat saat query pertama (bukan saat getDbClient dipanggil), supaya `next build`
+  // tidak gagal bila variabel env database belum tersedia saat build.
+  const pool = () => getDbPool();
 
   const klien: DbClient = {
-    execute: (stmt) => jalankan(pool, stmt),
+    execute: (stmt) => jalankan(pool(), stmt),
 
     async batch(stmts) {
-      const k = await pool.getConnection();
+      const k = await pool().getConnection();
       try {
         await k.beginTransaction();
         const hasil: DbResultSet[] = [];
@@ -153,7 +156,7 @@ export function getDbClient(): DbClient {
     },
 
     async transaction() {
-      const k = await pool.getConnection();
+      const k = await pool().getConnection();
       await k.beginTransaction();
       let selesai = false;
       const akhiri = () => {

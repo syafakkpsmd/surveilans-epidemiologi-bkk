@@ -66,23 +66,23 @@ export const SQL_PENYAKIT =
   `INSERT INTO posko_penyakit_harian (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit,
      kasus_lk_lt5, kasus_lk_ge5, kasus_pr_lt5, kasus_pr_ge5, mati_lk_lt5, mati_lk_ge5, mati_pr_lt5, mati_pr_ge5)
    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit) DO UPDATE SET
-     kasus_lk_lt5 = excluded.kasus_lk_lt5, kasus_lk_ge5 = excluded.kasus_lk_ge5,
-     kasus_pr_lt5 = excluded.kasus_pr_lt5, kasus_pr_ge5 = excluded.kasus_pr_ge5,
-     mati_lk_lt5 = excluded.mati_lk_lt5, mati_lk_ge5 = excluded.mati_lk_ge5,
-     mati_pr_lt5 = excluded.mati_pr_lt5, mati_pr_ge5 = excluded.mati_pr_ge5, diperbarui = datetime('now')`;
+   ON DUPLICATE KEY UPDATE
+     kasus_lk_lt5 = VALUES(kasus_lk_lt5), kasus_lk_ge5 = VALUES(kasus_lk_ge5),
+     kasus_pr_lt5 = VALUES(kasus_pr_lt5), kasus_pr_ge5 = VALUES(kasus_pr_ge5),
+     mati_lk_lt5 = VALUES(mati_lk_lt5), mati_lk_ge5 = VALUES(mati_lk_ge5),
+     mati_pr_lt5 = VALUES(mati_pr_lt5), mati_pr_ge5 = VALUES(mati_pr_ge5), diperbarui = UTC_TIMESTAMP()`;
 
 export const SQL_KLB =
   `INSERT INTO posko_klb_harian (posko, tahun, tanggal, wilayah_kerja, jumlah_klb, keterangan) VALUES (?, ?, ?, ?, ?, ?)
-   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja) DO UPDATE SET
-     jumlah_klb = excluded.jumlah_klb, keterangan = excluded.keterangan, diperbarui = datetime('now')`;
+   ON DUPLICATE KEY UPDATE
+     jumlah_klb = VALUES(jumlah_klb), keterangan = VALUES(keterangan), diperbarui = UTC_TIMESTAMP()`;
 
 export const SQL_PTM =
   `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus, jumlah_lk, jumlah_pr)
    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_ptm) DO UPDATE SET
-     jumlah_kasus = excluded.jumlah_kasus, jumlah_lk = excluded.jumlah_lk, jumlah_pr = excluded.jumlah_pr,
-     diperbarui = datetime('now')`;
+   ON DUPLICATE KEY UPDATE
+     jumlah_kasus = VALUES(jumlah_kasus), jumlah_lk = VALUES(jumlah_lk), jumlah_pr = VALUES(jumlah_pr),
+     diperbarui = UTC_TIMESTAMP()`;
 
 /** 25 baris penyakit + 1 baris KLB + 7 baris PTM = 33 perintah (dijalankan sebagai satu transaksi). */
 export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: number) {

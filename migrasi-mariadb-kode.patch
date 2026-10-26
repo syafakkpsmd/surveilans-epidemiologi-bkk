@@ -1,0 +1,590 @@
+diff --git a/app/(dashboard)/dashboard/hiv/HivClient.tsx b/app/(dashboard)/dashboard/hiv/HivClient.tsx
+index 93b434e..3b389b8 100644
+--- a/app/(dashboard)/dashboard/hiv/HivClient.tsx
++++ b/app/(dashboard)/dashboard/hiv/HivClient.tsx
+@@ -6,7 +6,7 @@ import {
+   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell
+ } from 'recharts';
+ import type { RingkasanHiv } from '@/lib/turso/hiv';
+-import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from '@/lib/turso/hiv';
++import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from '@/lib/turso/hivKonstanta';
+ 
+ const WARNA_DONUT = ['#0d9488', '#f59e0b', '#3b82f6', '#dc2626', '#6366f1', '#64748b', '#be185d'];
+ const PALET_WILAYAH = ['#0d9488', '#dc2626', '#f59e0b', '#6366f1', '#0f766e', '#64748b', '#be185d'];
+diff --git a/app/(dashboard)/dashboard/posko/actions.ts b/app/(dashboard)/dashboard/posko/actions.ts
+index ed34257..828faca 100644
+--- a/app/(dashboard)/dashboard/posko/actions.ts
++++ b/app/(dashboard)/dashboard/posko/actions.ts
+@@ -2,6 +2,7 @@
+ 
+ // Server action modul Posko: atur periode & input data harian (penyakit, KLB, PTM) langsung dari aplikasi.
+ // Tabel yang ditulis SAMA dengan yang diisi lewat Google Sheet (upsert, jadi tidak dobel).
++import { tabelTidakAda } from '@/lib/db/errors';
+ import { revalidatePath } from 'next/cache';
+ import { getStatusAkses } from '@/lib/auth/getStatusAkses';
+ import { bolehKelolaPosko } from '@/lib/auth/aksesPosko';
+@@ -57,16 +58,16 @@ export async function simpanPeriodePosko(input: {
+   try {
+     await getTursoClient().execute({
+       sql: `INSERT INTO posko_periode (posko, tahun, nama, tanggal_mulai, tanggal_selesai) VALUES (?, ?, ?, ?, ?)
+-            ON CONFLICT (posko, tahun) DO UPDATE SET
+-              nama = excluded.nama, tanggal_mulai = excluded.tanggal_mulai, tanggal_selesai = excluded.tanggal_selesai`,
++            ON DUPLICATE KEY UPDATE
++              nama = VALUES(nama), tanggal_mulai = VALUES(tanggal_mulai), tanggal_selesai = VALUES(tanggal_selesai)`,
+       args: [input.posko, input.tahun, nama, input.tanggalMulai, input.tanggalSelesai],
+     });
+   } catch (err) {
+     const pesan = err instanceof Error ? err.message : String(err);
+     return {
+       ok: false,
+-      pesan: pesan.includes('no such table')
+-        ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
++      pesan: tabelTidakAda(pesan)
++        ? 'Tabel posko belum dibuat di database. Jalankan file posko_turso.sql terlebih dulu.'
+         : `Gagal menyimpan periode: ${pesan}`,
+     };
+   }
+@@ -99,8 +100,8 @@ export async function simpanInputHarianPosko(input: InputHarianPayload): Promise
+     const pesan = err instanceof Error ? err.message : String(err);
+     return {
+       ok: false,
+-      pesan: pesan.includes('no such table')
+-        ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
++      pesan: tabelTidakAda(pesan)
++        ? 'Tabel posko belum dibuat di database. Jalankan file posko_turso.sql terlebih dulu.'
+         : adalahGalatKolomBelumAda(pesan)
+           ? 'Kolom jenis kelamin PTM belum ada di Turso. Jalankan file posko_ptm_jenis_kelamin.sql terlebih dulu.'
+           : `Gagal menyimpan: ${pesan}`,
+diff --git a/app/api/pengawasan-klinik/[id]/rekomendasi/route.ts b/app/api/pengawasan-klinik/[id]/rekomendasi/route.ts
+index 774b12f..4559a7b 100644
+--- a/app/api/pengawasan-klinik/[id]/rekomendasi/route.ts
++++ b/app/api/pengawasan-klinik/[id]/rekomendasi/route.ts
+@@ -23,11 +23,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
+   await turso.execute({
+     sql: `INSERT INTO pengawasan_klinik_rekomendasi (pengawasan_id, nama_file, ukuran_byte, isi_pdf)
+           VALUES (?, ?, ?, ?)
+-          ON CONFLICT(pengawasan_id) DO UPDATE SET
+-            nama_file = excluded.nama_file,
+-            ukuran_byte = excluded.ukuran_byte,
+-            isi_pdf = excluded.isi_pdf,
+-            diunggah_pada = datetime('now')`,
++          ON DUPLICATE KEY UPDATE
++            nama_file = VALUES(nama_file),
++            ukuran_byte = VALUES(ukuran_byte),
++            isi_pdf = VALUES(isi_pdf),
++            diunggah_pada = UTC_TIMESTAMP()`,
+     args: [id, file.name, file.size, buf],
+   });
+ 
+diff --git a/app/api/perbaikan/[token]/keterangan/route.ts b/app/api/perbaikan/[token]/keterangan/route.ts
+index 481d721..e199b75 100644
+--- a/app/api/perbaikan/[token]/keterangan/route.ts
++++ b/app/api/perbaikan/[token]/keterangan/route.ts
+@@ -21,10 +21,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
+   await getTursoClient().execute({
+     sql: `INSERT INTO pengawasan_klinik_perbaikan (id, pengawasan_id, item_key, keterangan, tanggal_perbaikan)
+           VALUES (?, ?, ?, ?, ?)
+-          ON CONFLICT(pengawasan_id, item_key) DO UPDATE SET
+-            keterangan = excluded.keterangan,
+-            tanggal_perbaikan = excluded.tanggal_perbaikan,
+-            diisi_pada = datetime('now')`,
++          ON DUPLICATE KEY UPDATE
++            keterangan = VALUES(keterangan),
++            tanggal_perbaikan = VALUES(tanggal_perbaikan),
++            diisi_pada = UTC_TIMESTAMP()`,
+     args: [crypto.randomUUID(), pid, itemKey, keterangan, tanggal],
+   });
+   return NextResponse.json({ ok: true });
+diff --git a/lib/posko/perintahInput.ts b/lib/posko/perintahInput.ts
+index 0e1f4e0..4e683cf 100644
+--- a/lib/posko/perintahInput.ts
++++ b/lib/posko/perintahInput.ts
+@@ -66,23 +66,23 @@ export const SQL_PENYAKIT =
+   `INSERT INTO posko_penyakit_harian (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit,
+      kasus_lk_lt5, kasus_lk_ge5, kasus_pr_lt5, kasus_pr_ge5, mati_lk_lt5, mati_lk_ge5, mati_pr_lt5, mati_pr_ge5)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+-   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit) DO UPDATE SET
+-     kasus_lk_lt5 = excluded.kasus_lk_lt5, kasus_lk_ge5 = excluded.kasus_lk_ge5,
+-     kasus_pr_lt5 = excluded.kasus_pr_lt5, kasus_pr_ge5 = excluded.kasus_pr_ge5,
+-     mati_lk_lt5 = excluded.mati_lk_lt5, mati_lk_ge5 = excluded.mati_lk_ge5,
+-     mati_pr_lt5 = excluded.mati_pr_lt5, mati_pr_ge5 = excluded.mati_pr_ge5, diperbarui = datetime('now')`;
++   ON DUPLICATE KEY UPDATE
++     kasus_lk_lt5 = VALUES(kasus_lk_lt5), kasus_lk_ge5 = VALUES(kasus_lk_ge5),
++     kasus_pr_lt5 = VALUES(kasus_pr_lt5), kasus_pr_ge5 = VALUES(kasus_pr_ge5),
++     mati_lk_lt5 = VALUES(mati_lk_lt5), mati_lk_ge5 = VALUES(mati_lk_ge5),
++     mati_pr_lt5 = VALUES(mati_pr_lt5), mati_pr_ge5 = VALUES(mati_pr_ge5), diperbarui = UTC_TIMESTAMP()`;
+ 
+ export const SQL_KLB =
+   `INSERT INTO posko_klb_harian (posko, tahun, tanggal, wilayah_kerja, jumlah_klb, keterangan) VALUES (?, ?, ?, ?, ?, ?)
+-   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja) DO UPDATE SET
+-     jumlah_klb = excluded.jumlah_klb, keterangan = excluded.keterangan, diperbarui = datetime('now')`;
++   ON DUPLICATE KEY UPDATE
++     jumlah_klb = VALUES(jumlah_klb), keterangan = VALUES(keterangan), diperbarui = UTC_TIMESTAMP()`;
+ 
+ export const SQL_PTM =
+   `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus, jumlah_lk, jumlah_pr)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+-   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_ptm) DO UPDATE SET
+-     jumlah_kasus = excluded.jumlah_kasus, jumlah_lk = excluded.jumlah_lk, jumlah_pr = excluded.jumlah_pr,
+-     diperbarui = datetime('now')`;
++   ON DUPLICATE KEY UPDATE
++     jumlah_kasus = VALUES(jumlah_kasus), jumlah_lk = VALUES(jumlah_lk), jumlah_pr = VALUES(jumlah_pr),
++     diperbarui = UTC_TIMESTAMP()`;
+ 
+ /** 25 baris penyakit + 1 baris KLB + 7 baris PTM = 33 perintah (dijalankan sebagai satu transaksi). */
+ export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: number) {
+diff --git a/lib/posko/queries.ts b/lib/posko/queries.ts
+index a280e0b..9cf8b0a 100644
+--- a/lib/posko/queries.ts
++++ b/lib/posko/queries.ts
+@@ -3,6 +3,7 @@
+ //  - Turso   : posko_periode, posko_penyakit_harian, posko_klb_harian, posko_ptm_harian
+ //  - Turso   : kunjungan_poliklinik, data_penumpang_kapal (kapal penumpang)
+ //  - Supabase: v_kegiatan_pesawat_rekap (pesawat)
++import { tabelTidakAda } from '@/lib/db/errors';
+ import { cache } from 'react';
+ import { getTursoClient } from '@/lib/turso/client';
+ import { createClient } from '@/lib/supabase/server';
+@@ -47,7 +48,7 @@ async function jalankan(sql: string, args: (string | number)[], label: string, c
+   } catch (err) {
+     const pesan = err instanceof Error ? err.message : String(err);
+     catatan.push(
+-      pesan.includes('no such table') ? `Tabel ${label} belum dibuat di Turso.` : `${label} gagal dimuat: ${pesan}`
++      tabelTidakAda(pesan) ? `Tabel ${label} belum dibuat di database.` : `${label} gagal dimuat: ${pesan}`
+     );
+     return [];
+   }
+@@ -139,7 +140,7 @@ async function ambilPtm(kondisi: string, args: (string | number)[], catatan: str
+     const pesan = err instanceof Error ? err.message : String(err);
+     if (!adalahGalatKolomBelumAda(pesan)) {
+       catatan.push(
+-        pesan.includes('no such table') ? 'Tabel posko_ptm_harian belum dibuat di Turso.' : `posko_ptm_harian gagal dimuat: ${pesan}`
++        tabelTidakAda(pesan) ? 'Tabel posko_ptm_harian belum dibuat di database.' : `posko_ptm_harian gagal dimuat: ${pesan}`
+       );
+       return [];
+     }
+diff --git a/lib/status-laporan/queriesLaluLintasOrang.ts b/lib/status-laporan/queriesLaluLintasOrang.ts
+index 03b0a0f..d19bd47 100644
+--- a/lib/status-laporan/queriesLaluLintasOrang.ts
++++ b/lib/status-laporan/queriesLaluLintasOrang.ts
+@@ -107,7 +107,7 @@ export async function ambilStatusBulananLlo(tahun: number, bulan: number): Promi
+   const turso = (tabel: string, kolomTanggal: string) =>
+     daftarNamaTurso(
+       `SELECT DISTINCT wilayah_kerja AS nama FROM ${tabel}
+-       WHERE ${kolomTanggal} IS NOT NULL AND strftime('%Y-%m', ${kolomTanggal}) = ?`,
++       WHERE ${kolomTanggal} IS NOT NULL AND DATE_FORMAT(${kolomTanggal}, '%Y-%m') = ?`,
+       [periode],
+       'nama',
+     );
+diff --git a/lib/turso/hiv.ts b/lib/turso/hiv.ts
+index 5c83a18..bed8d96 100644
+--- a/lib/turso/hiv.ts
++++ b/lib/turso/hiv.ts
+@@ -1,5 +1,9 @@
+ import { getTursoClient } from '@/lib/turso/client';
+ import { hitungMingguEpidemiologi } from '@/lib/epi-week';
++import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from './hivKonstanta';
++
++// Diekspor ulang agar impor lama dari '@/lib/turso/hiv' tetap berfungsi (khusus kode server).
++export { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan };
+ 
+ export interface HivRow {
+   wilayah_kerja: string;
+@@ -19,7 +23,7 @@ export async function ambilHivRaw(tahun: number): Promise<HivRow[]> {
+     sql: `SELECT wilayah_kerja, tanggal_kegiatan, sex, tanggal_lahir, status_perkawinan,
+                  kunjungan, hasil, jenis_reagen, hubungan_berisiko
+           FROM hiv_data
+-          WHERE strftime('%Y', tanggal_kegiatan) = ? AND tanggal_kegiatan IS NOT NULL`,
++          WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ? AND tanggal_kegiatan IS NOT NULL`,
+     args: [String(tahun)]
+   });
+   return result.rows as unknown as HivRow[];
+@@ -101,16 +105,6 @@ export function hitungDistribusiUsia(rows: HivRow[]) {
+ }
+ 
+ // ===== FORMAT PERIODE =====
+-const NAMA_BULAN = [
+-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+-];
+-
+-export function formatPeriodeBulanan(periode: string): string {
+-  const [tahun, bulan] = periode.split('-');
+-  const idx = Number(bulan) - 1;
+-  return NAMA_BULAN[idx] ? `${NAMA_BULAN[idx]} ${tahun}` : periode;
+-}
+ 
+ // ===== DAFTAR PERIODE PENUH 1 TAHUN (supaya rentang bisa dipilih dari awal tahun) =====
+ function buatDaftarPeriodeMingguan(tahun: number): string[] {
+@@ -177,8 +171,6 @@ export const hitungDiperiksaReaktifBulanan = (rows: HivRow[], tahun: number) =>
+   hitungDiperiksaReaktif(rows, buatDaftarPeriodeBulanan(tahun), ambilPeriodeBulanan);
+ 
+ // ===== TREN PER WILAYAH KERJA x KATEGORI — sekarang full-range juga =====
+-export const KATEGORI_HASIL = ['Reaktif', 'Non Reaktif'] as const;
+-export const KATEGORI_HUBUNGAN_BERISIKO = ['Ya', 'Tidak'] as const;
+ 
+ function pivotTrenPerWilayahKategori(
+   rows: HivRow[],
+diff --git a/lib/turso/kier.ts b/lib/turso/kier.ts
+index 0617752..ebe16cc 100644
+--- a/lib/turso/kier.ts
++++ b/lib/turso/kier.ts
+@@ -184,7 +184,7 @@ export async function getDaftarTahunKier(): Promise<number[]> {
+   const result = await getTursoClient().execute({
+     sql: `SELECT DISTINCT substr(tanggal_pemeriksaan, 1, 4) AS tahun
+           FROM kier_kesehatan
+-          WHERE tanggal_pemeriksaan IS NOT NULL AND tanggal_pemeriksaan != ''
++          WHERE tanggal_pemeriksaan IS NOT NULL
+           ORDER BY tahun DESC`,
+   });
+   return result.rows.map((r: any) => Number(r.tahun)).filter((t) => !isNaN(t));
+diff --git a/lib/turso/poliklinik.ts b/lib/turso/poliklinik.ts
+index 5eca428..e09a6a5 100644
+--- a/lib/turso/poliklinik.ts
++++ b/lib/turso/poliklinik.ts
+@@ -6,20 +6,9 @@
+ // Analysis/Prediksi (sesuai permintaan), jadi tidak ada dependensi ke
+ // lib/ai/data.ts atau DataAnalisis di sini.
+ 
+-import { createClient, type Client } from '@libsql/client';
++import { getTursoClient } from '@/lib/turso/client';
+ import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+ 
+-let _client: Client | null = null;
+-function getTursoClient(): Client {
+-  if (!_client) {
+-    _client = createClient({
+-      url: process.env.TURSO_DATABASE_URL!,
+-      authToken: process.env.TURSO_AUTH_TOKEN!,
+-    });
+-  }
+-  return _client;
+-}
+-
+ export const DAFTAR_WILKER_POLIKLINIK = [
+   'Samarinda',
+   'APT Pranoto',
+@@ -49,7 +38,7 @@ export async function getKunjunganRawData(tahun?: number, wilayahKerja?: string)
+   const args: (string | number)[] = [];
+ 
+   if (tahun) {
+-    kondisi.push(`strftime('%Y', tanggal_pemeriksaan) = ?`);
++    kondisi.push(`DATE_FORMAT(tanggal_pemeriksaan, '%Y') = ?`);
+     args.push(String(tahun));
+   }
+   if (wilayahKerja) {
+diff --git a/lib/turso/queriesHivVct.ts b/lib/turso/queriesHivVct.ts
+index e522490..421003d 100644
+--- a/lib/turso/queriesHivVct.ts
++++ b/lib/turso/queriesHivVct.ts
+@@ -1,3 +1,4 @@
++import { tabelTidakAda } from '@/lib/db/errors';
+ import { getTursoClient } from "@/lib/turso/client";
+ 
+ // Catatan: tabel di Turso bernama `hiv_data` dengan kolom `wilayah_kerja`
+@@ -24,7 +25,7 @@ export interface BarisHivVct {
+ 
+ function tabelBelumAda(err: unknown): boolean {
+   const pesan = err instanceof Error ? err.message : String(err);
+-  return pesan.includes("no such table");
++  return tabelTidakAda(pesan);
+ }
+ 
+ /** Daftar wilayah kerja yang ada datanya, untuk isi dropdown filter. */
+@@ -54,11 +55,11 @@ export interface FilterHivVct {
+  * tanggal kegiatan. Dipakai untuk generate Excel/PDF unduhan & preview.
+  */
+ export async function getBarisHivVct(filter: FilterHivVct): Promise<BarisHivVct[]> {
+-  const kondisi: string[] = [`strftime('%Y', tanggal_kegiatan) = ?`];
++  const kondisi: string[] = [`DATE_FORMAT(tanggal_kegiatan, '%Y') = ?`];
+   const args: (string | number)[] = [String(filter.tahun)];
+ 
+   if (filter.bulan) {
+-    kondisi.push(`strftime('%m', tanggal_kegiatan) = ?`);
++    kondisi.push(`DATE_FORMAT(tanggal_kegiatan, '%m') = ?`);
+     args.push(String(filter.bulan).padStart(2, "0"));
+   }
+   if (filter.wilker) {
+diff --git a/lib/turso/queriesMigrasiMalaria.ts b/lib/turso/queriesMigrasiMalaria.ts
+index 107ef4e..c320e31 100644
+--- a/lib/turso/queriesMigrasiMalaria.ts
++++ b/lib/turso/queriesMigrasiMalaria.ts
+@@ -1,4 +1,4 @@
+-import type { InValue } from '@libsql/client';
++import type { DbValue as InValue } from '@/lib/db/client';
+ import { getRentangMingguEpid } from '@/lib/supabase/queriesVektorBreakdown';
+ import { getTursoClient } from './client';
+ 
+@@ -232,7 +232,7 @@ export async function getRingkasanUtamaMigrasi({
+         SUM(CASE WHEN LOWER(hasil_rdt) LIKE 'positif%' THEN 1 ELSE 0 END) AS total_positif_rdt,
+         COUNT(DISTINCT wilayah_kerja) AS jumlah_wilker
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
+     `,
+     args: [String(tahun), ...args],
+   });
+@@ -274,7 +274,7 @@ export async function getBreakdownKategoriMigrasi({
+     sql: `
+       SELECT ${kolom} AS kategori, COUNT(*) AS jumlah
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
+         AND ${kolom} IS NOT NULL AND TRIM(${kolom}) != ''
+       GROUP BY kategori
+     `,
+@@ -316,7 +316,7 @@ export async function getBreakdownMultiSelectMigrasi({
+     sql: `
+       SELECT ${kolom} AS nilai
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
+         AND ${kolom} IS NOT NULL AND TRIM(${kolom}) != ''
+     `,
+     args: [String(tahun), ...args],
+@@ -356,7 +356,7 @@ export async function getRuteMigrasiTeratas({
+     sql: `
+       SELECT (TRIM(alamat_asal) || ' → ' || TRIM(alamat_tujuan)) AS rute, COUNT(*) AS jumlah
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
+         AND alamat_asal IS NOT NULL AND TRIM(alamat_asal) != ''
+         AND alamat_tujuan IS NOT NULL AND TRIM(alamat_tujuan) != ''
+       GROUP BY rute
+@@ -382,15 +382,15 @@ export async function getDistribusiUsiaMigrasi({
+       SELECT
+         CASE
+           WHEN umur IS NULL OR TRIM(umur) = '' THEN 'Tidak diketahui'
+-          WHEN CAST(umur AS INTEGER) < 15 THEN '< 15 tahun'
+-          WHEN CAST(umur AS INTEGER) BETWEEN 15 AND 24 THEN '15–24 tahun'
+-          WHEN CAST(umur AS INTEGER) BETWEEN 25 AND 44 THEN '25–44 tahun'
+-          WHEN CAST(umur AS INTEGER) BETWEEN 45 AND 64 THEN '45–64 tahun'
++          WHEN CAST(umur AS SIGNED) < 15 THEN '< 15 tahun'
++          WHEN CAST(umur AS SIGNED) BETWEEN 15 AND 24 THEN '15–24 tahun'
++          WHEN CAST(umur AS SIGNED) BETWEEN 25 AND 44 THEN '25–44 tahun'
++          WHEN CAST(umur AS SIGNED) BETWEEN 45 AND 64 THEN '45–64 tahun'
+           ELSE '≥ 65 tahun'
+         END AS kategori,
+         COUNT(*) AS jumlah
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
+       GROUP BY kategori
+       ORDER BY
+         CASE kategori
+@@ -492,14 +492,14 @@ export async function getTrenBulananRdtGender({
+   const hasil = await client.execute({
+     sql: `
+       SELECT
+-        strftime('%m', tanggal_kegiatan) AS bulan,
++        DATE_FORMAT(tanggal_kegiatan, '%m') AS bulan,
+         COUNT(*) AS diperiksa,
+         SUM(CASE WHEN LOWER(hasil_rdt) LIKE 'positif%' THEN 1 ELSE 0 END) AS positif_rdt,
+         SUM(CASE WHEN LOWER(jenis_kelamin) LIKE 'l%' THEN 1 ELSE 0 END) AS laki_laki,
+         SUM(CASE WHEN LOWER(jenis_kelamin) LIKE 'p%' THEN 1 ELSE 0 END) AS perempuan
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?
+-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
++        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
+       GROUP BY bulan
+       ORDER BY bulan ASC
+     `,
+@@ -545,8 +545,8 @@ export async function getBreakdownKapalPesawat({
+     sql: `
+       SELECT nama_kapal_pesawat AS kategori, COUNT(*) AS jumlah
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?
+-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
++        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
+         AND nama_kapal_pesawat IS NOT NULL AND TRIM(nama_kapal_pesawat) != ''
+       GROUP BY kategori
+       ORDER BY jumlah DESC
+@@ -578,8 +578,8 @@ export async function getDonatUsiaMigrasiMalaria({ tahun, bulanDari, bulanSampai
+         END AS kelompok,
+         COUNT(*) AS jumlah
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?
+-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
++        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
+       GROUP BY kelompok
+     `,
+     args: [String(tahun), String(bulanDari).padStart(2, "0"), String(bulanSampai).padStart(2, "0"), ...args],
+@@ -597,8 +597,8 @@ export async function getDonatPekerjaanMigrasiMalaria({ tahun, bulanDari, bulanS
+         COALESCE(NULLIF(MIN(TRIM(pekerjaan)), ''), 'Tidak diisi') AS label,
+         COUNT(*) AS jumlah
+       FROM migrasi_malaria
+-      WHERE strftime('%Y', tanggal_kegiatan) = ?
+-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
++      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
++        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
+       GROUP BY LOWER(TRIM(COALESCE(pekerjaan, '')))
+       ORDER BY jumlah DESC
+     `,
+diff --git a/lib/turso/queriesModulKlinik.ts b/lib/turso/queriesModulKlinik.ts
+index 66649ef..35f3d93 100644
+--- a/lib/turso/queriesModulKlinik.ts
++++ b/lib/turso/queriesModulKlinik.ts
+@@ -3,6 +3,7 @@
+ // Query generik untuk Poliklinik, KIER Kesehatan, SIAOS, SKLT (lihat modulTabelConfig.ts).
+ // Nama tabel & kolom diambil dari config (hardcode), BUKAN dari input user.
+ 
++import { tabelTidakAda } from '@/lib/db/errors';
+ import { getTursoClient } from "@/lib/turso/client";
+ import { MODUL_KLINIK, ambilModul, type ModulKey } from "@/lib/klinik/modulTabelConfig";
+ 
+@@ -17,7 +18,7 @@ export interface FilterModul {
+ 
+ function tabelBelumAda(err: unknown): boolean {
+   const pesan = err instanceof Error ? err.message : String(err);
+-  return pesan.includes("no such table");
++  return tabelTidakAda(pesan);
+ }
+ 
+ /** Daftar wilayah kerja yang ada datanya untuk modul tsb (isi dropdown filter). */
+@@ -64,6 +65,8 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
+     .join(", ");
+   const selectWilker = cfg.punyaWilayahKerja ? "wilayah_kerja AS wilker" : "'' AS wilker";
+   const urutWilker = cfg.punyaWilayahKerja ? "wilayah_kerja ASC, " : "";
++  // Pengganti rowid SQLite (urutan sisipan). Tabel kier_kesehatan tidak punya kolom id (PK-nya kunci_unik): pakai no_baris.
++  const urutSisipan = modul === "kier" ? "no_baris ASC" : "id ASC";
+ 
+   let hasil;
+   try {
+@@ -71,7 +74,7 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
+       sql: `SELECT ${selectWilker}, ${kolomSql}
+             FROM ${cfg.tabel}
+             WHERE ${kondisi.join(" AND ")}
+-            ORDER BY ${urutWilker}${cfg.kolomTanggal} ASC, rowid ASC`,
++            ORDER BY ${urutWilker}${cfg.kolomTanggal} ASC, ${urutSisipan}`,
+       args,
+     });
+   } catch (err) {
+diff --git a/lib/turso/queriesPenumpangKapal.ts b/lib/turso/queriesPenumpangKapal.ts
+index 0621922..9c38635 100644
+--- a/lib/turso/queriesPenumpangKapal.ts
++++ b/lib/turso/queriesPenumpangKapal.ts
+@@ -1,3 +1,4 @@
++import { tabelTidakAda } from '@/lib/db/errors';
+ import { hitungMingguEpidemiologi } from "@/lib/epi-week";
+ import { getTursoClient } from "@/lib/turso/client";
+ 
+@@ -28,7 +29,7 @@ async function ambilBarisTahun(tahun: number, wilker?: string): Promise<BarisPen
+   const hasil = await getTursoClient().execute({
+     sql: `SELECT tanggal_tiba, penumpang_datang, penumpang_berangkat
+           FROM data_penumpang_kapal
+-          WHERE strftime('%Y', tanggal_tiba) = ?${kondisiWilker}`,
++          WHERE DATE_FORMAT(tanggal_tiba, '%Y') = ?${kondisiWilker}`,
+     args,
+   });
+ 
+@@ -148,7 +149,7 @@ export async function getPenumpangKapalMentah(
+       ? [filter.tahun - 1, filter.tahun, filter.tahun + 1]
+       : [filter.tahun];
+ 
+-  const kondisiTahun = tahunYangDiambil.map(() => `strftime('%Y', tanggal_tiba) = ?`).join(" OR ");
++  const kondisiTahun = tahunYangDiambil.map(() => `DATE_FORMAT(tanggal_tiba, '%Y') = ?`).join(" OR ");
+   const args: (string | number)[] = tahunYangDiambil.map(String);
+ 
+   let kondisiWilker = "";
+@@ -168,7 +169,7 @@ export async function getPenumpangKapalMentah(
+       args,
+     });
+   } catch (err) {
+-    if (err instanceof Error && err.message.includes("no such table")) return [];
++    if (err instanceof Error && tabelTidakAda(err.message)) return [];
+     throw err;
+   }
+ 
+@@ -210,7 +211,7 @@ export async function getWilayahKerjaPenumpangKapal(): Promise<string[]> {
+     });
+     return hasil.rows.map((r: any) => String(r.wilker));
+   } catch (err) {
+-    if (err instanceof Error && err.message.includes("no such table")) return [];
++    if (err instanceof Error && tabelTidakAda(err.message)) return [];
+     throw err;
+   }
+ }
+\ No newline at end of file
+diff --git a/lib/turso/queriesTb.ts b/lib/turso/queriesTb.ts
+index 1166ba2..b06a051 100644
+--- a/lib/turso/queriesTb.ts
++++ b/lib/turso/queriesTb.ts
+@@ -1,3 +1,4 @@
++import { tabelTidakAda } from '@/lib/db/errors';
+ import { getTursoClient } from "@/lib/turso/client";
+ 
+ export interface BarisTb {
+@@ -47,7 +48,7 @@ const KOLOM_TB = [
+ 
+ function tabelBelumAda(err: unknown): boolean {
+   const pesan = err instanceof Error ? err.message : String(err);
+-  return pesan.includes("no such table");
++  return tabelTidakAda(pesan);
+ }
+ 
+ /** Daftar wilayah kerja yang ada datanya, untuk isi dropdown filter. */
+@@ -71,11 +72,11 @@ export interface FilterTb {
+ }
+ 
+ export async function getBarisTb(filter: FilterTb): Promise<BarisTb[]> {
+-  const kondisi: string[] = [`strftime('%Y', tanggal_pelaksanaan) = ?`];
++  const kondisi: string[] = [`DATE_FORMAT(tanggal_pelaksanaan, '%Y') = ?`];
+   const args: (string | number)[] = [String(filter.tahun)];
+ 
+   if (filter.bulan) {
+-    kondisi.push(`strftime('%m', tanggal_pelaksanaan) = ?`);
++    kondisi.push(`DATE_FORMAT(tanggal_pelaksanaan, '%m') = ?`);
+     args.push(String(filter.bulan).padStart(2, "0"));
+   }
+   if (filter.wilker) {
+diff --git a/lib/turso/sklt.ts b/lib/turso/sklt.ts
+index 6fdd51b..42c65a4 100644
+--- a/lib/turso/sklt.ts
++++ b/lib/turso/sklt.ts
+@@ -36,7 +36,7 @@ const angka = (v: unknown): number | null => (v === null || v === undefined || v
+ export async function getTahunSklt(): Promise<number[]> {
+   const rs = await getTursoClient().execute(
+     `SELECT DISTINCT substr(tanggal,1,4) AS t FROM sklt_penumpang
+-     WHERE tanggal IS NOT NULL AND tanggal <> '' ORDER BY t DESC`
++     WHERE tanggal IS NOT NULL ORDER BY t DESC`
+   );
+   return rs.rows.map((r) => Number(r.t)).filter((n) => Number.isFinite(n));
+ }
+diff --git a/lib/turso/tb.ts b/lib/turso/tb.ts
+index 73f85b8..ca95e87 100644
+--- a/lib/turso/tb.ts
++++ b/lib/turso/tb.ts
+@@ -10,20 +10,9 @@
+ // HAPUS getTursoClient() di bawah ini dan import dari sana supaya konsisten
+ // (satu koneksi/singleton), tinggal ganti baris import di paling atas.
+ 
+-import { createClient, type Client } from '@libsql/client';
++import { getTursoClient } from '@/lib/turso/client';
+ import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+ 
+-let _client: Client | null = null;
+-function getTursoClient(): Client {
+-  if (!_client) {
+-    _client = createClient({
+-      url: process.env.TURSO_DATABASE_URL!,
+-      authToken: process.env.TURSO_AUTH_TOKEN!,
+-    });
+-  }
+-  return _client;
+-}
+-
+ export const DAFTAR_WILKER_TB = [
+   'Samarinda',
+   'APT Pranoto',
+@@ -80,7 +69,7 @@ export async function getTbRawData(tahun?: number, wilayahKerja?: string): Promi
+   const args: string[] = [];
+ 
+   if (tahun) {
+-    kondisi.push(`strftime('%Y', tanggal_pelaksanaan) = ?`);
++    kondisi.push(`DATE_FORMAT(tanggal_pelaksanaan, '%Y') = ?`);
+     args.push(String(tahun));
+   }
+   if (wilayahKerja) {

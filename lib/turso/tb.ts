@@ -10,19 +10,8 @@
 // HAPUS getTursoClient() di bawah ini dan import dari sana supaya konsisten
 // (satu koneksi/singleton), tinggal ganti baris import di paling atas.
 
-import { createClient, type Client } from '@libsql/client';
+import { getTursoClient } from '@/lib/turso/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
-
-let _client: Client | null = null;
-function getTursoClient(): Client {
-  if (!_client) {
-    _client = createClient({
-      url: process.env.TURSO_DATABASE_URL!,
-      authToken: process.env.TURSO_AUTH_TOKEN!,
-    });
-  }
-  return _client;
-}
 
 export const DAFTAR_WILKER_TB = [
   'Samarinda',
@@ -80,7 +69,7 @@ export async function getTbRawData(tahun?: number, wilayahKerja?: string): Promi
   const args: string[] = [];
 
   if (tahun) {
-    kondisi.push(`strftime('%Y', tanggal_pelaksanaan) = ?`);
+    kondisi.push(`DATE_FORMAT(tanggal_pelaksanaan, '%Y') = ?`);
     args.push(String(tahun));
   }
   if (wilayahKerja) {

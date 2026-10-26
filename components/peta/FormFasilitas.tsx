@@ -1,5 +1,6 @@
 "use client";
 
+import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { uploadFotoFasilitas } from "@/lib/upload-fasilitas-foto";
@@ -90,13 +91,9 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
             <label className="text-xs font-medium text-gray-500">Wilayah Kerja</label>
             <select value={kodeWilker} onChange={(e) => setKodeWilker(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm">
               <option value="INDUK">INDUK - Kantor BKK Kelas I Samarinda</option>
-              <option value="WK01">WK01 - Samarinda</option>
-              <option value="WK02">WK02 - Tanjung Santan</option>
-              <option value="WK03">WK03 - Tanjung Laut</option>
-              <option value="WK04">WK04 - Lhoktuan</option>
-              <option value="WK05">WK05 - Sangatta</option>
-              <option value="WK06">WK06 - Sangkulirang</option>
-              <option value="WK07">WK07 - Bandara APT Pranoto</option>
+              {OPSI_WILKER_PETA.map((w) => (
+                <option key={w.kode} value={w.kode}>{w.kode} - {w.nama}</option>
+              ))}
             </select>
           </div>
         )}

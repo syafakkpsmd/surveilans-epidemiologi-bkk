@@ -2,6 +2,7 @@
 
 // Server action modul Posko: atur periode & input data harian (penyakit, KLB, PTM) langsung dari aplikasi.
 // Tabel yang ditulis SAMA dengan yang diisi lewat Google Sheet (upsert, jadi tidak dobel).
+import { tabelTidakAda } from '@/lib/db/errors';
 import { revalidatePath } from 'next/cache';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { bolehKelolaPosko } from '@/lib/auth/aksesPosko';
@@ -57,16 +58,16 @@ export async function simpanPeriodePosko(input: {
   try {
     await getTursoClient().execute({
       sql: `INSERT INTO posko_periode (posko, tahun, nama, tanggal_mulai, tanggal_selesai) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT (posko, tahun) DO UPDATE SET
-              nama = excluded.nama, tanggal_mulai = excluded.tanggal_mulai, tanggal_selesai = excluded.tanggal_selesai`,
+            ON DUPLICATE KEY UPDATE
+              nama = VALUES(nama), tanggal_mulai = VALUES(tanggal_mulai), tanggal_selesai = VALUES(tanggal_selesai)`,
       args: [input.posko, input.tahun, nama, input.tanggalMulai, input.tanggalSelesai],
     });
   } catch (err) {
     const pesan = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      pesan: pesan.includes('no such table')
-        ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
+      pesan: tabelTidakAda(pesan)
+        ? 'Tabel posko belum dibuat di database. Jalankan file posko_turso.sql terlebih dulu.'
         : `Gagal menyimpan periode: ${pesan}`,
     };
   }
@@ -99,8 +100,8 @@ export async function simpanInputHarianPosko(input: InputHarianPayload): Promise
     const pesan = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      pesan: pesan.includes('no such table')
-        ? 'Tabel posko belum dibuat di Turso. Jalankan file posko_turso.sql terlebih dulu.'
+      pesan: tabelTidakAda(pesan)
+        ? 'Tabel posko belum dibuat di database. Jalankan file posko_turso.sql terlebih dulu.'
         : adalahGalatKolomBelumAda(pesan)
           ? 'Kolom jenis kelamin PTM belum ada di Turso. Jalankan file posko_ptm_jenis_kelamin.sql terlebih dulu.'
           : `Gagal menyimpan: ${pesan}`,

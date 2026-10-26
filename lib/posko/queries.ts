@@ -3,6 +3,7 @@
 //  - Turso   : posko_periode, posko_penyakit_harian, posko_klb_harian, posko_ptm_harian
 //  - Turso   : kunjungan_poliklinik, data_penumpang_kapal (kapal penumpang)
 //  - Supabase: v_kegiatan_pesawat_rekap (pesawat)
+import { tabelTidakAda } from '@/lib/db/errors';
 import { cache } from 'react';
 import { getTursoClient } from '@/lib/turso/client';
 import { createClient } from '@/lib/supabase/server';
@@ -47,7 +48,7 @@ async function jalankan(sql: string, args: (string | number)[], label: string, c
   } catch (err) {
     const pesan = err instanceof Error ? err.message : String(err);
     catatan.push(
-      pesan.includes('no such table') ? `Tabel ${label} belum dibuat di Turso.` : `${label} gagal dimuat: ${pesan}`
+      tabelTidakAda(pesan) ? `Tabel ${label} belum dibuat di database.` : `${label} gagal dimuat: ${pesan}`
     );
     return [];
   }
@@ -139,7 +140,7 @@ async function ambilPtm(kondisi: string, args: (string | number)[], catatan: str
     const pesan = err instanceof Error ? err.message : String(err);
     if (!adalahGalatKolomBelumAda(pesan)) {
       catatan.push(
-        pesan.includes('no such table') ? 'Tabel posko_ptm_harian belum dibuat di Turso.' : `posko_ptm_harian gagal dimuat: ${pesan}`
+        tabelTidakAda(pesan) ? 'Tabel posko_ptm_harian belum dibuat di database.' : `posko_ptm_harian gagal dimuat: ${pesan}`
       );
       return [];
     }

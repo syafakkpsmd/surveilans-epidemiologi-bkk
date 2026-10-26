@@ -21,10 +21,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   await getTursoClient().execute({
     sql: `INSERT INTO pengawasan_klinik_perbaikan (id, pengawasan_id, item_key, keterangan, tanggal_perbaikan)
           VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(pengawasan_id, item_key) DO UPDATE SET
-            keterangan = excluded.keterangan,
-            tanggal_perbaikan = excluded.tanggal_perbaikan,
-            diisi_pada = datetime('now')`,
+          ON DUPLICATE KEY UPDATE
+            keterangan = VALUES(keterangan),
+            tanggal_perbaikan = VALUES(tanggal_perbaikan),
+            diisi_pada = UTC_TIMESTAMP()`,
     args: [crypto.randomUUID(), pid, itemKey, keterangan, tanggal],
   });
   return NextResponse.json({ ok: true });

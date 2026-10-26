@@ -1,3 +1,4 @@
+import { tabelTidakAda } from '@/lib/db/errors';
 import { getTursoClient } from "@/lib/turso/client";
 
 export interface BarisTb {
@@ -47,7 +48,7 @@ const KOLOM_TB = [
 
 function tabelBelumAda(err: unknown): boolean {
   const pesan = err instanceof Error ? err.message : String(err);
-  return pesan.includes("no such table");
+  return tabelTidakAda(pesan);
 }
 
 /** Daftar wilayah kerja yang ada datanya, untuk isi dropdown filter. */
@@ -71,11 +72,11 @@ export interface FilterTb {
 }
 
 export async function getBarisTb(filter: FilterTb): Promise<BarisTb[]> {
-  const kondisi: string[] = [`strftime('%Y', tanggal_pelaksanaan) = ?`];
+  const kondisi: string[] = [`DATE_FORMAT(tanggal_pelaksanaan, '%Y') = ?`];
   const args: (string | number)[] = [String(filter.tahun)];
 
   if (filter.bulan) {
-    kondisi.push(`strftime('%m', tanggal_pelaksanaan) = ?`);
+    kondisi.push(`DATE_FORMAT(tanggal_pelaksanaan, '%m') = ?`);
     args.push(String(filter.bulan).padStart(2, "0"));
   }
   if (filter.wilker) {

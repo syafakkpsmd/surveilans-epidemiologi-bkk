@@ -28,6 +28,23 @@ Catatan: memori Claude terikat ke akun. Akun baru **tidak** tahu isi chat ini. S
 
 Memindahkan basis data aplikasi EPIC-AI (Next.js) ke **MariaDB 10.11.19** di hosting cPanel kantor, menggantikan dua layanan cloud saat ini: **Turso** dan **Supabase**.
 
+## 1b. Perubahan arah produk (ditetapkan pengguna, 23 Okt 2026)
+
+Setelah migrasi ke MariaDB kantor, **Google Sheets tidak dipakai lagi**:
+- **Data pengukuran harian**: diinput langsung lewat form di aplikasi **dan** bisa diunggah dalam bentuk Excel.
+- **Data rekap dari Sinkarkes**: sambil menunggu API, disediakan tombol **unggah Excel**.
+- Di dashboard, menu **Data → Input Data** memuat sub menu yang menampilkan **seluruh data yang diinput dan diunggah**.
+
+Dampak ke rencana:
+- Sinkronisasi Apps Script ke endpoint API **tidak perlu ditulis ulang** (dibatalkan). Gantinya adalah Tahap 3b di bawah.
+- Tata letak kolom Google Sheet saat ini tetap penting: template Excel dibuat **sama dengan tata letak Sheet**, sehingga file ekspor dari Sheet lama bisa langsung diunggah.
+- Kunci unik lama `(wilayah_kerja, no_baris)` berasal dari nomor baris Sheet dan **tidak cocok** untuk input langsung/Excel; perlu mode unggah yang aman diulang (lihat Tahap 3b).
+
+Keputusan desain unggah (usulan, menunggu konfirmasi):
+- **Pilihan Tahun di dialog unggah: ya, perlu.** Default tahun berjalan, rentang `tahun-5` sampai `tahun+1`. Fungsinya: (1) validasi, baris di luar tahun terpilih ditandai; (2) mode **"ganti data modul + wilayah + tahun"** agar unggah ulang tidak menggandakan baris; (3) mengisi tahun bila file rekap hanya berisi bulan/minggu. Tahun berikutnya dibutuhkan karena Posko Nataru melintasi pergantian tahun.
+- Alur: pilih modul → pilih tahun → pilih file → **pratinjau dan daftar kesalahan per baris** → konfirmasi → tercatat di **riwayat unggah** (siapa, kapan, nama file, jumlah masuk/ditolak).
+- Pustaka: pakai **`exceljs`** (sudah ada di repo, dipakai 9 tempat). Paket npm **`xlsx` 0.18.5 punya kerentanan yang diketahui saat membaca berkas buatan khusus** dan tidak mendapat perbaikan di npm; jangan dipakai untuk membaca unggahan, dan sebaiknya dihapus dari `package.json` bila tidak terpakai. Pakai ulang `components/ui/TombolUnduhTemplateExcel.tsx` dan pola di `lib/karhutla/excel.ts`.
+
 ## 2. Fakta lingkungan (sudah dikonfirmasi dari tangkapan layar)
 
 | Hal | Nilai |
@@ -94,7 +111,10 @@ Tujuan: memastikan hosting sanggup membangun dan menjalankan aplikasi sebelum mi
 - [ ] cPanel (tema Meridian): Websites & Apps → Add Website → Create a subdomain (`next`) → AI App Hosting → Git repository
 - [ ] Isi variabel env di panel (salin dari Vercel; **jangan kirim nilainya ke chat**); set `NEXT_PUBLIC_SITE_URL=https://next.bkksmr.tech`
 - [ ] Supabase → Authentication → URL Configuration: tambahkan `https://next.bkksmr.tech` ke Site URL / Redirect URLs
-- [ ] Catat: versi Node di panel, apakah `next build` selesai (memori), apakah login dan dashboard terbuka, apakah koneksi keluar ke Turso, Supabase, dan Cloudinary berjalan
+- [x] **Percobaan 1 (24 Okt 2026):** Node 22 + npm; `npm install` 36 detik; **kompilasi (63 dtk) dan TypeScript (46 dtk) berhasil, jadi memori server cukup untuk `next build`**. Gagal di tahap "Collecting page data" karena env belum diisi dan tiga file membuat klien saat modul dimuat: `lib/turso/kier.ts` (baris 11), `lib/turso/sklt.ts` (baris 5), dan `components/nasional-emerging/DashboardNasionalEmerging.tsx` (klien Supabase, baris 29). Perbaikan: `perbaikan-build-env.patch` (klien dibuat saat dipakai); **diuji `next build` di sandbox tanpa env sama sekali: berhasil, 144 dtk**.
+- [ ] Terapkan patch ke `main`, isi variabel env di panel (daftar di bawah), **Retry Deploy**, lalu uji: halaman login terbuka, login berhasil, dashboard menampilkan data, koneksi ke Turso/Supabase/Cloudinary jalan. Bila login atau data dari browser gagal, curigai `NEXT_PUBLIC_*` tidak ikut terbaca saat build (panel menyebut env dibaca saat runtime)
+- Env yang dipakai kode: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_URL`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `CRON_SECRET`, `GAS_SYNC_WEBAPP_URL`, `GAS_SYNC_WEBAPP_SECRET`, `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET`, `NASA_FIRMS_MAP_KEY`, `NEXT_PUBLIC_SITE_URL` (isi dengan alamat aplikasi yang dipilih di cPanel)
+- Panel cPanel punya tombol **"Add Database"** yang menyuntikkan detail koneksi sebagai variabel env. Jangan dipakai untuk uji ini (kode masih ke Turso/Supabase). Dipakai pada deploy versi MariaDB; nama variabel yang disuntikkan harus dicek (tombol "Reveal values") lalu disesuaikan dengan `lib/db/client.ts`
 - [ ] Jika build gagal karena memori: build di komputer dengan `output: 'standalone'` lalu deploy lewat "Upload a file"
 - Selama uji, cron Vercel dan Apps Script tetap menunjuk Vercel; jangan dipindah dulu.
 
@@ -105,10 +125,21 @@ Tujuan: memastikan hosting sanggup membangun dan menjalankan aplikasi sebelum mi
 
 **Tahap 3: Modul Turso → MariaDB**
 - [x] `schema/mariadb/01_turso_modules.sql` (19 tabel Turso). Selesai 23 Okt 2026 dan **diuji di MariaDB 10.11.14**: terpasang bersih, bisa dijalankan ulang, upsert `ON DUPLICATE KEY UPDATE`, karakter unicode, CHECK posko, dan mode strict (tanggal tidak valid ditolak, tidak dipotong diam-diam)
-- [ ] Terjemahkan 9 file `strftime`, 3 `datetime('now')`, 4 `ON CONFLICT`, 3 `substr`, 1 `PRAGMA`
+- [x] Terjemahan SQL SQLite → MariaDB di kode aplikasi (24 Okt 2026): `strftime` → `DATE_FORMAT` (24 tempat, 8 file); `datetime('now')` → `UTC_TIMESTAMP()` (5); `ON CONFLICT ... excluded.x` → `ON DUPLICATE KEY UPDATE ... VALUES(x)` (6 pernyataan, 4 file); `CAST(x AS INTEGER)` → `SIGNED` (4); `ORDER BY rowid` → `id` (poliklinik, siaos, sklt) atau `no_baris` (kier) (**ditemukan lewat uji asap**, bukan lewat pencarian teks); galat "no such table" kini lewat `lib/db/errors.ts` (6 file); pembanding `tanggal <> ''` pada kolom DATE dihapus (2). Klien libsql lokal di `tb.ts` dan `poliklinik.ts` dihapus (kini memakai klien bersama). Konstanta HIV dipisah ke `lib/turso/hivKonstanta.ts` karena komponen client tidak boleh menyeret `mysql2` ke bundel browser. Hasil: `tsc` bersih, `next build` berhasil tanpa env, dan **uji asap 77 fungsi query lulus 0 galat** pada MariaDB 10.11 berisi data uji
+- [ ] Jalankan `npx tsx --env-file=.env.local scripts/migrate/uji-asap-query.ts` pada MariaDB lokal berisi **data asli**; semua baris harus `OK`. Lalu bandingkan angka dashboard dengan **angka pembanding** (screenshot dari versi lama)
 - [x] `scripts/migrate/turso-to-mariadb.mjs` (baca Turso, tulis MariaDB, bandingkan jumlah baris). Selesai dan **diuji** dengan sumber SQLite berisi kasus tepi: `--dry-run` tidak menulis; aman diulang; id asal dan AUTO_INCREMENT terjaga; NIK 16 digit utuh; ISO `Z` dan `+08:00` dikonversi ke UTC; unicode dan emoji utuh; BLOB identik; tanggal rusak pada kolom wajib dilewati dan dilaporkan; tanggal rusak pada kolom opsional jadi NULL dan dilaporkan; nilai kepanjangan dicatat sebagai GAGAL (tidak dipotong diam-diam). Laporan di `data-export/migrasi_laporan.txt`
-- [ ] Ubah sinkronisasi Sheets (GAS) agar menulis lewat API aplikasi. **Temuan:** `sql-dan-script/PoskoKirimTurso.gs` menulis langsung ke Turso lewat HTTP pipeline (kunci di Script Properties), dan skrip Apps Script modul lain (HIV, TB, KIER, SKLT, poliklinik, ICV, SIAOS) hidup di Google Sheets, **belum ada di repo**. Pengguna perlu menyalin semuanya ke `sql-dan-script/` (tanpa rahasia). `app/api/sync-stok/route.ts` dan `app/api/klinik/sync-stok/route.ts` memakai `GAS_SYNC_WEBAPP_*`
+- [~] ~~Ubah sinkronisasi Sheets (GAS) agar menulis lewat API~~ **Dibatalkan**: Sheets tidak dipakai lagi (bagian 1b). Digantikan Tahap 3b. File `sql-dan-script/PoskoKirimTurso.gs` dan route `app/api/sync-stok/route.ts`, `app/api/klinik/sync-stok/route.ts` dinonaktifkan/dihapus di Tahap 3b.
+- [x] Data Turso → MariaDB **lokal** dipindahkan oleh pengguna (23 Okt 2026): 19 tabel; 18 lengkap; `data_penumpang_kapal` 221 dari 225 (4 baris dilewati karena tanggal tidak standar: `-`, `01 OKT 2026`, `06 OKT 2026`, `12 OKT 2026`). Skrip diperbarui agar membaca tanggal bernama bulan (Indonesia/Inggris) dan menganggap `-` sebagai kosong; setelah dijalankan ulang 3 baris ikut masuk, 1 baris (`-`) tetap dilewati karena tidak punya tanggal tiba. **Catatan:** dashboard lama mengabaikan baris bertanggal `01 OKT 2026` (strftime menghasilkan NULL), jadi angka Oktober 2026 pada lalu lintas orang akan 3 baris lebih banyak dari dashboard lama; itu koreksi, bukan galat.
 - [ ] Verifikasi: jumlah baris dan agregat (jumlah per bulan) sama dengan sumber
+
+**Tahap 3b: Input data dan unggah Excel (menggantikan Google Sheets)**
+- [x] Klasifikasi modul (dikonfirmasi pengguna 24 Okt 2026). **Rekap Sinkarkes, hanya unggah Excel:** lalu lintas orang (ABK/crew/penumpang pesawat), SIAOS, SKLT. **Input harian langsung + unggah Excel:** poliklinik, HIV, TB, KIER, migrasi malaria, posko, stok vaksin. **Penumpang kapal (`data_penumpang_kapal`): form input manual**, karena datanya diterima langsung dari agen kapal (unggah Excel opsional). **ICV (`data_icv`): belum diklasifikasi**
+- [ ] Skema pendukung: tabel `upload_riwayat` (modul, tahun, nama_file, jumlah_baris, jumlah_masuk, jumlah_ditolak, dibuat_oleh, dibuat_pada); kolom `sumber` (`migrasi`/`input`/`upload`) dan `batch_id` pada tabel data; keputusan kunci unik untuk data non-Sheets
+- [ ] Template Excel per modul (kolom = tata letak Google Sheet saat ini). **Dibutuhkan dari pengguna:** baris judul kolom tiap Sheet (tanpa data)
+- [ ] Alur unggah: modul → tahun → file → pratinjau + kesalahan per baris → konfirmasi → riwayat; parser memakai `exceljs`; batas ukuran file; hanya role berizin
+- [ ] Form input harian per modul
+- [ ] Menu **Data → Input Data**: daftar seluruh data input dan unggahan (filter modul, tahun, wilayah, sumber; ubah, hapus, unduh)
+- [ ] Hapus `xlsx` dari `package.json` bila tidak terpakai; hapus skrip dan route sinkronisasi GAS
 
 **Tahap 4: Supabase → MariaDB**
 - [ ] `schema/mariadb/02_supabase_tables.sql` (tabel)
@@ -165,7 +196,7 @@ Percobaan tambahan jalur 1: lewat SSH Access, cek `node -v`. Kalau belum ada, ta
    (connection string ada di Supabase → Project Settings → Database; pakai di komputer Anda saja). Isinya tabel, view, fungsi, dan policy. Kirim hanya file hasilnya setelah dicek tidak memuat password.
 6. **Supabase Auth:** jumlah akun, dan jawab: apakah password lama harus tetap berlaku, atau semua pengguna boleh reset password?
 7. **Backup:** unduh cadangan penuh Turso dan Supabase ke penyimpanan lokal sebelum migrasi data apa pun.
-8. **Skrip Apps Script:** buka tiap Google Sheet sumber (HIV, TB, KIER, SKLT, poliklinik, ICV, SIAOS, penumpang kapal, migrasi malaria) → Extensions → Apps Script, salin kodenya ke `sql-dan-script/<nama>.gs`. **Hapus URL/token dari kode** (rahasia ada di Script Properties, jangan disalin). Daftar nama proyek dan sheet-nya cukup dikirim ke Claude.
+8. **Judul kolom tiap Google Sheet** (HIV, TB, KIER, SKLT, poliklinik, ICV, SIAOS, penumpang kapal, migrasi malaria, stok vaksin, posko): salin hanya **baris judul** (tanpa data pasien) ke satu file teks atau kirim sebagai tangkapan layar. Dipakai untuk membuat template Excel yang sama persis dengan tata letak Sheet. Skrip Apps Script tidak perlu disalin lagi.
 
 ## 7. Konvensi teknis yang disepakati
 
@@ -177,6 +208,9 @@ Percobaan tambahan jalur 1: lewat SSH Access, cek `node -v`. Kalau belum ada, ta
 - Skema ditaruh di `schema/mariadb/NN_nama.sql`, skrip migrasi di `scripts/migrate/`, bisa dijalankan ulang (idempotent) dan selalu mencetak perbandingan jumlah baris sumber vs tujuan.
 - **Strategi bertahap, bukan sekali pindah:** urutan Turso (modul sinkronisasi) → tabel dan view Supabase → Auth paling akhir. Aplikasi harus **selalu bisa dijalankan** di akhir setiap tahap. Selama Tahap 3 dan 4, Supabase Auth tetap dipakai untuk login sementara data pindah ke MariaDB.
 - Semua pengujian dilakukan **lokal dulu** (MariaDB 10.11 lokal), baru dipasang ke cPanel setelah angka dashboard cocok dengan angka pembanding.
+- **Klien database dan Supabase harus dibuat saat dipakai, bukan di tingkat modul** (`const x = getTursoClient()` di luar fungsi). Build di cPanel membaca env hanya saat runtime, dan `next build` mengevaluasi modul saat "Collecting page data". `lib/db/client.ts` sudah lazy.
+- **Komponen `'use client'` tidak boleh mengimpor modul yang memuat klien database** (langsung atau tidak langsung): `mysql2` memakai `net`/`tls` dan membuat build gagal. Konstanta, tipe, dan fungsi murni yang dipakai komponen client dipisah ke berkas tanpa impor database (contoh: `lib/turso/hivKonstanta.ts`).
+- **Pseudo-kolom SQLite tidak ada di MariaDB:** jangan pakai `rowid`; urutkan dengan `id` atau kolom alami (`no_baris`).
 - **Konfigurasi pool `mysql2`:** `dateStrings: true` (DATE/DATETIME tetap string seperti di SQLite), `decimalNumbers: true` (DECIMAL jadi angka, bukan string), `charset: 'utf8mb4'`, dan setiap koneksi menjalankan `SET time_zone = '+00:00'`.
 - **Pemetaan tipe Postgres → MariaDB (Tahap 4):** `uuid` → `UUID` (tipe asli MariaDB 10.7+) atau `CHAR(36)`; `timestamptz` → `DATETIME` UTC; `jsonb` dan array teks → `LONGTEXT` berisi JSON; `numeric(p,s)` → `DECIMAL(p,s)`; `boolean` → `TINYINT(1)`; `text` → `TEXT`/`VARCHAR` sesuai panjang; `time` → `TIME`.
 
@@ -189,6 +223,9 @@ Percobaan tambahan jalur 1: lewat SSH Access, cek `node -v`. Kalau belum ada, ta
 | 2026-10-23 | Pengguna memilih uji coba lokal di VS Code; dibuat Tahap 1a, skrip `dump-turso-schema.mjs` dan `supabase-schema-export.sql`; ditetapkan urutan Turso → Supabase → Auth | Pengguna menjalankan Tahap 1a dan mengirim `turso_schema.sql`, `turso_rowcounts.txt`, `supabase_schema.json`; Claude mulai Tahap 2 |
 | 2026-10-23 (siang) | Skema Turso, rowcounts, dan skema Supabase diterima dan dianalisis; `schema/mariadb/01_turso_modules.sql` selesai dan lulus uji di MariaDB 10.11.14; ditemukan bentrok nama `hiv_data`/`tb_data`; pengguna memilih uji lokal lalu langsung ke `bkksamarinda.or.id` (belum dikonfirmasi) | Pengguna memuat `01_turso_modules.sql` ke MariaDB lokal; Claude menulis `lib/db` (Tahap 2) dan skrip `scripts/migrate/turso-to-mariadb.mjs` (Tahap 3) |
 | 2026-10-23 (sore) | Tahap 2 selesai: `lib/db/client.ts`, shim `lib/turso/client.ts`, `env.mariadb.example` (18 uji lulus). Skrip `turso-to-mariadb.mjs` selesai dan diuji (dry-run, idempotensi, normalisasi, laporan). Ditemukan: GAS menulis langsung ke Turso; 3 file membuat klien libsql sendiri | Pengguna memasang `mysql2`, memuat skema ke MariaDB lokal, menjalankan `--dry-run` terhadap Turso asli, mengirim `migrasi_laporan.txt` dan skrip Apps Script; Claude menerjemahkan SQL SQLite → MariaDB per modul (Tahap 3) |
+| 2026-10-23 (malam) | Pengguna menjalankan dry-run dan migrasi data ke MariaDB lokal: 18 dari 19 tabel lengkap, 4 baris `data_penumpang_kapal` dilewati (tanggal bernama bulan); skrip diperbaiki dan diuji. Arah produk berubah: Google Sheets ditinggalkan, diganti input langsung + unggah Excel (bagian 1b, Tahap 3b); pengguna sedang di layar "Deploy a Node.js app" cPanel | Pengguna menjalankan ulang migrasi dengan skrip baru, menjawab klasifikasi modul, mengirim judul kolom Sheet; Claude menerjemahkan SQL SQLite → MariaDB per modul dan merancang Tahap 3b |
+| 2026-10-24 | Migrasi ulang lokal: 224 dari 225 baris `data_penumpang_kapal` (1 baris `-` tanpa tanggal tetap dilewati). Deploy percobaan 1 ke cPanel: kompilasi dan TypeScript berhasil, gagal karena klien dibuat saat modul dimuat; `perbaikan-build-env.patch` dibuat dan lulus `next build` tanpa env di sandbox. Klasifikasi modul dikonfirmasi; penumpang kapal = input manual. `lib/db/client.ts` dibuat lazy | Pengguna menerapkan patch ke `main`, mengisi env, Retry Deploy, mengirim hasilnya; Claude lanjut Tahap 3: menerjemahkan SQL SQLite → MariaDB per modul |
+| 2026-10-24 (malam) | Aplikasi berhasil di-deploy di cPanel dan login lancar (hosting terbukti). Terjemahan SQL kode aplikasi selesai di branch `migrasi-mariadb`: `tsc` bersih, `next build` berhasil, uji asap 77 fungsi query lulus. Temuan: `rowid` dan impor konstanta HIV dari komponen client | Pengguna menerapkan `migrasi-mariadb-kode.patch` + berkas baru, menjalankan uji asap pada data asli, membandingkan angka dashboard; Claude lanjut Tahap 3b (input data + unggah Excel) |
 
 ## 9. Risiko yang diketahui
 

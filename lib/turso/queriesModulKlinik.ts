@@ -3,6 +3,7 @@
 // Query generik untuk Poliklinik, KIER Kesehatan, SIAOS, SKLT (lihat modulTabelConfig.ts).
 // Nama tabel & kolom diambil dari config (hardcode), BUKAN dari input user.
 
+import { tabelTidakAda } from '@/lib/db/errors';
 import { getTursoClient } from "@/lib/turso/client";
 import { MODUL_KLINIK, ambilModul, type ModulKey } from "@/lib/klinik/modulTabelConfig";
 
@@ -17,7 +18,7 @@ export interface FilterModul {
 
 function tabelBelumAda(err: unknown): boolean {
   const pesan = err instanceof Error ? err.message : String(err);
-  return pesan.includes("no such table");
+  return tabelTidakAda(pesan);
 }
 
 /** Daftar wilayah kerja yang ada datanya untuk modul tsb (isi dropdown filter). */
@@ -64,6 +65,8 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
     .join(", ");
   const selectWilker = cfg.punyaWilayahKerja ? "wilayah_kerja AS wilker" : "'' AS wilker";
   const urutWilker = cfg.punyaWilayahKerja ? "wilayah_kerja ASC, " : "";
+  // Pengganti rowid SQLite (urutan sisipan). Tabel kier_kesehatan tidak punya kolom id (PK-nya kunci_unik): pakai no_baris.
+  const urutSisipan = modul === "kier" ? "no_baris ASC" : "id ASC";
 
   let hasil;
   try {
@@ -71,7 +74,7 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
       sql: `SELECT ${selectWilker}, ${kolomSql}
             FROM ${cfg.tabel}
             WHERE ${kondisi.join(" AND ")}
-            ORDER BY ${urutWilker}${cfg.kolomTanggal} ASC, rowid ASC`,
+            ORDER BY ${urutWilker}${cfg.kolomTanggal} ASC, ${urutSisipan}`,
       args,
     });
   } catch (err) {

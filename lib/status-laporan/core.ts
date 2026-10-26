@@ -1,3 +1,4 @@
+import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
 /**
  * lib/status-laporan/core.ts
  *
@@ -23,15 +24,7 @@ export type StatusLaporRow = {
  * query wilker_ref tanpa filter), supaya WK08/WK09 (yang ada di
  * wilker_ref tapi tidak relevan untuk surveilans) tidak pernah ikut
  * muncul di sini walau nanti wilker_ref bertambah baris lagi. */
-export const DAFTAR_WILKER = [
-  { kode: 'WK01', nama: 'Pelabuhan Samarinda', jenis: 'Pelabuhan' as const },
-  { kode: 'WK02', nama: 'Pelabuhan Tanjung Santan', jenis: 'Pelabuhan' as const },
-  { kode: 'WK03', nama: 'Pelabuhan Tanjung Laut', jenis: 'Pelabuhan' as const },
-  { kode: 'WK04', nama: 'Pelabuhan Lhoktuan', jenis: 'Pelabuhan' as const },
-  { kode: 'WK05', nama: 'Pelabuhan Sangatta', jenis: 'Pelabuhan' as const },
-  { kode: 'WK06', nama: 'Pelabuhan Sangkulirang', jenis: 'Pelabuhan' as const },
-  { kode: 'WK07', nama: 'Bandara APT Pranoto', jenis: 'Bandara' as const },
-] as const;
+export const DAFTAR_WILKER = WILAYAH_KERJA.map(({ kode, nama, jenis }) => ({ kode, nama, jenis }));
 
 export type KodeWilker = (typeof DAFTAR_WILKER)[number]['kode'];
 

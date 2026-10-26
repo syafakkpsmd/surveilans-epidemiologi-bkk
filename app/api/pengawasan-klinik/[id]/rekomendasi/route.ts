@@ -23,11 +23,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await turso.execute({
     sql: `INSERT INTO pengawasan_klinik_rekomendasi (pengawasan_id, nama_file, ukuran_byte, isi_pdf)
           VALUES (?, ?, ?, ?)
-          ON CONFLICT(pengawasan_id) DO UPDATE SET
-            nama_file = excluded.nama_file,
-            ukuran_byte = excluded.ukuran_byte,
-            isi_pdf = excluded.isi_pdf,
-            diunggah_pada = datetime('now')`,
+          ON DUPLICATE KEY UPDATE
+            nama_file = VALUES(nama_file),
+            ukuran_byte = VALUES(ukuran_byte),
+            isi_pdf = VALUES(isi_pdf),
+            diunggah_pada = UTC_TIMESTAMP()`,
     args: [id, file.name, file.size, buf],
   });
 

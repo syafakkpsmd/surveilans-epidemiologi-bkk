@@ -36,7 +36,7 @@ const angka = (v: unknown): number | null => (v === null || v === undefined || v
 export async function getTahunSklt(): Promise<number[]> {
   const rs = await getTursoClient().execute(
     `SELECT DISTINCT substr(tanggal,1,4) AS t FROM sklt_penumpang
-     WHERE tanggal IS NOT NULL AND tanggal <> '' ORDER BY t DESC`
+     WHERE tanggal IS NOT NULL ORDER BY t DESC`
   );
   return rs.rows.map((r) => Number(r.t)).filter((n) => Number.isFinite(n));
 }

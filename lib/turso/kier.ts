@@ -184,7 +184,7 @@ export async function getDaftarTahunKier(): Promise<number[]> {
   const result = await getTursoClient().execute({
     sql: `SELECT DISTINCT substr(tanggal_pemeriksaan, 1, 4) AS tahun
           FROM kier_kesehatan
-          WHERE tanggal_pemeriksaan IS NOT NULL AND tanggal_pemeriksaan != ''
+          WHERE tanggal_pemeriksaan IS NOT NULL
           ORDER BY tahun DESC`,
   });
   return result.rows.map((r: any) => Number(r.tahun)).filter((t) => !isNaN(t));

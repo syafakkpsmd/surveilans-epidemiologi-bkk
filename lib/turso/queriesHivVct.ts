@@ -1,3 +1,4 @@
+import { tabelTidakAda } from '@/lib/db/errors';
 import { getTursoClient } from "@/lib/turso/client";
 
 // Catatan: tabel di Turso bernama `hiv_data` dengan kolom `wilayah_kerja`
@@ -24,7 +25,7 @@ export interface BarisHivVct {
 
 function tabelBelumAda(err: unknown): boolean {
   const pesan = err instanceof Error ? err.message : String(err);
-  return pesan.includes("no such table");
+  return tabelTidakAda(pesan);
 }
 
 /** Daftar wilayah kerja yang ada datanya, untuk isi dropdown filter. */
@@ -54,11 +55,11 @@ export interface FilterHivVct {
  * tanggal kegiatan. Dipakai untuk generate Excel/PDF unduhan & preview.
  */
 export async function getBarisHivVct(filter: FilterHivVct): Promise<BarisHivVct[]> {
-  const kondisi: string[] = [`strftime('%Y', tanggal_kegiatan) = ?`];
+  const kondisi: string[] = [`DATE_FORMAT(tanggal_kegiatan, '%Y') = ?`];
   const args: (string | number)[] = [String(filter.tahun)];
 
   if (filter.bulan) {
-    kondisi.push(`strftime('%m', tanggal_kegiatan) = ?`);
+    kondisi.push(`DATE_FORMAT(tanggal_kegiatan, '%m') = ?`);
     args.push(String(filter.bulan).padStart(2, "0"));
   }
   if (filter.wilker) {

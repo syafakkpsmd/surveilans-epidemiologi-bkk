@@ -1,3 +1,4 @@
+import { tabelTidakAda } from '@/lib/db/errors';
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getTursoClient } from "@/lib/turso/client";
 
@@ -28,7 +29,7 @@ async function ambilBarisTahun(tahun: number, wilker?: string): Promise<BarisPen
   const hasil = await getTursoClient().execute({
     sql: `SELECT tanggal_tiba, penumpang_datang, penumpang_berangkat
           FROM data_penumpang_kapal
-          WHERE strftime('%Y', tanggal_tiba) = ?${kondisiWilker}`,
+          WHERE DATE_FORMAT(tanggal_tiba, '%Y') = ?${kondisiWilker}`,
     args,
   });
 
@@ -148,7 +149,7 @@ export async function getPenumpangKapalMentah(
       ? [filter.tahun - 1, filter.tahun, filter.tahun + 1]
       : [filter.tahun];
 
-  const kondisiTahun = tahunYangDiambil.map(() => `strftime('%Y', tanggal_tiba) = ?`).join(" OR ");
+  const kondisiTahun = tahunYangDiambil.map(() => `DATE_FORMAT(tanggal_tiba, '%Y') = ?`).join(" OR ");
   const args: (string | number)[] = tahunYangDiambil.map(String);
 
   let kondisiWilker = "";
@@ -168,7 +169,7 @@ export async function getPenumpangKapalMentah(
       args,
     });
   } catch (err) {
-    if (err instanceof Error && err.message.includes("no such table")) return [];
+    if (err instanceof Error && tabelTidakAda(err.message)) return [];
     throw err;
   }
 
@@ -210,7 +211,7 @@ export async function getWilayahKerjaPenumpangKapal(): Promise<string[]> {
     });
     return hasil.rows.map((r: any) => String(r.wilker));
   } catch (err) {
-    if (err instanceof Error && err.message.includes("no such table")) return [];
+    if (err instanceof Error && tabelTidakAda(err.message)) return [];
     throw err;
   }
 }

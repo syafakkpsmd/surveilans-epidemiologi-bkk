@@ -1,4 +1,5 @@
-import type { InValue } from '@libsql/client';
+import { NAMA_PENDEK_BY_KODE } from '@/lib/wilayah-kerja';
+import type { DbValue as InValue } from '@/lib/db/client';
 import { getRentangMingguEpid } from '@/lib/supabase/queriesVektorBreakdown';
 import { getTursoClient } from './client';
 
@@ -167,15 +168,7 @@ function urutkanBreakdown(kolom: KolomKategoriMigrasi, data: BreakdownItem[]): B
  * tidak lengkap, mis. "Sangkulirang" bukan "Pelabuhan Sangkulirang"). Jadi
  * pencocokan pakai kata kunci nama tempat yang khas + LIKE, bukan '=' persis.
  */
-const KODE_KE_KATA_KUNCI_WILKER: Record<string, string> = {
-  WK01: 'Samarinda',
-  WK02: 'Tanjung Santan',
-  WK03: 'Tanjung Laut',
-  WK04: 'Lhoktuan',
-  WK05: 'Sangatta',
-  WK06: 'Sangkulirang',
-  WK07: 'APT Pranoto',
-};
+const KODE_KE_KATA_KUNCI_WILKER: Record<string, string> = NAMA_PENDEK_BY_KODE;
 
 function buildFilterWilker(kodeWilker?: string): { klausa: string; args: InValue[] } {
   if (!kodeWilker || kodeWilker === 'Semua') {
@@ -232,7 +225,7 @@ export async function getRingkasanUtamaMigrasi({
         SUM(CASE WHEN LOWER(hasil_rdt) LIKE 'positif%' THEN 1 ELSE 0 END) AS total_positif_rdt,
         COUNT(DISTINCT wilayah_kerja) AS jumlah_wilker
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
     `,
     args: [String(tahun), ...args],
   });
@@ -274,7 +267,7 @@ export async function getBreakdownKategoriMigrasi({
     sql: `
       SELECT ${kolom} AS kategori, COUNT(*) AS jumlah
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
         AND ${kolom} IS NOT NULL AND TRIM(${kolom}) != ''
       GROUP BY kategori
     `,
@@ -316,7 +309,7 @@ export async function getBreakdownMultiSelectMigrasi({
     sql: `
       SELECT ${kolom} AS nilai
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
         AND ${kolom} IS NOT NULL AND TRIM(${kolom}) != ''
     `,
     args: [String(tahun), ...args],
@@ -356,7 +349,7 @@ export async function getRuteMigrasiTeratas({
     sql: `
       SELECT (TRIM(alamat_asal) || ' → ' || TRIM(alamat_tujuan)) AS rute, COUNT(*) AS jumlah
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
         AND alamat_asal IS NOT NULL AND TRIM(alamat_asal) != ''
         AND alamat_tujuan IS NOT NULL AND TRIM(alamat_tujuan) != ''
       GROUP BY rute
@@ -382,15 +375,15 @@ export async function getDistribusiUsiaMigrasi({
       SELECT
         CASE
           WHEN umur IS NULL OR TRIM(umur) = '' THEN 'Tidak diketahui'
-          WHEN CAST(umur AS INTEGER) < 15 THEN '< 15 tahun'
-          WHEN CAST(umur AS INTEGER) BETWEEN 15 AND 24 THEN '15–24 tahun'
-          WHEN CAST(umur AS INTEGER) BETWEEN 25 AND 44 THEN '25–44 tahun'
-          WHEN CAST(umur AS INTEGER) BETWEEN 45 AND 64 THEN '45–64 tahun'
+          WHEN CAST(umur AS SIGNED) < 15 THEN '< 15 tahun'
+          WHEN CAST(umur AS SIGNED) BETWEEN 15 AND 24 THEN '15–24 tahun'
+          WHEN CAST(umur AS SIGNED) BETWEEN 25 AND 44 THEN '25–44 tahun'
+          WHEN CAST(umur AS SIGNED) BETWEEN 45 AND 64 THEN '45–64 tahun'
           ELSE '≥ 65 tahun'
         END AS kategori,
         COUNT(*) AS jumlah
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?${klausa}
       GROUP BY kategori
       ORDER BY
         CASE kategori
@@ -492,14 +485,14 @@ export async function getTrenBulananRdtGender({
   const hasil = await client.execute({
     sql: `
       SELECT
-        strftime('%m', tanggal_kegiatan) AS bulan,
+        DATE_FORMAT(tanggal_kegiatan, '%m') AS bulan,
         COUNT(*) AS diperiksa,
         SUM(CASE WHEN LOWER(hasil_rdt) LIKE 'positif%' THEN 1 ELSE 0 END) AS positif_rdt,
         SUM(CASE WHEN LOWER(jenis_kelamin) LIKE 'l%' THEN 1 ELSE 0 END) AS laki_laki,
         SUM(CASE WHEN LOWER(jenis_kelamin) LIKE 'p%' THEN 1 ELSE 0 END) AS perempuan
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?
-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
+        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
       GROUP BY bulan
       ORDER BY bulan ASC
     `,
@@ -545,8 +538,8 @@ export async function getBreakdownKapalPesawat({
     sql: `
       SELECT nama_kapal_pesawat AS kategori, COUNT(*) AS jumlah
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?
-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
+        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
         AND nama_kapal_pesawat IS NOT NULL AND TRIM(nama_kapal_pesawat) != ''
       GROUP BY kategori
       ORDER BY jumlah DESC
@@ -578,8 +571,8 @@ export async function getDonatUsiaMigrasiMalaria({ tahun, bulanDari, bulanSampai
         END AS kelompok,
         COUNT(*) AS jumlah
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?
-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
+        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
       GROUP BY kelompok
     `,
     args: [String(tahun), String(bulanDari).padStart(2, "0"), String(bulanSampai).padStart(2, "0"), ...args],
@@ -597,8 +590,8 @@ export async function getDonatPekerjaanMigrasiMalaria({ tahun, bulanDari, bulanS
         COALESCE(NULLIF(MIN(TRIM(pekerjaan)), ''), 'Tidak diisi') AS label,
         COUNT(*) AS jumlah
       FROM migrasi_malaria
-      WHERE strftime('%Y', tanggal_kegiatan) = ?
-        AND strftime('%m', tanggal_kegiatan) BETWEEN ? AND ?${klausa}
+      WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ?
+        AND DATE_FORMAT(tanggal_kegiatan, '%m') BETWEEN ? AND ?${klausa}
       GROUP BY LOWER(TRIM(COALESCE(pekerjaan, '')))
       ORDER BY jumlah DESC
     `,

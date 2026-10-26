@@ -1,18 +1,11 @@
 "use client";
 
+import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
 import { useEffect, useState, useCallback } from "react";
 import { getFasilitas, hapusFasilitas, Fasilitas } from "@/lib/data/fasilitas";
 import FormFasilitas from "./FormFasilitas";
 
-const WILKER_LIST = [
-  { kode: "WK01", nama: "Samarinda" },
-  { kode: "WK02", nama: "Tanjung Santan" },
-  { kode: "WK03", nama: "Tanjung Laut" },
-  { kode: "WK04", nama: "Lhoktuan" },
-  { kode: "WK05", nama: "Sangatta" },
-  { kode: "WK06", nama: "Sangkulirang" },
-  { kode: "WK07", nama: "Bandara APT Pranoto" },
-];
+const WILKER_LIST = OPSI_WILKER_PETA;
 
 export default function KelolaFasilitasClient() {
   const [fasilitasList, setFasilitasList] = useState<Fasilitas[]>([]);

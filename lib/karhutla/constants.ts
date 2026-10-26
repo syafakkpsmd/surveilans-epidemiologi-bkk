@@ -1,3 +1,4 @@
+import { NAMA_PENDEK_BY_KODE } from '@/lib/wilayah-kerja';
 export const DAFTAR_WILAYAH_KARHUTLA = [
   { label: 'Palaran', kode_wilker: 'WK01', zona: 'Palaran' },
   { label: 'Sidomulyo', kode_wilker: 'WK01', zona: 'Sidomulyo' },
@@ -67,15 +68,7 @@ export const LABEL_STATUS: Record<StatusEvaluasi, string> = {
   TIDAK_LENGKAP: 'Data Belum Lengkap',
 };
 
-export const NAMA_WILKER: Record<string, string> = {
-  WK01: 'Samarinda',
-  WK02: 'Tanjung Santan',
-  WK03: 'Tanjung Laut',
-  WK04: 'Lhoktuan',
-  WK05: 'Sangatta',
-  WK06: 'Sangkulirang',
-  WK07: 'APT Pranoto',
-};
+export const NAMA_WILKER: Record<string, string> = NAMA_PENDEK_BY_KODE;
 
 export function buatOpsiWilayahIspa(
   daftarWilayah: { label: string; kode_wilker: string; zona: string | null }[]

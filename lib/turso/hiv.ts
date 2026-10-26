@@ -1,5 +1,9 @@
 import { getTursoClient } from '@/lib/turso/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
+import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from './hivKonstanta';
+
+// Diekspor ulang agar impor lama dari '@/lib/turso/hiv' tetap berfungsi (khusus kode server).
+export { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan };
 
 export interface HivRow {
   wilayah_kerja: string;
@@ -19,7 +23,7 @@ export async function ambilHivRaw(tahun: number): Promise<HivRow[]> {
     sql: `SELECT wilayah_kerja, tanggal_kegiatan, sex, tanggal_lahir, status_perkawinan,
                  kunjungan, hasil, jenis_reagen, hubungan_berisiko
           FROM hiv_data
-          WHERE strftime('%Y', tanggal_kegiatan) = ? AND tanggal_kegiatan IS NOT NULL`,
+          WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ? AND tanggal_kegiatan IS NOT NULL`,
     args: [String(tahun)]
   });
   return result.rows as unknown as HivRow[];
@@ -101,16 +105,6 @@ export function hitungDistribusiUsia(rows: HivRow[]) {
 }
 
 // ===== FORMAT PERIODE =====
-const NAMA_BULAN = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-];
-
-export function formatPeriodeBulanan(periode: string): string {
-  const [tahun, bulan] = periode.split('-');
-  const idx = Number(bulan) - 1;
-  return NAMA_BULAN[idx] ? `${NAMA_BULAN[idx]} ${tahun}` : periode;
-}
 
 // ===== DAFTAR PERIODE PENUH 1 TAHUN (supaya rentang bisa dipilih dari awal tahun) =====
 function buatDaftarPeriodeMingguan(tahun: number): string[] {
@@ -177,8 +171,6 @@ export const hitungDiperiksaReaktifBulanan = (rows: HivRow[], tahun: number) =>
   hitungDiperiksaReaktif(rows, buatDaftarPeriodeBulanan(tahun), ambilPeriodeBulanan);
 
 // ===== TREN PER WILAYAH KERJA x KATEGORI — sekarang full-range juga =====
-export const KATEGORI_HASIL = ['Reaktif', 'Non Reaktif'] as const;
-export const KATEGORI_HUBUNGAN_BERISIKO = ['Ya', 'Tidak'] as const;
 
 function pivotTrenPerWilayahKategori(
   rows: HivRow[],

@@ -1,5 +1,6 @@
 // lib/db/hybrid.ts
-// Masa peralihan (Tahap 4b): login tetap Supabase Auth, DATA dibaca/ditulis ke MariaDB.
+// Tahap 4b/5b: DATA dibaca/ditulis ke MariaDB; identitas pengguna untuk tiruan RLS berasal dari
+// sesi MariaDB (cookie epic_sesi, lib/auth/session.ts), BUKAN lagi dari Supabase Auth.
 // Dipakai lewat lib/supabase/server.ts dan lib/supabase/serviceRole.ts, jadi file pemanggil TIDAK berubah.
 //
 // Saklar: DATA_BACKEND=mariadb (di .env.local). Tanpa itu (atau 'supabase') perilaku lama tidak berubah.
@@ -12,9 +13,8 @@ export function dataDiMariaDb(): boolean {
   return process.env.DATA_BACKEND === 'mariadb';
 }
 
-interface PunyaAuth {
-  auth: { getUser: () => Promise<{ data: { user: { id: string } | null } }> };
-}
+/** Pengguna dari sesi MariaDB (bentuk minimal yang dibutuhkan penjaga RLS). */
+export type AmbilPengguna = () => Promise<{ id: string; role: string } | null>;
 
 /** Bungkus klien Supabase: `.from()` dan `.rpc()` dialihkan ke MariaDB; `.auth` dan lainnya tetap Supabase. */
 function bungkus<T extends object>(klien: T, penjaga?: Penjaga): T {
@@ -28,23 +28,31 @@ function bungkus<T extends object>(klien: T, penjaga?: Penjaga): T {
   });
 }
 
-/** Penjaga RLS untuk satu permintaan: identitas dari sesi Supabase Auth, role dari profiles (MariaDB). */
-export function buatPenjagaDariKlien(klien: PunyaAuth): Penjaga {
+/**
+ * Penjaga RLS untuk satu permintaan: identitas dan role dari sesi MariaDB (`getPengguna`).
+ * `getPengguna` hanya mengembalikan akun berstatus approved dengan sesi yang belum kedaluwarsa/tidak aktif,
+ * jadi akun pending atau sesi mati diperlakukan sebagai anonim (aman: gagal tertutup).
+ * `ambilPengguna` bisa disuntik untuk pengujian.
+ */
+export function buatPenjagaDariSesi(ambilPengguna?: AmbilPengguna): Penjaga {
   const ambilKonteks = async (): Promise<KonteksAuth> => {
-    const { data } = await klien.auth.getUser();
-    const uid = data.user?.id ?? null;
-    if (!uid) return { uid: null, role: null };
-    // profiles dibaca TANPA penjaga (mencari role pengguna itu sendiri).
-    const r = await dbFrom('profiles').select('role').eq('id', uid).maybeSingle();
-    return { uid, role: (r.data?.role as string | undefined) ?? null };
+    try {
+      const baca: AmbilPengguna =
+        ambilPengguna ?? (async () => (await import('@/lib/auth/session')).getPengguna());
+      const p = await baca();
+      return p ? { uid: p.id, role: p.role ?? null } : { uid: null, role: null };
+    } catch (e) {
+      console.error('[rls] gagal membaca sesi, diperlakukan sebagai anonim:', e);
+      return { uid: null, role: null };
+    }
   };
   return buatPenjaga(ambilKonteks);
 }
 
 /** Klien atas nama pengguna yang sedang login (atau anon): RLS ditiru di server. */
-export function pakaiMariaDbUntukPengguna<T extends object & PunyaAuth>(klien: T): T {
+export function pakaiMariaDbUntukPengguna<T extends object>(klien: T): T {
   if (!dataDiMariaDb()) return klien;
-  return bungkus(klien, buatPenjagaDariKlien(klien));
+  return bungkus(klien, buatPenjagaDariSesi());
 }
 
 /** Klien service-role: melewati RLS (sama seperti di Supabase). */

@@ -42,3 +42,9 @@ credentials.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# patch/arsip sementara dari sesi AI: simpan di docs/arsip-patch/, jangan di root
+/*.patch
+/*.zip
+*.rej
+*.orig

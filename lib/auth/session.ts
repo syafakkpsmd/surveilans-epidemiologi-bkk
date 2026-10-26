@@ -8,7 +8,7 @@ export const NAMA_COOKIE = "epic_sesi";
 export const STATUS_AKTIF = "approved"; // terkonfirmasi: ke-14 profil berstatus approved
 const PERAN_DIKENAL = ["admin", "petugas", "petugas_klinik"];
 const UMUR_SESI_HARI = 14;
-const BATAS_TIDAK_AKTIF_MENIT = 25; // sama dengan BATAS_INAKTIVITAS_MS di lib/supabase/middleware.ts
+const BATAS_TIDAK_AKTIF_MENIT = 25; // batas auto-logout; dicek di query getPengguna()
 const MAKS_PERCOBAAN = 5;
 const JENDELA_MENIT = 15;
 
@@ -27,7 +27,6 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export const getPengguna = cache(async (): Promise<Pengguna | null> => {
   const jar = await cookies();
   const token = jar.get(NAMA_COOKIE)?.value;
-  console.log('[auth] getPengguna dipanggil | cookie ada:', !!token);
   if (!token) return null;
   const rows = await sql<any>(
     `SELECT p.id, p.role, p.status, p.nama_lengkap, k.email

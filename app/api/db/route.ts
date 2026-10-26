@@ -1,9 +1,8 @@
 // POST /api/db : jalur data untuk Client Component ketika DATA_BACKEND=mariadb (lihat lib/db/browser-client.ts).
 // Tidak ada akses langsung browser -> database. Setiap permintaan: (1) cek asal, (2) validasi bentuk,
-// (3) identitas dari sesi Supabase Auth, (4) aturan RLS tiruan, (5) baru dieksekusi.
+// (3) identitas dari sesi MariaDB (cookie epic_sesi), (4) aturan RLS tiruan, (5) baru dieksekusi.
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { buatPenjagaDariKlien, dataDiMariaDb } from '@/lib/db/hybrid';
+import { buatPenjagaDariSesi, dataDiMariaDb } from '@/lib/db/hybrid';
 import { jalankanRemote, SpecTidakValid } from '@/lib/db/remote';
 import type { PermintaanRemote } from '@/lib/db/remote';
 
@@ -30,8 +29,7 @@ export async function POST(req: Request) {
     return galat('JSON tidak valid.', 400);
   }
   try {
-    const supabase = await createClient();
-    const hasil = await jalankanRemote(badan, buatPenjagaDariKlien(supabase));
+    const hasil = await jalankanRemote(badan, buatPenjagaDariSesi());
     return NextResponse.json(hasil);
   } catch (e) {
     if (e instanceof SpecTidakValid) return galat(e.message, 400);

@@ -7,7 +7,6 @@
 // Akses: admin dan petugas; hapus khusus admin. Rute memakai MariaDB langsung (tanpa RLS).
 import { NextRequest, NextResponse } from 'next/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
-import { getAuthUser } from '@/lib/auth/getAuthUser';
 import { MAKS_BYTE } from '@/lib/input-data/parse-excel';
 import { belumTerdaftar, daftarMaster, hapusMaster, simpanMaster, terapkanMasterKeData, unggahMaster } from '@/lib/input-data/master';
 
@@ -45,8 +44,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const p = await peran();
   if (typeof p !== 'string') return p;
   const { aksi } = await ctx.params;
-  const { user } = await getAuthUser();
-  const pengguna = user?.email ?? 'tidak diketahui';
+  // const { user } = await getAuthUser();
+  // const pengguna = user?.email ?? 'tidak diketahui';
+  const pengguna = 'tidak diketahui';
   try {
     if (aksi === 'simpan') {
       const b = (await req.json().catch(() => null)) as { nama?: string; negara?: string } | null;

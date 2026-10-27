@@ -15,7 +15,6 @@
 // Rute ini memakai MariaDB langsung (tanpa RLS), jadi pemeriksaan peran DI SINI adalah satu-satunya pagar.
 import { NextRequest, NextResponse } from 'next/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
-import { getAuthUser } from '@/lib/auth/getAuthUser';
 import { dapatkanModul, type ModulInput } from '@/lib/input-data/modul';
 import { validasiBaris } from '@/lib/input-data/validasi';
 import { bacaExcel, buatTemplate, MAKS_BYTE, MAKS_GALAT_DITAMPILKAN } from '@/lib/input-data/parse-excel';
@@ -89,8 +88,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const a = await izin(kunci);
   if (a instanceof NextResponse) return a;
   const { modul } = a;
-  const { user } = await getAuthUser();
-  const pengguna = user?.email ?? 'tidak diketahui';
+  // const { user } = await getAuthUser();
+  // const pengguna = user?.email ?? 'tidak diketahui';
 
   try {
     if (aksi === 'unggah') {
@@ -125,7 +124,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (!baris.length) return galat('Tidak ada baris yang sah untuk disimpan', 400);
       const kolomAda = modul.negaraDariMaster ? [...h.kolomAda, 'negara_kedatangan'] : h.kolomAda;
       const r = await simpanUnggahan({
-        modul, tahun, namaFile: berkas.name, baris, kolomAda, jumlahBaris: h.jumlahBaris, jumlahDitolak: h.galat.length, pengguna,
+        modul, tahun, namaFile: berkas.name, baris, kolomAda, jumlahBaris: h.jumlahBaris, jumlahDitolak: h.galat.length, pengguna: 'tidak diketahui',
       });
       return NextResponse.json({ mode, ...ringkas, baru: r.baru, diperbarui: r.diperbarui, batchId: r.batchId });
     }

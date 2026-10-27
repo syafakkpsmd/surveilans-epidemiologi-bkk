@@ -12,6 +12,8 @@ import type {
   KategoriBreakdownMingguanCop,
 } from "@/types/database.types";
 
+export const dynamic = 'force-dynamic';
+
 // Palette warna-warni yang konsisten per wilayah
 const PALET_WARNA_WILAYAH: Record<string, string> = {
   Samarinda: "bg-[#D97706]",

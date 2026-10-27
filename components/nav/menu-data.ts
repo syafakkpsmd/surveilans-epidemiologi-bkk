@@ -219,15 +219,6 @@ export const ADMIN_GROUP: NavGroup = {
   ],
 };
 
-/** Menu yang boleh dilihat peran ini. Admin menerima ADMIN_GROUP; grup yang kosong dibuang. */
-export function grupUntukPeran(role: PeranAkses): NavGroup[] {
-  const saring = (g: NavGroup): NavGroup => ({
-    ...g,
-    items: g.items.filter((i) => !i.hanyaPeran || i.hanyaPeran.includes(role)),
-  });
-  const hasil = NAV_GROUPS.map(saring).filter((g) => g.items.length > 0);
-  return role === "admin" ? [...hasil, ADMIN_GROUP] : hasil;
-}
 
 export const HREF_BERANDA = "/dashboard";
 

@@ -64,6 +64,13 @@ function tanggalValid(t: number, b: number, h: number): string | null {
   return `${t}-${String(b).padStart(2, '0')}-${String(h).padStart(2, '0')}`;
 }
 
+const NAMA_BULAN: Record<string, number> = {
+  jan: 1, januari: 1, january: 1, feb: 2, februari: 2, february: 2, mar: 3, maret: 3, march: 3, apr: 4, april: 4,
+  mei: 5, may: 5, jun: 6, juni: 6, june: 6, jul: 7, juli: 7, july: 7, agu: 8, agt: 8, agustus: 8, aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9, okt: 10, oktober: 10, oct: 10, october: 10, nov: 11, nop: 11, november: 11,
+  des: 12, desember: 12, dec: 12, december: 12,
+};
+
 /** Terima: Date (sel tanggal Excel), nomor seri Excel, 'YYYY-MM-DD', 'DD/MM/YYYY', 'DD-MM-YYYY', 'DD.MM.YYYY'.
  *  Urutan hari-bulan (Indonesia); 'MM/DD/YYYY' TIDAK ditebak. Hasil 'YYYY-MM-DD'. */
 export function ubahTanggal(v: unknown): Hasil<string | null> {
@@ -86,6 +93,22 @@ export function ubahTanggal(v: unknown): Hasil<string | null> {
   let g = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(s);
   if (g) {
     const r = tanggalValid(+g[1], +g[2], +g[3]);
+    return r ? ok(r) : gagal('tanggal tidak ada di kalender');
+  }
+  // Bulan dengan nama (Indonesia atau Inggris, lengkap atau singkatan): "23 Oktober 2026", "23-Oct-2026", "Oct 23, 2026", "Jumat, 23 Okt 2026".
+  const nama = s.replace(/^[A-Za-z]+,\s*(?=\d)/, '').trim();
+  g = /^(\d{1,2})[\s.\-/]+([A-Za-z]+)\.?[\s.,\-/]+(\d{4})$/.exec(nama);
+  if (g) {
+    const b = NAMA_BULAN[g[2].toLowerCase()];
+    if (!b) return gagal('nama bulan tidak dikenal');
+    const r = tanggalValid(+g[3], b, +g[1]);
+    return r ? ok(r) : gagal('tanggal tidak ada di kalender');
+  }
+  g = /^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(nama);
+  if (g) {
+    const b = NAMA_BULAN[g[1].toLowerCase()];
+    if (!b) return gagal('nama bulan tidak dikenal');
+    const r = tanggalValid(+g[3], b, +g[2]);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender');
   }
   g = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/.exec(s);

@@ -34,6 +34,14 @@ test('tanggal: format yang diterima dan ditolak', () => {
   assert.equal(ubahTanggal('31/02/2026').ok, false);
   assert.equal(ubahTanggal('10/23/2026').ok, false); // bulan 23 tidak ada: tidak ditebak MM/DD
   assert.equal(ubahTanggal('kemarin').ok, false);
+  // nama bulan Indonesia/Inggris: hasil sama apa pun bahasa komputer
+  for (const t of ['23 Oktober 2026', '23-Oct-2026', 'Oct 23, 2026', 'October 23 2026', 'Jumat, 23 Okt 2026', '23 okt. 2026']) {
+    assert.deepEqual(ubahTanggal(t), { ok: true, nilai: '2026-10-23' }, t);
+  }
+  assert.deepEqual(ubahTanggal('17 Agustus 2026'), { ok: true, nilai: '2026-08-17' });
+  assert.deepEqual(ubahTanggal('17 Aug 2026'), { ok: true, nilai: '2026-08-17' });
+  assert.equal(ubahTanggal('31 Februari 2026').ok, false);
+  assert.equal(ubahTanggal('5 Foo 2026').ok, false);
   assert.deepEqual(ubahTanggal(''), { ok: true, nilai: null });
 });
 

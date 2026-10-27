@@ -1,7 +1,7 @@
 import "server-only";
-import { getPenumpangKapalMentah } from "@/lib/turso/queriesPenumpangKapal";
-import { getAbkKapal, type SumberAbkKapal } from "@/lib/supabase/queriesAbkKapal";
-import { getRingkasanPesawatBulanan } from "@/lib/supabase/queriesPesawat";
+import { getPenumpangKapalMentah } from "@/lib/db/modul/queriesPenumpangKapal";
+import { getAbkKapal, type SumberAbkKapal } from "@/lib/db/queries/queriesAbkKapal";
+import { getRingkasanPesawatBulanan } from "@/lib/db/queries/queriesPesawat";
 import { BULAN, fmtAngka, fmtPerubahan, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, temuanDeret } from "./_bantu";

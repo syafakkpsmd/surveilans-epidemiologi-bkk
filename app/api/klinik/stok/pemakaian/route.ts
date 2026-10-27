@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { getStokDenganFilter } from '@/lib/klinik/stok-queries';
 import { ambilTerbit, ambilRusak, JENIS_STOK_LABEL } from '@/lib/klinik/agregasiStok';
 
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     );
   }
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   let query = supabase.from('klinik_binaan').select('id, nama_klinik, kategori, spreadsheet_id');
   if (klinikIds?.length) query = query.in('id', klinikIds);
   const { data: daftarKlinik } = await query;

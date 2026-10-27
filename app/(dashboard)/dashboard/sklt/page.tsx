@@ -1,4 +1,4 @@
-import { getSkltData, getTahunSklt } from '@/lib/turso/sklt';
+import { getSkltData, getTahunSklt } from '@/lib/db/modul/sklt';
 import SkltClient from './SkltClient';
 
 export const dynamic = 'force-dynamic';

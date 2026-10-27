@@ -3,19 +3,19 @@ import {
   getRingkasanMingguan,
   getRingkasanBulanan,
   getWilkerRef,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import {
   getRingkasanPesawatMingguan,
   getRingkasanPesawatBulanan,
-} from "@/lib/supabase/queriesPesawat";
+} from "@/lib/db/queries/queriesPesawat";
 import {
   getPenumpangKapalMingguan,
   getPenumpangKapalBulanan,
-} from "@/lib/turso/queriesPenumpangKapal";
+} from "@/lib/db/modul/queriesPenumpangKapal";
 import {
   getAbkPhqcPerTujuanMingguan,
   getAbkPhqcPerTujuanBulanan,
-} from "@/lib/supabase/queriesPhqcTujuan";
+} from "@/lib/db/queries/queriesPhqcTujuan";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getBanyakHasilAI, type PermintaanHasilAI } from "@/lib/ai/getBanyakHasilAI";
 import AbkCrewPenumpangClient from "./AbkCrewPenumpangClient";

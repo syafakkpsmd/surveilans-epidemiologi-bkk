@@ -3,9 +3,9 @@
 import { redirect } from "next/navigation";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
-import { getWilayahKerjaHiv } from "@/lib/turso/queriesHivVct";
-import { getWilayahKerjaTb } from "@/lib/turso/queriesTb";
-import { getWilayahKerjaModul } from "@/lib/turso/queriesModulKlinik";
+import { getWilayahKerjaHiv } from "@/lib/db/modul/queriesHivVct";
+import { getWilayahKerjaTb } from "@/lib/db/modul/queriesTb";
+import { getWilayahKerjaModul } from "@/lib/db/modul/queriesModulKlinik";
 import { DAFTAR_MODUL_KLINIK, type ModulKey } from "@/lib/klinik/modulTabelConfig";
 import TabelKlinikTabs from "./TabelKlinikTabs";
 

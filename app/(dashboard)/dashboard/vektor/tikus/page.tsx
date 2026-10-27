@@ -4,7 +4,7 @@ import {
   getWilkerRef,
   getUjiLabVektorTikusMingguan,
   getUjiLabVektorTikusBulanan,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { getMingguEpidSaatIni } from "@/lib/epi-week";
 import VektorTikusClient from "./VektorTikusClient";

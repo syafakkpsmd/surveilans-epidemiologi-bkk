@@ -5,9 +5,9 @@ import {
   lolosKodeWilker,
   lolosWilayahKeys,
 } from '@/lib/karhutla/ispaPoliklinik';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
-import { getDaftarWilayahKerjaSkdr } from '@/lib/supabase/queries';
+import { getDaftarWilayahKerjaSkdr } from '@/lib/db/queries/umum';
 import { NAMA_WILKER, hitungStatusEvaluasi, type StatusEvaluasi } from '@/lib/karhutla/constants';
 import {
   petakanLokasiUdaraKeWilker,
@@ -63,7 +63,7 @@ export async function ambilTrenIspaPm25(
   opsi: { wilayahKeys?: string[]; hariTerakhir?: number } = {}
 ): Promise<TitikTrenIspa[]> {
   const { wilayahKeys, hariTerakhir = 30 } = opsi;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const sejakTanggal = new Date();
   sejakTanggal.setDate(sejakTanggal.getDate() - hariTerakhir);
@@ -157,7 +157,7 @@ export async function ambilTrenIspaPm25(
 // ------------------------------------------------------------
 
 export async function ambilHotspotCache(hariTerakhir = 3) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const sejakTanggal = new Date();
   sejakTanggal.setDate(sejakTanggal.getDate() - hariTerakhir);
 
@@ -187,7 +187,7 @@ export interface WilayahIspaRow {
 }
 
 export async function ambilDaftarWilayahIspa(): Promise<WilayahIspaRow[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from('wilayah_ispa')
     .select('id, label, kode_wilker, zona, urutan')
@@ -206,7 +206,7 @@ export interface LokasiUdaraRow {
 }
 
 export async function ambilDaftarLokasiUdara(): Promise<LokasiUdaraRow[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from('lokasi_kualitas_udara')
     .select('id, nama, lokasi_induk, sub_lokasi, urutan')
@@ -244,7 +244,7 @@ export async function ambilPerbandinganIspaHotspot(
   opsi: OpsiPerbandinganIspaHotspot
 ): Promise<TitikPerbandinganIspaHotspot[]> {
   const { granularitas, tahun, periodeAwal, periodeAkhir, wilayahKeys } = opsi;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const filterOr = bangunFilterOrWilayah(wilayahKeys);
 
@@ -392,7 +392,7 @@ export async function ambilPerbandinganSkdrHotspot(
   opsi: OpsiPerbandinganSkdrHotspot
 ): Promise<TitikPerbandinganIspaHotspot[]> {
   const { tahun, periodeAwal, periodeAkhir, wilayahKerja } = opsi;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let querySkdr = supabase
     .from('skdr_mingguan')
@@ -464,7 +464,7 @@ export async function ambilPerbandinganSkdrHotspot(
 
 /** Daftar wilayah_kerja SKDR (taksonomi berbeda dari kode_wilker/zona karhutla). */
 export async function ambilDaftarWilayahKerjaSkdr(): Promise<string[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase.from('view_wilayah_kerja_skdr').select('wilayah_kerja');
   if (error) throw new Error(`Gagal mengambil daftar wilayah kerja SKDR: ${error.message}`);
   return (data ?? []).map((d) => d.wilayah_kerja as string).filter(Boolean);
@@ -485,7 +485,7 @@ export interface BarisTabelIspa {
 }
 
 export async function ambilTabelIspa(hariTerakhir = 90): Promise<BarisTabelIspa[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const sejak = new Date();
   sejak.setDate(sejak.getDate() - hariTerakhir);
 
@@ -537,7 +537,7 @@ export interface BarisTabelKualitasUdara {
 }
 
 export async function ambilTabelKualitasUdara(hariTerakhir = 90): Promise<BarisTabelKualitasUdara[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const sejak = new Date();
   sejak.setDate(sejak.getDate() - hariTerakhir);
 
@@ -581,7 +581,7 @@ export async function ambilTrenHarianRentang(
   opsi: OpsiTrenHarianRentang
 ): Promise<TitikTrenHarianRentang[]> {
   const { tanggalAwal, tanggalAkhir, wilayahKeys, lokasiUdara, parameterUdara = 'pm25' } = opsi;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let queryIspa = supabase
     .from('ispa_harian')
@@ -681,7 +681,7 @@ export interface BarisTabelHotspot {
 }
 
 export async function ambilTabelHotspot(hariTerakhir = 90): Promise<BarisTabelHotspot[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const sejak = new Date();
   sejak.setDate(sejak.getDate() - hariTerakhir);
 
@@ -771,7 +771,7 @@ export type RingkasanInfografisHarian = {
 export async function ambilRingkasanInfografisHarian(
   tanggalDiminta: string
 ): Promise<RingkasanInfografisHarian> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   // --- 1. Tentukan tanggal efektif: fallback ke tanggal terakhir yang ada
   //        data kalau tanggal yang diminta masih kosong (mis. cron belum
@@ -1178,7 +1178,7 @@ export async function ambilRingkasanLaporanKarhutla(
   periodeAkhir: string,
   wilayahKeys: string[]
 ): Promise<RingkasanLaporanKarhutla> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const filterWilker = wilayahKeys.length > 0 ? wilayahKeys : DAFTAR_KODE_WILKER;
 
   // --- 1. Data mentah rentang tanggal (pola sama seperti infografis, tanpa fallback) ---

@@ -11,7 +11,7 @@ import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import {
   getStatusLaporMingguan,
   getStatusLaporBulanan,
-} from '@/lib/supabase/queriesStatusLaporan';
+} from '@/lib/db/queries/queriesStatusLaporan';
 import { buildMatriksMingguan, buildMatriksBulanan } from '@/lib/status-laporan/core';
 import KontrolPeriode from '@/components/status-laporan/KontrolPeriode';
 import TabelMingguan from '@/components/status-laporan/TabelMingguan';

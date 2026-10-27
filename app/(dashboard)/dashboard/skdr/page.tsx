@@ -1,6 +1,6 @@
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
-import { getDaftarWilayahKerjaSkdr, getRingkasanSkdrMingguan } from '@/lib/supabase/queries';
+import { getDaftarWilayahKerjaSkdr, getRingkasanSkdrMingguan } from '@/lib/db/queries/umum';
 import SkdrClient from './SkdrClient';
 
 export default async function SkdrPage() {

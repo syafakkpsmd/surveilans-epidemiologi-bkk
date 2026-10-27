@@ -1,5 +1,5 @@
 import "server-only";
-import { DAFTAR_WILKER_POLIKLINIK, getKunjunganRawData, hitungBreakdownWilker, hitungDonutJenisKelaminKunjungan, hitungDonutKelompokUsia, hitungTopDiagnosa } from "@/lib/turso/poliklinik";
+import { DAFTAR_WILKER_POLIKLINIK, getKunjunganRawData, hitungBreakdownWilker, hitungDonutJenisKelaminKunjungan, hitungDonutKelompokUsia, hitungTopDiagnosa } from "@/lib/db/modul/poliklinik";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah } from "./_bantu";

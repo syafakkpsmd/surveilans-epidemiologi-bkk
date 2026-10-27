@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
-import { getBarisTb } from "@/lib/turso/queriesTb";
+import { getBarisTb } from "@/lib/db/modul/queriesTb";
 
 export const dynamic = "force-dynamic";
 

@@ -1,7 +1,7 @@
 import "server-only";
-import { ambilHivRaw, hitungDistribusi, hitungRingkasanHiv } from "@/lib/turso/hiv";
-import type { HivRow } from "@/lib/turso/hiv";
-import { getWilkerRef } from "@/lib/supabase/queries";
+import { ambilHivRaw, hitungDistribusi, hitungRingkasanHiv } from "@/lib/db/modul/hiv";
+import type { HivRow } from "@/lib/db/modul/hiv";
+import { getWilkerRef } from "@/lib/db/queries/umum";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { persenDari } from "./_bantu";

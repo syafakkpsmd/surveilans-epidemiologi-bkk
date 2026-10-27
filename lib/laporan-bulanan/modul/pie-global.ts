@@ -1,6 +1,6 @@
 import "server-only";
-import { getRingkasanPenyakitEmerging } from "@/lib/supabase/global-emerging-queries";
-import { createClient } from "@/lib/supabase/server";
+import { getRingkasanPenyakitEmerging } from "@/lib/db/queries/global-emerging-queries";
+import { createDbClient } from "@/lib/db/server";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan } from "./_bantu";
@@ -22,7 +22,7 @@ export const modulPieGlobal: ModulLaporan = {
   judul: JUDUL,
   kelompok: "Surveilans",
   async ambil({ tahun, bulanAkhir }: KonteksLaporan): Promise<DataModul | null> {
-    const supabase = await createClient();
+    const supabase = await createDbClient();
     const semua = (await getRingkasanPenyakitEmerging(supabase, { jenis: "bulanan", tahunEpid: tahun })) as unknown as Baris[];
     const baris = semua.filter((b) => Number(b.bulan) >= 1 && Number(b.bulan) <= bulanAkhir).map((b) => ({ ...b, bulan: Number(b.bulan) }));
     if (baris.length === 0) return null;

@@ -4,7 +4,7 @@ import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import type { TitikPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
+import type { TitikPerbandinganIspaHotspot } from '@/lib/db/queries/queries-karhutla-server';
 
 export default function KurvaPerbandinganIspaHotspot({
   data,

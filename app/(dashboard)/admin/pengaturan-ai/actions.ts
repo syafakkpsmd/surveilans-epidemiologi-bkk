@@ -20,7 +20,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getUserRole } from '@/lib/auth/get-user-role';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import type { PengaturanAi, TipeProviderAi } from '@/types/database.types';
 
 async function pastikanAdmin(): Promise<void> {
@@ -57,7 +57,7 @@ export async function tambahProvider(formData: FormData): Promise<void> {
     throw new Error('Tipe provider tidak valid.');
   }
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   // Memisahkan objek payload dan melabelinya dengan `as any`
   // agar tidak terbentur masalah tipe 'never' dari definisi Supabase
@@ -100,7 +100,7 @@ export async function updateProvider(id: number, formData: FormData): Promise<vo
     throw new Error('Tipe provider tidak valid.');
   }
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   // api_key WRITE-ONLY: kosongkan field di form = "tidak diganti".
   // Hanya update kolom api_key kalau admin benar-benar mengisi ulang.
@@ -132,7 +132,7 @@ export async function updateProvider(id: number, formData: FormData): Promise<vo
 export async function hapusProvider(id: number): Promise<void> {
   await pastikanAdmin();
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { error } = await supabase
     .from('pengaturan_ai')
     .delete()

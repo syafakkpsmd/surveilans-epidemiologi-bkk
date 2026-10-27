@@ -1,5 +1,5 @@
 // lib/klinik/dataset-stok.ts
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { getStokTerbaruSemua } from './stok-queries';
 import {
   hitungRingkasanKlinik,
@@ -15,7 +15,7 @@ import {
 const JENIS_DIABAIKAN_JIKA_NOL = ['icv'];
 
 export async function getDatasetStokVaksin() {
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { data: daftarKlinik } = await supabase
     .from('klinik_binaan')
     .select('id, nama_klinik, kategori, spreadsheet_id')

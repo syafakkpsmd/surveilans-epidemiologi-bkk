@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createDbClient } from '@/lib/db/server';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { ambilHotspotKaltim } from '@/lib/nasa-firms/fetchHotspot';
 import { getUserRole } from '@/lib/auth/get-user-role';
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const hari = Number(searchParams.get('hari') ?? '3');
 
-    const supabase = await createClient();
+    const supabase = await createDbClient();
     const sejakTanggal = new Date();
     sejakTanggal.setDate(sejakTanggal.getDate() - hari);
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ pesan: 'Tidak ada hotspot confidence >80% di Kaltim saat ini.', jumlah: 0 });
     }
 
-    const supabase = createAdminClient(); // service role - bypass RLS, khusus operasi sistem/cron
+    const supabase = createDbServiceClient(); // service role - bypass RLS, khusus operasi sistem/cron
 
     const baris = hotspots.map((h) => ({
       latitude: h.latitude,

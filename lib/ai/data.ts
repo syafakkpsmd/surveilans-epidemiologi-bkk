@@ -18,9 +18,9 @@
   getRingkasanPabMingguan,
   getRingkasanRatGuardMingguan, 
   getRingkasanRatGuardBulanan,
-} from '@/lib/supabase/queries';
+} from '@/lib/db/queries/umum';
 import { NAMA_PANJANG_BY_KODE } from '@/lib/wilayah-kerja';
-import { getTrenDiareMultiVariabel, getTrenDiareBulanan, getHasilPengamatanPerWilker, getHasilPengamatanPerWilkerBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
+import { getTrenDiareMultiVariabel, getTrenDiareBulanan, getHasilPengamatanPerWilker, getHasilPengamatanPerWilkerBulanan } from '@/lib/db/queries/queriesVektorDiareEnhanced';
 import type { KategoriCop } from "@/types/domain.types";
 import {
   parsePeriodeMingguan,
@@ -39,12 +39,12 @@ import {
   type PeriodeBulanan,
 } from './periode';
 import { ambilDataAnalisisVektorDbdRentang, type MetrikVektor } from './dataVektor';
-import { getRingkasanPenyakitEmerging } from '@/lib/supabase/global-emerging-queries';
+import { getRingkasanPenyakitEmerging } from '@/lib/db/queries/global-emerging-queries';
 import type { RingkasanPenyakitEmerging, Penyakit, Negara } from '@/types/global-emerging.types';
 import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
-import { createClient } from '@/lib/supabase/server';
-import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/supabase/queriesPesawat';
-import { ambilPerbandinganIspaHotspot, ambilPerbandinganSkdrHotspot } from '@/lib/supabase/queries-karhutla-server';
+import { createDbClient } from '@/lib/db/server';
+import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/db/queries/queriesPesawat';
+import { ambilPerbandinganIspaHotspot, ambilPerbandinganSkdrHotspot } from '@/lib/db/queries/queries-karhutla-server';
 import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
 import {
   getTbRawData,
@@ -52,7 +52,7 @@ import {
   hitungTrenBulananTb,
   hitungCascadeTb,
   hitungBreakdownFaktorRisikoTb, 
-} from '@/lib/turso/tb';
+} from '@/lib/db/modul/tb';
 
 
 export const KONTEKS_TREN = [
@@ -308,7 +308,7 @@ export async function ambilDataAnalisisSkdr(
   periodeKey: string,
   wilayahKerja?: string
 ): Promise<DataAnalisis> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const [tahunStr, mingguStr] = periodeKey.replace('W', '').split('-');
   const tahun = Number(tahunStr);
   const minggu = Number(mingguStr);
@@ -1773,7 +1773,7 @@ async function ambilGlobalEmergingMingguan(
   penyakit: string
 ): Promise<Record<string, number>> {
   if (mgAkhir < mgAwal) return {};
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const rows = await getRingkasanPenyakitEmerging(supabase, {
     jenis: 'mingguan',
     tahunEpid: tahun,
@@ -1790,7 +1790,7 @@ async function ambilGlobalEmergingBulanan(
   penyakit: string
 ): Promise<Record<string, number>> {
   if (blnAkhir < blnAwal) return {};
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const rows = await getRingkasanPenyakitEmerging(supabase, {
     jenis: 'bulanan',
     tahunEpid: tahun,
@@ -1821,7 +1821,7 @@ async function ambilGlobalEmergingRentang(
 ): Promise<{ ringkasan: Record<string, number>; topKategori: { kategori: string; nilai: string; jumlah: number }[] }> {
   if (akhir < awal) return { ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] };
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const rows = await getRingkasanPenyakitEmerging(supabase, {
     jenis,
     tahunEpid: tahun,
@@ -2015,7 +2015,7 @@ async function ambilNasionalEmergingRentang(
 ): Promise<{ ringkasan: Record<string, number>; topKategori: { kategori: string; nilai: string; jumlah: number }[] }> {
   if (akhir < awal) return { ringkasan: { total_kasus: 0, total_kematian: 0 }, topKategori: [] };
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data: rows, error } = await supabase
     .from('laporan_penyakit_nasional')
     .select('propinsi, minggu_epid, jumlah_kasus, jumlah_kematian')
@@ -2328,7 +2328,7 @@ export interface DataSimulasiWabah {
 }
 
 export async function ambilDataSimulasiWabahKapal(simulasiId: string): Promise<DataSimulasiWabah> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from("simulasi_wabah_kapal")
     .select("*, referensi_parameter_penyakit(kategori)")
@@ -2349,7 +2349,7 @@ export async function ambilDataSimulasiWabahKapal(simulasiId: string): Promise<D
 }
 
 export async function ambilDataSimulasiWabahPesawat(simulasiId: string): Promise<DataSimulasiWabah> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from("simulasi_wabah_pesawat")
     .select("*, referensi_parameter_penyakit(kategori)")
@@ -3633,7 +3633,7 @@ export async function ambilDataAnalisisSkdrTren(
   wilayahKerja: string | undefined,
   jenisPenyakitId: number
 ): Promise<DataAnalisis> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const { data: penyakitRow } = await supabase
     .from('skdr_jenis_penyakit')
@@ -3713,7 +3713,7 @@ export async function ambilDataAnalisisSkdrTren(
 // ============================================================
 //
 // 1. Import yang dibutuhkan (sesuaikan path kalau beda):
-//    import { ambilPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
+//    import { ambilPerbandinganIspaHotspot } from '@/lib/db/queries/queries-karhutla-server';
 //    import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
 //
 // 2. Tambahkan 'karhutla-ispa-mingguan' dan 'karhutla-ispa-bulanan' ke:

@@ -1,5 +1,5 @@
 import { tabelTidakAda } from '@/lib/db/errors';
-import { getTursoClient } from "@/lib/turso/client";
+import { getDbClient } from "@/lib/db/client";
 
 export interface BarisTb {
   wilker: string;
@@ -54,7 +54,7 @@ function tabelBelumAda(err: unknown): boolean {
 /** Daftar wilayah kerja yang ada datanya, untuk isi dropdown filter. */
 export async function getWilayahKerjaTb(): Promise<string[]> {
   try {
-    const hasil = await getTursoClient().execute({
+    const hasil = await getDbClient().execute({
       sql: `SELECT DISTINCT wilayah_kerja FROM tb_data ORDER BY wilayah_kerja`,
       args: [],
     });
@@ -86,7 +86,7 @@ export async function getBarisTb(filter: FilterTb): Promise<BarisTb[]> {
 
   let hasil;
   try {
-    hasil = await getTursoClient().execute({
+    hasil = await getDbClient().execute({
       sql: `SELECT wilayah_kerja AS wilker, ${KOLOM_TB.join(", ")}
             FROM tb_data
             WHERE ${kondisi.join(" AND ")}

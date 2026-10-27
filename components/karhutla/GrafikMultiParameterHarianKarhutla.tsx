@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import PilihWilayahMultiSelect from './PilihWilayahMultiSelect';
 import { buatOpsiLokasiUdara } from '@/lib/karhutla/constants';
-import type { LokasiUdaraRow } from '@/lib/supabase/queries-karhutla-server';
+import type { LokasiUdaraRow } from '@/lib/db/queries/queries-karhutla-server';
 
 // PENTING: sesuaikan `id` di bawah ini dengan value parameter yang dipakai
 // di dropdown FilterGrafikHarianKarhutla (mis. 'pm25' | 'pm10' | ...),

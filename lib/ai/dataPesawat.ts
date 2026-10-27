@@ -12,7 +12,7 @@
 // Bulanan) sudah saya lihat lengkap. Metrik 'kota-asal', 'kota-tujuan',
 // 'maskapai-kedatangan', 'maskapai-keberangkatan' BELUM bisa dikerjakan --
 // fungsi sumber datanya (getKotaPesawatBulanan, getMaskapaiPesawatBulanan)
-// ada di '@/lib/supabase/queries' tapi belum pernah saya lihat isinya
+// ada di '@/lib/db/queries/umum' tapi belum pernah saya lihat isinya
 // (bentuk baris/kolomnya). Fungsi ini sengaja melempar error yang jelas
 // untuk keempat metrik itu, bukan menebak struktur datanya.
 //
@@ -36,8 +36,8 @@ import {
   ambilBarisFinal,
   type RingkasanMingguanPesawat,
   type RingkasanBulananPesawat,
-} from '@/lib/supabase/queriesPesawat';
-import { getWilkerRef } from '@/lib/supabase/queries';
+} from '@/lib/db/queries/queriesPesawat';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   parsePeriodeMingguan,
   parsePeriodeBulanan,

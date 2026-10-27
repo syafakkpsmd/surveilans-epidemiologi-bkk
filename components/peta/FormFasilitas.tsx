@@ -2,7 +2,7 @@
 
 import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { createDbBrowserClient } from "@/lib/db/browser-client";
 import { uploadFotoFasilitas } from "@/lib/upload-fasilitas-foto";
 
 interface Props {
@@ -30,7 +30,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
 
   async function uploadFotos(fasilitasId: string, files: FileList | null, kategori: "pelabuhan" | "kegiatan" | "kantor") {
     if (!files || files.length === 0) return;
-    const supabase = createClient();
+    const supabase = createDbBrowserClient();
 
     for (const file of Array.from(files)) {
       const url = await uploadFotoFasilitas(file);
@@ -46,7 +46,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
     e.preventDefault();
     setSaving(true);
     try {
-      const supabase = createClient();
+      const supabase = createDbBrowserClient();
       const payload = {
         kode_wilker: kodeWilker,
         nama, tipe,

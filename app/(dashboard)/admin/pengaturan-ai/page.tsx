@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getUserRole } from '@/lib/auth/get-user-role';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { tambahProvider, updateProvider, hapusProvider } from './actions';
 
 // 1. Tipe data eksplisit untuk mencegah error "Property 'urutan_prioritas' does not exist"
@@ -40,7 +40,7 @@ export default async function PengaturanAiPage() {
     redirect('/dashboard');
   }
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { data: daftarProviderMentah } = await supabase
     .from('pengaturan_ai')
     .select('*')

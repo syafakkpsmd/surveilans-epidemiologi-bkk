@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
-import { getBarisTb, type BarisTb } from "@/lib/turso/queriesTb";
+import { getBarisTb, type BarisTb } from "@/lib/db/modul/queriesTb";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

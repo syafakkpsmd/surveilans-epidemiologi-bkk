@@ -1,5 +1,5 @@
 import "server-only";
-import { getWilkerRef } from "@/lib/supabase/queries";
+import { getWilkerRef } from "@/lib/db/queries/umum";
 import type { SeriTren } from "../types";
 
 const WARNA_WILKER = ["0A7A78", "C9781F", "10293A", "6B8E9B", "2A7A4B", "7A5C99", "3F6FB5"];

@@ -1,5 +1,5 @@
 import { tabelTidakAda } from '@/lib/db/errors';
-import { getTursoClient } from "@/lib/turso/client";
+import { getDbClient } from "@/lib/db/client";
 
 // Catatan: tabel di Turso bernama `hiv_data` dengan kolom `wilayah_kerja`
 // dan `hubungan_berisiko` (dibuat/diisi oleh GAS syncHivKeTurso). Di sini
@@ -31,7 +31,7 @@ function tabelBelumAda(err: unknown): boolean {
 /** Daftar wilayah kerja yang ada datanya, untuk isi dropdown filter. */
 export async function getWilayahKerjaHiv(): Promise<string[]> {
   try {
-    const hasil = await getTursoClient().execute({
+    const hasil = await getDbClient().execute({
       sql: `SELECT DISTINCT wilayah_kerja FROM hiv_data ORDER BY wilayah_kerja`,
       args: [],
     });
@@ -69,7 +69,7 @@ export async function getBarisHivVct(filter: FilterHivVct): Promise<BarisHivVct[
 
   let hasil;
   try {
-    hasil = await getTursoClient().execute({
+    hasil = await getDbClient().execute({
       sql: `SELECT wilayah_kerja AS wilker, no_baris, tanggal_kegiatan, nik, nama, sex, tanggal_lahir,
                    alamat, status_perkawinan, kunjungan, hasil, jenis_reagen,
                    hubungan_berisiko AS hubungan_beresiko

@@ -1,7 +1,7 @@
 import "server-only";
 import { ambilRusak, ambilSatuan, ambilSisaStok, ambilTerbit, JENIS_STOK_LABEL } from "@/lib/klinik/agregasiStok";
 import { getStokDenganFilter } from "@/lib/klinik/stok-queries";
-import { createClient } from "@/lib/supabase/server";
+import { createDbClient } from "@/lib/db/server";
 import { fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, persenDari } from "./_bantu";
@@ -23,7 +23,7 @@ export const modulStokVaksin: ModulLaporan = {
   judul: JUDUL,
   kelompok: "Klinik Binaan BKK",
   async ambil({ tahun, bulanAkhir }: KonteksLaporan): Promise<DataModul | null> {
-    const supabase = await createClient();
+    const supabase = await createDbClient();
     const { data, error } = await supabase.from("klinik_binaan").select("nama_klinik, spreadsheet_id");
     if (error) throw new Error(`Gagal membaca daftar klinik: ${error.message}`);
     const nama = new Map<string, string>();

@@ -11,7 +11,7 @@ import {
   getRingkasanBulanan,
   getKategoriBreakdown,
   getKegiatanPhqcEnriched,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import type { Wilayah, KategoriPhqc, KegiatanPhqcEnriched } from "@/types/database.types";
 import { DonutBreakdown } from "@/components/phqc/DonutBreakdown";

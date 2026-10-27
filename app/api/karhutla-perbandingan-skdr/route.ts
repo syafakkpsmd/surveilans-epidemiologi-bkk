@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ambilPerbandinganSkdrHotspot } from '@/lib/supabase/queries-karhutla-server';
+import { ambilPerbandinganSkdrHotspot } from '@/lib/db/queries/queries-karhutla-server';
 
 /**
  * GET /api/karhutla-perbandingan-skdr

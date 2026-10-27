@@ -18,7 +18,7 @@ import {
   getRingkasanBulanan,
   getKategoriBreakdown,
   getKegiatanCopEnriched,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import type { Wilayah, KategoriCop, KegiatanCopEnriched, RingkasanMingguanCop, RingkasanBulananCop } from "@/types/database.types";
 import PetaNegaraKedatangan from "@/components/cop/PetaNegaraKedatanganClient";

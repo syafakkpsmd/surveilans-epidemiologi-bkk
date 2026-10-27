@@ -1,10 +1,10 @@
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 
 export type BarisIcv = Record<string, string | number | null>;
 
 // Ambil data 1 klinik saja
 export async function getDataIcvBySpreadsheetId(spreadsheetId: string): Promise<BarisIcv[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const result = await client.execute({
     sql: 'SELECT raw_json FROM data_icv WHERE spreadsheet_id = ?',
     args: [spreadsheetId],
@@ -20,7 +20,7 @@ export async function getDatasetKlinikDariTurso(
   const idsValid = daftarSpreadsheetId.filter(Boolean);
   if (idsValid.length === 0) return {};
 
-  const client = getTursoClient();
+  const client = getDbClient();
   const placeholders = idsValid.map(() => '?').join(',');
   const result = await client.execute({
     sql: `SELECT spreadsheet_id, raw_json FROM data_icv WHERE spreadsheet_id IN (${placeholders})`,
@@ -38,7 +38,7 @@ export async function getDatasetKlinikDariTurso(
 // Pencarian by NIK - sekarang query terindeks langsung ke Turso,
 // bukan load semua data dulu baru filter di memory
 export async function cariIcvByNik(nik: string): Promise<BarisIcv[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const result = await client.execute({
     sql: 'SELECT raw_json FROM data_icv WHERE nik = ?',
     args: [nik],

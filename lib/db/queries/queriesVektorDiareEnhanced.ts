@@ -1,5 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
-import { getWilkerRef } from '@/lib/supabase/queries';
+import { createDbClient } from '@/lib/db/server';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 
 export async function getTrenDiareMultiVariabel(
   tahun: number,
@@ -8,7 +8,7 @@ export async function getTrenDiareMultiVariabel(
   mingguAwal?: number,
   mingguAkhir?: number
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let q = supabase
     .from('view_vektor_diare_mingguan')
     .select('*')
@@ -59,7 +59,7 @@ export async function getHasilPengamatanPerWilker(
   mingguAwal?: number,
   mingguAkhir?: number
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let q = supabase
     .from('view_vektor_diare_mingguan')
@@ -128,7 +128,7 @@ export async function getTrenDiareBulanan(
   jenis: 'lalat' | 'kecoa',
   kodeWilker?: string
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let q = supabase
     .from('view_vektor_diare_bulanan')
     .select('*')
@@ -177,7 +177,7 @@ export async function getLokasiTidakMemenuhiSyarat(
   jenis: 'lalat' | 'kecoa',
   kodeWilker?: string
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let q = supabase
     .from('vektor_diare')
     .select('tgl_kegiatan, kode_wilker, lokasi, hasil_pengamatan, tindakan_pengendalian, insektisida_terpakai_ml, luas_area_semprot_m2')
@@ -199,7 +199,7 @@ export async function getHasilPengamatanBulanan(
   jenis: 'lalat' | 'kecoa',
   kodeWilker?: string
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let q = supabase
     .from('view_vektor_diare_bulanan')
     .select('bulan, jml_memenuhi_syarat, jml_pengamatan')
@@ -249,7 +249,7 @@ export async function getHasilPengamatanPerWilkerBulanan(
   bulanAwal: number,
   bulanAkhir: number
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const [resData, daftarWilker] = await Promise.all([
     supabase
       .from('view_vektor_diare_bulanan')
@@ -294,7 +294,7 @@ export interface RekapDiarePerWilker {
 
 /** Rekap per wilayah kerja, Januari sampai bulanAkhir: pengamatan, MS, TMS, insektisida (ml), luas semprot (m²). */
 export async function getRekapDiarePerWilker(tahun: number, jenis: "lalat" | "kecoa", bulanAkhir: number): Promise<RekapDiarePerWilker[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const batas = bulanAkhir >= 12 ? `${tahun + 1}-01-01` : `${tahun}-${String(bulanAkhir + 1).padStart(2, "0")}-01`;
   const { data, error } = await supabase
     .from("vektor_diare")

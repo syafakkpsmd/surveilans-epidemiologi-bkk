@@ -2,11 +2,11 @@
 // app/(dashboard)/dashboard/vektor/anopheles/page.tsx (VERSI BARU)
 // ================================================================
 
-import { getWilkerRef } from '@/lib/supabase/queries';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   getTrenAnophelesDewasa,
   getMetodeTangkap,
-} from '@/lib/supabase/queries'; // sudah digabung ke queries.ts
+} from '@/lib/db/queries/umum'; // sudah digabung ke queries.ts
 import { getUserRole } from '@/lib/auth/get-user-role';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';

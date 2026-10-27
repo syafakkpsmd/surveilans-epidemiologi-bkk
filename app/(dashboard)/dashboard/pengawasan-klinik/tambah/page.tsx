@@ -1,6 +1,6 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/tambah/page.tsx
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import PengawasanKlinikFormClient from './PengawasanKlinikFormClient';
 import RegistrasiOffline from '@/components/pengawasan-klinik/RegistrasiOffline';
@@ -10,7 +10,7 @@ export default async function TambahPengawasanKlinikPage() {
   const { sudahLogin, role } = await getStatusAkses();
   if (!sudahLogin || !role || role === 'tamu') redirect('/login');
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data: daftarKlinik } = await supabase
     .from('klinik_binaan')
     .select('id, nama_klinik')

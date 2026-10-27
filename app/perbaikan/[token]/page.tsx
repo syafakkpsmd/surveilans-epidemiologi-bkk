@@ -5,7 +5,7 @@ import {
   ambilPerbaikan,
 } from '@/lib/pengawasan-klinik/perbaikan';
 import FormPerbaikan from './FormPerbaikan';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +17,7 @@ export default async function HalamanPerbaikan({ params }: { params: Promise<{ t
   const info = await itemTidakSesuai(pid);
   if (!info) notFound();
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data: klinik } = await supabase
     .from('klinik_binaan')
     .select('nama_klinik')

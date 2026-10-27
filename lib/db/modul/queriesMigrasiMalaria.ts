@@ -1,7 +1,7 @@
 import { NAMA_PENDEK_BY_KODE } from '@/lib/wilayah-kerja';
 import type { DbValue as InValue } from '@/lib/db/client';
-import { getRentangMingguEpid } from '@/lib/supabase/queriesVektorBreakdown';
-import { getTursoClient } from './client';
+import { getRentangMingguEpid } from '@/lib/db/queries/queriesVektorBreakdown';
+import { getDbClient } from '@/lib/db/client';
 
 export type RingkasanUtamaMalaria = {
   totalResponden: number;
@@ -198,7 +198,7 @@ function keTanggalIso(nilai: Date | string): string {
 
 /** Daftar wilayah kerja yang benar-benar punya data di tabel migrasi_malaria. */
 export async function getDaftarWilkerMigrasi(): Promise<string[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const hasil = await client.execute(
     `SELECT DISTINCT wilayah_kerja FROM migrasi_malaria
      WHERE wilayah_kerja IS NOT NULL AND TRIM(wilayah_kerja) != ''
@@ -212,7 +212,7 @@ export async function getRingkasanUtamaMigrasi({
   tahun,
   kodeWilker,
 }: FilterPeriode): Promise<RingkasanUtamaMalaria> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
@@ -260,7 +260,7 @@ export async function getBreakdownKategoriMigrasi({
   if (!KOLOM_KATEGORI_DIIZINKAN.includes(kolom)) {
     throw new Error(`Kolom "${kolom}" tidak diizinkan untuk breakdown.`);
   }
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
@@ -302,7 +302,7 @@ export async function getBreakdownMultiSelectMigrasi({
   if (!KOLOM_MULTI_SELECT_DIIZINKAN.includes(kolom)) {
     throw new Error(`Kolom "${kolom}" tidak diizinkan untuk breakdown multi-pilihan.`);
   }
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
@@ -342,7 +342,7 @@ export async function getRuteMigrasiTeratas({
   kodeWilker,
   limit = 10,
 }: FilterPeriode & { limit?: number }): Promise<RuteMigrasi[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
@@ -367,7 +367,7 @@ export async function getDistribusiUsiaMigrasi({
   tahun,
   kodeWilker,
 }: FilterPeriode): Promise<BreakdownItem[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
@@ -407,7 +407,7 @@ export async function getDistribusiUsiaMigrasi({
  * nomor minggu 1–52 dalam tahun `tahun`).
  *
  * Rentang tanggal tiap minggu dihitung lewat getRentangMingguEpid (dari
- * @/lib/supabase/queriesVektorBreakdown) — fungsi yang sama dipakai modul
+ * @/lib/db/queries/queriesVektorBreakdown) — fungsi yang sama dipakai modul
  * vektor lain — supaya definisi "minggu epid" konsisten di seluruh aplikasi,
  * BUKAN reimplementasi sendiri. Satu query agregat dijalankan per minggu
  * (paralel via Promise.all) karena getRentangMingguEpid searah
@@ -426,7 +426,7 @@ export async function getTrenMingguanRdtGender({
   mgSampai: number;
   kodeWilker?: string;
 }): Promise<TitikTrenGenderMinggu[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args: argsWilker } = buildFilterWilker(kodeWilker);
 
   const daftarMinggu: number[] = [];
@@ -477,7 +477,7 @@ export async function getTrenBulananRdtGender({
   bulanSampai: number;
   kodeWilker?: string;
 }): Promise<TitikTrenGenderBulan[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
   const bulanDariStr = String(bulanDari).padStart(2, '0');
   const bulanSampaiStr = String(bulanSampai).padStart(2, '0');
@@ -529,7 +529,7 @@ export async function getBreakdownKapalPesawat({
   kodeWilker?: string;
   limit?: number;
 }): Promise<BreakdownItem[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
   const bulanDariStr = String(bulanDari).padStart(2, '0');
   const bulanSampaiStr = String(bulanSampai).padStart(2, '0');
@@ -555,7 +555,7 @@ type FiltrePeriode = { tahun: number; bulanDari: number; bulanSampai: number; ko
 
 /** Jumlah responden per kelompok usia (urutan kelompok diatur di sisi modul). */
 export async function getDonatUsiaMigrasiMalaria({ tahun, bulanDari, bulanSampai, kodeWilker }: FiltrePeriode): Promise<{ label: string; jumlah: number }[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
   const hasil = await client.execute({
     sql: `
@@ -582,7 +582,7 @@ export async function getDonatUsiaMigrasiMalaria({ tahun, bulanDari, bulanSampai
 
 /** Jumlah responden per pekerjaan (huruf besar/kecil digabung), terbanyak dulu. */
 export async function getDonatPekerjaanMigrasiMalaria({ tahun, bulanDari, bulanSampai, kodeWilker }: FiltrePeriode): Promise<{ label: string; jumlah: number }[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const { klausa, args } = buildFilterWilker(kodeWilker);
   const hasil = await client.execute({
     sql: `

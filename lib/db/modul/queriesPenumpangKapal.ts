@@ -1,6 +1,6 @@
 import { tabelTidakAda } from '@/lib/db/errors';
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
-import { getTursoClient } from "@/lib/turso/client";
+import { getDbClient } from "@/lib/db/client";
 
 // =============================================================
 // Agregat mingguan/bulanan (dipakai chart ABK/Crew/Penumpang) --
@@ -26,7 +26,7 @@ async function ambilBarisTahun(tahun: number, wilker?: string): Promise<BarisPen
     args.push(normalisasiWilker(wilker));
   }
 
-  const hasil = await getTursoClient().execute({
+  const hasil = await getDbClient().execute({
     sql: `SELECT tanggal_tiba, penumpang_datang, penumpang_berangkat
           FROM data_penumpang_kapal
           WHERE DATE_FORMAT(tanggal_tiba, '%Y') = ?${kondisiWilker}`,
@@ -160,7 +160,7 @@ export async function getPenumpangKapalMentah(
 
   let hasil;
   try {
-    hasil = await getTursoClient().execute({
+    hasil = await getDbClient().execute({
       sql: `SELECT wilker, no_baris, tanggal_tiba, tanggal_berangkat, nama_kapal,
                    abk_datang, abk_berangkat, penumpang_datang, penumpang_berangkat, siaos, keterangan
             FROM data_penumpang_kapal
@@ -205,7 +205,7 @@ export async function getPenumpangKapalMentah(
 /** Daftar wilayah kerja yang ada datanya di data_penumpang_kapal, untuk dropdown filter. */
 export async function getWilayahKerjaPenumpangKapal(): Promise<string[]> {
   try {
-    const hasil = await getTursoClient().execute({
+    const hasil = await getDbClient().execute({
       sql: `SELECT DISTINCT wilker FROM data_penumpang_kapal ORDER BY wilker`,
       args: [],
     });

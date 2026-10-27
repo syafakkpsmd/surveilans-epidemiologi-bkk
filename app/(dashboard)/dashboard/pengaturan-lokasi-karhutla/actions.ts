@@ -3,7 +3,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getUserRole } from '@/lib/auth/get-user-role';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 
 async function pastikanAdmin() {
   const role = await getUserRole();
@@ -12,7 +12,7 @@ async function pastikanAdmin() {
 
 export async function tambahWilayahIspa(formData: FormData) {
   await pastikanAdmin();
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   const { error } = await supabase.from('wilayah_ispa').insert({
     label: formData.get('label') as string,
@@ -29,7 +29,7 @@ export async function tambahWilayahIspa(formData: FormData) {
 
 export async function hapusWilayahIspa(id: string) {
   await pastikanAdmin();
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   const { error } = await supabase.from('wilayah_ispa').delete().eq('id', id);
   if (error) throw new Error(`Gagal menghapus wilayah: ${error.message}`);
@@ -41,7 +41,7 @@ export async function hapusWilayahIspa(id: string) {
 
 export async function perbaruiWilayahIspa(id: string, formData: FormData) {
   await pastikanAdmin();
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   const { error } = await supabase
     .from('wilayah_ispa')
@@ -60,7 +60,7 @@ export async function perbaruiWilayahIspa(id: string, formData: FormData) {
 
 export async function perbaruiLokasiUdara(id: string, formData: FormData) {
   await pastikanAdmin();
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   const lokasiInduk = formData.get('lokasi_induk') as string;
   const subLokasi = (formData.get('sub_lokasi') as string) || null;
@@ -83,7 +83,7 @@ export async function perbaruiLokasiUdara(id: string, formData: FormData) {
 
 export async function tambahLokasiUdara(formData: FormData) {
   await pastikanAdmin();
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   const lokasiInduk = formData.get('lokasi_induk') as string;
   const subLokasi = (formData.get('sub_lokasi') as string) || null;
@@ -104,7 +104,7 @@ export async function tambahLokasiUdara(formData: FormData) {
 
 export async function hapusLokasiUdara(id: string) {
   await pastikanAdmin();
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   const { error } = await supabase.from('lokasi_kualitas_udara').delete().eq('id', id);
   if (error) throw new Error(`Gagal menghapus lokasi: ${error.message}`);

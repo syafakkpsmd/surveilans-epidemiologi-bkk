@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 
 export const runtime = 'nodejs';
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ fotoId: string }> }) {
   const { fotoId } = await params;
-  const r = await getTursoClient().execute({
+  const r = await getDbClient().execute({
     sql: 'SELECT isi_foto FROM pengawasan_klinik_perbaikan_foto WHERE id = ?',
     args: [fotoId],
   });

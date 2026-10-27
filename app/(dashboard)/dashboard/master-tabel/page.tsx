@@ -17,11 +17,11 @@ import {
   getRingkasanRatGuardBulanan,
   getRingkasanVektorTikusBulanan,
   getWilkerRef,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import {
   getMasterVektorDbdAktivitasBulanan,
   getMasterVektorDiareBulananPerWilker,
-} from "@/lib/supabase/queriesMasterTabel";
+} from "@/lib/db/queries/queriesMasterTabel";
 import MasterTabelClient from "@/components/master-tabel/MasterTabelClient";
 
 type PageProps = {

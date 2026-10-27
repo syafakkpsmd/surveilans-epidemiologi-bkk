@@ -8,17 +8,17 @@
 // Hasil "OK (n)" berarti query jalan dan mengembalikan n baris/entri. "OK (0)" tidak selalu salah:
 // bisa saja memang tidak ada data pada filter itu. "GALAT" berarti ada yang harus diperbaiki.
 import { tutupDb } from '@/lib/db/client';
-import * as hiv from '@/lib/turso/hiv';
-import * as kier from '@/lib/turso/kier';
-import * as sklt from '@/lib/turso/sklt';
-import * as tb from '@/lib/turso/tb';
-import * as poli from '@/lib/turso/poliklinik';
-import * as qTb from '@/lib/turso/queriesTb';
-import * as qHiv from '@/lib/turso/queriesHivVct';
-import * as mal from '@/lib/turso/queriesMigrasiMalaria';
-import * as modul from '@/lib/turso/queriesModulKlinik';
-import * as kapal from '@/lib/turso/queriesPenumpangKapal';
-import * as siaos from '@/lib/turso/queriesSiaos';
+import * as hiv from '@/lib/db/modul/hiv';
+import * as kier from '@/lib/db/modul/kier';
+import * as sklt from '@/lib/db/modul/sklt';
+import * as tb from '@/lib/db/modul/tb';
+import * as poli from '@/lib/db/modul/poliklinik';
+import * as qTb from '@/lib/db/modul/queriesTb';
+import * as qHiv from '@/lib/db/modul/queriesHivVct';
+import * as mal from '@/lib/db/modul/queriesMigrasiMalaria';
+import * as modul from '@/lib/db/modul/queriesModulKlinik';
+import * as kapal from '@/lib/db/modul/queriesPenumpangKapal';
+import * as siaos from '@/lib/db/modul/queriesSiaos';
 import * as posko from '@/lib/posko/queries';
 import * as llo from '@/lib/status-laporan/queriesLaluLintasOrang';
 import * as ispa from '@/lib/karhutla/ispaPoliklinik';

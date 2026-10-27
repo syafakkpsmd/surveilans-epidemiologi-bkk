@@ -1,10 +1,10 @@
 // Uji jalur browser -> /api/db: QueryBrowser (pencatat) -> JSON -> jalankanRemote -> MariaDB + RLS tiruan.
 // fetch dipalsukan agar tidak perlu server Next; isi permintaan tetap melewati JSON.stringify/parse seperti di jaringan.
-//   NEXT_PUBLIC_DATA_BACKEND=mariadb DB_USER=epic DB_PASSWORD=epic DB_NAME=epic DB_SOCKET=/run/mysqld/mysqld.sock \
+//   DB_USER=epic DB_PASSWORD=epic DB_NAME=epic DB_SOCKET=/run/mysqld/mysqld.sock \
 //     npx tsx --test --test-force-exit scripts/migrate/uji-remote.ts
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { pakaiMariaDbDiBrowser } from '../../lib/db/browser-client';
+import { createDbBrowserClient } from '../../lib/db/browser-client';
 import { jalankanRemote, periksaSpec, SpecTidakValid } from '../../lib/db/remote';
 import { buatPenjaga } from '../../lib/db/rls';
 import type { KonteksAuth } from '../../lib/db/rls';
@@ -24,7 +24,7 @@ let konteks: KonteksAuth = { uid: null, role: null };
   return { json: async () => JSON.parse(JSON.stringify(hasil)) };
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const sb: any = pakaiMariaDbDiBrowser({ auth: { ok: true } });
+const sb: any = createDbBrowserClient();
 const db = () => getDbClient();
 const PETUGAS: KonteksAuth = { uid: '11111111-1111-1111-1111-111111111111', role: 'petugas' };
 
@@ -37,9 +37,10 @@ after(async () => {
   await tutupDb();
 });
 
-test('.auth tetap milik klien asli, .from/.rpc dialihkan', () => {
-  assert.deepEqual(sb.auth, { ok: true });
+test('klien browser hanya punya .from dan .rpc', () => {
   assert.equal(typeof sb.from, 'function');
+  assert.equal(typeof sb.rpc, 'function');
+  assert.equal(sb.auth, undefined);
 });
 
 test('baca lewat browser: filter, order, range, count, or() tanpa login', async () => {

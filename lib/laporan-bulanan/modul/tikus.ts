@@ -1,5 +1,5 @@
 import "server-only";
-import { getRingkasanVektorTikusBulanan, getUjiLabVektorTikusBulanan, getWilkerRef } from "@/lib/supabase/queries";
+import { getRingkasanVektorTikusBulanan, getUjiLabVektorTikusBulanan, getWilkerRef } from "@/lib/db/queries/umum";
 import { fmtAngka, labelBulanan, labelRentang } from "../periode";
 import { desimal, jumlah, jumlahPerBulan, persenDari, petaNamaWilker } from "./_bantu";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";

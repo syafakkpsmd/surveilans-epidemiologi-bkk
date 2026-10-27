@@ -6,8 +6,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { ambilTabLaluLintas } from "@/lib/lalulintas/config";
-import { getPenumpangKapalMentah } from "@/lib/turso/queriesPenumpangKapal";
-import { getAbkKapal, type SumberAbkKapal } from "@/lib/supabase/queriesAbkKapal";
+import { getPenumpangKapalMentah } from "@/lib/db/modul/queriesPenumpangKapal";
+import { getAbkKapal, type SumberAbkKapal } from "@/lib/db/queries/queriesAbkKapal";
 
 export const dynamic = "force-dynamic";
 

@@ -13,7 +13,7 @@ import {
   hitungBreakdownWilker,
   hitungPolaHariKunjungan,
   DAFTAR_WILKER_POLIKLINIK,
-} from '@/lib/turso/poliklinik';
+} from '@/lib/db/modul/poliklinik';
 import PoliklinikClient from './PoliklinikClient';
 
 export const dynamic = 'force-dynamic';

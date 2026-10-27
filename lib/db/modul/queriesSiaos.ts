@@ -1,4 +1,4 @@
-import { getTursoClient } from "@/lib/turso/client";
+import { getDbClient } from "@/lib/db/client";
 
 export type SiaosRow = {
   id: number;
@@ -57,7 +57,7 @@ function keObjekBiasa(row: unknown): SiaosRow {
 }
 
 export async function ambilDataSiaos(): Promise<SiaosRow[]> {
-  const turso = getTursoClient();
+  const turso = getDbClient();
   const result = await turso.execute(
     `SELECT ${DAFTAR_KOLOM} FROM siaos ORDER BY tanggal DESC`
   );
@@ -65,7 +65,7 @@ export async function ambilDataSiaos(): Promise<SiaosRow[]> {
 }
 
 export async function ambilDataSiaosByWilayahKerja(wilayahKerja: string): Promise<SiaosRow[]> {
-  const turso = getTursoClient();
+  const turso = getDbClient();
   const result = await turso.execute({
     sql: `SELECT ${DAFTAR_KOLOM} FROM siaos WHERE wilayah_kerja = ? ORDER BY tanggal DESC`,
     args: [wilayahKerja],

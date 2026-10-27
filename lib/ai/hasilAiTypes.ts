@@ -8,7 +8,7 @@
  * TtuClient.tsx, dst).
  *
  * ATURAN PENTING:
- * - File ini TIDAK BOLEH mengimpor apa pun dari lib/supabase/server.ts
+ * - File ini TIDAK BOLEH mengimpor apa pun dari lib/db/server.ts
  *   (atau apa pun yang akhirnya mengimpor next/headers) -- kalau
  *   ditambahkan, error "next/headers only available in Server
  *   Components" akan muncul lagi di semua client component yang

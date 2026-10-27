@@ -1,5 +1,5 @@
 import InfografisClient from './InfografisClient';
-import { ambilRingkasanInfografisHarian } from '@/lib/supabase/queries-karhutla-server';
+import { ambilRingkasanInfografisHarian } from '@/lib/db/queries/queries-karhutla-server';
 import { tanggalWitaHariIni } from '@/lib/karhutla/infografis-utils';
 
 export const dynamic = 'force-dynamic';

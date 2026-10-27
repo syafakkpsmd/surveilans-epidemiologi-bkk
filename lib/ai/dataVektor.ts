@@ -2,9 +2,9 @@
 // lib/ai/dataVektor.ts
 // ================================================================
 
-import { createClient } from '@/lib/supabase/server';
-import { getRentangMingguEpid, getBreakdownKategori } from '@/lib/supabase/queriesVektorBreakdown';
-import { getWilkerRef } from '@/lib/supabase/queries';
+import { createDbClient } from '@/lib/db/server';
+import { getRentangMingguEpid, getBreakdownKategori } from '@/lib/db/queries/queriesVektorBreakdown';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   parsePeriodeMingguan,
   parsePeriodeBulanan,
@@ -83,7 +83,7 @@ async function ringkasVektorDbdRentang(
   tglSelesai: string,
   kodeWilker: string | undefined
 ): Promise<Record<string, number>> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('vektor_dbd')
     .select(KOLOM_VEKTOR_DBD)
@@ -127,7 +127,7 @@ async function breakdownWilayahVektorDbd(
   tglMulai: string,
   tglSelesai: string
 ): Promise<{ wilayah: string; jumlah: number }[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const [{ data, error }, daftarWilker] = await Promise.all([
     supabase
       .from('vektor_dbd')

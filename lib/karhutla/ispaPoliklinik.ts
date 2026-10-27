@@ -9,7 +9,7 @@
 //    (usia kosong/tidak terbaca dihitung dewasa).
 //  - Tanggal yang ADA kunjungan poliklinik: data ISPA zona itu diambil dari poliklinik (0 bila tidak
 //    ada kasus ISPA). Tanggal tanpa kunjungan sama sekali: tetap memakai input manual ispa_harian.
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 
 /** Anak = usia di bawah angka ini (tahun). UBAH di sini bila batas anak/dewasa Karhutla berbeda. */
 export const BATAS_UMUR_ANAK = 15;
@@ -56,7 +56,7 @@ export async function ambilIspaDariPoliklinik(
   try {
     const baris: BarisIspaPoliklinik[] = [];
     for (const z of ZONA_ISPA_DARI_POLIKLINIK) {
-      const hasil = await getTursoClient().execute({
+      const hasil = await getDbClient().execute({
         sql: SQL_ISPA_POLIKLINIK,
         args: [z.wilayahPoliklinik, tanggalAwal, tanggalAkhir],
       });

@@ -9,7 +9,7 @@ import {
 import type {
   RingkasanKier, TitikMingguan, TitikBulanan,
   TitikMingguanPerWilker, TitikBulananPerWilker,
-} from '@/lib/turso/kier';
+} from '@/lib/db/modul/kier';
 
 const WARNA_TEAL = '#0d9488';
 const WARNA_NAVY = '#1e3a5f';

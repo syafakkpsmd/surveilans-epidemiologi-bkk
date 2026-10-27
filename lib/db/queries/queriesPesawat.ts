@@ -13,7 +13,7 @@
  */
 
 import { cache } from 'react';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { getDbClient } from '@/lib/db/client';
 
 // ---------------------------------------------------------------------
@@ -454,7 +454,7 @@ export async function getRingkasanGenderBulanan({
   bulanDari?: string;
   bulanSampai?: string;
 }): Promise<RingkasanGenderBulanan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const UKURAN_HALAMAN = 1000;
   let semuaBaris: any[] = [];

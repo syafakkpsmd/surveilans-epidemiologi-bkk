@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ambilRingkasanInfografisHarian } from '@/lib/supabase/queries-karhutla-server';
+import { ambilRingkasanInfografisHarian } from '@/lib/db/queries/queries-karhutla-server';
 import { tanggalWitaHariIni } from '@/lib/karhutla/infografis-utils';
 
 const POLA_TANGGAL = /^\d{4}-\d{2}-\d{2}$/;

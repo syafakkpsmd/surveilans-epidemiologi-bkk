@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ambilPerbandinganIspaHotspot } from '@/lib/supabase/queries-karhutla-server';
+import { ambilPerbandinganIspaHotspot } from '@/lib/db/queries/queries-karhutla-server';
 
 export async function GET(request: NextRequest) {
   try {

@@ -1,5 +1,5 @@
-import { getTursoClient } from '@/lib/turso/client';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { getDbClient } from '@/lib/db/client';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 
 export type KlinikBelumTerdaftar = {
   spreadsheetId: string;
@@ -7,7 +7,7 @@ export type KlinikBelumTerdaftar = {
 };
 
 export async function cekKlinikBaru(): Promise<KlinikBelumTerdaftar[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
 
   // Ambil spreadsheet_id + nama_klinik unik dari KEDUA tabel - jaga-jaga klinik baru
   // yang baru punya data stok tapi belum ada data ICV, atau sebaliknya.
@@ -23,7 +23,7 @@ export async function cekKlinikBaru(): Promise<KlinikBelumTerdaftar[]> {
     if (id && !petaTurso.has(id)) petaTurso.set(id, nama);
   }
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { data: sudahTerdaftar } = await supabase.from('klinik_binaan').select('spreadsheet_id');
   const idSudahAda = new Set((sudahTerdaftar ?? []).map((k) => k.spreadsheet_id).filter(Boolean));
 

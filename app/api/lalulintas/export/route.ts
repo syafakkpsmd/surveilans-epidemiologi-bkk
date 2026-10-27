@@ -13,8 +13,8 @@ import ExcelJS from "exceljs";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehUnduhLaluLintas } from "@/lib/auth/aksesLaluLintas";
 import { ambilTabLaluLintas } from "@/lib/lalulintas/config";
-import { getPenumpangKapalMentah } from "@/lib/turso/queriesPenumpangKapal";
-import { getAbkKapal, type SumberAbkKapal } from "@/lib/supabase/queriesAbkKapal";
+import { getPenumpangKapalMentah } from "@/lib/db/modul/queriesPenumpangKapal";
+import { getAbkKapal, type SumberAbkKapal } from "@/lib/db/queries/queriesAbkKapal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

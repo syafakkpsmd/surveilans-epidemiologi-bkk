@@ -1,5 +1,5 @@
 import "server-only";
-import { getRingkasanRatGuardBulanan } from "@/lib/supabase/queries";
+import { getRingkasanRatGuardBulanan } from "@/lib/db/queries/umum";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, jumlahPerWilker, persenDari, temuanPoin } from "./_bantu";

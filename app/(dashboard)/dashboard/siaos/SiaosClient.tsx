@@ -16,7 +16,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
-import type { SiaosRow } from '@/lib/turso/queriesSiaos';
+import type { SiaosRow } from '@/lib/db/modul/queriesSiaos';
 
 const DAFTAR_LOKASI = ['Samarinda', 'APT Pranoto', 'Lhoktuan'] as const;
 

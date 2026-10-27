@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
-import { bacaFilterModul, getBarisModul } from "@/lib/turso/queriesModulKlinik";
+import { bacaFilterModul, getBarisModul } from "@/lib/db/modul/queriesModulKlinik";
 
 export const dynamic = "force-dynamic";
 

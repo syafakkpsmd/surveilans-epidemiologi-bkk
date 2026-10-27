@@ -5,7 +5,7 @@
 // "ambil 12 data survei terakhir untuk wilker ini".
 // ================================================================
 
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 // Mengembalikan path import ke yang asli dan valid sesuai struktur folder Anda
 import type { WilkerRef, Database } from '@/types/database.types';
 
@@ -35,7 +35,7 @@ export function getMusimBerjalan(): string {
 }
 
 export async function getWilkerByKode(kodeWilker: string): Promise<WilkerRef | null> {
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { data } = await supabase.from('wilker_ref').select('*').eq('kode', kodeWilker).single();
   return data ?? null;
 }
@@ -52,7 +52,7 @@ export async function ambil12BarisTerakhir(params: {
   filterTambahan?: Record<string, string>;
 }): Promise<Record<string, unknown>[]> {
   const { tabel, kolomTanggal, kodeWilker, filterTambahan } = params;
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   // Casting dinamis ganda agar lolos dari verifikasi strict tables/views Supabase
   let query = (supabase.from(tabel as any) as any)

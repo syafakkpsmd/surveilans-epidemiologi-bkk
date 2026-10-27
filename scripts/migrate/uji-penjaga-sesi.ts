@@ -1,8 +1,8 @@
-// Uji penjaga RLS berbasis sesi MariaDB (lib/db/hybrid.ts: buatPenjagaDariSesi). Murni, tanpa database.
-//   npx tsx --test scripts/migrate/uji-hybrid-sesi.ts
+// Uji penjaga RLS berbasis sesi MariaDB (lib/db/penjaga-sesi.ts: buatPenjagaDariSesi). Murni, tanpa database.
+//   npx tsx --test scripts/migrate/uji-penjaga-sesi.ts
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buatPenjagaDariSesi } from '../../lib/db/hybrid';
+import { buatPenjagaDariSesi } from '../../lib/db/penjaga-sesi';
 
 const ID = '11111111-1111-1111-1111-111111111111';
 

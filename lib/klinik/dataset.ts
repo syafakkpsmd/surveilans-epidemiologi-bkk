@@ -1,11 +1,11 @@
 // lib/klinik/dataset.ts
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
-import { getTursoClient } from '@/lib/turso/client';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
+import { getDbClient } from '@/lib/db/client';
 
 export type BarisIcv = Record<string, string | number | null>;
 
 export async function getDatasetKlinik() {
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { data: daftarKlinik } = await supabase
     .from('klinik_binaan')
     .select('id, nama_klinik, kategori, jenis_fasilitas, kabupaten_kota, spreadsheet_id')
@@ -20,7 +20,7 @@ export async function getDatasetKlinik() {
 
   if (idsValid.length > 0) {
     try {
-      const client = getTursoClient();
+      const client = getDbClient();
       const placeholders = idsValid.map(() => '?').join(',');
       const result = await client.execute({
         sql: `SELECT spreadsheet_id, raw_json FROM data_icv WHERE spreadsheet_id IN (${placeholders})`,

@@ -1,4 +1,4 @@
-import { ambilDataSiaos } from '@/lib/turso/queriesSiaos';
+import { ambilDataSiaos } from '@/lib/db/modul/queriesSiaos';
 import SiaosClient from './SiaosClient';
 
 // Data selalu diambil langsung dari Turso saat request, tidak di-cache statis

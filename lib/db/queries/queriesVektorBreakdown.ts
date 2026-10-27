@@ -1,8 +1,8 @@
 // ================================================================
-// lib/supabase/queriesVektorBreakdown.ts
+// lib/db/queries/queriesVektorBreakdown.ts
 // ================================================================
 
-import { createClient } from './server';
+import { createDbClient } from '@/lib/db/server';
 
 export function getRentangMingguEpid(
   tahun: number,
@@ -37,7 +37,7 @@ export async function getBreakdownKategori(params: {
   const { tabel, kolomTanggal, kolomKategori, tglMulai, tglSelesai, kodeWilker, filterTambahan } =
     params;
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   // `tabel` sengaja generik (string) karena fungsi ini dipanggil untuk
   // macam-macam tabel/view vektor secara dinamis -- Supabase client
   // tidak bisa infer union literal-nya di titik ini. Type safety untuk
@@ -91,7 +91,7 @@ export async function getRingkasanVektorDbdRentang(filter: {
   }[]
 > {
   const { tahun, mgDari, mgSampai, kodeWilker, zona, subLokasi } = filter;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let tglMulai: string;
   let tglSelesai: string;
@@ -166,7 +166,7 @@ export async function getRingkasanVektorDbdBulanan(filter: {
   }[]
 > {
   const { tahun, kodeWilker, zona, subLokasi, bulanDari, bulanSampai } = filter;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let tglMulai: string;
   let tglSelesai: string;
@@ -256,7 +256,7 @@ export async function getRingkasanVektorAktivitasMingguan(filter: {
   subLokasi?: string;
 }): Promise<AktivitasMingguan[]> {
   const { tahun, mgDari, mgSampai, kodeWilker, zona, subLokasi } = filter;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let tglMulai: string;
   let tglSelesai: string;
@@ -324,7 +324,7 @@ export async function getRingkasanVektorAktivitasBulanan(filter: {
   bulanSampai?: string;
 }): Promise<AktivitasBulanan[]> {
   const { tahun, kodeWilker, zona, subLokasi, bulanDari, bulanSampai } = filter;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let tglMulai: string;
   let tglSelesai: string;

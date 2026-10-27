@@ -1,6 +1,6 @@
 import "server-only";
-import { getHasilPengamatanBulanan, getLokasiTidakMemenuhiSyarat, getRekapDiarePerWilker, getTrenDiareBulanan } from "@/lib/supabase/queriesVektorDiareEnhanced";
-import { getWilkerRef } from "@/lib/supabase/queries";
+import { getHasilPengamatanBulanan, getLokasiTidakMemenuhiSyarat, getRekapDiarePerWilker, getTrenDiareBulanan } from "@/lib/db/queries/queriesVektorDiareEnhanced";
+import { getWilkerRef } from "@/lib/db/queries/umum";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal, jumlah, persenDari, petaNamaWilker } from "./_bantu";

@@ -1,11 +1,11 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/page.tsx
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { hitungBreakdownKategori, hitungStatusKepatuhan } from '@/lib/pengawasan-klinik/hitungKepatuhan';
 import PengawasanKlinikClient from './PengawasanKlinikClient';
 import BannerAntrianOffline from '@/components/pengawasan-klinik/BannerAntrianOffline';
 
 export default async function PengawasanKlinikPage() {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const { data: rows } = await supabase
     .from('pengawasan_klinik')

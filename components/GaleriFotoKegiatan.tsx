@@ -8,8 +8,8 @@ import {
   editFotoKegiatan,
   tambahJenisKegiatan,
   editJenisKegiatan,
-} from '@/lib/supabase/queriesFotoClient';
-import type { FotoKegiatan, JenisKegiatanFoto } from '@/lib/supabase/queriesFoto';
+} from '@/lib/db/queries/queriesFotoClient';
+import type { FotoKegiatan, JenisKegiatanFoto } from '@/lib/db/queries/queriesFoto';
 
 
 

@@ -1,4 +1,4 @@
-import { getRingkasanMingguan } from "@/lib/supabase/queries";
+import { getRingkasanMingguan } from "@/lib/db/queries/umum";
 
 /**
  * HALAMAN SEMENTARA -- hanya untuk verifikasi manual bahwa koneksi

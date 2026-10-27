@@ -1,9 +1,9 @@
 import "server-only";
-import { getRingkasanVektorAktivitasBulanan, getRingkasanVektorDbdBulanan } from "@/lib/supabase/queriesVektorBreakdown";
+import { getRingkasanVektorAktivitasBulanan, getRingkasanVektorDbdBulanan } from "@/lib/db/queries/queriesVektorBreakdown";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal, indeksBulanDariLabel, jumlah } from "./_bantu";
-import { getWilkerRef } from "@/lib/supabase/queries";
+import { getWilkerRef } from "@/lib/db/queries/umum";
 import { seriPerWilker } from "./_perWilker";
 
 const BATAS_HI = 1; // standar: HI tidak boleh lebih dari 1%

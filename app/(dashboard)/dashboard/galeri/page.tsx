@@ -1,4 +1,4 @@
-import { getGaleriFoto, getJenisKegiatanFoto } from '@/lib/supabase/queriesFoto';
+import { getGaleriFoto, getJenisKegiatanFoto } from '@/lib/db/queries/queriesFoto';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import GaleriFotoKegiatan from '@/components/GaleriFotoKegiatan';
 import Link from 'next/link';

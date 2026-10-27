@@ -1,9 +1,10 @@
 // lib/db/browser-client.ts  (BROWSER)
-// Pengganti .from()/.rpc() Supabase di Client Component ketika DATA_BACKEND=mariadb.
+// Klien data untuk Client Component.
 // Tidak pernah menghubungi database: rantai pemanggilan dicatat lalu dikirim ke POST /api/db, yang memeriksa
 // sesi + aturan RLS (lib/db/rls.ts) dan menjalankannya di server. Aman diimpor dari 'use client'.
 import { PencatatQuery } from './spec';
 import type { DbResponse, Row } from './spec';
+import type { DbKlien } from './tipe';
 
 async function kirim(badan: unknown): Promise<DbResponse> {
   try {
@@ -46,19 +47,7 @@ export function dbRpcBrowser(nama: string, args: Row = {}): PromiseLike<DbRespon
   return { then: (ok, gagal) => p.then(ok, gagal) };
 }
 
-export function dataDiMariaDbBrowser(): boolean {
-  return process.env.NEXT_PUBLIC_DATA_BACKEND === 'mariadb';
-}
-
-/** Bungkus klien Supabase browser: .from()/.rpc() lewat /api/db; .auth tetap Supabase. */
-export function pakaiMariaDbDiBrowser<T extends object>(klien: T): T {
-  if (!dataDiMariaDbBrowser()) return klien;
-  return new Proxy(klien, {
-    get(target, prop, receiver) {
-      if (prop === 'from') return (tabel: string) => new QueryBrowser(tabel);
-      if (prop === 'rpc') return dbRpcBrowser;
-      const v = Reflect.get(target, prop, receiver);
-      return typeof v === 'function' ? v.bind(target) : v;
-    },
-  });
+/** Klien data untuk Client Component: .from()/.rpc() lewat POST /api/db (RLS dan eksekusi di server). */
+export function createDbBrowserClient(): DbKlien {
+  return { from: (tabel: string) => new QueryBrowser(tabel), rpc: dbRpcBrowser } as unknown as DbKlien;
 }

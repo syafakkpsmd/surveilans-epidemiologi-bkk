@@ -1,4 +1,4 @@
-import { ambilDaftarLokasiUdara } from '@/lib/supabase/queries-karhutla-server';
+import { ambilDaftarLokasiUdara } from '@/lib/db/queries/queries-karhutla-server';
 import FormLingkunganHarianPublikClient from './FormLingkunganHarianPublikClient';
 
 export const dynamic = 'force-dynamic';

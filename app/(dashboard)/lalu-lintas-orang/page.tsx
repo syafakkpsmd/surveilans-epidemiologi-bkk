@@ -8,8 +8,8 @@
 
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehUnduhLaluLintas } from "@/lib/auth/aksesLaluLintas";
-import { getWilayahKerjaPenumpangKapal } from "@/lib/turso/queriesPenumpangKapal";
-import { getWilayahKerjaAbkKapal } from "@/lib/supabase/queriesAbkKapal";
+import { getWilayahKerjaPenumpangKapal } from "@/lib/db/modul/queriesPenumpangKapal";
+import { getWilayahKerjaAbkKapal } from "@/lib/db/queries/queriesAbkKapal";
 import LaluLintasOrangClient from "./LaluLintasOrangClient";
 
 export const dynamic = "force-dynamic";

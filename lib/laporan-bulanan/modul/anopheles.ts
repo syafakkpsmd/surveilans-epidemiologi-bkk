@@ -1,5 +1,5 @@
 import "server-only";
-import { getTrenAnophelesDewasa } from "@/lib/supabase/queries";
+import { getTrenAnophelesDewasa } from "@/lib/db/queries/umum";
 import { BULAN, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal } from "./_bantu";

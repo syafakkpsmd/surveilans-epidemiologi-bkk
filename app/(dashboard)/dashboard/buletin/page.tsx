@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getBuletin } from "@/lib/supabase/queries";
+import { getBuletin } from "@/lib/db/queries/umum";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { BuletinSection } from "@/components/dashboard/BuletinSection";
 

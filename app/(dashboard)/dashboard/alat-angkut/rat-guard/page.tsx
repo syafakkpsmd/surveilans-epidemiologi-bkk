@@ -2,7 +2,7 @@ import {
   getRingkasanRatGuardBulanan,
   getRingkasanRatGuardMingguan,
   getDaftarWilayahKerjaRatGuard,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import RatGuardClient from "./RatGuardClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";

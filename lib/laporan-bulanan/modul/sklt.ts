@@ -1,5 +1,5 @@
 import "server-only";
-import { getSkltData } from "@/lib/turso/sklt";
+import { getSkltData } from "@/lib/db/modul/sklt";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, persenDari } from "./_bantu";

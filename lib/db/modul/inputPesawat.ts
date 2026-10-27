@@ -91,9 +91,30 @@ export const TANGGAL_TERAWAL = '2000-01-01';
 // ---------------------------------------------------------------- tanggal & angka (murni)
 
 const BULAN: Record<string, number> = {
-  januari: 1, jan: 1, februari: 2, pebruari: 2, feb: 2, maret: 3, mar: 3, april: 4, apr: 4, mei: 5,
-  juni: 6, jun: 6, juli: 7, jul: 7, agustus: 8, agu: 8, agt: 8, ags: 8, september: 9, sep: 9, sept: 9,
-  oktober: 10, okt: 10, november: 11, nopember: 11, nov: 11, desember: 12, des: 12,
+  // Indonesia
+  januari: 1, jan: 1,
+  februari: 2, pebruari: 2, feb: 2,
+  maret: 3, mar: 3,
+  april: 4, apr: 4,
+  mei: 5,
+  juni: 6, jun: 6,
+  juli: 7, jul: 7,
+  agustus: 8, agu: 8, agt: 8, ags: 8,
+  september: 9, sep: 9, sept: 9,
+  oktober: 10, okt: 10,
+  november: 11, nopember: 11, nov: 11,
+  desember: 12, des: 12,
+
+  // Inggris
+  january: 1,
+  february: 2,
+  march: 3,
+  may: 5,
+  june: 6,
+  july: 7,
+  august: 8, aug: 8,
+  october: 10, oct: 10,
+  december: 12, dec: 12,
 };
 
 function susunYmd(y: number, m: number, d: number): string | null {
@@ -112,18 +133,31 @@ export function parseTanggal(mentah: unknown): string | null {
   }
   if (typeof mentah !== 'string') return null;
   const s = mentah.trim();
+  
+  // 1. Format: YYYY-MM-DD
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(s);
   if (m) return susunYmd(+m[1], +m[2], +m[3]);
+  
+  // 2. Format: DD/MM/YYYY atau DD-MM-YYYY (Hari dulu)
   m = /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/.exec(s);
   if (m) return susunYmd(+m[3], +m[2], +m[1]);
+  
+  // 3. Format: 12 Juli 2026 / 27 October 2026 (Hari Bulan Tahun)
   m = /^(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4})$/.exec(s);
   if (m) {
     const bln = BULAN[m[2].toLowerCase()];
     return bln ? susunYmd(+m[3], bln, +m[1]) : null;
   }
+  
+  // 4. Format: Juli 12, 2026 / October 27, 2026 (Bulan Hari, Tahun)
+  m = /^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(s);
+  if (m) {
+    const bln = BULAN[m[1].toLowerCase()];
+    return bln ? susunYmd(+m[3], bln, +m[2]) : null;
+  }
+  
   return null;
 }
-
 export function geserHari(tanggal: string, hari: number): string {
   const d = new Date(`${tanggal}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + hari);

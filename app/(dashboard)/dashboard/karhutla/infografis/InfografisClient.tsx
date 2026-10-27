@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import InfografisPoster, { LEBAR_POSTER } from '@/components/karhutla/infografis/InfografisPoster';
-import type { RingkasanInfografisHarian } from '@/lib/supabase/queries-karhutla-server';
+import type { RingkasanInfografisHarian } from '@/lib/db/queries/queries-karhutla-server';
 
 export default function InfografisClient({
   tanggalAwal,

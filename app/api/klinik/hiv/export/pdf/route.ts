@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import PDFDocument from "pdfkit";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
-import { getBarisHivVct } from "@/lib/turso/queriesHivVct";
+import { getBarisHivVct } from "@/lib/db/modul/queriesHivVct";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

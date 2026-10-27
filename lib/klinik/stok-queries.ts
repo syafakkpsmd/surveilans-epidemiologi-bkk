@@ -1,4 +1,4 @@
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import type { BarisStok } from './agregasiStok';
 
 export type BarisStokMentah = {
@@ -18,7 +18,7 @@ export async function getStokTerbaruSemua(
   const idsValid = daftarSpreadsheetId.filter(Boolean);
   if (idsValid.length === 0) return [];
 
-  const client = getTursoClient();
+  const client = getDbClient();
   const placeholders = idsValid.map(() => '?').join(',');
 
   const sql = `
@@ -53,7 +53,7 @@ export async function getStokDenganFilter(
   const idsValid = daftarSpreadsheetId.filter(Boolean);
   if (idsValid.length === 0) return [];
 
-  const client = getTursoClient();
+  const client = getDbClient();
   const placeholders = idsValid.map(() => '?').join(',');
 
   const sql = `

@@ -4,7 +4,7 @@ import {
   ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import type { TitikTrenHarianRentang } from '@/lib/supabase/queries-karhutla-server';
+import type { TitikTrenHarianRentang } from '@/lib/db/queries/queries-karhutla-server';
 
 const LABEL_PARAMETER: Record<string, string> = {
   pm25: 'PM2.5 (µg/m³)',

@@ -6,7 +6,7 @@ import {
   ambilTrenIspaPm25, ambilHotspotCache,
   ambilDaftarWilayahIspa, ambilDaftarLokasiUdara,
   ambilDaftarWilayahKerjaSkdr,
-} from '@/lib/supabase/queries-karhutla-server';
+} from '@/lib/db/queries/queries-karhutla-server';
 
 export const dynamic = 'force-dynamic';
 

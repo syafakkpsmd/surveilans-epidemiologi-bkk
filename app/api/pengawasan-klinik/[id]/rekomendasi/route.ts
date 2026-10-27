@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 
 export const runtime = 'nodejs';
 const MAKS_BYTE = 4 * 1024 * 1024; // batas body Vercel ±4,5 MB
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (String.fromCharCode(...buf.slice(0, 4)) !== '%PDF')
     return NextResponse.json({ error: 'Bukan file PDF valid' }, { status: 400 });
 
-  const turso = await getTursoClient();
+  const turso = await getDbClient();
   await turso.execute({
     sql: `INSERT INTO pengawasan_klinik_rekomendasi (pengawasan_id, nama_file, ukuran_byte, isi_pdf)
           VALUES (?, ?, ?, ?)
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const unduh = req.nextUrl.searchParams.get('download') === '1';
-  const turso = getTursoClient();
+  const turso = getDbClient();
 
   const r = await turso.execute({
     sql: 'SELECT nama_file, isi_pdf FROM pengawasan_klinik_rekomendasi WHERE pengawasan_id = ?',

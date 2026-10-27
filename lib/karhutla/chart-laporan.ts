@@ -1,4 +1,4 @@
-import type { RingkasanLaporanKarhutla } from '@/lib/supabase/queries-karhutla-server';
+import type { RingkasanLaporanKarhutla } from '@/lib/db/queries/queries-karhutla-server';
 
 async function ambilGambarChart(config: object): Promise<Buffer> {
   const res = await fetch('https://quickchart.io/chart', {

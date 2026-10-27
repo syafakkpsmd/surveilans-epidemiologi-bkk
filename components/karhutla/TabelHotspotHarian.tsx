@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import type { BarisTabelHotspot } from '@/lib/supabase/queries-karhutla-server';
+import type { BarisTabelHotspot } from '@/lib/db/queries/queries-karhutla-server';
 import { klasifikasiKabKota, CATATAN_METODE_KLASIFIKASI } from '@/lib/karhutla/klasifikasiKabKota';
 import { unduhExcel } from '@/lib/karhutla/excel';
 

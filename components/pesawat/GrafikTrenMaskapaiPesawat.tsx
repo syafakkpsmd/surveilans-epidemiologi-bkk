@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { MaskapaiPesawatBulanan } from "@/lib/supabase/queries";
+import { MaskapaiPesawatBulanan } from "@/lib/db/queries/umum";
 import DropdownMultiSelect from "@/components/ui/DropdownMultiSelect";
 
 const NAMA_BULAN = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];

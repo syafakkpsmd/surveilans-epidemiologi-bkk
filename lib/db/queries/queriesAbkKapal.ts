@@ -1,4 +1,4 @@
-// lib/supabase/queriesAbkKapal.ts
+// lib/db/queries/queriesAbkKapal.ts
 //
 // Query mentah (1 baris = 1 kapal, bukan agregat) untuk dashboard Lalu Lintas
 // Orang: 4 tabel ABK Kapal --
@@ -13,7 +13,7 @@
 // "Hasil Pemeriksaan" bukan kolom di database -- selalu diisi "Memenuhi Syarat".
 // "Keterangan" juga bukan kolom di database -- selalu kosong.
 
-import { createClient } from "@/lib/supabase/server";
+import { createDbClient } from "@/lib/db/server";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 
 export interface BarisAbkKapal {
@@ -40,7 +40,7 @@ export type SumberAbkKapal =
   | "keberangkatan-dalam-negeri";
 
 async function ambilBarisCop(tahun: number, wilker?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from("kegiatan_cop")
     .select("tgl_kedatangan, nama_kapal, bendera_kapal, jml_abk_wna, jml_abk_wni, wilayah_kerja")
@@ -60,7 +60,7 @@ async function ambilBarisCop(tahun: number, wilker?: string) {
 }
 
 async function ambilBarisPhqc(tahun: number, tujuan: "Dalam Negeri" | "Luar Negeri", wilker?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from("kegiatan_phqc")
     .select("tgl_keberangkatan, nama_kapal, bendera, jml_abk_wna, jml_abk_wni, wilayah_kerja, tujuan_berlayar")
@@ -121,7 +121,7 @@ export async function getAbkKapal(sumber: SumberAbkKapal, filter: FilterAbkKapal
 
 /** Daftar wilayah kerja untuk dropdown filter, per sumber tabel. */
 export async function getWilayahKerjaAbkKapal(sumber: SumberAbkKapal): Promise<string[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const tabel = sumber === "kedatangan-luar-negeri" ? "kegiatan_cop" : "kegiatan_phqc";
   const { data, error } = await supabase.from(tabel).select("wilayah_kerja").not("wilayah_kerja", "is", null);
   if (error) throw error;

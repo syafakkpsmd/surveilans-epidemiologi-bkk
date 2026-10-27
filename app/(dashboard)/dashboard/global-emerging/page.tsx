@@ -1,7 +1,7 @@
 ﻿// app/(dashboard)/global-emerging/page.tsx
 
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 import GlobalEmergingFilterBar from '@/components/global-emerging/GlobalEmergingFilterBar';
@@ -9,7 +9,7 @@ import GlobalEmergingTrendChart from '@/components/global-emerging/GlobalEmergin
 import GlobalEmergingBreakdownCards from '@/components/global-emerging/GlobalEmergingBreakdownCards';
 import GlobalEmergingTabelMentah from '@/components/global-emerging/GlobalEmergingTabelMentah';
 import GlobalEmergingNegaraChart from '@/components/global-emerging/GlobalEmergingNegaraChart';
-import { getRingkasanPenyakitEmerging, getDataMentahPenyakitEmerging } from '@/lib/supabase/global-emerging-queries';
+import { getRingkasanPenyakitEmerging, getDataMentahPenyakitEmerging } from '@/lib/db/queries/global-emerging-queries';
 import { DAFTAR_NEGARA, type FilterGlobalEmerging, type JenisPeriode, type Penyakit, type Negara } from '@/types/global-emerging.types';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
@@ -45,7 +45,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
     negara: params.negara as Negara | undefined,
   };
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { sudahLogin, role } = await getStatusAkses();
 
   const sekarang = new Date();

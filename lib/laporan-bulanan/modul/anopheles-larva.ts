@@ -3,7 +3,7 @@ import {
   getTrenLarva,
   getMacamTempatPerindukan,
   getKeadaanTempatPerindukan,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { BULAN, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal, jumlah } from "./_bantu";

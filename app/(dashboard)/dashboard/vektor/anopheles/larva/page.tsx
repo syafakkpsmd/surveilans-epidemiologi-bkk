@@ -2,12 +2,12 @@
 // app/(dashboard)/dashboard/vektor/anopheles/larva/page.tsx (VERSI BARU)
 // ================================================================
 
-import { getWilkerRef } from '@/lib/supabase/queries';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   getTrenLarva,
   getMacamTempatPerindukan,
   getKeadaanTempatPerindukan,
-} from '@/lib/supabase/queries'; // sudah digabung ke queries.ts
+} from '@/lib/db/queries/umum'; // sudah digabung ke queries.ts
 import { getUserRole } from '@/lib/auth/get-user-role';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';

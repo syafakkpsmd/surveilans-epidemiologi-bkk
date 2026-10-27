@@ -7,11 +7,11 @@ import {
   getRingkasanTtuBulanan,
   getRingkasanPabBulanan,
   getKotaPesawatBulanan,
-} from "@/lib/supabase/queries";
-import { getRingkasanPesawatBulanan } from "@/lib/supabase/queriesPesawat";
+} from "@/lib/db/queries/umum";
+import { getRingkasanPesawatBulanan } from "@/lib/db/queries/queriesPesawat";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { HeroCarousel } from "@/components/HeroCarousel";
-import { getGaleriFoto, getJenisKegiatanFoto } from "@/lib/supabase/queriesFoto";
+import { getGaleriFoto, getJenisKegiatanFoto } from "@/lib/db/queries/queriesFoto";
 import GaleriFotoKegiatan from "@/components/GaleriFotoKegiatan";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";

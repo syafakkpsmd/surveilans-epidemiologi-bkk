@@ -1,4 +1,4 @@
-import { getWilkerRef } from '@/lib/supabase/queries';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   getBreakdownKategori,
   getRentangMingguEpid,
@@ -6,7 +6,7 @@ import {
   getRingkasanVektorDbdRentang,
   getRingkasanVektorAktivitasMingguan,
   getRingkasanVektorAktivitasBulanan,
-} from '@/lib/supabase/queriesVektorBreakdown';
+} from '@/lib/db/queries/queriesVektorBreakdown';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import { periodeMingguanSebelumnya } from '@/lib/ai/periode';

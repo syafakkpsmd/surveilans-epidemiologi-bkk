@@ -1,5 +1,5 @@
 // lib/analytics/get-stats.ts
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 
 export interface TrendItem {
   label: string;
@@ -44,7 +44,7 @@ function waktuLengkapWita(d: Date): string {
 }
 
 export async function getStatistikKunjungan() {
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
 
   // Ambil data 1 tahun terakhir agar mencakup statistik bulanan & harian
   const satuTahunLalu = new Date();

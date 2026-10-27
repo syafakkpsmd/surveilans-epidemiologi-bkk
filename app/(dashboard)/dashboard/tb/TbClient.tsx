@@ -29,7 +29,7 @@ import type {
   DistribusiWilayahTb,
   TerdugaBelumTindakLanjutTb,
   DemografiTb,
-} from '@/lib/turso/tb';
+} from '@/lib/db/modul/tb';
 
 // Palet warna modern untuk chart & visualisasi
 const WARNA_PIE = ['#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];

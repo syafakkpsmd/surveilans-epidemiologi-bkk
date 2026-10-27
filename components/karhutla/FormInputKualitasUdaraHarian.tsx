@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { simpanKualitasUdaraHarian } from '@/lib/supabase/queries-karhutla-client';
+import { simpanKualitasUdaraHarian } from '@/lib/db/queries/queries-karhutla-client';
 import { hitungStatusEvaluasi, LABEL_STATUS } from '@/lib/karhutla/constants';
-import type { LokasiUdaraRow } from '@/lib/supabase/queries-karhutla-server';
+import type { LokasiUdaraRow } from '@/lib/db/queries/queries-karhutla-server';
 
 const STATUS_ISPU = ['Baik', 'Sedang', 'Tidak Sehat', 'Sangat Tidak Sehat', 'Berbahaya'] as const;
 

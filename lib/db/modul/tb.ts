@@ -1,4 +1,4 @@
-// lib/turso/tb.ts
+// lib/db/modul/tb.ts
 //
 // Query layer modul TB. Turso (SQLite) tidak punya fungsi mmwr_week seperti
 // Postgres/Supabase, jadi pola di sini: ambil raw rows dari tb_data (query
@@ -6,11 +6,11 @@
 // (mingguan/bulanan/cascade/breakdown faktor risiko) dihitung di JavaScript
 // memakai hitungMingguEpidemiologi() yang sudah ada di @/lib/epi-week.
 //
-// Kalau project sudah punya lib/turso/client.ts (dipakai data_icv/stok_vaksin),
-// HAPUS getTursoClient() di bawah ini dan import dari sana supaya konsisten
+// Kalau project sudah punya lib/db/client.ts (dipakai data_icv/stok_vaksin),
+// HAPUS getDbClient() di bawah ini dan import dari sana supaya konsisten
 // (satu koneksi/singleton), tinggal ganti baris import di paling atas.
 
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 
 export const DAFTAR_WILKER_TB = [
@@ -64,7 +64,7 @@ const YA = (v: string | null | undefined) => (v ?? '').trim().toLowerCase() === 
 // Ambil raw data (dasar semua agregasi di bawah)
 // ------------------------------------------------------------
 export async function getTbRawData(tahun?: number, wilayahKerja?: string): Promise<TbRow[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const kondisi: string[] = [];
   const args: string[] = [];
 

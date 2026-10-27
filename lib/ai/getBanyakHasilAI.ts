@@ -6,7 +6,7 @@
  * yang sudah ada -- BUKAN dipanggil dari client/Box.
  *
  * PENTING -- HANYA IMPOR DARI SERVER COMPONENT:
- * File ini pakai createClient() dari lib/supabase/server.ts, yang di
+ * File ini pakai createDbClient() dari lib/db/server.ts, yang di
  * dalamnya ada `import { cookies } from "next/headers"` -- API yang
  * cuma boleh dipakai di Server Component. JANGAN PERNAH impor file
  * ini dari file yang ada baris "use client" di paling atas (mis.
@@ -22,7 +22,7 @@
  * bagian `.select(...)` dan pemetaan di bawah.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import type { PermintaanHasilAI, HasilAIStruktur } from './hasilAiTypes';
 import { kunciAI as buatKunci } from './hasilAiTypes';
 
@@ -50,7 +50,7 @@ export async function getBanyakHasilAI(
 ): Promise<Record<string, HasilAIStruktur | null>> {
   if (permintaan.length === 0) return {};
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const daftarKonteks = Array.from(new Set(permintaan.map((p) => p.konteks)));
   const daftarPeriode = Array.from(new Set(permintaan.map((p) => p.periodeKey)));

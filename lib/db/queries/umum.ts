@@ -2,15 +2,15 @@
  * FUNGSI QUERY DASAR -- BUKAN KOMPONEN UI.
  *
  * Semua fungsi di sini dipanggil dari SERVER COMPONENT (async function
- * component di app/), karena pakai createClient() dari
- * lib/supabase/server.ts yang butuh cookies() (server-only).
+ * component di app/), karena pakai createDbClient() dari
+ * lib/db/server.ts yang butuh cookies() (server-only).
  *
  * Aplikasi ini TIDAK PERNAH insert/update/delete data kegiatan --
  * hanya baca (SELECT) dari tabel/view yang sudah ada. Lihat
  * KONTEKS PROYEK bagian "SUMBER DATA & MODEL AKSES".
  */
 
-import { createClient } from './server';
+import { createDbClient } from '@/lib/db/server';
 import { getDbClient } from '@/lib/db/client';
 
 /** Jalankan SELECT ke MariaDB lokal dan kembalikan barisnya. */
@@ -39,7 +39,7 @@ import {
 export type JenisTabel = 'cop' | 'phqc';
 
 export async function getBuletin() {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const { data, error } = await supabase
     .from("buletin")
@@ -208,7 +208,7 @@ export async function getKategoriBreakdown(
   | KategoriBreakdownBulananCop[]
   | KategoriBreakdownBulananPhqc[]
 > {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const view =
     periode === 'mingguan'
@@ -272,7 +272,7 @@ export interface FilterKegiatan {
 export async function getKegiatanCopEnriched(
   filter: FilterKegiatan = {}
 ): Promise<KegiatanCopEnriched[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase.from('view_kegiatan_cop_enriched').select('*');
 
   if (filter.wilayah_kerja) query = query.eq('wilayah_kerja', filter.wilayah_kerja);
@@ -298,7 +298,7 @@ export async function getKegiatanCopEnriched(
 export async function getKegiatanPhqcEnriched(
   filter: FilterKegiatan = {}
 ): Promise<KegiatanPhqcEnriched[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase.from('view_kegiatan_phqc_enriched').select('*');
 
   if (filter.wilayah_kerja) query = query.eq('wilayah_kerja', filter.wilayah_kerja);
@@ -322,10 +322,10 @@ export async function getKegiatanPhqcEnriched(
 }
 
 // ================================================================
-// SEGMEN 10 — Tambahan lib/supabase/queries.ts
+// SEGMEN 10 — Tambahan lib/db/queries/umum.ts
 // Tempel fungsi-fungsi ini ke bawah fungsi yang sudah ada
 // (getRingkasanMingguan, getKategoriBreakdown, dll). Pakai server
-// client yang sama (createClient dari './server').
+// client yang sama (createDbClient dari './server').
 // ================================================================
 
 import type {
@@ -339,7 +339,7 @@ import type {
 
 // ── Referensi wilker (7 wilker, termasuk Bandara APT Pranoto) ──
 export async function getWilkerRef(): Promise<WilkerRef[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from('wilker_ref')
     .select('*')
@@ -366,7 +366,7 @@ export async function getRingkasanVektorTikus(
   tahun: number,
   kodeWilker?: string
 ): Promise<RingkasanVektorTikusMingguan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('view_vektor_tikus_mingguan')
     .select('*')
@@ -386,7 +386,7 @@ export async function getRingkasanVektorAnopheles(
   tipePengamatan: 'dewasa' | 'larva',
   kodeWilker?: string
 ): Promise<RingkasanVektorAnophelesMingguan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('view_vektor_anopheles_mingguan')
     .select('*')
@@ -408,7 +408,7 @@ export async function getRingkasanVektorDiare(
   jenisKegiatan: 'lalat' | 'kecoa',
   kodeWilker?: string
 ): Promise<RingkasanVektorDiareMingguan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('view_vektor_diare_mingguan')
     .select('*')
@@ -428,7 +428,7 @@ export async function getRingkasanMalaria(
   tahun: number,
   kodeWilker?: string
 ): Promise<RingkasanMalariaMingguan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('view_malaria_mingguan')
     .select('*')
@@ -455,7 +455,7 @@ export async function getMaskapaiPesawatBulanan(
   tahun: number,
   arah: ArahPesawat
 ): Promise<MaskapaiPesawatBulanan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from('view_pesawat_maskapai_bulanan')
     .select('*')
@@ -479,7 +479,7 @@ export async function getRingkasanVektorTikusBulanan(
   tahun: number,
   kodeWilker?: string
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('view_vektor_tikus_bulanan')
     .select('*')
@@ -509,7 +509,7 @@ export async function getLabVektorTikusMingguan(
   tahun: number,
   kodeWilker?: string
 ): Promise<LabTikusMingguan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('vektor_tikus')
     .select('tgl_survei, minggu_epid, kode_wilker, uji_lab, hasil_leptospira, jumlah_positif_leptospira, hasil_pes, jumlah_positif_pes, hasil_hantavirus, jumlah_positif_hantavirus')
@@ -564,7 +564,7 @@ export async function getLabVektorTikusBulanan(
   tahun: number,
   kodeWilker?: string
 ): Promise<LabTikusBulanan[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('vektor_tikus')
     .select('tgl_survei, kode_wilker, uji_lab, hasil_leptospira, jumlah_positif_leptospira, hasil_pes, jumlah_positif_pes, hasil_hantavirus, jumlah_positif_hantavirus')
@@ -625,7 +625,7 @@ export async function getUjiLabVektorTikusMingguan(
   tahun: number,
   kodeWilker?: string
 ): Promise<UjiLabTikus[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('vektor_tikus')
     .select('tgl_survei, minggu_epid, kode_wilker, uji_lab, hasil_leptospira, hasil_pes, hasil_hantavirus')
@@ -665,7 +665,7 @@ export async function getUjiLabVektorTikusBulanan(
   tahun: number,
   kodeWilker?: string
 ): Promise<UjiLabTikus[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('vektor_tikus')
     .select('tgl_survei, kode_wilker, uji_lab, hasil_leptospira, hasil_pes, hasil_hantavirus')
@@ -743,7 +743,7 @@ export async function getBreakdownWilayahAnophelesMingguan(
   minggu: number,
   tipe: 'dewasa' | 'larva'
 ): Promise<{ kode_wilker: string; mhd_rerata: number | null; total_larva: number | null }[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from('view_vektor_anopheles_mingguan')
     .select('kode_wilker, mhd_rerata, total_larva')
@@ -769,7 +769,7 @@ export async function getBreakdownWilayahAnophelesBulanan(
   bulan: number,
   tipe: 'dewasa' | 'larva'
 ): Promise<{ kode_wilker: string; mhd_rerata: number | null; total_larva: number | null }[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const tglMulai = `${tahun}-${String(bulan).padStart(2, '0')}-01`;
   const tglSelesai = new Date(Date.UTC(tahun, bulan, 0)).toISOString().split('T')[0];
 
@@ -815,7 +815,7 @@ export async function getTrenAnophelesDewasa(
   wilker: string | undefined,
   granularitas: 'mingguan' | 'bulanan',
 ): Promise<Record<string, unknown>[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   if (granularitas === 'mingguan') {
     let query = supabase
@@ -883,7 +883,7 @@ export async function getMetodeTangkap(
   tahun: number,
   wilker: string | undefined,
 ): Promise<DonutDatum[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let query = supabase
     .from('vektor_anopheles')
@@ -914,7 +914,7 @@ export async function getTrenLarva(
   wilker: string | undefined,
   granularitas: 'mingguan' | 'bulanan',
 ): Promise<Record<string, unknown>[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   if (granularitas === 'mingguan') {
     let query = supabase
@@ -1014,7 +1014,7 @@ async function getAggregateVektorAnopheles(
   wilker: string | undefined,
   kolom: 'macam_tempat_perindukan' | 'keadaan_tempat_perindukan',
 ): Promise<DonutDatum[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let query = supabase
     .from('vektor_anopheles')
@@ -1045,7 +1045,7 @@ export async function getHasilAI(
   jenis: 'prediksi' | 'analisis',
   wilayahKerja?: string,
 ): Promise<{ teks: string; diperbarui: string } | null> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   let query = supabase
     .from('riwayat_analisis_ai')
@@ -1068,7 +1068,7 @@ export async function getHasilAI(
 }
 
 export async function getDaftarWilayahKerjaSanitasi(): Promise<string[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await (supabase as any)
     .from('view_wilayah_kerja_sanitasi')
     .select('wilayah_kerja');
@@ -1103,7 +1103,7 @@ export async function getRingkasanPabBulanan(tahun: number, wilayahKerja?: strin
 // pakai "as any" supaya konsisten dengan workaround yang kamu pakai sebelumnya).
 
 export async function getRingkasanTppMingguan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = (supabase as any).from('view_tpp_mingguan').select('*').eq('tahun', tahun).order('minggu');
   if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
   const { data, error } = await query;
@@ -1112,7 +1112,7 @@ export async function getRingkasanTppMingguan(tahun: number, wilayahKerja?: stri
 }
 
 export async function getRingkasanTtuMingguan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = (supabase as any).from('view_ttu_mingguan').select('*').eq('tahun', tahun).order('minggu');
   if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
   const { data, error } = await query;
@@ -1121,7 +1121,7 @@ export async function getRingkasanTtuMingguan(tahun: number, wilayahKerja?: stri
 }
 
 export async function getRingkasanPabMingguan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = (supabase as any).from('view_pab_mingguan').select('*').eq('tahun', tahun).order('minggu');
   if (wilayahKerja) query = query.eq('wilayah_kerja', wilayahKerja);
   const { data, error } = await query;
@@ -1129,7 +1129,7 @@ export async function getRingkasanPabMingguan(tahun: number, wilayahKerja?: stri
   return (data ?? []) as any[];
 }
 export async function getDetailPemeriksaanTpp(tahun: number, wilayah?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   // Query ke tabel 'tpp' di Supabase
   let query = (supabase.from("tpp" as any) as any)
@@ -1153,7 +1153,7 @@ export async function getDetailPemeriksaanTpp(tahun: number, wilayah?: string) {
 }
 
 export async function getDetailPemeriksaanTtu(tahun: number, wilayah?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   // Query ke tabel 'ttu' di database Supabase
   let query = (supabase.from("ttu" as any) as any)
@@ -1177,7 +1177,7 @@ export async function getDetailPemeriksaanTtu(tahun: number, wilayah?: string) {
 }
 
 export async function getDaftarPabTmsDetail(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = (supabase as any)
     .from('pab')
     .select('id, wilayah_kerja, nama_ttu, tanggal, fisik, kimia, bakteriologis')
@@ -1191,7 +1191,7 @@ export async function getDaftarPabTmsDetail(tahun: number, wilayahKerja?: string
   return (data ?? []) as any[];
 }
 export async function getRingkasanRatGuardBulanan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = (supabase as any)
     .from('view_rat_guard_bulanan')
     .select('*')
@@ -1204,7 +1204,7 @@ export async function getRingkasanRatGuardBulanan(tahun: number, wilayahKerja?: 
 }
 
 export async function getRingkasanRatGuardMingguan(tahun: number, wilayahKerja?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   // alias minggu_epid -> minggu supaya konsisten dengan key kolom yang dipakai
   // RatGuardClient.tsx (sama seperti TtuClient.tsx pakai "minggu", bukan "minggu_epid")
   let query = (supabase as any)
@@ -1219,7 +1219,7 @@ export async function getRingkasanRatGuardMingguan(tahun: number, wilayahKerja?:
 }
 
 export async function getDaftarWilayahKerjaRatGuard() {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await (supabase as any)
     .from('view_wilayah_kerja_rat_guard')
     .select('wilayah_kerja');
@@ -1228,7 +1228,7 @@ export async function getDaftarWilayahKerjaRatGuard() {
 }
 
 export async function getReferensiPopulasiKapal(wilayahKerja: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data } = await supabase
     .from("referensi_populasi_wilker")
     .select("*")
@@ -1239,7 +1239,7 @@ export async function getReferensiPopulasiKapal(wilayahKerja: string) {
 }
 
 export async function getReferensiPopulasiPesawat(kodeWilker: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data } = await supabase
     .from("referensi_populasi_wilker")
     .select("*")
@@ -1250,13 +1250,13 @@ export async function getReferensiPopulasiPesawat(kodeWilker: string) {
 }
 
 export async function getDaftarWilayahKerjaSkdr() {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data } = await supabase.from('view_wilayah_kerja_skdr').select('wilayah_kerja');
   return (data ?? []).map(d => d.wilayah_kerja as string);
 }
 
 export async function getRingkasanSkdrMingguan(tahun: number, minggu: number, wilayahKerja?: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let q = supabase.from('view_skdr_alert_mingguan').select('*').eq('tahun_epid', tahun).eq('minggu_epid', minggu).order('jenis_penyakit_id');
   if (wilayahKerja) q = q.eq('wilayah_kerja', wilayahKerja);
   const { data } = await q;

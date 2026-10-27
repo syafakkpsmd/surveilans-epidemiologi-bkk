@@ -1,5 +1,5 @@
 import "server-only";
-import { ambilDataSiaos } from "@/lib/turso/queriesSiaos";
+import { ambilDataSiaos } from "@/lib/db/modul/queriesSiaos";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, persenDari } from "./_bantu";

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserRole } from '@/lib/auth/get-user-role';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 
 export async function POST(req: NextRequest) {
   const role = await getUserRole();
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nama jenis kegiatan wajib diisi.' }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from('jenis_kegiatan_foto')
     .insert({ nama: namaBersih })
@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'id dan nama wajib diisi.' }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data, error } = await supabase
     .from('jenis_kegiatan_foto')
     .update({ nama: namaBersih })

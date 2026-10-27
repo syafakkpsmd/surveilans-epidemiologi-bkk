@@ -11,7 +11,7 @@
 // -- pola sama seperti /api/analisis-ai, jangan percaya role dari client.
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
 
@@ -141,7 +141,7 @@ export async function simpanInputManual(formData: FormData): Promise<HasilSimpan
     return { sukses: false, error: error ?? 'Data tidak valid.' };
   }
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { error: dbError } = await supabase
     .from('laporan_penyakit_emerging')
     .upsert([data], {
@@ -196,7 +196,7 @@ export async function simpanUploadCsv(barisMentah: BarisMentah[]): Promise<Hasil
     };
   }
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { error: dbError } = await supabase
     .from('laporan_penyakit_emerging')
     .upsert(dataValid, {

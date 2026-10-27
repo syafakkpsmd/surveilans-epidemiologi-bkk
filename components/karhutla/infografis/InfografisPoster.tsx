@@ -3,7 +3,7 @@ import { labelTampilanLokasi } from '@/lib/karhutla/infografis-utils';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import PetaMiniHotspot from './PetaMiniHotspot';
 import { LABEL_STATUS, BAKU_MUTU_UDARA, type StatusEvaluasi } from '@/lib/karhutla/constants';
-import type { RingkasanInfografisHarian } from '@/lib/supabase/queries-karhutla-server';
+import type { RingkasanInfografisHarian } from '@/lib/db/queries/queries-karhutla-server';
 
 /**
  * Palet "AI dashboard" -- versi CERAH dgn perpaduan gradasi biru-teal-ungu

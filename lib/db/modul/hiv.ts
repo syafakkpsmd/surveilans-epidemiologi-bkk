@@ -1,8 +1,8 @@
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from './hivKonstanta';
 
-// Diekspor ulang agar impor lama dari '@/lib/turso/hiv' tetap berfungsi (khusus kode server).
+// Diekspor ulang agar impor lama dari '@/lib/db/modul/hiv' tetap berfungsi (khusus kode server).
 export { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan };
 
 export interface HivRow {
@@ -18,7 +18,7 @@ export interface HivRow {
 }
 
 export async function ambilHivRaw(tahun: number): Promise<HivRow[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const result = await client.execute({
     sql: `SELECT wilayah_kerja, tanggal_kegiatan, sex, tanggal_lahir, status_perkawinan,
                  kunjungan, hasil, jenis_reagen, hubungan_berisiko
@@ -30,7 +30,7 @@ export async function ambilHivRaw(tahun: number): Promise<HivRow[]> {
 }
 
 export async function getDaftarWilayahKerjaHiv(): Promise<string[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const result = await client.execute(`SELECT DISTINCT wilayah_kerja FROM hiv_data ORDER BY wilayah_kerja`);
   return result.rows.map((r: any) => r.wilayah_kerja as string);
 }

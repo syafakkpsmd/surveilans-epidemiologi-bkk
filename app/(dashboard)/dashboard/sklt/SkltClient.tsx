@@ -6,7 +6,7 @@ import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
-import type { SkltRow } from '@/lib/turso/sklt';
+import type { SkltRow } from '@/lib/db/modul/sklt';
 
 /* ───────────── konstanta ───────────── */
 const C = {

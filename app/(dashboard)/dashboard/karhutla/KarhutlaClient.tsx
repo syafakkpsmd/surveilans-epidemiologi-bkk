@@ -20,7 +20,7 @@ import type {
   TitikTrenHarianRentang,
   WilayahIspaRow,
   LokasiUdaraRow,
-} from '@/lib/supabase/queries-karhutla-server';
+} from '@/lib/db/queries/queries-karhutla-server';
 import type { PeranUser } from '@/types/database.types';
 import GrafikMultiParameterHarianKarhutla from '@/components/karhutla/GrafikMultiParameterHarianKarhutla';
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";

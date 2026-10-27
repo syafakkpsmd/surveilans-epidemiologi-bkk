@@ -8,7 +8,7 @@ import {
   getBreakdownKapalPesawat,
   type BreakdownItem,
   type BreakdownMultiSelect,
-} from '@/lib/turso/queriesMigrasiMalaria';
+} from '@/lib/db/modul/queriesMigrasiMalaria';
 
 /**
  * Persona epidemiolog untuk prompt modul ini. Sengaja dibuat sendiri (tidak

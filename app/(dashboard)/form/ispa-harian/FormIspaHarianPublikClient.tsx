@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { simpanIspaHarian } from '@/lib/supabase/queries-karhutla-client';
-import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
+import { simpanIspaHarian } from '@/lib/db/queries/queries-karhutla-client';
+import type { WilayahIspaRow } from '@/lib/db/queries/queries-karhutla-server';
 
 export default function FormIspaHarianPublikClient({ daftarWilayah }: { daftarWilayah: WilayahIspaRow[] }) {
   const hariIni = new Date().toISOString().slice(0, 10);

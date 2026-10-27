@@ -2,7 +2,7 @@
 
 import PilihWilayahMultiSelect from './PilihWilayahMultiSelect';
 import { buatOpsiWilayahIspa } from '@/lib/karhutla/constants';
-import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
+import type { WilayahIspaRow } from '@/lib/db/queries/queries-karhutla-server';
 
 export interface StateFilterHarian {
   tanggalAwal: string;

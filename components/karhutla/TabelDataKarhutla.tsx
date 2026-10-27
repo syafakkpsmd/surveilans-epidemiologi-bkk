@@ -11,13 +11,13 @@ import {
   LABEL_STATUS,
   type StatusEvaluasi,
 } from '@/lib/karhutla/constants';
-import { simpanIspaHarian, simpanKualitasUdaraHarian, hapusIspaHarian, hapusKualitasUdaraHarian } from '@/lib/supabase/queries-karhutla-client';
+import { simpanIspaHarian, simpanKualitasUdaraHarian, hapusIspaHarian, hapusKualitasUdaraHarian } from '@/lib/db/queries/queries-karhutla-client';
 import type {
   BarisTabelIspa,
   BarisTabelKualitasUdara,
   WilayahIspaRow,
   LokasiUdaraRow,
-} from '@/lib/supabase/queries-karhutla-server';
+} from '@/lib/db/queries/queries-karhutla-server';
 
 const STATUS_ISPU = ['Baik', 'Sedang', 'Tidak Sehat', 'Sangat Tidak Sehat', 'Berbahaya'] as const;
 

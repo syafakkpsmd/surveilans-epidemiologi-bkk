@@ -1,7 +1,7 @@
 "use client";
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { MaskapaiPesawatBulanan } from "@/lib/supabase/queries";
+import { MaskapaiPesawatBulanan } from "@/lib/db/queries/umum";
 
 export default function GrafikTotalMaskapaiPesawat({
   data,

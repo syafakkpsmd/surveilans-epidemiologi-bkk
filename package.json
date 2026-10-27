@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
-    "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
     "@types/xlsx": "^0.0.35",
     "axios": "^1.18.1",

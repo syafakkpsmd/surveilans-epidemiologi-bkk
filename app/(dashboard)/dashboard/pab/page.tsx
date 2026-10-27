@@ -3,7 +3,7 @@ import {
   getRingkasanPabMingguan,
   getDaftarWilayahKerjaSanitasi,
   getDaftarPabTmsDetail,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import PabClient from "./PabClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";

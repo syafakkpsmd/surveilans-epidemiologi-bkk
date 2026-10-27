@@ -1,4 +1,4 @@
-// lib/turso/poliklinik.ts
+// lib/db/modul/poliklinik.ts
 //
 // Query + agregasi untuk modul Kunjungan Poliklinik. Sama seperti modul TB,
 // semua agregasi (tren, breakdown) dihitung di JS karena Turso/SQLite tidak
@@ -6,7 +6,7 @@
 // Analysis/Prediksi (sesuai permintaan), jadi tidak ada dependensi ke
 // lib/ai/data.ts atau DataAnalisis di sini.
 
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 
 export const DAFTAR_WILKER_POLIKLINIK = [
@@ -33,7 +33,7 @@ export interface KunjunganRow {
 // Raw data
 // ------------------------------------------------------------
 export async function getKunjunganRawData(tahun?: number, wilayahKerja?: string): Promise<KunjunganRow[]> {
-  const client = getTursoClient();
+  const client = getDbClient();
   const kondisi: string[] = [];
   const args: (string | number)[] = [];
 

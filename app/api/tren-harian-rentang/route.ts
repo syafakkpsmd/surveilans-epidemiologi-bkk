@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ambilTrenHarianRentang } from '@/lib/supabase/queries-karhutla-server';
+import { ambilTrenHarianRentang } from '@/lib/db/queries/queries-karhutla-server';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

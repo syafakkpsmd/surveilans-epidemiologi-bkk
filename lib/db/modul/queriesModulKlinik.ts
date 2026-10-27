@@ -1,10 +1,10 @@
-// lib/turso/queriesModulKlinik.ts
+// lib/db/modul/queriesModulKlinik.ts
 //
 // Query generik untuk Poliklinik, KIER Kesehatan, SIAOS, SKLT (lihat modulTabelConfig.ts).
 // Nama tabel & kolom diambil dari config (hardcode), BUKAN dari input user.
 
 import { tabelTidakAda } from '@/lib/db/errors';
-import { getTursoClient } from "@/lib/turso/client";
+import { getDbClient } from "@/lib/db/client";
 import { MODUL_KLINIK, ambilModul, type ModulKey } from "@/lib/klinik/modulTabelConfig";
 
 /** 1 baris = objek polos: { wilker, <key kolom config>: string, ... } */
@@ -27,7 +27,7 @@ export async function getWilayahKerjaModul(modul: ModulKey): Promise<string[]> {
   if (!cfg.punyaWilayahKerja) return [];
 
   try {
-    const hasil = await getTursoClient().execute({
+    const hasil = await getDbClient().execute({
       sql: `SELECT DISTINCT wilayah_kerja FROM ${cfg.tabel}
             WHERE wilayah_kerja IS NOT NULL AND wilayah_kerja != ''
             ORDER BY wilayah_kerja`,
@@ -70,7 +70,7 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
 
   let hasil;
   try {
-    hasil = await getTursoClient().execute({
+    hasil = await getDbClient().execute({
       sql: `SELECT ${selectWilker}, ${kolomSql}
             FROM ${cfg.tabel}
             WHERE ${kondisi.join(" AND ")}

@@ -9,7 +9,7 @@ import ExcelJS from "exceljs";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { bolehAksesTabelKlinik } from "@/lib/auth/aksesKlinik";
 import { MODUL_KLINIK } from "@/lib/klinik/modulTabelConfig";
-import { bacaFilterModul, getBarisModul } from "@/lib/turso/queriesModulKlinik";
+import { bacaFilterModul, getBarisModul } from "@/lib/db/modul/queriesModulKlinik";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

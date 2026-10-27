@@ -1,10 +1,10 @@
-// lib/supabase/global-emerging-queries.ts
+// lib/db/queries/global-emerging-queries.ts
 // Fungsi query untuk modul Penyakit Infeksi Emerging (Global Emerging).
 // Dipanggil dari Server Component (app/(dashboard)/global-emerging/page.tsx).
 // File berdiri sendiri — kalau mau, isinya bisa dipindah/digabung ke
-// lib/supabase/queries.ts yang sudah ada.
+// lib/db/queries/umum.ts yang sudah ada.
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { DbKlien } from '@/lib/db/tipe';
 import type { FilterGlobalEmerging, RingkasanPenyakitEmerging, LaporanPenyakitEmerging } from '@/types/global-emerging.types';
 
 /**
@@ -13,7 +13,7 @@ import type { FilterGlobalEmerging, RingkasanPenyakitEmerging, LaporanPenyakitEm
  * sesuai filter.jenis.
  */
 export async function getRingkasanPenyakitEmerging(
-  supabase: SupabaseClient,
+  supabase: DbKlien,
   filter: FilterGlobalEmerging
 ): Promise<RingkasanPenyakitEmerging[]> {
   const namaView =
@@ -49,7 +49,7 @@ export async function getRingkasanPenyakitEmerging(
  * di halaman). Dibatasi jumlahnya supaya tidak berat.
  */
 export async function getDataMentahPenyakitEmerging(
-  supabase: SupabaseClient,
+  supabase: DbKlien,
   filter: FilterGlobalEmerging,
   limit = 200
 ): Promise<LaporanPenyakitEmerging[]> {

@@ -1,4 +1,4 @@
-// lib/supabase/queriesPhqcTujuan.ts
+// lib/db/queries/queriesPhqcTujuan.ts
 //
 // Pecahan ABK PHQC (kegiatan_phqc) berdasarkan kolom tujuan_berlayar
 // ('Dalam Negeri' / 'Luar Negeri'). Dipakai khusus untuk grafik breakdown
@@ -10,7 +10,7 @@
 // konsisten dengan hitungMingguEpidemiologi yang sudah dipakai di
 // app/(dashboard)/dashboard/abk-crew-penumpang/page.tsx.
 
-import { createClient } from "@/lib/supabase/server";
+import { createDbClient } from "@/lib/db/server";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 
 interface BarisAbkPhqc {
@@ -20,7 +20,7 @@ interface BarisAbkPhqc {
 }
 
 async function ambilAbkPhqcTahun(tahunKalender: number, wilayah?: string): Promise<BarisAbkPhqc[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from("kegiatan_phqc")
     .select("tgl_keberangkatan, jml_abk_wna, jml_abk_wni, tujuan_berlayar")

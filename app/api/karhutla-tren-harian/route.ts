@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ambilTrenHarianRentang, type ParameterUdara } from '@/lib/supabase/queries-karhutla-server';
+import { ambilTrenHarianRentang, type ParameterUdara } from '@/lib/db/queries/queries-karhutla-server';
 
 const PARAMETER_VALID: ParameterUdara[] = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'];
 

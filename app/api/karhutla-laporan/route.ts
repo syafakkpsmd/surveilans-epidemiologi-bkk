@@ -3,8 +3,8 @@ import { buatGambarKurvaEpidemik, buatGambarGrafikHarian } from '@/lib/karhutla/
 import { NextResponse } from 'next/server';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } from 'docx';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
-import { ambilRingkasanLaporanKarhutla, RingkasanLaporanKarhutla } from '@/lib/supabase/queries-karhutla-server'; // masih perlu ditulis
+import { createDbServiceClient } from '@/lib/db/serviceRole';
+import { ambilRingkasanLaporanKarhutla, RingkasanLaporanKarhutla } from '@/lib/db/queries/queries-karhutla-server'; // masih perlu ditulis
 import { susunPromptLatarBelakangLaporan, susunPromptPembahasanLaporan } from '@/lib/ai/prompt-laporan';
 import { DAFTAR_PUSTAKA_KARHUTLA } from '@/lib/karhutla/daftar-pustaka';
 import { panggilAI } from '@/lib/ai';
@@ -12,7 +12,7 @@ import { panggilAI } from '@/lib/ai';
 export const maxDuration = 60;
 
 async function panggilAiDenganFallback(promptTeks: string): Promise<string> {
-  const supabaseServiceRole = createServiceRoleClient();
+  const supabaseServiceRole = createDbServiceClient();
   const { data: daftarProviderAktif, error } = await supabaseServiceRole
     .from('pengaturan_ai')
     .select('*')

@@ -1,5 +1,5 @@
 import "server-only";
-import { ambilPerbandinganIspaHotspot } from "@/lib/supabase/queries-karhutla-server";
+import { ambilPerbandinganIspaHotspot } from "@/lib/db/queries/queries-karhutla-server";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { desimal, jumlah } from "./_bantu";

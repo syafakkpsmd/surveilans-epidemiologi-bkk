@@ -8,8 +8,8 @@
  * modul itu tampil "Gagal muat" dan modul lain tetap jalan.
  */
 
-import { getTursoClient } from '@/lib/turso/client';
-import { createClient } from '@/lib/supabase/server';
+import { getDbClient } from '@/lib/db/client';
+import { createDbClient } from '@/lib/db/server';
 import { rentangTanggalMingguEpid } from './rentang';
 import {
   kumpulkanKode,
@@ -21,7 +21,7 @@ import {
 } from './lalu-lintas-orang';
 
 async function daftarNamaTurso(sql: string, args: string[], kolom: string): Promise<string[]> {
-  const hasil = await getTursoClient().execute({ sql, args });
+  const hasil = await getDbClient().execute({ sql, args });
   return hasil.rows.map((r) => String((r as Record<string, unknown>)[kolom] ?? ''));
 }
 
@@ -64,7 +64,7 @@ export async function ambilStatusMingguanLlo(tahun: number, minggu: number): Pro
     bungkusWilker(() => turso('siaos', 'tanggal')),
     bungkusWilker(() => turso('kier_kesehatan', 'tanggal_pemeriksaan')),
     bungkusWilker(async () => {
-      const supabase = await createClient();
+      const supabase = await createDbClient();
       const { data, error } = await supabase
         .from('skdr_mingguan')
         .select('wilayah_kerja')
@@ -74,7 +74,7 @@ export async function ambilStatusMingguanLlo(tahun: number, minggu: number): Pro
       return (data ?? []).map((r) => String(r.wilayah_kerja ?? ''));
     }, kumpulkanKodeSkdr),
     bungkusBkk(async () => {
-      const supabase = await createClient();
+      const supabase = await createDbClient();
       const { data, error } = await supabase
         .from('laporan_penyakit_nasional')
         .select('minggu_epid')
@@ -85,7 +85,7 @@ export async function ambilStatusMingguanLlo(tahun: number, minggu: number): Pro
       return (data ?? []).length > 0;
     }),
     bungkusBkk(async () => {
-      const supabase = await createClient();
+      const supabase = await createDbClient();
       const { data, error } = await supabase
         .from('laporan_penyakit_emerging')
         .select('minggu_epid')

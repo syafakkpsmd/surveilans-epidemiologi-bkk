@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getUserRole } from '@/lib/auth/get-user-role';
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { BarisWilayahIspa } from './BarisWilayahIspa';
 import { BarisLokasiUdara } from './BarisLokasiUdara';
 import {
@@ -15,7 +15,7 @@ export default async function PengaturanLokasiKarhutlaPage() {
     redirect('/dashboard');
   }
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const [{ data: wilayahIspa }, { data: lokasiUdara }] = await Promise.all([
     supabase.from('wilayah_ispa').select('*').order('urutan', { ascending: true }),
     supabase.from('lokasi_kualitas_udara').select('*').order('urutan', { ascending: true }),

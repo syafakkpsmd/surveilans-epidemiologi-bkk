@@ -16,7 +16,7 @@ import {
   filterRowsByRentangBulan,
   DAFTAR_WILKER_TB,
   type TbRow,
-} from '@/lib/turso/tb';
+} from '@/lib/db/modul/tb';
 import TbClient from './TbClient';
 
 export const dynamic = 'force-dynamic';

@@ -1,4 +1,4 @@
-import { ambilDaftarWilayahIspa } from '@/lib/supabase/queries-karhutla-server';
+import { ambilDaftarWilayahIspa } from '@/lib/db/queries/queries-karhutla-server';
 import FormIspaHarianPublikClient from './FormIspaHarianPublikClient';
 
 export const dynamic = 'force-dynamic';

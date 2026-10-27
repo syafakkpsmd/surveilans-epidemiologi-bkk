@@ -1,4 +1,4 @@
-import { getWilkerRef } from '@/lib/supabase/queries';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 import { getValidRole } from '@/lib/auth/utils';
 import {
   getTrenDiareMultiVariabel,
@@ -6,8 +6,8 @@ import {
   getTrenDiareBulanan,
   getHasilPengamatanBulanan,
   getLokasiTidakMemenuhiSyarat,
-} from '@/lib/supabase/queriesVektorDiareEnhanced';
-import { getBreakdownKategori, getRentangMingguEpid } from '@/lib/supabase/queriesVektorBreakdown';
+} from '@/lib/db/queries/queriesVektorDiareEnhanced';
+import { getBreakdownKategori, getRentangMingguEpid } from '@/lib/db/queries/queriesVektorBreakdown';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterWilker from '@/components/vektor/FilterWilker';

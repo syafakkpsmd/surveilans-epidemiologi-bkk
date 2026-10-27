@@ -1,5 +1,5 @@
 import "server-only";
-import { getRingkasanTtuBulanan } from "@/lib/supabase/queries";
+import { getRingkasanTtuBulanan } from "@/lib/db/queries/umum";
 import { BULAN, fmtAngka, fmtPerubahan, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, jumlahPerWilker, persenDari, temuanPoin, temuanTmsTerbanyak } from "./_bantu";

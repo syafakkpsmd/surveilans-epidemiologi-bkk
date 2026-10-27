@@ -1,37 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
 import { BULAN } from "./periode";
-
-// ============================================================================
-// SUPABASE CLIENT HELPERS
-// ============================================================================
-
-/**
- * Mengembalikan Supabase Client berbasis Server (menggunakan cookies Next.js).
- * Dipakai di Server Components, Server Actions, dan Route Handlers.
- */
-export async function getSupabaseServerClient() {
-  return await createClient();
-}
-
-/**
- * Mengembalikan Supabase Client tingkat admin (Bypass RLS) menggunakan Service Role Key.
- */
-export function getSupabaseAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceKey) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in env");
-  }
-
-  return createSupabaseClient(url, serviceKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
 
 // ============================================================================
 // FORMATTING HELPERS (UNTUK MENGHILANGKAN ERROR FMTANGKA & FMTPERSEN)

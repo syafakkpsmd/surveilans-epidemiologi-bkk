@@ -1,4 +1,4 @@
-import { getWilkerRef } from '@/lib/supabase/queries';
+import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   getRingkasanUtamaMigrasi,
   getBreakdownKategoriMigrasi,
@@ -8,7 +8,7 @@ import {
   getTrenMingguanRdtGender,
   getTrenBulananRdtGender,
   getBreakdownKapalPesawat,
-} from '@/lib/turso/queriesMigrasiMalaria';
+} from '@/lib/db/modul/queriesMigrasiMalaria';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterWilker from '@/components/vektor/FilterWilker';

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -9,7 +9,7 @@ export default async function AdminUsersPage() {
   const role = await getUserRole();
   if (role !== 'admin') redirect('/dashboard');
 
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data: users, error } = await supabase
     .from('profiles')
     .select('id, nama_lengkap, role, status')

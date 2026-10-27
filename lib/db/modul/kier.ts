@@ -1,12 +1,12 @@
-// lib/turso/kier.ts
+// lib/db/modul/kier.ts
 //
 // CATATAN INTEGRASI: file ini mengasumsikan sudah ada client Turso bersama
-// yang dipakai modul TB/HIV/Klinik/Poliklinik, biasanya di '@/lib/turso/client'
+// yang dipakai modul TB/HIV/Klinik/Poliklinik, biasanya di '@/lib/db/client'
 // dengan export seperti:
 //   export const tursoClient = createClient({ url: ..., authToken: ... })
 // Sesuaikan path import di bawah ini dengan yang sudah ada di project Anda.
 
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 
 export const DAFTAR_WILKER_KIER = ['Samarinda', 'APT Pranoto', 'Tanjung Laut', 'Lhoktuan', 'Sangatta'];
  
@@ -67,7 +67,7 @@ async function ambilBarisTahun(tahun: number, wilayahKerja?: string): Promise<Ba
   const args: any[] = [String(tahun)];
   if (wilayahKerja) args.push(wilayahKerja);
  
-  const result = await getTursoClient().execute({
+  const result = await getDbClient().execute({
     sql: `SELECT wilayah_kerja, no_baris, nama, tanggal_lahir, jenis_kelamin, alamat,
                  tujuan_pemeriksaan, tanggal_pemeriksaan, kesimpulan, tempat_terbit
           FROM kier_kesehatan
@@ -181,7 +181,7 @@ export async function getTrenBulananKier(
  
 /** Daftar tahun yang tersedia di data, untuk dropdown filter tahun */
 export async function getDaftarTahunKier(): Promise<number[]> {
-  const result = await getTursoClient().execute({
+  const result = await getDbClient().execute({
     sql: `SELECT DISTINCT substr(tanggal_pemeriksaan, 1, 4) AS tahun
           FROM kier_kesehatan
           WHERE tanggal_pemeriksaan IS NOT NULL
@@ -198,7 +198,7 @@ export async function getDaftarTahunKier(): Promise<number[]> {
  * diam-diam — supaya kelihatan kalau ada nama wilker yang tidak konsisten.
  */
 export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
-  const result = await getTursoClient().execute({
+  const result = await getDbClient().execute({
     sql: `SELECT DISTINCT wilayah_kerja
           FROM kier_kesehatan
           WHERE substr(tanggal_pemeriksaan, 1, 4) = ?

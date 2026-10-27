@@ -1,11 +1,11 @@
 // app/api/klinik/[id]/route.ts — baca data 1 klinik
 import { NextResponse } from 'next/server';
-import { getTursoClient } from '@/lib/turso/client';
-import { createClient } from '@/lib/supabase/server';
+import { getDbClient } from '@/lib/db/client';
+import { createDbClient } from '@/lib/db/server';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data: klinik, error } = await supabase
     .from('klinik_binaan')
     .select('*')
@@ -20,7 +20,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const client = getTursoClient();
+    const client = getDbClient();
 
     const [hasilIcv, hasilStok] = await Promise.all([
       client.execute({

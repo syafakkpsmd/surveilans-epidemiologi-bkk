@@ -8,7 +8,7 @@ import {
   getDaftarTahunKier,
   getDaftarWilkerAktif,
   DAFTAR_WILKER_KIER,
-} from '@/lib/turso/kier';
+} from '@/lib/db/modul/kier';
 import KierClient from './KierClient';
 
 export default async function HalamanKierKesehatan({

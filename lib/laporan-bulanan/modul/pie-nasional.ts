@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createDbClient } from "@/lib/db/server";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { ambilSemuaHalaman, CATATAN_MINGGU_KE_BULAN, jumlah, mingguDalamPeriode } from "./_bantu";
@@ -23,7 +23,7 @@ export const modulPieNasional: ModulLaporan = {
     const minggu = mingguDalamPeriode(tahun, bulanAkhir);
     if (minggu.length === 0) return null;
     const bulanDariMinggu = new Map(minggu.map((m) => [m.minggu, m.bulan]));
-    const supabase = await createClient();
+    const supabase = await createDbClient();
 
     const baris = (await ambilSemuaHalaman((dari, sampai) =>
       supabase

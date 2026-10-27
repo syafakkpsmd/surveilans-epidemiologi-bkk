@@ -7,7 +7,7 @@ import {
   getTrenMingguanPerWilkerKier,
   getTrenBulananPerWilkerKier,
   getDaftarWilkerAktif,
-} from '@/lib/turso/kier';
+} from '@/lib/db/modul/kier';
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;

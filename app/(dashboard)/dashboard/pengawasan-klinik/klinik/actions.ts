@@ -1,7 +1,7 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/klinik/actions.ts
 'use server';
 
-import { createServiceRoleClient } from '@/lib/supabase/serviceRole';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { revalidatePath } from 'next/cache';
 
@@ -52,7 +52,7 @@ export async function tambahKlinikBaru(formData: FormData): Promise<HasilAksi> {
 
   const payload = bangunPayload(formData, namaKlinik);
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { error } = await supabase.from('klinik_binaan').insert(payload);
 
   if (error) return { error: error.message };
@@ -69,7 +69,7 @@ export async function updateKlinik(id: string, formData: FormData): Promise<Hasi
 
   const payload = bangunPayload(formData, namaKlinik);
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { error } = await supabase.from('klinik_binaan').update(payload).eq('id', id);
 
   if (error) return { error: error.message };
@@ -81,7 +81,7 @@ export async function hapusKlinik(id: string): Promise<HasilAksi> {
   const gate = await pastikanAdmin();
   if (gate) return gate;
 
-  const supabase = createServiceRoleClient();
+  const supabase = createDbServiceClient();
   const { error } = await supabase.from('klinik_binaan').delete().eq('id', id);
   if (error) return { error: error.message };
   revalidatePath('/dashboard/pengawasan-klinik/klinik');

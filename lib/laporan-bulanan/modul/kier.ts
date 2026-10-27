@@ -1,5 +1,5 @@
 import "server-only";
-import { DAFTAR_WILKER_KIER, getDaftarWilkerAktif, getTrenBulananKier, getTrenBulananPerWilkerKier } from "@/lib/turso/kier";
+import { DAFTAR_WILKER_KIER, getDaftarWilkerAktif, getTrenBulananKier, getTrenBulananPerWilkerKier } from "@/lib/db/modul/kier";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah } from "./_bantu";
@@ -11,7 +11,7 @@ export const modulKier: ModulLaporan = {
   judul: JUDUL,
   kelompok: "Surveilans",
   async ambil({ tahun, bulanAkhir }: KonteksLaporan): Promise<DataModul | null> {
-    // CATATAN: lib/turso/kier.ts tidak mengekspor breakdown kesimpulan/jenis kelamin yang
+    // CATATAN: lib/db/modul/kier.ts tidak mengekspor breakdown kesimpulan/jenis kelamin yang
     // dibatasi rentang bulan (getRingkasanKier() selalu 1 tahun penuh, bukan sampai
     // bulanAkhir). Supaya angka laporan ini tetap akurat untuk periode Januari sampai
     // bulan laporan, modul ini HANYA memakai fungsi yang memang menerima rentang bulan

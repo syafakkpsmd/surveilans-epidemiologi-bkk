@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ambilTrenIspaPm25 } from '@/lib/supabase/queries-karhutla-server';
+import { ambilTrenIspaPm25 } from '@/lib/db/queries/queries-karhutla-server';
 
 export async function GET(request: NextRequest) {
   try {

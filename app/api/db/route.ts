@@ -1,8 +1,8 @@
-// POST /api/db : jalur data untuk Client Component ketika DATA_BACKEND=mariadb (lihat lib/db/browser-client.ts).
+// POST /api/db : jalur data untuk Client Component (lihat lib/db/browser-client.ts).
 // Tidak ada akses langsung browser -> database. Setiap permintaan: (1) cek asal, (2) validasi bentuk,
 // (3) identitas dari sesi MariaDB (cookie epic_sesi), (4) aturan RLS tiruan, (5) baru dieksekusi.
 import { NextResponse } from 'next/server';
-import { buatPenjagaDariSesi, dataDiMariaDb } from '@/lib/db/hybrid';
+import { buatPenjagaDariSesi } from '@/lib/db/penjaga-sesi';
 import { jalankanRemote, SpecTidakValid } from '@/lib/db/remote';
 import type { PermintaanRemote } from '@/lib/db/remote';
 
@@ -13,8 +13,6 @@ const galat = (pesan: string, status: number, code = 'PGRST100') =>
   NextResponse.json({ data: null, error: { message: pesan, code, details: null, hint: null }, count: null, status, statusText: '' }, { status });
 
 export async function POST(req: Request) {
-  if (!dataDiMariaDb()) return galat('Jalur data MariaDB tidak aktif.', 404, 'XX404');
-
   // Cegah permintaan lintas situs: Origin (bila ada) harus sama dengan host permintaan.
   const origin = req.headers.get('origin');
   const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host');

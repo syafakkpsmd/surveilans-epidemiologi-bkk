@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { createDbBrowserClient } from "@/lib/db/browser-client";
 
 export interface Fasilitas {
   id: string;
@@ -19,7 +19,7 @@ export interface FasilitasFoto {
 }
 
 export async function getFasilitas(): Promise<Fasilitas[]> {
-  const supabase = createClient();
+  const supabase = createDbBrowserClient();
   const { data, error } = await supabase.from("fasilitas_pelabuhan").select("*").order("nama");
   if (error) {
     console.error("Gagal memuat fasilitas:", JSON.stringify(error, null, 2));
@@ -29,7 +29,7 @@ export async function getFasilitas(): Promise<Fasilitas[]> {
 }
 
 export async function getFotoByFasilitas(fasilitasId: string): Promise<FasilitasFoto[]> {
-  const supabase = createClient();
+  const supabase = createDbBrowserClient();
   const { data, error } = await supabase
     .from("fasilitas_foto")
     .select("*")
@@ -39,7 +39,7 @@ export async function getFotoByFasilitas(fasilitasId: string): Promise<Fasilitas
 }
 
 export async function hapusFasilitas(id: string): Promise<void> {
-  const supabase = createClient();
+  const supabase = createDbBrowserClient();
   const { error } = await supabase.from("fasilitas_pelabuhan").delete().eq("id", id);
   if (error) throw error;
 }

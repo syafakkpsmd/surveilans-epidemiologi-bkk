@@ -1,10 +1,10 @@
 // ================================================================
-// lib/supabase/queriesMasterTabel.ts
+// lib/db/queries/queriesMasterTabel.ts
 //
 // Query pendukung khusus untuk modul "Master Tabel" (rekap gabungan
 // Sanitasi & Vektor per wilayah kerja x bulan). Dataset Sanitasi (TTU/
 // PAB/TPP) dan Rat Guard dipakai langsung dari fungsi yang sudah ada
-// di lib/supabase/queries.ts (getRingkasanTtuBulanan dkk) -- baris di
+// di lib/db/queries/umum.ts (getRingkasanTtuBulanan dkk) -- baris di
 // sana SUDAH per wilayah_kerja x bulan, tidak perlu fungsi baru.
 //
 // Dua fungsi di bawah ini melengkapi yang belum tersedia dalam bentuk
@@ -21,7 +21,7 @@
 //    kodeWilker tidak diisi -- di sini kita tetap pecah per wilayah).
 // ================================================================
 
-import { createClient } from './server';
+import { createDbClient } from '@/lib/db/server';
 
 export type BarisAktivitasDbd = {
   kode_wilker: string;
@@ -40,7 +40,7 @@ export async function getMasterVektorDbdAktivitasBulanan(
   tahun: number,
   kodeWilker?: string
 ): Promise<BarisAktivitasDbd[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   let query = supabase
     .from('vektor_dbd')
     .select(
@@ -106,7 +106,7 @@ export async function getMasterVektorDiareBulananPerWilker(
   jenis: 'lalat' | 'kecoa',
   kodeWilker?: string
 ): Promise<BarisDiareWilker[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const kolomIndeks = jenis === 'lalat' ? 'fly_index_rerata' : 'kepadatan_kecoa_rerata';
 
   let query = (supabase as any)

@@ -1,11 +1,11 @@
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import { ITEM_CHECKLIST } from '@/lib/pengawasan-klinik/itemChecklist';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 
 
 export async function pengawasanIdDariToken(token: string): Promise<string | null> {
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return null;
-  const r = await getTursoClient().execute({
+  const r = await getDbClient().execute({
     sql: 'SELECT pengawasan_id FROM pengawasan_klinik_link_perbaikan WHERE token = ? AND aktif = 1',
     args: [token],
   });
@@ -14,7 +14,7 @@ export async function pengawasanIdDariToken(token: string): Promise<string | nul
 
 /** Pengawasan + daftar item yang hasilnya "Tidak" */
 export async function itemTidakSesuai(pengawasanId: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { data } = await supabase
     .from('pengawasan_klinik')
     .select('*')
@@ -31,7 +31,7 @@ export type DataPerbaikan = Record<
 >;
 
 export async function ambilPerbaikan(pengawasanId: string): Promise<DataPerbaikan> {
-  const r = await getTursoClient().execute({
+  const r = await getDbClient().execute({
     sql: `SELECT p.item_key, p.keterangan, p.tanggal_perbaikan, f.id AS foto_id
           FROM pengawasan_klinik_perbaikan p
           LEFT JOIN pengawasan_klinik_perbaikan_foto f ON f.perbaikan_id = p.id

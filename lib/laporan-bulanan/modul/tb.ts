@@ -6,7 +6,7 @@ import {
   hitungBreakdownWilkerTb,
   hitungCascadeTb,
   hitungDelayDiagnosisTb,
-} from "@/lib/turso/tb";
+} from "@/lib/db/modul/tb";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah } from "./_bantu";

@@ -1,5 +1,5 @@
 // lib/nasa-firms/syncHotspot.ts
-import { createAdminClient } from '@/lib/supabase/admin';
+import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { ambilHotspotKaltim } from './fetchHotspot';
 
 export interface HasilBackfillHotspot {
@@ -41,7 +41,7 @@ export async function backfillHotspotKaltim(
     throw new Error('Tanggal awal harus sebelum atau sama dengan tanggal akhir.');
   }
 
-  const supabase = createAdminClient();
+  const supabase = createDbServiceClient();
   const MAKS_HARI_PER_CHUNK = 10; // batas resmi FIRMS Area API
 
   let totalTitik = 0;
@@ -128,7 +128,7 @@ export async function sinkronisasiHotspotKaltim(): Promise<HasilSyncHotspot> {
     return { pesan: 'Tidak ada hotspot confidence >80% di Kaltim saat ini.', jumlah: 0 };
   }
 
-  const supabase = createAdminClient(); // service role - bypass RLS, khusus operasi sistem/cron
+  const supabase = createDbServiceClient(); // service role - bypass RLS, khusus operasi sistem/cron
 
   const baris = hotspots.map((h) => ({
     latitude: h.latitude,

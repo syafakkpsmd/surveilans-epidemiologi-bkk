@@ -1,9 +1,9 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/[klinikId]/page.tsx
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { ITEM_CHECKLIST, DAFTAR_KATEGORI } from '@/lib/pengawasan-klinik/itemChecklist';
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import UploadRekomendasi from '@/components/pengawasan-klinik/UploadRekomendasi';
 import { ambilPerbaikan, type DataPerbaikan } from '@/lib/pengawasan-klinik/perbaikan';
 import LinkPerbaikan from '@/components/pengawasan-klinik/LinkPerbaikan';
@@ -66,7 +66,7 @@ export default async function DetailPengawasanKlinikPage({
 }) {
   const { klinikId } = await params;
   const { p } = await searchParams;
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const [{ data: klinik }, { data: riwayatMentah }] = await Promise.all([
     supabase
@@ -101,7 +101,7 @@ export default async function DetailPengawasanKlinikPage({
     let namaFileRekomendasi: string | null = null;
   if (terpilih) {
     try {
-      const turso = getTursoClient();
+      const turso = getDbClient();
       const rek = await turso.execute({
         sql: 'SELECT nama_file FROM pengawasan_klinik_rekomendasi WHERE pengawasan_id = ?',
         args: [terpilih.id],

@@ -5,8 +5,8 @@
 //  - Supabase: v_kegiatan_pesawat_rekap (pesawat)
 import { tabelTidakAda } from '@/lib/db/errors';
 import { cache } from 'react';
-import { getTursoClient } from '@/lib/turso/client';
-import { createClient } from '@/lib/supabase/server';
+import { getDbClient } from '@/lib/db/client';
+import { createDbClient } from '@/lib/db/server';
 import { adalahGalatKolomBelumAda } from './perintahInput';
 import {
   DAFTAR_PENYAKIT,
@@ -43,7 +43,7 @@ type BarisMentah = Record<string, any>;
 
 async function jalankan(sql: string, args: (string | number)[], label: string, catatan: string[]): Promise<BarisMentah[]> {
   try {
-    const hasil = await getTursoClient().execute({ sql, args });
+    const hasil = await getDbClient().execute({ sql, args });
     return hasil.rows as unknown as BarisMentah[];
   } catch (err) {
     const pesan = err instanceof Error ? err.message : String(err);
@@ -101,7 +101,7 @@ export const SQL_KAPAL_BERANGKAT =
 async function ambilPesawat(mulai: string, akhir: string, catatan: string[]): Promise<BarisMentah[]> {
   const semua: BarisMentah[] = [];
   try {
-    const supabase = await createClient();
+    const supabase = await createDbClient();
     const UKURAN = 1000;
     for (let halaman = 0; ; halaman++) {
       const { data, error } = await supabase
@@ -134,7 +134,7 @@ async function ambilPtm(kondisi: string, args: (string | number)[], catatan: str
   const kolomLama = 'tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus';
   const dasar = `FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND ${kondisi}`;
   try {
-    const hasil = await getTursoClient().execute({ sql: `SELECT ${kolomBaru} ${dasar}`, args });
+    const hasil = await getDbClient().execute({ sql: `SELECT ${kolomBaru} ${dasar}`, args });
     return hasil.rows as unknown as BarisMentah[];
   } catch (err) {
     const pesan = err instanceof Error ? err.message : String(err);

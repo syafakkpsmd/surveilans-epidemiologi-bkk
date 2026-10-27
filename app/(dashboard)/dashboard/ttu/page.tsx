@@ -2,7 +2,7 @@ import {
   getRingkasanTtuBulanan,
   getRingkasanTtuMingguan,
   getDaftarWilayahKerjaSanitasi,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import TtuClient from "./TtuClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";

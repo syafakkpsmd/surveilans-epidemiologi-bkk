@@ -3,7 +3,7 @@ import {
   getRingkasanTppMingguan,
   getDaftarWilayahKerjaSanitasi,
   getDetailPemeriksaanTpp,
-} from "@/lib/supabase/queries";
+} from "@/lib/db/queries/umum";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import TppClient from "./TppClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";

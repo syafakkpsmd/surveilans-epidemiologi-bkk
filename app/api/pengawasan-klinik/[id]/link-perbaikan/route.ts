@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const turso = getTursoClient();
+  const turso = getDbClient();
 
   const ada = await turso.execute({
     sql: 'SELECT token FROM pengawasan_klinik_link_perbaikan WHERE pengawasan_id = ?',

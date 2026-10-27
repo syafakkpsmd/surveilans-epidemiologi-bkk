@@ -6,7 +6,7 @@ import { tabelTidakAda } from '@/lib/db/errors';
 import { revalidatePath } from 'next/cache';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { bolehKelolaPosko } from '@/lib/auth/aksesPosko';
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import { hariIniWita } from '@/lib/posko/queries';
 import { JENIS_KE_SLUG, type JenisPosko } from '@/lib/posko/konstanta';
 import {
@@ -56,7 +56,7 @@ export async function simpanPeriodePosko(input: {
 
   const nama = String(input.nama ?? '').trim().slice(0, 120);
   try {
-    await getTursoClient().execute({
+    await getDbClient().execute({
       sql: `INSERT INTO posko_periode (posko, tahun, nama, tanggal_mulai, tanggal_selesai) VALUES (?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
               nama = VALUES(nama), tanggal_mulai = VALUES(tanggal_mulai), tanggal_selesai = VALUES(tanggal_selesai)`,
@@ -84,7 +84,7 @@ export async function simpanInputHarianPosko(input: InputHarianPayload): Promise
   if (salah) return { ok: false, pesan: salah };
 
   try {
-    const db = getTursoClient();
+    const db = getDbClient();
 
     // tanggal harus berada dalam salah satu periode posko ini; tahun diambil dari periode itu
     const periode = await db.execute({

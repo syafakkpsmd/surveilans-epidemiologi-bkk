@@ -1,12 +1,12 @@
 // app/(dashboard)/dashboard/pengawasan-klinik/actions.ts
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { hitungStatusKepatuhan } from '@/lib/pengawasan-klinik/hitungKepatuhan';
 import { revalidatePath } from 'next/cache';
 
 export async function simpanPengawasanKlinik(formData: FormData) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const getString = (key: string): string | null => {
     const val = formData.get(key);
@@ -136,7 +136,7 @@ export async function simpanDokumenPengawasan(
   cloudinaryUrl: string,
   cloudinaryPublicId: string
 ) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const { error } = await supabase.from('pengawasan_klinik_dokumen').insert({
     pengawasan_id: pengawasanId,
@@ -150,7 +150,7 @@ export async function simpanDokumenPengawasan(
 }
 
 export async function tambahKlinikBaru(namaKlinik: string, alamat: string, jenisFasilitas: string) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const { data, error } = await supabase
     .from('klinik_binaan')
@@ -163,7 +163,7 @@ export async function tambahKlinikBaru(namaKlinik: string, alamat: string, jenis
 }
 
 export async function updateLokasiKlinik(klinikId: string, latitude: number, longitude: number) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
   const { error } = await supabase
     .from('klinik_binaan')
     .update({ latitude, longitude })

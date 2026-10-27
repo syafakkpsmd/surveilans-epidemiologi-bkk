@@ -3,14 +3,14 @@ import {
   getKotaPesawatBulanan,
   getMaskapaiPesawatBulanan,
   getWilkerRef,
-} from '@/lib/supabase/queries';
+} from '@/lib/db/queries/umum';
 import {
   getRingkasanPesawatMingguan,
   getRingkasanPesawatBulanan,
   getRingkasanGenderBulanan,
   getBreakdownMaskapai,
   getBreakdownSertifikat,
-} from '@/lib/supabase/queriesPesawat';
+} from '@/lib/db/queries/queriesPesawat';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterWilker from '@/components/vektor/FilterWilker';

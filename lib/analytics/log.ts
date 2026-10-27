@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { getGeoInfo } from './geo';
 import type { PeranAkses } from "@/lib/auth/get-user-role";
 
@@ -31,7 +31,7 @@ export async function catatPageLoad(role: PeranAkses | undefined) {
       return;
     }
 
-    const supabase = await createClient();
+    const supabase = await createDbClient();
     const { error } = await supabase.from('statistik_kunjungan').insert({
       tipe: 'pageload',
       role,
@@ -68,7 +68,7 @@ export async function catatLogin(role: string, userId: string) {
     }
 
     const roleClean = (role || 'petugas').toLowerCase().trim();
-    const supabase = await createClient();
+    const supabase = await createDbClient();
 
     const { error } = await supabase.from('statistik_kunjungan').insert({
       tipe: 'login',

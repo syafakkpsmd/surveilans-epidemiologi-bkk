@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTursoClient } from '@/lib/turso/client';
+import { getDbClient } from '@/lib/db/client';
 import { pengawasanIdDariToken, itemTidakSesuai } from '@/lib/pengawasan-klinik/perbaikan';
 
 export const runtime = 'nodejs';
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   if (!info || !info.items.some((i) => i.key === itemKey))
     return NextResponse.json({ error: 'Item tidak valid' }, { status: 400 });
 
-  await getTursoClient().execute({
+  await getDbClient().execute({
     sql: `INSERT INTO pengawasan_klinik_perbaikan (id, pengawasan_id, item_key, keterangan, tanggal_perbaikan)
           VALUES (?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE

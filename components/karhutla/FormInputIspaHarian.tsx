@@ -2,9 +2,9 @@
 'use client';
 
 import { useState } from 'react';
-import { simpanIspaHarian } from '@/lib/supabase/queries-karhutla-client';
+import { simpanIspaHarian } from '@/lib/db/queries/queries-karhutla-client';
 import { NAMA_WILKER } from '@/lib/karhutla/constants';
-import type { WilayahIspaRow } from '@/lib/supabase/queries-karhutla-server';
+import type { WilayahIspaRow } from '@/lib/db/queries/queries-karhutla-server';
 
 export default function FormInputIspaHarian({
   daftarWilayah, onBerhasilSimpan,

@@ -1,5 +1,5 @@
 'use server';
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import { revalidatePath } from 'next/cache';
 
 function ambilStringWajib(formData: FormData, key: string): string {
@@ -11,7 +11,7 @@ function ambilStringWajib(formData: FormData, key: string): string {
 }
 
 export async function tambahBuletin(formData: FormData) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const data = {
     tahun: parseInt(formData.get('tahun') as string),
@@ -28,7 +28,7 @@ export async function tambahBuletin(formData: FormData) {
 }
 
 export async function editBuletin(id: string, formData: FormData) {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const data = {
     tahun: parseInt(formData.get('tahun') as string),

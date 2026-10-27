@@ -1,6 +1,6 @@
-// lib/turso/sklt.ts
-// Import client Turso: samakan dengan yang dipakai di lib/turso/kier.ts
-import { getTursoClient } from "@/lib/turso/client";
+// lib/db/modul/sklt.ts
+// Import client Turso: samakan dengan yang dipakai di lib/db/modul/kier.ts
+import { getDbClient } from "@/lib/db/client";
 
 export type SkltRow = {
   id: number;
@@ -34,7 +34,7 @@ function inisial(nama: unknown): string {
 const angka = (v: unknown): number | null => (v === null || v === undefined || v === '' ? null : Number(v));
 
 export async function getTahunSklt(): Promise<number[]> {
-  const rs = await getTursoClient().execute(
+  const rs = await getDbClient().execute(
     `SELECT DISTINCT substr(tanggal,1,4) AS t FROM sklt_penumpang
      WHERE tanggal IS NOT NULL ORDER BY t DESC`
   );
@@ -42,7 +42,7 @@ export async function getTahunSklt(): Promise<number[]> {
 }
 
 export async function getSkltData(tahun: number): Promise<SkltRow[]> {
-  const rs = await getTursoClient().execute({
+  const rs = await getDbClient().execute({
     sql: `SELECT id, tanggal, nama, maskapai, rute, jenis_kelamin, umur, diagnosis, status_laik,
                  jenis_penyakit, gcs, nadi, suhu, hamil, pendamping, fasilitas
           FROM sklt_penumpang

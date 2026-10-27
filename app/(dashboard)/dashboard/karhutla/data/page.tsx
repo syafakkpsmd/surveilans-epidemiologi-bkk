@@ -7,7 +7,7 @@ import {
   ambilTabelHotspot,
   ambilDaftarWilayahIspa,
   ambilDaftarLokasiUdara,
-} from '@/lib/supabase/queries-karhutla-server';
+} from '@/lib/db/queries/queries-karhutla-server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 
 export const dynamic = 'force-dynamic';

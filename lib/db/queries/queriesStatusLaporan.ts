@@ -1,5 +1,5 @@
 /**
- * lib/supabase/queriesStatusLaporan.ts
+ * lib/db/queries/queriesStatusLaporan.ts
  *
  * Query untuk modul Status Kepatuhan Pelaporan (Mingguan & Bulanan).
  * Memanggil 2 fungsi SQL yang SUDAH dibuat & diuji manual di Supabase
@@ -8,18 +8,18 @@
  *   - status_lapor_bulanan(p_tahun int, p_bulan int)
  *
  * Pola sama seperti file queriesVektorBreakdown.ts yang sudah ada:
- * setiap fungsi membuat client Supabase-nya sendiri lewat createClient(),
+ * setiap fungsi membuat client Supabase-nya sendiri lewat createDbClient(),
  * caller (page.tsx) tidak perlu passing client.
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createDbClient } from '@/lib/db/server';
 import type { StatusLaporRow } from '@/lib/status-laporan/core';
 
 export async function getStatusLaporMingguan(
   tahun: number,
   minggu: number,
 ): Promise<StatusLaporRow[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   // NOTE: cast "as any" pada argumen RPC ini sengaja dipakai supaya tidak
   // error TypeScript SEBELUM types/database.types.ts di-generate ulang
@@ -48,7 +48,7 @@ export async function getStatusLaporBulanan(
   tahun: number,
   bulan: number,
 ): Promise<StatusLaporRow[]> {
-  const supabase = await createClient();
+  const supabase = await createDbClient();
 
   const { data, error } = await supabase.rpc('status_lapor_bulanan', {
     p_tahun: tahun,

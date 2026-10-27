@@ -1,6 +1,6 @@
 import "server-only";
 import { hitungBreakdownKategori, hitungStatusKepatuhan } from "@/lib/pengawasan-klinik/hitungKepatuhan";
-import { createClient } from "@/lib/supabase/server";
+import { createDbClient } from "@/lib/db/server";
 import { fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { ambilSemuaHalaman, desimal, jumlah } from "./_bantu";
@@ -29,7 +29,7 @@ export const modulPengawasanKlinik: ModulLaporan = {
   judul: JUDUL,
   kelompok: "Klinik Binaan BKK",
   async ambil({ tahun, bulanAkhir }: KonteksLaporan): Promise<DataModul | null> {
-    const supabase = await createClient();
+    const supabase = await createDbClient();
     const semua = (await ambilSemuaHalaman((dari, sampai) =>
       supabase
         .from("pengawasan_klinik")

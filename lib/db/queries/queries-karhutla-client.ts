@@ -1,9 +1,9 @@
-// lib/supabase/queries-karhutla-client.ts
-import { createClient } from '@/lib/supabase/client';
+// lib/db/queries/queries-karhutla-client.ts
+import { createDbBrowserClient } from '@/lib/db/browser-client';
 
 /**
  * HANYA untuk dipanggil dari Client Component (form input, dsb).
- * File ini TIDAK boleh mengimpor apa pun dari lib/supabase/server.ts.
+ * File ini TIDAK boleh mengimpor apa pun dari lib/db/server.ts.
  */
 
 // ------------------------------------------------------------
@@ -23,7 +23,7 @@ export interface InputIspaHarian {
 }
 
 export async function simpanIspaHarian(input: InputIspaHarian) {
-  const supabase = createClient();
+  const supabase = createDbBrowserClient();
 
   const { data, error } = await supabase
     .from('ispa_harian')
@@ -51,7 +51,7 @@ export async function simpanIspaHarian(input: InputIspaHarian) {
  * -- lihat sql/segmen-karhutla-rls-update-delete.sql.
  */
 export async function hapusIspaHarian(id: string) {
-  const supabase = createClient();
+  const supabase = createDbBrowserClient();
   const { error } = await supabase.from('ispa_harian').delete().eq('id', id);
   if (error) throw new Error(`Gagal menghapus data ISPA: ${error.message}`);
 }
@@ -76,7 +76,7 @@ export interface InputKualitasUdaraHarian {
 }
 
 export async function simpanKualitasUdaraHarian(input: InputKualitasUdaraHarian) {
-  const supabase = createClient();
+  const supabase = createDbBrowserClient();
 
   const { data, error } = await supabase
     .from('kualitas_udara_harian')
@@ -109,7 +109,7 @@ export async function simpanKualitasUdaraHarian(input: InputKualitasUdaraHarian)
  * -- lihat sql/segmen-karhutla-rls-update-delete.sql.
  */
 export async function hapusKualitasUdaraHarian(id: string) {
-  const supabase = createClient();
+  const supabase = createDbBrowserClient();
   const { error } = await supabase.from('kualitas_udara_harian').delete().eq('id', id);
   if (error) throw new Error(`Gagal menghapus data kualitas udara: ${error.message}`);
 }

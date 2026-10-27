@@ -5,7 +5,7 @@ import {
   hitungDiperiksaReaktifMingguan, hitungDiperiksaReaktifBulanan,
   hitungTrenMingguanHasilPerWilayah, hitungTrenMingguanHubunganBerisikoPerWilayah,
   hitungTrenBulananHasilPerWilayah, hitungTrenBulananHubunganBerisikoPerWilayah
-} from '@/lib/turso/hiv';
+} from '@/lib/db/modul/hiv';
 import HivClient from './HivClient';
 
 export default async function HalamanHiv({

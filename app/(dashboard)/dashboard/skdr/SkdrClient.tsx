@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useTransition } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createDbBrowserClient } from '@/lib/db/browser-client';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -80,7 +80,7 @@ export default function SkdrClient({ daftarWilayah, dataAwal, role, tahunEpidBer
 
   function terapkanFilter() {
     startTransition(async () => {
-      const supabase = createClient();
+      const supabase = createDbBrowserClient();
       let q = supabase
         .from('view_skdr_alert_mingguan')
         .select('*')
@@ -508,7 +508,7 @@ function TrenPenyakitPanel({
   useEffect(() => {
     let batal = false;
     setLoading(true);
-    const supabase = createClient();
+    const supabase = createDbBrowserClient();
     (async () => {
       let q = supabase
         .from('skdr_mingguan')

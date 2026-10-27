@@ -3,7 +3,7 @@ import { catatKunjungan } from "@/app/actions/kunjungan";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import { DonutRba } from "@/components/cop/DonutRba";
 import { PieBreakdown } from "@/components/cop/PieBreakdown";
-import { getRingkasanMingguan, getKategoriBreakdown } from "@/lib/supabase/queries";
+import { getRingkasanMingguan, getKategoriBreakdown } from "@/lib/db/queries/umum";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { periodeMingguanSebelumnya } from "@/lib/ai/periode";
 import type {

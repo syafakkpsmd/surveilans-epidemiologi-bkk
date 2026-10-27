@@ -1,5 +1,5 @@
 import "server-only";
-import { getDonatPekerjaanMigrasiMalaria, getDonatUsiaMigrasiMalaria, getTrenBulananRdtGender } from "@/lib/turso/queriesMigrasiMalaria";
+import { getDonatPekerjaanMigrasiMalaria, getDonatUsiaMigrasiMalaria, getTrenBulananRdtGender } from "@/lib/db/modul/queriesMigrasiMalaria";
 import { BULAN, fmtAngka, fmtPerubahan, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { desimal, jumlah, persenDari } from "./_bantu";

@@ -161,6 +161,7 @@ export const NAV_GROUPS: NavGroup[] = [
     singkat: "Data",
     items: [
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
+      { label: "Input Data", href: "/dashboard/input-data", icon: Table2, prefetch: false },
       { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
       { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
       { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },

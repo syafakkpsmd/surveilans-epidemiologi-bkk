@@ -18,6 +18,7 @@ const RUTE_TERLINDUNGI: RegExp[] = [
   /^\/dashboard\/pengawasan-klinik\/(tambah|klinik)(\/|$)/,
   /^\/dashboard\/global-emerging\/input(\/|$)/,
   /^\/dashboard\/posko\/[^/]+\/input(\/|$)/,
+  /^\/lalu-lintas-orang\/input-penumpang-kapal(\/|$)/,
 ];
 
 export function proxy(request: NextRequest) {
@@ -40,5 +41,6 @@ export const config = {
     '/dashboard/pengawasan-klinik/klinik/:path*',
     '/dashboard/global-emerging/input/:path*',
     '/dashboard/posko/:jenis/input/:path*',
+    '/lalu-lintas-orang/input-penumpang-kapal/:path*',
   ],
 };

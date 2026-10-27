@@ -3,7 +3,7 @@
 // dipakai komponen 'use client'. Menambah modul baru = menambah satu entri di MODUL.
 import { WILAYAH_KERJA, kodeDariTeks, type KodeWilker } from '@/lib/wilayah-kerja';
 
-export type TipeKolom = 'teks' | 'bilangan' | 'tanggal' | 'rba' | 'wilker';
+export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker';
 
 export interface KolomModul {
   /** Nama kolom di tabel. */
@@ -14,26 +14,44 @@ export interface KolomModul {
   wajib?: boolean;
   /** Penulisan lain judul kolom yang diterima saat membaca Excel (selain label dan nama kolom). */
   alias?: string[];
+  /** Diisi MANUAL oleh petugas setelah data masuk (dropdown di daftar). Unggahan tidak menimpanya dengan kosong. */
+  manual?: boolean;
+  /** Pilihan awal dropdown (digabung dengan nilai yang sudah ada di data). Kosong = teks bebas. */
+  pilihan?: string[];
+  /** Hanya tampil di daftar/form bila true; kolom arsip dari Sinkarkes disimpan tetapi tidak ditampilkan. */
+  arsip?: boolean;
+  /** Panjang maksimum teks (default 255; harus sesuai kolom di database). */
+  maks?: number;
 }
 
 export interface ModulInput {
   kunci: string;
   label: string;
   tabel: string;
-  /** Kolom tanggal yang menentukan TAHUN data (dipakai pemilih tahun dan cakupan ganti). */
+  /** Kolom tanggal yang menentukan TAHUN/BULAN data. */
   kolomTanggal: string;
   /** Kolom wilayah kerja. */
   kolomWilayah: string;
+  /** Kolom nama kapal (bagian kunci pencocokan baris). */
+  kolomKunci: string;
   /** Wilayah kerja yang boleh pada modul ini. */
   wilayahBoleh: KodeWilker[];
   kolom: KolomModul[];
-  /** Kolom yang ditampilkan di daftar data. */
+  /** Kolom yang ditampilkan di daftar data (kolom manual selalu ditambahkan di belakang). */
   kolomDaftar: string[];
-  /** Peran yang boleh menambah/mengunggah. Hapus selalu khusus admin. */
+  /** Peran yang boleh menambah/mengunggah/mengisi. Hapus selalu khusus admin. */
   peranBoleh: ('admin' | 'petugas' | 'petugas_klinik')[];
+  /** Isi negara_kedatangan dari master pelabuhan (hanya COP). */
+  negaraDariMaster?: boolean;
 }
 
 const WILKER_KAPAL: KodeWilker[] = ['WK01', 'WK02', 'WK03', 'WK04', 'WK05', 'WK06'];
+
+export const PILIHAN_RBA = ['Hijau', 'Kuning', 'Merah'];
+/** Label tampilan; nilai tersimpan tetap Hijau/Kuning/Merah (dipakai view dan dasbor). */
+export const LABEL_RBA: Record<string, string> = { Hijau: 'Rendah (Hijau)', Kuning: 'Sedang (Kuning)', Merah: 'Tinggi (Merah)' };
+
+const T = (nama: string, label: string, alias?: string[], extra: Partial<KolomModul> = {}): KolomModul => ({ nama, label, tipe: 'teks', alias, ...extra });
 
 export const MODUL: Record<string, ModulInput> = {
   cop: {
@@ -42,24 +60,41 @@ export const MODUL: Record<string, ModulInput> = {
     tabel: 'kegiatan_cop',
     kolomTanggal: 'tgl_kedatangan',
     kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_kapal',
     wilayahBoleh: WILKER_KAPAL,
     peranBoleh: ['admin', 'petugas'],
-    kolomDaftar: ['tgl_kedatangan', 'wilayah_kerja', 'nama_kapal', 'bendera_kapal', 'negara_kedatangan', 'jml_abk_wna', 'jml_abk_wni', 'rba'],
+    negaraDariMaster: true,
+    kolomDaftar: ['tgl_kedatangan', 'wilayah_kerja', 'nama_kapal', 'bendera_kapal', 'pelabuhan_kedatangan', 'negara_kedatangan', 'jml_abk_wna', 'jml_abk_wni'],
     kolom: [
-      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ['Wilker', 'Pelabuhan'] },
-      { nama: 'nama_kapal', label: 'Nama Kapal', tipe: 'teks', wajib: true },
-      { nama: 'bendera_kapal', label: 'Bendera Kapal', tipe: 'teks', alias: ['Bendera'] },
-      { nama: 'negara_kedatangan', label: 'Negara Kedatangan', tipe: 'teks', alias: ['Negara Asal', 'Negara'] },
-      { nama: 'tgl_kedatangan', label: 'Tanggal Kedatangan', tipe: 'tanggal', wajib: true, alias: ['Tgl Kedatangan', 'Tanggal'] },
-      { nama: 'jml_abk_wna', label: 'Jumlah ABK WNA', tipe: 'bilangan', alias: ['ABK WNA'] },
-      { nama: 'jml_abk_wni', label: 'Jumlah ABK WNI', tipe: 'bilangan', alias: ['ABK WNI'] },
-      { nama: 'rba', label: 'RBA', tipe: 'rba', alias: ['Risk Based Assessment'] },
-      { nama: 'faktor_risiko', label: 'Faktor Risiko', tipe: 'teks' },
-      { nama: 'daerah_terjangkit', label: 'Daerah Terjangkit', tipe: 'teks' },
-      { nama: 'kelengkapan_dokumen', label: 'Kelengkapan Dokumen', tipe: 'teks' },
-      { nama: 'orang_sakit', label: 'Orang Sakit', tipe: 'teks' },
-      { nama: 'keberadaan_vektor', label: 'Keberadaan Vektor', tipe: 'teks' },
-      { nama: 'sanitasi', label: 'Sanitasi', tipe: 'teks' },
+      { nama: 'wilayah_kerja', label: 'Induk/Wilker', tipe: 'wilker', wajib: true, alias: ['Wilayah Kerja', 'Wilker', 'Pelabuhan'] },
+      T('nama_kapal', 'Nama Kapal', undefined, { wajib: true }),
+      T('bendera_kapal', 'Bendera Kapal', ['Bendera']),
+      { nama: 'berat_kapal', label: 'Berat', tipe: 'desimal', alias: ['GT', 'Berat Kapal'] },
+      T('pelabuhan_kedatangan', 'Pelabuhan Kedatangan'),
+      T('negara_kedatangan', 'Negara Kedatangan', ['Negara Asal', 'Negara']),
+      { nama: 'tgl_kedatangan', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tgl Kedatangan', 'Tanggal Kedatangan'] },
+      T('pelabuhan_berikutnya', 'Pelabuhan Berikutnya'),
+      T('kondisi_pelabuhan', 'Kondisi Pelabuhan/Negara'),
+      T('bebas_darurat', 'Bebas Darurat'),
+      { nama: 'jml_abk_wna', label: 'Jml. ABK WNA', tipe: 'bilangan', alias: ['Jumlah ABK WNA', 'ABK WNA'] },
+      { nama: 'jml_abk_wni', label: 'Jml. ABK WNI', tipe: 'bilangan', alias: ['Jumlah ABK WNI', 'ABK WNI'] },
+      { nama: 'jml_penumpang_wna', label: 'Jml. Penumpang WNA', tipe: 'bilangan', alias: ['Jumlah Penumpang WNA', 'Penumpang WNA'] },
+      { nama: 'jml_penumpang_wni', label: 'Jml. Penumpang WNI', tipe: 'bilangan', alias: ['Jumlah Penumpang WNI', 'Penumpang WNI'] },
+      { nama: 'tgl_terbit', label: 'Tanggal Terbit', tipe: 'tanggal', arsip: true },
+      { nama: 'jam_terbit', label: 'Jam Terbit', tipe: 'waktu', arsip: true },
+      T('nama_petugas', 'Nama Petugas', undefined, { arsip: true }),
+      { nama: 'tgl_published', label: 'Tanggal Published', tipe: 'tanggalwaktu', arsip: true },
+      T('qr_code', 'QR Code', undefined, { arsip: true, maks: 100 }),
+      T('nama_wajib_bayar', 'Nama Wajib Bayar', undefined, { arsip: true }),
+      { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', arsip: true },
+      // ---- diisi manual petugas ----
+      { nama: 'rba', label: 'RBA', tipe: 'rba', manual: true, pilihan: PILIHAN_RBA, alias: ['Risk Based Assessment'] },
+      T('faktor_risiko', 'Faktor Risiko', undefined, { manual: true, pilihan: ['Tidak Ditemukan'] }),
+      T('daerah_terjangkit', 'Daerah Terjangkit', undefined, { manual: true, pilihan: ['Ya', 'Tidak'] }),
+      T('kelengkapan_dokumen', 'Kelengkapan Dokumen', undefined, { manual: true, pilihan: ['Lengkap', 'Tidak Lengkap'] }),
+      T('orang_sakit', 'Orang Sakit', undefined, { manual: true, pilihan: ['Tidak Ada', 'Ada'] }),
+      T('keberadaan_vektor', 'Keberadaan Vektor', undefined, { manual: true, pilihan: ['Ada', 'Tidak Ada'] }),
+      T('sanitasi', 'Sanitasi', undefined, { manual: true, pilihan: ['Baik', 'Tidak Baik'] }),
     ],
   },
   phqc: {
@@ -68,22 +103,42 @@ export const MODUL: Record<string, ModulInput> = {
     tabel: 'kegiatan_phqc',
     kolomTanggal: 'tgl_keberangkatan',
     kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_kapal',
     wilayahBoleh: WILKER_KAPAL,
     peranBoleh: ['admin', 'petugas'],
-    kolomDaftar: ['tgl_keberangkatan', 'wilayah_kerja', 'nama_kapal', 'bendera', 'pelabuhan_tujuan', 'jml_abk_wna', 'jml_abk_wni', 'jml_penumpang_wna', 'jml_penumpang_wni', 'rba'],
+    kolomDaftar: ['tgl_keberangkatan', 'wilayah_kerja', 'nama_kapal', 'bendera', 'pelabuhan_kedatangan', 'pelabuhan_tujuan', 'jml_abk_wna', 'jml_abk_wni', 'jml_penumpang_wna', 'jml_penumpang_wni'],
     kolom: [
-      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ['Wilker', 'Pelabuhan'] },
-      { nama: 'nama_kapal', label: 'Nama Kapal', tipe: 'teks', wajib: true },
-      { nama: 'bendera', label: 'Bendera', tipe: 'teks', alias: ['Bendera Kapal'] },
-      { nama: 'pelabuhan_tujuan', label: 'Pelabuhan Tujuan', tipe: 'teks' },
-      { nama: 'tgl_keberangkatan', label: 'Tanggal Keberangkatan', tipe: 'tanggal', wajib: true, alias: ['Tgl Keberangkatan', 'Tanggal'] },
-      { nama: 'jml_abk_wna', label: 'Jumlah ABK WNA', tipe: 'bilangan', alias: ['ABK WNA'] },
-      { nama: 'jml_abk_wni', label: 'Jumlah ABK WNI', tipe: 'bilangan', alias: ['ABK WNI'] },
-      { nama: 'jml_penumpang_wna', label: 'Jumlah Penumpang WNA', tipe: 'bilangan', alias: ['Penumpang WNA'] },
-      { nama: 'jml_penumpang_wni', label: 'Jumlah Penumpang WNI', tipe: 'bilangan', alias: ['Penumpang WNI'] },
-      { nama: 'pelabuhan_kedatangan', label: 'Pelabuhan Kedatangan', tipe: 'teks' },
-      { nama: 'rba', label: 'RBA', tipe: 'rba', alias: ['Risk Based Assessment'] },
-      { nama: 'tujuan_berlayar', label: 'Tujuan Berlayar', tipe: 'teks' },
+      { nama: 'wilayah_kerja', label: 'Induk/Wilker', tipe: 'wilker', wajib: true, alias: ['Wilayah Kerja', 'Wilker', 'Pelabuhan'] },
+      T('nama_balai', 'Nama Balai Karkes', undefined, { arsip: true }),
+      T('no_imo', 'No Registrasi/IMO No', ['IMO', 'No IMO'], { arsip: true, maks: 50 }),
+      T('nama_kapal', 'Nama Kapal', undefined, { wajib: true }),
+      T('jenis_kapal', 'Jenis Kapal', undefined, { arsip: true, maks: 100 }),
+      T('bendera', 'Bendera Kapal', ['Bendera']),
+      { nama: 'berat_kapal', label: 'Berat', tipe: 'desimal', alias: ['GT', 'Berat Kapal'], arsip: true },
+      T('pelabuhan_kedatangan', 'Pelabuhan Kedatangan'),
+      T('pelabuhan_tujuan', 'Pelabuhan Berikutnya', ['Pelabuhan Tujuan']),
+      // Tanggal keberangkatan = tanggal terbit PHQC (PHQC diterbitkan saat kapal berangkat). Lihat catatan di docs.
+      { nama: 'tgl_keberangkatan', label: 'Tanggal Terbit', tipe: 'tanggal', wajib: true, alias: ['Tgl Keberangkatan', 'Tanggal Keberangkatan', 'Tanggal'] },
+      { nama: 'jam_terbit', label: 'Jam Terbit', tipe: 'waktu', arsip: true },
+      { nama: 'jml_abk_wna', label: 'Jml. ABK WNA', tipe: 'bilangan', alias: ['Jumlah ABK WNA', 'ABK WNA'] },
+      { nama: 'jml_abk_wni', label: 'Jml. ABK WNI', tipe: 'bilangan', alias: ['Jumlah ABK WNI', 'ABK WNI'] },
+      { nama: 'jml_penumpang_wna', label: 'Jml. Penumpang WNA', tipe: 'bilangan', alias: ['Jumlah Penumpang WNA', 'Penumpang WNA'] },
+      { nama: 'jml_penumpang_wni', label: 'Jml. Penumpang WNI', tipe: 'bilangan', alias: ['Jumlah Penumpang WNI', 'Penumpang WNI'] },
+      T('nama_penerbit', 'Nama Penerbit', undefined, { arsip: true }),
+      { nama: 'berlaku_sampai', label: 'Berlaku Sampai Tanggal', tipe: 'tanggal', arsip: true },
+      T('nama_petugas', 'Nama Petugas', undefined, { arsip: true }),
+      { nama: 'keterangan', label: 'Keterangan', tipe: 'teks', arsip: true, maks: 5000 },
+      { nama: 'tgl_published', label: 'Tanggal Published', tipe: 'tanggalwaktu', arsip: true },
+      T('qr_code', 'QR Code', undefined, { arsip: true, maks: 100 }),
+      T('kode_billing', 'Kode Billing', undefined, { arsip: true, maks: 100 }),
+      T('nama_wajib_bayar', 'Nama Wajib Bayar', undefined, { arsip: true }),
+      T('ntpn', 'NTPN', undefined, { arsip: true, maks: 100 }),
+      T('ntb', 'NTB', undefined, { arsip: true, maks: 100 }),
+      { nama: 'jam_bayar', label: 'Jam Bayar', tipe: 'tanggalwaktu', arsip: true },
+      { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', arsip: true },
+      // ---- diisi manual petugas ----
+      { nama: 'rba', label: 'RBA', tipe: 'rba', manual: true, pilihan: PILIHAN_RBA, alias: ['Risk Based Assessment'] },
+      T('tujuan_berlayar', 'Tujuan Berlayar', undefined, { manual: true, pilihan: ['Dalam Negeri', 'Luar Negeri'] }),
     ],
   },
 };

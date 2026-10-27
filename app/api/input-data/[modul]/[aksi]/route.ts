@@ -1,10 +1,12 @@
 // app/api/input-data/[modul]/[aksi]/route.ts
 //
 //   GET    /api/input-data/{modul}/template           -> berkas .xlsx kosong
-//   GET    /api/input-data/{modul}/data?tahun&wilayah&sumber&halaman
+//   GET    /api/input-data/{modul}/data?tahun&bulan&wilayah&sumber&belum=1&halaman
+//   GET    /api/input-data/{modul}/pilihan            -> pilihan dropdown kolom isian manual
+//   POST   /api/input-data/{modul}/ubah               -> JSON {id, nilai:{kolom manual}} isi RBA dst.
 //   GET    /api/input-data/{modul}/tahun              -> daftar tahun yang ada datanya
 //   GET    /api/input-data/{modul}/riwayat            -> riwayat unggahan modul
-//   POST   /api/input-data/{modul}/unggah             -> multipart: file, tahun, mode=pratinjau|simpan
+//   POST   /api/input-data/{modul}/unggah             -> multipart: file, tahun, mode=pratinjau|simpan, wilayah (opsional)
 //   POST   /api/input-data/{modul}/baris              -> JSON {nilai:{...}} tambah satu baris (form)
 //   DELETE /api/input-data/{modul}/baris?id=          -> hapus satu baris (admin)
 //   DELETE /api/input-data/{modul}/batch?id=          -> batalkan satu unggahan (admin)
@@ -17,9 +19,11 @@ import { getAuthUser } from '@/lib/auth/getAuthUser';
 import { dapatkanModul, type ModulInput } from '@/lib/input-data/modul';
 import { validasiBaris } from '@/lib/input-data/validasi';
 import { bacaExcel, buatTemplate, MAKS_BYTE, MAKS_GALAT_DITAMPILKAN } from '@/lib/input-data/parse-excel';
+import { kodeDariTeks } from '@/lib/wilayah-kerja';
+import { isiNegara } from '@/lib/input-data/master';
 import {
-  daftarData, daftarRiwayat, daftarTahun, hapusBaris, hapusBatch, hitungDiganti,
-  simpanUnggahan, tambahSatu, wilayahDalam,
+  daftarData, daftarPilihan, daftarRiwayat, daftarTahun, hapusBaris, hapusBatch, hitungRencana,
+  simpanUnggahan, tambahSatu, ubahManual, wilayahDalam,
 } from '@/lib/input-data/simpan';
 
 export const runtime = 'nodejs';
@@ -63,11 +67,14 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     if (aksi === 'data') {
       return NextResponse.json(await daftarData(modul, {
         tahun: bilanganAtauUndef(sp.get('tahun')),
+        bulan: bilanganAtauUndef(sp.get('bulan')),
+        belumLengkap: sp.get('belum') === '1',
         wilayah: sp.get('wilayah') || undefined,
         sumber: sp.get('sumber') || undefined,
         halaman: bilanganAtauUndef(sp.get('halaman')),
       }));
     }
+    if (aksi === 'pilihan') return NextResponse.json({ pilihan: await daftarPilihan(modul) });
     if (aksi === 'tahun') return NextResponse.json({ tahun: await daftarTahun(modul) });
     if (aksi === 'riwayat') return NextResponse.json({ riwayat: await daftarRiwayat(modul.kunci) });
   } catch (e) {
@@ -95,23 +102,40 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (!Number.isInteger(tahun) || tahun < 2000 || tahun > 2100) return galat('Tahun tidak valid', 400);
       if (berkas.size > MAKS_BYTE) return galat(`Berkas lebih dari ${MAKS_BYTE / 1024 / 1024} MB`, 413);
 
-      const h = await bacaExcel(Buffer.from(await berkas.arrayBuffer()), modul, tahun);
-      if (h.fatal) return NextResponse.json({ error: h.fatal }, { status: 400 });
+      const wilayahDefault = kodeDariTeks(String(form.get('wilayah') ?? '')) ?? null;
+      const h = await bacaExcel(Buffer.from(await berkas.arrayBuffer()), modul, tahun, { wilayahDefault });
+      if (h.fatal) return NextResponse.json({ error: h.fatal, perluWilayah: h.perluWilayah }, { status: 400 });
 
       const baris = h.sah.map((s) => s.nilai);
-      const diganti = await hitungDiganti(modul, tahun, wilayahDalam(modul, baris));
+      let tidakCocok: string[] = [];
+      let negaraTerisi = 0;
+      if (modul.negaraDariMaster) {
+        const n = await isiNegara(baris);
+        tidakCocok = n.tidakCocok; negaraTerisi = n.terisi;
+      }
+      const rencana = await hitungRencana(modul, tahun, baris);
       const ringkas = {
-        jumlahBaris: h.jumlahBaris, sah: baris.length, ditolak: h.galat.length, akanDiganti: diganti,
+        jumlahBaris: h.jumlahBaris, sah: baris.length, ditolak: h.galat.length, baru: rencana.baru, diperbarui: rencana.diperbarui,
         wilayah: wilayahDalam(modul, baris), kolomDiabaikan: h.kolomDiabaikan,
+        negaraTerisi, pelabuhanTanpaMaster: tidakCocok.slice(0, 100),
         galat: h.galat.slice(0, MAKS_GALAT_DITAMPILKAN), galatTerpotong: h.galat.length > MAKS_GALAT_DITAMPILKAN,
       };
       if (mode === 'pratinjau') return NextResponse.json({ mode, ...ringkas });
 
       if (!baris.length) return galat('Tidak ada baris yang sah untuk disimpan', 400);
+      const kolomAda = modul.negaraDariMaster ? [...h.kolomAda, 'negara_kedatangan'] : h.kolomAda;
       const r = await simpanUnggahan({
-        modul, tahun, namaFile: berkas.name, baris, jumlahBaris: h.jumlahBaris, jumlahDitolak: h.galat.length, pengguna,
+        modul, tahun, namaFile: berkas.name, baris, kolomAda, jumlahBaris: h.jumlahBaris, jumlahDitolak: h.galat.length, pengguna,
       });
-      return NextResponse.json({ mode, ...ringkas, masuk: r.masuk, diganti: r.diganti, batchId: r.batchId });
+      return NextResponse.json({ mode, ...ringkas, baru: r.baru, diperbarui: r.diperbarui, batchId: r.batchId });
+    }
+
+    if (aksi === 'ubah') {
+      const body = (await req.json().catch(() => null)) as { id?: string; nilai?: Record<string, unknown> } | null;
+      if (!body?.id || !/^[0-9a-fA-F-]{1,36}$/.test(body.id) || !body.nilai || typeof body.nilai !== 'object') return galat('Permintaan tidak valid', 400);
+      const r = await ubahManual(modul, body.id, body.nilai);
+      if (!r.ok) return NextResponse.json({ error: r.galat.join('; ') }, { status: 400 });
+      return NextResponse.json({ ok: true });
     }
 
     if (aksi === 'baris') {
@@ -119,6 +143,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (!body?.nilai || typeof body.nilai !== 'object') return galat('Isian tidak valid', 400);
       const h = validasiBaris(modul, body.nilai);
       if (!h.nilai) return NextResponse.json({ error: 'Isian belum benar', galat: h.galat }, { status: 400 });
+      if (modul.negaraDariMaster) await isiNegara([h.nilai]);
       const r = await tambahSatu(modul, h.nilai);
       if (r === 'duplikat') return galat('Data dengan wilayah, nama kapal, dan tanggal yang sama sudah ada', 409);
       return NextResponse.json({ ok: true });

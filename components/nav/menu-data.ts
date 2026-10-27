@@ -163,7 +163,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Input Data", href: "/dashboard/input-data", icon: FilePlus2, prefetch: false, hanyaPeran: ["petugas", "admin"] },
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
-      { label: "Input Data", href: "/dashboard/input-data", icon: Table2, prefetch: false },
       { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
       { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
       { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },
@@ -198,6 +197,17 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+/** Item menu yang hanya muncul bila sudah login (petugas, petugas klinik, admin); disisipkan ke grup "Data". */
+export const ITEM_INPUT_DATA: NavItem = { label: "Input Data", href: "/dashboard/input-data", icon: Table2, prefetch: false };
+
+export function grupUntukPeran(peran: string): NavGroup[] {
+  const login = peran === "admin" || peran === "petugas" || peran === "petugas_klinik";
+  const dasar = login
+    ? NAV_GROUPS.map((g) => (g.title === "Data" ? { ...g, items: [ITEM_INPUT_DATA, ...g.items] } : g))
+    : NAV_GROUPS;
+  return peran === "admin" ? [...dasar, ADMIN_GROUP] : dasar;
+}
 
 export const ADMIN_GROUP: NavGroup = {
   title: "Admin",

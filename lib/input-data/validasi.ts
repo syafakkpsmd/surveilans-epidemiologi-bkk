@@ -2,7 +2,7 @@
 // Validasi satu baris menurut konfigurasi modul. MURNI. Dipakai unggah Excel dan form.
 import type { ModulInput, KolomModul } from './modul';
 import { wilayahTersimpan } from './modul';
-import { teksKosong, ubahBilangan, ubahRba, ubahTanggal, ubahTeks, ubahWilker } from './nilai';
+import { teksKosong, ubahBilangan, ubahDesimal, ubahRba, ubahTanggal, ubahTanggalWaktu, ubahTeks, ubahWaktu, ubahWilker } from './nilai';
 
 export type NilaiBaris = Record<string, string | number | null>;
 
@@ -14,7 +14,10 @@ export interface HasilBaris {
 
 function ubah(k: KolomModul, v: unknown, modul: ModulInput): { ok: true; nilai: string | number | null } | { ok: false; galat: string } {
   switch (k.tipe) {
-    case 'teks': return ubahTeks(v);
+    case 'teks': return ubahTeks(v, k.maks ?? 255);
+    case 'desimal': return ubahDesimal(v);
+    case 'tanggalwaktu': return ubahTanggalWaktu(v);
+    case 'waktu': return ubahWaktu(v);
     case 'bilangan': return ubahBilangan(v);
     case 'tanggal': return ubahTanggal(v);
     case 'rba': return ubahRba(v);
@@ -52,9 +55,12 @@ export function validasiBaris(modul: ModulInput, mentah: Record<string, unknown>
   return galat.length ? { nilai: null, galat } : { nilai, galat: [] };
 }
 
-/** Kunci unik yang dipakai tabel (bila ada) untuk mendeteksi duplikat di dalam berkas. */
-export function kunciDuplikat(modulKunci: string, n: NilaiBaris): string | null {
-  if (modulKunci !== 'cop') return null; // kegiatan_cop punya UNIQUE (wilayah_kerja, nama_kapal, tgl_kedatangan)
-  if (n.wilayah_kerja == null || n.nama_kapal == null || n.tgl_kedatangan == null) return null; // NULL tidak bentrok
-  return JSON.stringify([n.wilayah_kerja, String(n.nama_kapal).toLowerCase(), n.tgl_kedatangan]);
+/** Kunci pencocokan baris untuk "tambah atau perbarui": (wilayah, nama kapal, tanggal). Null bila ada bagian kosong
+ *  (baris seperti itu selalu dianggap baru). Dipakai juga untuk mendeteksi duplikat di dalam satu berkas. */
+export function kunciBaris(modul: ModulInput, n: NilaiBaris): string | null {
+  const w = n[modul.kolomWilayah];
+  const k = n[modul.kolomKunci];
+  const t = n[modul.kolomTanggal];
+  if (w == null || k == null || t == null) return null;
+  return JSON.stringify([String(w).toLowerCase().replace(/\s+/g, ''), String(k).toLowerCase().replace(/\s+/g, ' ').trim(), String(t)]);
 }

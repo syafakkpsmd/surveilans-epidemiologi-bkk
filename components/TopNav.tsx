@@ -19,9 +19,8 @@ import { ChevronDown, ChevronRight, ExternalLink, Home } from "lucide-react";
 import type { PeranAkses } from "@/lib/auth/get-user-role";
 import { useSidebar } from "@/components/SidebarContext";
 import {
-  ADMIN_GROUP,
   HREF_BERANDA,
-  NAV_GROUPS,
+  grupUntukPeran,
   adalahInternal,
   cariHrefAktif,
   hrefSamaDenganAktif,
@@ -35,7 +34,7 @@ export default function TopNav({ role }: { role: PeranAkses }) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
 
-  const groups = useMemo(() => (role === "admin" ? [...NAV_GROUPS, ADMIN_GROUP] : NAV_GROUPS), [role]);
+  const groups = useMemo(() => grupUntukPeran(role), [role]);
   const hrefAktif = useMemo(() => cariHrefAktif(pathname, groups), [pathname, groups]);
 
   const aktif = (href?: string) => hrefSamaDenganAktif(href, hrefAktif);

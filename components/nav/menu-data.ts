@@ -8,11 +8,12 @@
  */
 
 import type { ElementType } from "react";
+import type { PeranAkses } from "@/lib/auth/get-user-role";
 import {
   Ship, PlaneTakeoff, Bug, Rat, Zap, Droplets, Plane, Wind, CircleDot, Building2,
   ShieldAlert, Siren, Newspaper, Globe, TrendingUp, Database, Microscope, Users,
   BarChart3, MapPin, ClipboardCheck, BuildingIcon, Table2, Book, Flame, Droplet,
-  BellRing, Package, PersonStanding, CalendarDays,
+  BellRing, Package, PersonStanding, CalendarDays, FilePlus2,
 } from "lucide-react";
 
 export type NavChild = { label: string; href: string; prefetch?: boolean };
@@ -23,6 +24,8 @@ export type NavItem = {
   icon: ElementType;
   children?: NavChild[];
   prefetch?: boolean;
+  /** Bila diisi, item hanya tampil untuk peran ini (penyaringan tampilan; akses sebenarnya dijaga di server). */
+  hanyaPeran?: PeranAkses[];
 };
 
 export type NavGroup = { title: string; singkat: string; items: NavItem[] };
@@ -114,7 +117,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: CalendarDays,
         prefetch: false,
         children: [
-          { label: "Input Data Harian", href: "/dashboard/posko/nataru/input", prefetch: false },
           { label: "Info Grafis Harian", href: "/dashboard/posko/nataru/infografis", prefetch: false },
         ],
       },
@@ -124,7 +126,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: CalendarDays,
         prefetch: false,
         children: [
-          { label: "Input Data Harian", href: "/dashboard/posko/idul-fitri/input", prefetch: false },
           { label: "Info Grafis Harian", href: "/dashboard/posko/idul-fitri/infografis", prefetch: false },
         ],
       },
@@ -160,6 +161,7 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Data",
     singkat: "Data",
     items: [
+      { label: "Input Data", href: "/dashboard/input-data", icon: FilePlus2, prefetch: false, hanyaPeran: ["petugas", "admin"] },
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
       { label: "Input Data", href: "/dashboard/input-data", icon: Table2, prefetch: false },
       { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
@@ -206,6 +208,16 @@ export const ADMIN_GROUP: NavGroup = {
     { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3, prefetch: false },
   ],
 };
+
+/** Menu yang boleh dilihat peran ini. Admin menerima ADMIN_GROUP; grup yang kosong dibuang. */
+export function grupUntukPeran(role: PeranAkses): NavGroup[] {
+  const saring = (g: NavGroup): NavGroup => ({
+    ...g,
+    items: g.items.filter((i) => !i.hanyaPeran || i.hanyaPeran.includes(role)),
+  });
+  const hasil = NAV_GROUPS.map(saring).filter((g) => g.items.length > 0);
+  return role === "admin" ? [...hasil, ADMIN_GROUP] : hasil;
+}
 
 export const HREF_BERANDA = "/dashboard";
 

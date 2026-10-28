@@ -25,13 +25,17 @@ async function petaAda(ek: Eksekutor, modul: ModulInput, tahun: number, wilayah:
   const peta = new Map<string, string>();
   if (!wilayah.length) return peta;
   const kolW = q(modul.kolomWilayah), kolT = q(modul.kolomTanggal), kolK = q(modul.kolomKunci);
+  const tambahan = modul.kolomKunciTambahan ?? [];
   const r = await ek.execute({
-    sql: `SELECT ${q('id')} AS id, ${kolW} AS w, ${kolK} AS k, ${kolT} AS t FROM ${q(modul.tabel)}
+    sql: `SELECT ${q('id')} AS id, ${kolW} AS w, ${kolK} AS k, ${kolT} AS t${tambahan.map((c, i) => `, ${q(c)} AS x${i}`).join('')} FROM ${q(modul.tabel)}
           WHERE ${kolT} >= ? AND ${kolT} < ? AND LOWER(REPLACE(${kolW},' ','')) IN (${wilayah.map(() => '?').join(',')})`,
     args: [`${tahun}-01-01`, `${tahun + 1}-01-01`, ...wilayah.map((w) => w.toLowerCase().replace(/\s+/g, ''))],
   });
   for (const x of r.rows) {
-    const kunci = kunciBaris(modul, { [modul.kolomWilayah]: x.w as string, [modul.kolomKunci]: x.k as string, [modul.kolomTanggal]: x.t as string });
+    const kunci = kunciBaris(modul, {
+      [modul.kolomWilayah]: x.w as string, [modul.kolomKunci]: x.k as string, [modul.kolomTanggal]: x.t as string,
+      ...Object.fromEntries(tambahan.map((c, i) => [c, x[`x${i}`] as string | null])),
+    });
     if (kunci && !peta.has(kunci)) peta.set(kunci, String(x.id));
   }
   return peta;

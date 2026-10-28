@@ -34,6 +34,8 @@ export interface ModulInput {
   kolomWilayah: string;
   /** Kolom nama kapal (bagian kunci pencocokan baris). */
   kolomKunci: string;
+  /** Kolom pembeda tambahan pada kunci pencocokan (mis. nomor barcode/QR), bila satu kapal bisa punya beberapa dokumen sehari. */
+  kolomKunciTambahan?: string[];
   /** Wilayah kerja yang boleh pada modul ini. */
   wilayahBoleh: KodeWilker[];
   kolom: KolomModul[];
@@ -46,6 +48,9 @@ export interface ModulInput {
 }
 
 const WILKER_KAPAL: KodeWilker[] = ['WK01', 'WK02', 'WK03', 'WK04', 'WK05', 'WK06'];
+const SEMUA_WILKER: KodeWilker[] = [...WILKER_KAPAL, 'WK07'];
+/** Judul kolom wilayah yang diterima pada ekspor Sinkarkes (isinya nama wilayah kerja). */
+const ALIAS_WILKER = ['Wilayah Kerja', 'Wilker', 'Pelabuhan', 'Nama KKP', 'KKP', 'Nama Balai Karkes', 'KKP Induk/Wilker', 'KKP Induk'];
 
 export const PILIHAN_RBA = ['Hijau', 'Kuning', 'Merah'];
 /** Label tampilan; nilai tersimpan tetap Hijau/Kuning/Merah (dipakai view dan dasbor). */
@@ -139,6 +144,119 @@ export const MODUL: Record<string, ModulInput> = {
       // ---- diisi manual petugas ----
       { nama: 'rba', label: 'RBA', tipe: 'rba', manual: true, pilihan: PILIHAN_RBA, alias: ['Risk Based Assessment'] },
       T('tujuan_berlayar', 'Tujuan Berlayar', undefined, { manual: true, pilihan: ['Dalam Negeri', 'Luar Negeri'] }),
+    ],
+  },
+
+  // ------------------------------------------------------------------------------------------
+  // Dokumen/sertifikat kapal dan air dari Sinkarkes. Tanggal terbit menentukan tahun dan bulan data.
+  // Tabel: schema/mariadb/07_modul_sertifikat.sql. Kolom wilayah menerima juga judul "Nama KKP",
+  // "Nama Balai Karkes", dan "KKP Induk/Wilker" (isinya nama wilayah kerja, mis. "Pelabuhan Laut Sangatta").
+  // ------------------------------------------------------------------------------------------
+  sscec: {
+    kunci: 'sscec',
+    label: 'SSCEC',
+    tabel: 'sertifikat_sscec',
+    kolomTanggal: 'tgl_terbit',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_kapal',
+    kolomKunciTambahan: ['nomor_barcode'],
+    wilayahBoleh: SEMUA_WILKER,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_kapal', 'nomor_barcode', 'berat_gt', 'bendera', 'nama_wajib_bayar', 'tgl_bayar', 'jumlah_bayar'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Induk/Wilker', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      T('nama_kapal', 'Nama Kapal', undefined, { wajib: true }),
+      T('nomor_barcode', 'Nomor Barcode', ['No Barcode', 'Barcode'], { maks: 100 }),
+      { nama: 'berat_gt', label: 'Berat (GT)', tipe: 'desimal', alias: ['Berat', 'GT', 'Berat GT'] },
+      T('bendera', 'Bendera', ['Bendera Kapal']),
+      T('palka', 'Pada waktu diperiksa, palka-palka', ['Palka', 'Palka-palka'], { maks: 500 }),
+      T('berat_palka', 'Berat Palka'),
+      { nama: 'tgl_periksa', label: 'Tanggal Pemeriksaan', tipe: 'tanggal', alias: ['Tanggal', 'Tgl Pemeriksaan'] },
+      T('pencatat_pemeriksaan', 'Mencatat Pemeriksaan', ['Pencatat Pemeriksaan']),
+      { nama: 'tgl_terbit', label: 'Tanggal Terbit', tipe: 'tanggal', wajib: true, alias: ['Tgl Terbit', 'Diterbitkan Tanggal'] },
+      T('nama_wajib_bayar', 'Nama Wajib Bayar', ['Wajib Bayar']),
+      { nama: 'tgl_bayar', label: 'Tanggal Bayar', tipe: 'tanggal', alias: ['Tgl Bayar'] },
+      { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', alias: ['Jumlah', 'PNBP'] },
+    ],
+  },
+  p3k: {
+    kunci: 'p3k',
+    label: 'P3K Kapal',
+    tabel: 'sertifikat_p3k',
+    kolomTanggal: 'tgl_terbit',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_kapal',
+    kolomKunciTambahan: ['qr_code'],
+    wilayahBoleh: SEMUA_WILKER,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_kapal', 'bendera', 'berat', 'petugas_pemeriksa', 'nip', 'nama_wajib_bayar', 'jumlah_bayar'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Induk/Wilker', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      T('nama_kapal', 'Nama Kapal', undefined, { wajib: true }),
+      T('bendera', 'Bendera Kapal', ['Bendera']),
+      { nama: 'berat', label: 'Berat', tipe: 'desimal', alias: ['Berat (GT)', 'GT'] },
+      { nama: 'tgl_terbit', label: 'Diterbitkan Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tanggal Terbit', 'Tgl Terbit'] },
+      { nama: 'tgl_published', label: 'Tanggal Published', tipe: 'tanggalwaktu', alias: ['Tgl Published'] },
+      T('petugas_pemeriksa', 'Petugas Pemeriksa', ['Pemeriksa']),
+      T('nip', 'NIP', undefined, { maks: 50 }),
+      T('qr_code', 'QR Code', ['QRCode', 'Kode QR'], { maks: 100 }),
+      T('nama_wajib_bayar', 'Nama Wajib Bayar', ['Wajib Bayar']),
+      { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', alias: ['Jumlah', 'PNBP'] },
+    ],
+  },
+  air: {
+    kunci: 'air',
+    label: 'Sertifikat Air',
+    tabel: 'sertifikat_air',
+    kolomTanggal: 'tgl_terbit',
+    kolomWilayah: 'wilayah_kerja',
+    // Di laporan Sinkarkes tidak ada kolom nama kapal; nama kapal ada di Sample ID.
+    kolomKunci: 'sample_id',
+    kolomKunciTambahan: ['nama_perusahaan', 'sebagai'],
+    wilayahBoleh: SEMUA_WILKER,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_perusahaan', 'sample_id', 'lokasi_pengambilan', 'jenis_penampungan', 'tgl_pengambilan', 'tgl_analisis', 'kesimpulan', 'sebagai', 'berlaku_sampai', 'jumlah_bayar'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Induk/Wilker', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      T('nama_perusahaan', 'Nama Perusahaan', ['Perusahaan'], { wajib: true }),
+      T('lokasi_pengambilan', 'Lokasi Pengambilan', undefined, { maks: 500 }),
+      T('jenis_penampungan', 'Jenis penampungan'),
+      T('penampungan_lainnya', 'Lainnya'),
+      T('volume_sampel', 'Volume Sampel', undefined, { maks: 100 }),
+      { nama: 'tgl_pengambilan', label: 'Tanggal pengambilan', tipe: 'tanggal', alias: ['Tgl Pengambilan'] },
+      { nama: 'tgl_analisis', label: 'Tanggal Analisis', tipe: 'tanggal', alias: ['Tgl Analisis'] },
+      { nama: 'jam_analisis', label: 'Jam Analisis', tipe: 'waktu' },
+      T('sample_id', 'Sample ID', ['ID Sampel', 'Sampel ID']),
+      T('kesimpulan', 'Kesimpulan', ['Hasil'], { maks: 1000 }),
+      T('sebagai', 'Sebagai'),
+      T('tempat_terbit', 'Tempat terbit'),
+      { nama: 'tgl_terbit', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tanggal Terbit', 'Tgl Terbit', 'Diterbitkan Tanggal'] },
+      { nama: 'berlaku_sampai', label: 'Berlaku sampai', tipe: 'tanggal', alias: ['Berlaku Sampai Dengan', 'Masa Berlaku'] },
+      { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', alias: ['Jumlah', 'PNBP'] },
+    ],
+  },
+  buku_kesehatan: {
+    kunci: 'buku_kesehatan',
+    label: 'Buku Kesehatan',
+    tabel: 'buku_kesehatan',
+    kolomTanggal: 'tgl_terbit',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_kapal',
+    kolomKunciTambahan: ['qr_code'],
+    wilayahBoleh: SEMUA_WILKER,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_kapal', 'bendera', 'berat', 'pemilik', 'e_healthbook', 'nama_wajib_bayar', 'jumlah_bayar'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Induk/Wilker', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      T('qr_code', 'QR Code', ['QRCode', 'Kode QR'], { maks: 100 }),
+      T('e_healthbook', 'e-Healthbook', ['eHealthbook', 'Nomor e-Healthbook'], { maks: 100 }),
+      T('nama_kapal', 'Nama Kapal', undefined, { wajib: true }),
+      T('bendera', 'Bendera Kapal', ['Bendera']),
+      { nama: 'berat', label: 'Berat', tipe: 'desimal', alias: ['Berat (GT)', 'GT'] },
+      T('pemilik', 'Pemilik', ['Nama Pemilik']),
+      { nama: 'tgl_terbit', label: 'Diterbitkan Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tanggal Terbit', 'Tgl Terbit'] },
+      T('nama_wajib_bayar', 'Nama Wajib Bayar', ['Wajib Bayar']),
+      { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', alias: ['Jumlah', 'PNBP'] },
     ],
   },
 };

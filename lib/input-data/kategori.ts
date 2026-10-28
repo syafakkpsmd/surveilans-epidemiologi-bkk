@@ -30,11 +30,33 @@ export const KATEGORI_INPUT: KategoriInput[] = [
         cara: ['form', 'excel'],
       },
       {
+        judul: 'COP Kapal',
+        deskripsi: 'Kedatangan kapal (Certificate of Pratique): unggah ekspor Sinkarkes atau input satu per satu, isi RBA dan faktor risiko, kelola master negara kedatangan.',
+        href: '/dashboard/input-data/kapal?modul=cop',
+        cara: ['form', 'excel'],
+      },
+      {
+        judul: 'PHQC Kapal',
+        deskripsi: 'Keberangkatan kapal (Port Health Quarantine Clearance): unggah ekspor Sinkarkes atau input satu per satu, isi RBA dan tujuan berlayar.',
+        href: '/dashboard/input-data/kapal?modul=phqc',
+        cara: ['form', 'excel'],
+      },
+      {
         judul: 'Penumpang Kapal',
         deskripsi: 'Catat kedatangan kapal, lalu lengkapi keberangkatan beberapa hari kemudian.',
         href: '/lalu-lintas-orang/input-penumpang-kapal',
         cara: ['form'],
       },
+    ],
+  },
+  {
+    id: 'sertifikat',
+    judul: 'Sertifikat & Dokumen Kapal',
+    menu: [
+      { judul: 'SSCEC', deskripsi: 'Sertifikat sanitasi kapal (SSCEC/SSCC): unggah ekspor Sinkarkes atau input satu per satu; daftar per wilayah kerja dan bulan.', href: '/dashboard/input-data/sertifikat?modul=sscec', cara: ['form', 'excel'] },
+      { judul: 'P3K Kapal', deskripsi: 'Sertifikat pengawasan P3K kapal.', href: '/dashboard/input-data/sertifikat?modul=p3k', cara: ['form', 'excel'] },
+      { judul: 'Sertifikat Air', deskripsi: 'Sertifikat hasil pemeriksaan sampel air bersih/air minum.', href: '/dashboard/input-data/sertifikat?modul=air', cara: ['form', 'excel'] },
+      { judul: 'Buku Kesehatan', deskripsi: 'Penerbitan buku kesehatan kapal (e-Healthbook).', href: '/dashboard/input-data/sertifikat?modul=buku_kesehatan', cara: ['form', 'excel'] },
     ],
   },
   {

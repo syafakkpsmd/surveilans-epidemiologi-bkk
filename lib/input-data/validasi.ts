@@ -62,5 +62,7 @@ export function kunciBaris(modul: ModulInput, n: NilaiBaris): string | null {
   const k = n[modul.kolomKunci];
   const t = n[modul.kolomTanggal];
   if (w == null || k == null || t == null) return null;
-  return JSON.stringify([String(w).toLowerCase().replace(/\s+/g, ''), String(k).toLowerCase().replace(/\s+/g, ' ').trim(), String(t)]);
+  // Kolom pembeda tambahan (mis. nomor barcode/QR) agar dua dokumen kapal yang sama di hari yang sama tidak saling menimpa.
+  const tambahan = (modul.kolomKunciTambahan ?? []).map((c) => String(n[c] ?? '').toLowerCase().replace(/\s+/g, ' ').trim());
+  return JSON.stringify([String(w).toLowerCase().replace(/\s+/g, ''), String(k).toLowerCase().replace(/\s+/g, ' ').trim(), String(t), ...tambahan]);
 }

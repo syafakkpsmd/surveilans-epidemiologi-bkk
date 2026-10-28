@@ -202,6 +202,11 @@ export function ubahWilker(v: unknown): Hasil<KodeWilker | null> {
   const t = ubahTeks(v, 100);
   if (!t.ok) return t;
   if (t.nilai === null) return ok(null);
-  const k = kodeDariTeks(t.nilai);
-  return k ? ok(k) : gagal('wilayah kerja tidak dikenal');
+  // Seluruh teks dulu; lalu bagian di sekitar "/" dari kanan ke kiri. Sinkarkes menulis "KKP Induk/Wilker" sebagai
+  // "Samarinda / Pelabuhan Laut Sangkulirang": bagian kanan = wilayah kerja, bagian kiri = KKP induk.
+  for (const calon of [t.nilai, ...t.nilai.split('/').reverse()]) {
+    const k = kodeDariTeks(calon);
+    if (k) return ok(k);
+  }
+  return gagal('wilayah kerja tidak dikenal');
 }

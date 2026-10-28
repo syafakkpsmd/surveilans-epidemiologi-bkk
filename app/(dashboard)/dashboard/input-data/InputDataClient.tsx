@@ -63,8 +63,8 @@ function PilihanManual({ kolom, nilai, opsi, onUbah, disabled }: {
   );
 }
 
-export default function InputDataClient({ modul, role }: { modul: ModulInput[]; role: string }) {
-  const [kunci, setKunci] = useState(modul[0].kunci); // atau 'master'
+export default function InputDataClient({ modul, role, awal, judul = 'Input Data' }: { modul: ModulInput[]; role: string; awal?: string; judul?: string }) {
+  const [kunci, setKunci] = useState(modul.some((x) => x.kunci === awal) ? (awal as string) : modul[0].kunci); // atau 'master'
   const adaCop = modul.some((x) => x.kunci === 'cop');
   const m = useMemo(() => modul.find((x) => x.kunci === kunci) ?? modul[0], [modul, kunci]);
   const admin = role === 'admin';
@@ -196,7 +196,7 @@ export default function InputDataClient({ modul, role }: { modul: ModulInput[]; 
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6">
-      <h1 className="mb-1 text-xl font-semibold">Input Data</h1>
+      <h1 className="mb-1 text-xl font-semibold">{judul}</h1>
       <p className="mb-4 text-sm text-gray-600">Unggah Excel (termasuk ekspor Sinkarkes) atau isi form. Isian petugas (RBA dst.) diisi langsung di daftar.</p>
 
       <div className="mb-4 flex flex-wrap gap-2">

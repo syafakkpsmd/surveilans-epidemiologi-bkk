@@ -7,7 +7,11 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import { MODUL, kunciJudul, type ModulInput } from '../../lib/input-data/modul';
+<<<<<<< ours
 import { ubahWilker } from '../../lib/input-data/nilai';
+=======
+import { ubahBilangan, ubahDesimal, ubahTanggal, ubahTanggalWaktu, ubahWaktu, ubahWilker } from '../../lib/input-data/nilai';
+>>>>>>> theirs
 import { kunciBaris, validasiBaris } from '../../lib/input-data/validasi';
 import { bacaExcel, buatTemplate, petakanKolom } from '../../lib/input-data/parse-excel';
 import { daftarData, hapusBatch, hitungRencana, simpanUnggahan, tambahSatu } from '../../lib/input-data/simpan';
@@ -90,6 +94,34 @@ test('judul kolom ASLI Sinkarkes dikenali; kolom lain (billing, NTPN, dst.) diab
   }
 });
 
+<<<<<<< ours
+=======
+
+test('angka: pemisah ribuan/desimal Indonesia dan Inggris dibaca benar; yang ambigu ditolak, tidak salah baca diam-diam', () => {
+  const d = (v: string) => { const r = ubahDesimal(v); return r.ok ? r.nilai : 'ditolak'; };
+  for (const [v, h] of [['150000', 150000], ['150000.00', 150000], ['150.000,00', 150000], ['150,000.00', 150000], ['1.250.000', 1250000], ['1250,5', 1250.5],
+    ['1.250,5', 1250.5], ['Rp 150.000', 150000], ['Rp. 1.500.000', 1500000], ['12.5', 12.5], ['135', 135]] as [string, number][]) assert.equal(d(v), h, v);
+  for (const v of ['150.000', '1.250', '1,250', 'abc', '1.2.3']) assert.equal(d(v), 'ditolak', `${v} harus ditolak`);
+  assert.equal(ubahBilangan('1.000').ok, false);
+  assert.deepEqual(ubahBilangan('12.0'), { ok: true, nilai: 12 });
+  assert.deepEqual(ubahBilangan(1000), { ok: true, nilai: 1000 }); // sel angka asli selalu aman
+  assert.deepEqual(ubahDesimal(150000), { ok: true, nilai: 150000 });
+});
+
+test('tanggal: sel Excel (Date/nomor seri) tidak bergantung zona waktu; teks Indonesia/Inggris/ISO dibaca; m/d/y tidak ditebak', () => {
+  assert.deepEqual(ubahTanggal(new Date(Date.UTC(2026, 9, 27))), { ok: true, nilai: '2026-10-27' });
+  assert.deepEqual(ubahTanggal(46322), { ok: true, nilai: '2026-10-27' });
+  assert.deepEqual(ubahTanggalWaktu(new Date(Date.UTC(2026, 9, 27, 23, 59, 30))), { ok: true, nilai: '2026-10-27 23:59:30' });
+  assert.deepEqual(ubahTanggalWaktu(46322.4375), { ok: true, nilai: '2026-10-27 10:30:00' });
+  assert.deepEqual(ubahWaktu(new Date(Date.UTC(1899, 11, 30, 10, 30))), { ok: true, nilai: '10:30:00' });
+  for (const v of ['2026-10-27', '2026-10-27 15:08:02', '2026/10/27', '27/10/2026', '27/10/2026 15:08', '27-10-2026', '27.10.2026', '27 Oktober 2026',
+    '27-Okt-2026', 'Selasa, 27 Oktober 2026', 'Oct 27, 2026', '27 October 2026']) assert.deepEqual(ubahTanggal(v), { ok: true, nilai: '2026-10-27' }, v);
+  assert.equal(ubahTanggal('10/27/2026').ok, false); // bulan 27: ditolak, bukan ditebak
+  assert.equal(ubahTanggal('27/10/26').ok, false);   // tahun 2 digit: ditolak
+  assert.deepEqual(ubahTanggal('10/05/2026'), { ok: true, nilai: '2026-05-10' }); // selalu hari/bulan/tahun (Indonesia)
+});
+
+>>>>>>> theirs
 test('wilayah dari nama KKP/balai dan dari "KKP Induk/Wilker" (bagian kanan "/")', () => {
   assert.deepEqual(ubahWilker('Samarinda'), { ok: true, nilai: 'WK01' });
   assert.deepEqual(ubahWilker('Pelabuhan Laut Sangatta'), { ok: true, nilai: 'WK05' });

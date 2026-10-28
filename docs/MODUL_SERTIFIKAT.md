@@ -5,9 +5,15 @@ Menambah modul seperti ini = satu entri di `MODUL` (`lib/input-data/modul.ts`) +
 
 ## Akses
 - Menu **Data** → SSCEC / P3K Kapal / Sertifikat Air / Buku Kesehatan, atau hub **Input Data** → kategori *Sertifikat & Dokumen Kapal*.
+<<<<<<< ours
   Keduanya membuka `/dashboard/input-data/sertifikat?modul=…` (satu halaman, pemilih modul di atas).
 - Tiap modul: **Unggah berkas** (xlsx atau ekspor `.xls` Sinkarkes), **Tambah satu data lewat form**, dan **Daftar data** dengan filter tahun, bulan, wilayah kerja, sumber.
 - COP dan PHQC kembali tersambung di hub (kategori *Alat Angkut & Lalu Lintas Orang*) lewat `/dashboard/input-data/kapal?modul=cop|phqc`, memakai komponen yang sama (termasuk tab Master Negara Kedatangan).
+=======
+  Keduanya membuka `/dashboard/input-data/sertifikat/{sscec|p3k|air|buku_kesehatan}` (satu rute per modul; pemilih modul di atas halaman tetap bisa berpindah).
+- Tiap modul: **Unggah berkas** (xlsx atau ekspor `.xls` Sinkarkes), **Tambah satu data lewat form**, dan **Daftar data** dengan filter tahun, bulan, wilayah kerja, sumber.
+- COP dan PHQC kembali tersambung di hub (kategori *Alat Angkut & Lalu Lintas Orang*) lewat `/dashboard/input-data/kapal/{cop|phqc}`, memakai komponen yang sama (termasuk tab Master Negara Kedatangan).
+>>>>>>> theirs
 - Peran: admin dan petugas; hapus baris dan batalkan unggahan hanya admin (aturan kerangka yang sama dengan COP/PHQC).
 
 ## Tabel

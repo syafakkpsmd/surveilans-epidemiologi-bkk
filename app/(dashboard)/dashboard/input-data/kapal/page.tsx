@@ -1,3 +1,4 @@
+<<<<<<< ours
 // COP (kedatangan kapal) dan PHQC (keberangkatan kapal): unggah ekspor Sinkarkes atau form, daftar berfilter, isian RBA
 // dst. oleh petugas, dan Master Negara Kedatangan. HANYA Petugas/Admin.
 // ?modul=cop|phqc memilih modul yang dibuka lebih dulu.
@@ -27,4 +28,11 @@ export default async function KapalPage({ searchParams }: { searchParams: Promis
       <InputDataClient modul={modul} role={role} awal={awal} judul="COP dan PHQC (Kapal)" />
     </div>
   );
+=======
+// COP (kedatangan) dan PHQC (keberangkatan) kapal: unggah, form, daftar berfilter, isian petugas, dan Master Negara Kedatangan. Dialihkan ke modul pertama.
+import { redirect } from 'next/navigation';
+
+export default function Page() {
+  redirect('/dashboard/input-data/kapal/cop');
+>>>>>>> theirs
 }

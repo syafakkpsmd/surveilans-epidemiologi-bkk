@@ -159,7 +159,8 @@ test('jam, tanggal+jam, desimal, RBA Rendah/Sedang/Tinggi', () => {
   assert.deepEqual(ubahTanggalWaktu('2026-10-26 07:25:43'), { ok: true, nilai: '2026-10-26 07:25:43' });
   assert.deepEqual(ubahTanggalWaktu('26/10/2026 7:25'), { ok: true, nilai: '2026-10-26 07:25:00' });
   assert.deepEqual(ubahDesimal('22814.5'), { ok: true, nilai: 22814.5 });
-  assert.equal(ubahDesimal('1.234,5').ok, false);
+  assert.deepEqual(ubahDesimal('1.234,5'), { ok: true, nilai: 1234.5 }); // dua jenis pemisah: yang terakhir = desimal (tidak ambigu)
+  assert.equal(ubahDesimal('1.234').ok, false); // satu pemisah + 3 angka: ambigu, ditolak (jangan diam-diam jadi 1,23)
   assert.deepEqual(ubahRba('Tinggi'), { ok: true, nilai: 'Merah' });
   assert.deepEqual(ubahRba('Risiko Sedang'), { ok: true, nilai: 'Kuning' });
 });

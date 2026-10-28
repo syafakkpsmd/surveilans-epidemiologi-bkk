@@ -13,7 +13,11 @@ import {
   Ship, PlaneTakeoff, Bug, Rat, Zap, Droplets, Plane, Wind, CircleDot, Building2,
   ShieldAlert, Siren, Newspaper, Globe, TrendingUp, Database, Microscope, Users,
   BarChart3, MapPin, ClipboardCheck, BuildingIcon, Table2, Book, Flame, Droplet,
+<<<<<<< ours
   BellRing, Package, PersonStanding, CalendarDays, FilePlus2, FileCheck2, BriefcaseMedical, BookHeart,
+=======
+  BellRing, Package, PersonStanding, CalendarDays, FileCheck2, BriefcaseMedical, BookHeart,
+>>>>>>> theirs
 } from "lucide-react";
 
 export type NavChild = { label: string; href: string; prefetch?: boolean };
@@ -161,11 +165,14 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "Data",
     singkat: "Data",
     items: [
+<<<<<<< ours
       { label: "Input Data", href: "/dashboard/input-data", icon: FilePlus2, prefetch: false, hanyaPeran: ["petugas", "admin"] },
       { label: "SSCEC", href: "/dashboard/input-data/sertifikat?modul=sscec", icon: FileCheck2, prefetch: false, hanyaPeran: ["petugas", "admin"] },
       { label: "P3K Kapal", href: "/dashboard/input-data/sertifikat?modul=p3k", icon: BriefcaseMedical, prefetch: false, hanyaPeran: ["petugas", "admin"] },
       { label: "Sertifikat Air", href: "/dashboard/input-data/sertifikat?modul=air", icon: Droplet, prefetch: false, hanyaPeran: ["petugas", "admin"] },
       { label: "Buku Kesehatan", href: "/dashboard/input-data/sertifikat?modul=buku_kesehatan", icon: BookHeart, prefetch: false, hanyaPeran: ["petugas", "admin"] },
+=======
+>>>>>>> theirs
       { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
       { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
       { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
@@ -205,10 +212,20 @@ export const NAV_GROUPS: NavGroup[] = [
 /** Item menu yang hanya muncul bila sudah login (petugas, petugas klinik, admin); disisipkan ke grup "Data". */
 export const ITEM_INPUT_DATA: NavItem = { label: "Input Data", href: "/dashboard/input-data", icon: Table2, prefetch: false };
 
+/** Modul input sertifikat/dokumen kapal; hanya petugas dan admin (halamannya juga dijaga di server). Satu rute per modul
+ *  agar penanda menu aktif tepat satu. */
+export const ITEM_MODUL_SERTIFIKAT: NavItem[] = [
+  { label: "SSCEC", href: "/dashboard/input-data/sertifikat/sscec", icon: FileCheck2, prefetch: false },
+  { label: "P3K Kapal", href: "/dashboard/input-data/sertifikat/p3k", icon: BriefcaseMedical, prefetch: false },
+  { label: "Sertifikat Air", href: "/dashboard/input-data/sertifikat/air", icon: Droplet, prefetch: false },
+  { label: "Buku Kesehatan", href: "/dashboard/input-data/sertifikat/buku_kesehatan", icon: BookHeart, prefetch: false },
+];
+
 export function grupUntukPeran(peran: string): NavGroup[] {
   const login = peran === "admin" || peran === "petugas" || peran === "petugas_klinik";
+  const petugas = peran === "admin" || peran === "petugas";
   const dasar = login
-    ? NAV_GROUPS.map((g) => (g.title === "Data" ? { ...g, items: [ITEM_INPUT_DATA, ...g.items] } : g))
+    ? NAV_GROUPS.map((g) => (g.title === "Data" ? { ...g, items: [ITEM_INPUT_DATA, ...(petugas ? ITEM_MODUL_SERTIFIKAT : []), ...g.items] } : g))
     : NAV_GROUPS;
   return peran === "admin" ? [...dasar, ADMIN_GROUP] : dasar;
 }

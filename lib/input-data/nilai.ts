@@ -48,6 +48,7 @@ export function ubahBilangan(v: unknown): Hasil<number | null> {
   else {
     const s = m.trim();
     if (s === '' || s === '-') return ok(null);
+    if (/^[1-9]\d{0,2}[.,]0{3}$/.test(s)) return gagal('ambigu: "1.000" bisa berarti 1000 atau 1. Tulis 1000');
     if (!/^-?\d+([.,]0+)?$/.test(s)) return gagal('bukan bilangan bulat');
     n = Number(s.replace(',', '.'));
   }
@@ -90,7 +91,7 @@ export function ubahTanggal(v: unknown): Hasil<string | null> {
   }
   const s = m.trim();
   if (s === '') return ok(null);
-  let g = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ].*)?$/.exec(s);
+  let g = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ].*)?$/.exec(s);
   if (g) {
     const r = tanggalValid(+g[1], +g[2], +g[3]);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender');
@@ -111,7 +112,7 @@ export function ubahTanggal(v: unknown): Hasil<string | null> {
     const r = tanggalValid(+g[3], b, +g[2]);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender');
   }
-  g = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})$/.exec(s);
+  g = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})(?:[T ,].*)?$/.exec(s);
   if (g) {
     const r = tanggalValid(+g[3], +g[2], +g[1]);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender (format hari/bulan/tahun)');
@@ -134,6 +135,46 @@ export function ubahRba(v: unknown): Hasil<string | null> {
   return r ? ok(r) : gagal('RBA harus Rendah (Hijau), Sedang (Kuning), atau Tinggi (Merah)');
 }
 
+const AMBIGU = 'ambigu: "1.250" bisa berarti 1250 atau 1,25. Tulis tanpa pemisah ribuan (1250) atau dengan desimal (1250.5)';
+
+/** Teks angka -> Number, atau string pesan galat. Menerima "1250.5", "1250,5", "1.250,5" (Indonesia), "1,250.5" (Inggris),
+ *  "1.250.000", dan awalan "Rp". Satu pemisah diikuti tepat 3 angka ("150.000") itu AMBIGU dan ditolak, supaya tidak
+ *  diam-diam terbaca 150; kecuali diawali "Rp" (pasti pemisah ribuan). */
+function angkaDariTeks(teks: string): number | string {
+  const rp = /^rp\.?\s*/i.test(teks);
+  const s = teks.replace(/^rp\.?\s*/i, '').replace(/\s+/g, '');
+  if (s === '') return 'bukan bilangan';
+  const neg = s.startsWith('-');
+  const u = neg ? s.slice(1) : s;
+  if (!/^[\d.,]+$/.test(u)) return 'bukan bilangan';
+  const titik = (u.match(/\./g) ?? []).length;
+  const koma = (u.match(/,/g) ?? []).length;
+  let norm: string;
+  if (titik && koma) {
+    const des = u.lastIndexOf('.') > u.lastIndexOf(',') ? '.' : ',';
+    const rib = des === '.' ? ',' : '.';
+    const bagian = u.split(des);
+    if (bagian.length !== 2 || !/^\d+$/.test(bagian[1])) return 'bukan bilangan';
+    const ribRe = rib === '.' ? '\\.' : ',';
+    if (!new RegExp(`^\\d{1,3}(${ribRe}\\d{3})*$`).test(bagian[0])) return 'bukan bilangan';
+    norm = bagian[0].split(rib).join('') + '.' + bagian[1];
+  } else if (titik > 1 || koma > 1) {
+    const sep = titik > 1 ? '.' : ',';
+    if (!new RegExp(`^\\d{1,3}(${sep === '.' ? '\\.' : ','}\\d{3})+$`).test(u)) return 'bukan bilangan';
+    norm = u.split(sep).join('');
+  } else if (titik || koma) {
+    const sep = titik ? '.' : ',';
+    const [depan, belakang] = u.split(sep);
+    if (!depan || !belakang) return 'bukan bilangan';
+    if (belakang.length === 3 && /^[1-9]\d{0,2}$/.test(depan)) {
+      if (!rp) return AMBIGU;
+      norm = depan + belakang;
+    } else norm = depan + '.' + belakang;
+  } else norm = u;
+  const n = Number(norm);
+  return Number.isFinite(n) ? (neg ? -n : n) : 'bukan bilangan';
+}
+
 /** Bilangan desimal (titik sebagai pemisah desimal; "1.234,5" gaya Indonesia TIDAK ditebak). Maks 2 desimal. */
 export function ubahDesimal(v: unknown): Hasil<number | null> {
   const m = selMentah(v);
@@ -144,8 +185,9 @@ export function ubahDesimal(v: unknown): Hasil<number | null> {
   else {
     const s = m.trim();
     if (s === '' || s === '-') return ok(null);
-    if (!/^-?\d+(\.\d+)?$/.test(s)) return gagal('bukan bilangan (pakai titik untuk desimal, tanpa pemisah ribuan)');
-    n = Number(s);
+    const p = angkaDariTeks(s);
+    if (typeof p === 'string') return gagal(p);
+    n = p;
   }
   if (!Number.isFinite(n)) return gagal('bukan bilangan');
   if (n < 0) return gagal('tidak boleh negatif');

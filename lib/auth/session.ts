@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { createHash, randomBytes } from "node:crypto";
+import { unstable_rethrow } from "next/navigation"; // <-- Ditambahkan untuk menangani error internal Next.js
 import { sql } from "./db";
 import { verifikasiPassword } from "./password";
 
@@ -25,25 +26,33 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 /** Pengguna dari cookie sesi, atau null. Di-cache per request. */
 export const getPengguna = cache(async (): Promise<Pengguna | null> => {
-  const jar = await cookies();
-  const token = jar.get(NAMA_COOKIE)?.value;
-  if (!token) return null;
-  const rows = await sql<any>(
-    `SELECT p.id, p.role, p.status, p.nama_lengkap, k.email
-       FROM auth_sesi s
-       JOIN profiles p ON p.id = s.user_id
-       LEFT JOIN auth_kredensial k ON k.user_id = s.user_id
-      WHERE s.token_hash = ? AND s.berakhir_pada > NOW(3)
-        AND p.status = '${STATUS_AKTIF}'
-        AND s.terakhir_aktif > NOW(3) - INTERVAL ${BATAS_TIDAK_AKTIF_MENIT} MINUTE
-      LIMIT 1`,
-    [sha256(token)],
-  );
-  const r = rows[0];
-  if (!r) return null;
-  // perpanjang masa aktif (maks. 1x per menit agar tidak menulis di setiap request)
-  await sql(`UPDATE auth_sesi SET terakhir_aktif = NOW(3) WHERE token_hash = ? AND terakhir_aktif < NOW(3) - INTERVAL 1 MINUTE`, [sha256(token)]);
-  return { id: r.id, email: r.email ?? null, role: r.role, status: r.status, namaLengkap: r.nama_lengkap ?? null };
+  try {
+    const jar = await cookies();
+    const token = jar.get(NAMA_COOKIE)?.value;
+    if (!token) return null;
+    
+    const rows = await sql<any>(
+      `SELECT p.id, p.role, p.status, p.nama_lengkap, k.email
+         FROM auth_sesi s
+         JOIN profiles p ON p.id = s.user_id
+         LEFT JOIN auth_kredensial k ON k.user_id = s.user_id
+        WHERE s.token_hash = ? AND s.berakhir_pada > NOW(3)
+          AND p.status = '${STATUS_AKTIF}'
+          AND s.terakhir_aktif > NOW(3) - INTERVAL ${BATAS_TIDAK_AKTIF_MENIT} MINUTE
+        LIMIT 1`,
+      [sha256(token)],
+    );
+    const r = rows[0];
+    if (!r) return null;
+    
+    // perpanjang masa aktif (maks. 1x per menit agar tidak menulis di setiap request)
+    await sql(`UPDATE auth_sesi SET terakhir_aktif = NOW(3) WHERE token_hash = ? AND terakhir_aktif < NOW(3) - INTERVAL 1 MINUTE`, [sha256(token)]);
+    return { id: r.id, email: r.email ?? null, role: r.role, status: r.status, namaLengkap: r.nama_lengkap ?? null };
+  } catch (error) {
+    // Memastikan sinyal redirect atau dynamic server usage Next.js tidak tertelan oleh catch global
+    unstable_rethrow(error);
+    return null;
+  }
 });
 
 /** Hanya untuk Route Handler / Server Action (cookie hanya boleh ditulis di sana). */
@@ -68,9 +77,9 @@ export async function masuk(email: string, password: string, ip = ""): Promise<H
   if (!benar || !k) {
     await sql(
       `INSERT INTO auth_percobaan (kunci, jumlah, jendela_mulai) VALUES (?, 1, NOW(3))
-       ON DUPLICATE KEY UPDATE
-         jumlah = IF(jendela_mulai > NOW(3) - INTERVAL ${JENDELA_MENIT} MINUTE, jumlah + 1, 1),
-         jendela_mulai = IF(jendela_mulai > NOW(3) - INTERVAL ${JENDELA_MENIT} MINUTE, jendela_mulai, NOW(3))`,
+         ON DUPLICATE KEY UPDATE
+           jumlah = IF(jendela_mulai > NOW(3) - INTERVAL ${JENDELA_MENIT} MINUTE, jumlah + 1, 1),
+           jendela_mulai = IF(jendela_mulai > NOW(3) - INTERVAL ${JENDELA_MENIT} MINUTE, jendela_mulai, NOW(3))`,
       [kunci],
     );
     return { ok: false, alasan: "salah" };

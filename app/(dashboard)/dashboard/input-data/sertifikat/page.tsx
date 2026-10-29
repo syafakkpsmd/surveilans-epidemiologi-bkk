@@ -1,4 +1,3 @@
-<<<<<<< ours
 // Sertifikat dan dokumen kapal (SSCEC, P3K Kapal, Sertifikat Air, Buku Kesehatan): unggah Excel/ekspor Sinkarkes,
 // input lewat form, dan daftar tabel berfilter (tahun, bulan, wilayah kerja). HANYA Petugas/Admin.
 // ?modul=sscec|p3k|air|buku_kesehatan memilih modul yang dibuka lebih dulu.
@@ -28,11 +27,4 @@ export default async function SertifikatPage({ searchParams }: { searchParams: P
       <InputDataClient modul={modul} role={role} awal={awal} judul="Sertifikat dan Dokumen Kapal" />
     </div>
   );
-=======
-// Sertifikat dan dokumen kapal (SSCEC, P3K Kapal, Sertifikat Air, Buku Kesehatan): unggah, form, dan daftar berfilter. Dialihkan ke modul pertama.
-import { redirect } from 'next/navigation';
-
-export default function Page() {
-  redirect('/dashboard/input-data/sertifikat/sscec');
->>>>>>> theirs
 }

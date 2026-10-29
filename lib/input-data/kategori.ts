@@ -32,21 +32,13 @@ export const KATEGORI_INPUT: KategoriInput[] = [
       {
         judul: 'COP Kapal',
         deskripsi: 'Kedatangan kapal (Certificate of Pratique): unggah ekspor Sinkarkes atau input satu per satu, isi RBA dan faktor risiko, kelola master negara kedatangan.',
-<<<<<<< ours
-        href: '/dashboard/input-data/kapal?modul=cop',
-=======
         href: '/dashboard/input-data/kapal/cop',
->>>>>>> theirs
         cara: ['form', 'excel'],
       },
       {
         judul: 'PHQC Kapal',
         deskripsi: 'Keberangkatan kapal (Port Health Quarantine Clearance): unggah ekspor Sinkarkes atau input satu per satu, isi RBA dan tujuan berlayar.',
-<<<<<<< ours
-        href: '/dashboard/input-data/kapal?modul=phqc',
-=======
         href: '/dashboard/input-data/kapal/phqc',
->>>>>>> theirs
         cara: ['form', 'excel'],
       },
       {
@@ -61,17 +53,10 @@ export const KATEGORI_INPUT: KategoriInput[] = [
     id: 'sertifikat',
     judul: 'Sertifikat & Dokumen Kapal',
     menu: [
-<<<<<<< ours
-      { judul: 'SSCEC', deskripsi: 'Sertifikat sanitasi kapal (SSCEC/SSCC): unggah ekspor Sinkarkes atau input satu per satu; daftar per wilayah kerja dan bulan.', href: '/dashboard/input-data/sertifikat?modul=sscec', cara: ['form', 'excel'] },
-      { judul: 'P3K Kapal', deskripsi: 'Sertifikat pengawasan P3K kapal.', href: '/dashboard/input-data/sertifikat?modul=p3k', cara: ['form', 'excel'] },
-      { judul: 'Sertifikat Air', deskripsi: 'Sertifikat hasil pemeriksaan sampel air bersih/air minum.', href: '/dashboard/input-data/sertifikat?modul=air', cara: ['form', 'excel'] },
-      { judul: 'Buku Kesehatan', deskripsi: 'Penerbitan buku kesehatan kapal (e-Healthbook).', href: '/dashboard/input-data/sertifikat?modul=buku_kesehatan', cara: ['form', 'excel'] },
-=======
       { judul: 'SSCEC', deskripsi: 'Sertifikat sanitasi kapal (SSCEC/SSCC): unggah ekspor Sinkarkes atau input satu per satu; daftar per wilayah kerja dan bulan.', href: '/dashboard/input-data/sertifikat/sscec', cara: ['form', 'excel'] },
       { judul: 'P3K Kapal', deskripsi: 'Sertifikat pengawasan P3K kapal.', href: '/dashboard/input-data/sertifikat/p3k', cara: ['form', 'excel'] },
       { judul: 'Sertifikat Air', deskripsi: 'Sertifikat hasil pemeriksaan sampel air bersih/air minum.', href: '/dashboard/input-data/sertifikat/air', cara: ['form', 'excel'] },
       { judul: 'Buku Kesehatan', deskripsi: 'Penerbitan buku kesehatan kapal (e-Healthbook).', href: '/dashboard/input-data/sertifikat/buku_kesehatan', cara: ['form', 'excel'] },
->>>>>>> theirs
     ],
   },
   {

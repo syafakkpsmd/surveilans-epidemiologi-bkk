@@ -7,11 +7,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
 import { MODUL, kunciJudul, type ModulInput } from '../../lib/input-data/modul';
-<<<<<<< ours
-import { ubahWilker } from '../../lib/input-data/nilai';
-=======
 import { ubahBilangan, ubahDesimal, ubahTanggal, ubahTanggalWaktu, ubahWaktu, ubahWilker } from '../../lib/input-data/nilai';
->>>>>>> theirs
 import { kunciBaris, validasiBaris } from '../../lib/input-data/validasi';
 import { bacaExcel, buatTemplate, petakanKolom } from '../../lib/input-data/parse-excel';
 import { daftarData, hapusBatch, hitungRencana, simpanUnggahan, tambahSatu } from '../../lib/input-data/simpan';
@@ -94,9 +90,6 @@ test('judul kolom ASLI Sinkarkes dikenali; kolom lain (billing, NTPN, dst.) diab
   }
 });
 
-<<<<<<< ours
-=======
-
 test('angka: pemisah ribuan/desimal Indonesia dan Inggris dibaca benar; yang ambigu ditolak, tidak salah baca diam-diam', () => {
   const d = (v: string) => { const r = ubahDesimal(v); return r.ok ? r.nilai : 'ditolak'; };
   for (const [v, h] of [['150000', 150000], ['150000.00', 150000], ['150.000,00', 150000], ['150,000.00', 150000], ['1.250.000', 1250000], ['1250,5', 1250.5],
@@ -121,7 +114,6 @@ test('tanggal: sel Excel (Date/nomor seri) tidak bergantung zona waktu; teks Ind
   assert.deepEqual(ubahTanggal('10/05/2026'), { ok: true, nilai: '2026-05-10' }); // selalu hari/bulan/tahun (Indonesia)
 });
 
->>>>>>> theirs
 test('wilayah dari nama KKP/balai dan dari "KKP Induk/Wilker" (bagian kanan "/")', () => {
   assert.deepEqual(ubahWilker('Samarinda'), { ok: true, nilai: 'WK01' });
   assert.deepEqual(ubahWilker('Pelabuhan Laut Sangatta'), { ok: true, nilai: 'WK05' });

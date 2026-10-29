@@ -32,8 +32,8 @@ import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI, type HasilAIStruktur
  * Mengenali 2 konvensi teks RBA: kode warna ("Hijau"/"Kuning"/"Merah")
  * atau label deskriptif ("Risiko Rendah"/"Sedang"/"Tinggi").
  */
-function resolveWarnaRba(nilai: string): string {
-  const n = nilai.toLowerCase();
+function resolveWarnaRba(nilai: string | null | undefined): string {
+  const n = (nilai ?? "").toLowerCase();
   if (n.includes("tinggi") || n === "merah") return "var(--color-risiko-merah)";
   if (n.includes("sedang") || n === "kuning") return "var(--color-risiko-kuning)";
   if (n.includes("rendah") || n === "hijau") return "var(--color-risiko-hijau)";

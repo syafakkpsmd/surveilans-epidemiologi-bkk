@@ -25,9 +25,9 @@ test('keputusan murni: anon/login/admin/diri/tanpa policy', () => {
   assert.deepEqual(putuskan('profiles', 'UPDATE', ADMIN), { izin: 'bebas' });
   assert.deepEqual(putuskan('profiles', 'UPDATE', PETUGAS), { izin: 'baris', kolom: 'id', nilai: PETUGAS.uid });
   assert.deepEqual(putuskan('profiles', 'DELETE', ADMIN), { izin: 'tolak' }); // tidak ada policy DELETE
-  // policy hanya untuk role anon tidak berlaku bagi pengguna yang sudah login (perilaku Postgres)
-  assert.deepEqual(putuskan('rat_guard', 'INSERT', ANON), { izin: 'bebas' });
-  assert.deepEqual(putuskan('rat_guard', 'INSERT', PETUGAS), { izin: 'tolak' });
+  // penulisan anonim sengaja dibatasi (ANONIM_BOLEH_TULIS di buat-rls.mjs): rat_guard dulu terbuka untuk anon, kini wajib login
+  assert.deepEqual(putuskan('rat_guard', 'INSERT', ANON), { izin: 'tolak' });
+  assert.deepEqual(putuskan('rat_guard', 'INSERT', PETUGAS), { izin: 'bebas' });
   assert.deepEqual(putuskan('view_apa_saja', 'SELECT', ANON, true), { izin: 'bebas' });
 });
 

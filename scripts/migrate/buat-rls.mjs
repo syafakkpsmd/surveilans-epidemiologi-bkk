@@ -36,6 +36,33 @@ for (const p of dump.policy_rls) {
     ((hasil[p.tablename] ??= {})[cmd] ??= []).push({ untuk: roles, ...aturan });
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// PERKETAT: policy Supabase lama mengizinkan pengunjung ANONIM menulis ke banyak tabel (dulu agar
+// sinkronisasi Google Sheets bisa memakai kunci anon publik). Sheets sudah tidak dipakai, dan di
+// sini /api/db terbuka ke internet, jadi penulisan anonim hanya dipertahankan untuk daftar berikut.
+// Aturan lain yang mengizinkan 'anon'/'public' menulis diubah menjadi 'authenticated' (wajib login).
+//   * ispa_harian, kualitas_udara_harian : formulir publik (/form/ispa-harian, /form/lingkungan-harian)
+//   * kunjungan_tamu, statistik_kunjungan : penghitung kunjungan (ditulis server, tanpa login)
+// Tambahkan tabel di sini HANYA bila memang harus bisa ditulis tanpa login.
+export const ANONIM_BOLEH_TULIS = {
+  ispa_harian: ['INSERT'],
+  kualitas_udara_harian: ['INSERT'],
+  kunjungan_tamu: ['INSERT'],
+  statistik_kunjungan: ['INSERT'],
+};
+const diperketat = [];
+for (const [tabel, perintah] of Object.entries(hasil)) {
+  for (const cmd of ['INSERT', 'UPDATE', 'DELETE']) {
+    for (const a of perintah[cmd] ?? []) {
+      const anonim = a.untuk.includes('anon') || a.untuk.includes('public');
+      if (!anonim || a.t !== 'semua') continue; // aturan berbasis role/login tidak bisa dilewati anonim
+      if ((ANONIM_BOLEH_TULIS[tabel] ?? []).includes(cmd)) continue;
+      diperketat.push(`${tabel} ${cmd} (${a.untuk.join(',')} -> authenticated)`);
+      a.untuk = ['authenticated'];
+    }
+  }
+}
 const tabelDump = new Set((dump.kolom ?? []).map((k) => k.table_name ?? k.tabel).filter(Boolean));
 const badan = `// DIBANGKITKAN oleh scripts/migrate/buat-rls.mjs dari schema-dump/supabase_schema.json. JANGAN diedit manual.
 // Setiap entri = policy RLS Supabase (permissive, digabung dengan OR). 'untuk' = role Postgres yang dikenai policy:
@@ -54,4 +81,6 @@ const ringkas = badan
   .replace(/"/g, "'");
 writeFileSync('lib/db/rls-policy.generated.ts', ringkas);
 console.log(`Tabel dengan policy: ${Object.keys(hasil).length}`);
+console.log(`Aturan tulis anonim diperketat: ${diperketat.length}`);
+for (const d of diperketat) console.log('  - ' + d);
 console.log(tak.length ? 'TIDAK DIKENALI (jadi tolak):\n' + tak.join('\n') : 'Semua policy dikenali.');

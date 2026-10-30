@@ -60,7 +60,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
       { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     UPDATE: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
@@ -104,38 +104,38 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
       { untuk: [ 'public' ], t: 'login' }
     ],
     UPDATE: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ]
   },
   kegiatan_cop: {
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'anon' ], t: 'semua' },
       { untuk: [ 'public' ], t: 'semua' }
     ],
     UPDATE: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ]
   },
   kegiatan_pesawat: {
     INSERT: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'public' ], t: 'semua' }
     ],
     UPDATE: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ]
   },
   kegiatan_phqc: {
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     UPDATE: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'public' ], t: 'semua' }
@@ -167,11 +167,11 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
   },
   laporan_penyakit_emerging: {
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' },
+      { untuk: [ 'authenticated' ], t: 'semua' },
       { untuk: [ 'authenticated' ], t: 'role', roles: [ 'petugas', 'admin' ] }
     ],
     UPDATE: [
-      { untuk: [ 'anon' ], t: 'semua' },
+      { untuk: [ 'authenticated' ], t: 'semua' },
       { untuk: [ 'authenticated' ], t: 'role', roles: [ 'petugas', 'admin' ] }
     ],
     SELECT: [
@@ -180,10 +180,10 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
   },
   laporan_penyakit_nasional: {
     INSERT: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     UPDATE: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'public' ], t: 'semua' }
@@ -210,7 +210,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
   },
   pab: {
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'public' ], t: 'semua' }
@@ -221,7 +221,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
     ],
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ]
   },
   pengawasan_klinik_dokumen: {
@@ -230,7 +230,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
     ],
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' },
+      { untuk: [ 'authenticated' ], t: 'semua' },
       { untuk: [ 'authenticated' ], t: 'semua' }
     ]
   },
@@ -240,7 +240,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
       { untuk: [ 'public' ], t: 'semua' }
     ],
     INSERT: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     UPDATE: [
       { untuk: [ 'public' ], t: 'role', roles: [ 'admin', 'petugas' ] }
@@ -264,7 +264,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
   },
   rat_guard: {
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
@@ -329,10 +329,10 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
   },
   skdr_mingguan: {
     INSERT: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     UPDATE: [
-      { untuk: [ 'public' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'public' ], t: 'semua' }
@@ -355,7 +355,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
   },
   tpp: {
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'public' ], t: 'semua' }
@@ -363,7 +363,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
   },
   ttu: {
     INSERT: [
-      { untuk: [ 'anon' ], t: 'semua' }
+      { untuk: [ 'authenticated' ], t: 'semua' }
     ],
     SELECT: [
       { untuk: [ 'public' ], t: 'semua' }

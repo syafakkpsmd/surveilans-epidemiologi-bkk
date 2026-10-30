@@ -5,7 +5,7 @@ const { Pool: PgPool } = require('pg');
 const mariadb = mysql.createPool({
   host: 'cp.bkksamarinda.or.id', // atau IP Public Server Kantor Anda
   port: 3306,
-  user: 'bkksamarinda',
+  user: 'bkksamarinda_surveilans',
   password: 'Earlene174@',
   database: 'bkksamarinda_surveilans',
 });

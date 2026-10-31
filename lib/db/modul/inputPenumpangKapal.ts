@@ -116,11 +116,11 @@ async function namaWilkerTersimpan(kodeWilker: string): Promise<string> {
   return WILKER_PELABUHAN.find((w) => w.kode === kodeWilker)!.namaPendek;
 }
 
-// Bentrok yang aman diulang: kunci unik (1062), kebuntuan (1213), gagal baca nomor otomatis akibat
-// kebuntuan (1467), dan batas waktu kunci (1205). Galat lain (data/skema salah) tidak diulang.
-const ERRNO_BISA_DIULANG = new Set([1062, 1213, 1467, 1205]);
+// Bentrok yang aman diulang (SQLSTATE PostgreSQL): kunci unik (23505), kebuntuan (40P01), kegagalan serialisasi (40001),
+// dan kunci tidak tersedia (55P03). Galat lain (data/skema salah) tidak diulang.
+const KODE_BISA_DIULANG = new Set(['23505', '40P01', '40001', '55P03']);
 const bisaDiulang = (e: unknown) =>
-  typeof e === 'object' && e !== null && (ERRNO_BISA_DIULANG.has((e as { errno?: number }).errno ?? 0) || (e as { code?: string }).code === 'ER_DUP_ENTRY');
+  typeof e === 'object' && e !== null && KODE_BISA_DIULANG.has(String((e as { code?: string }).code ?? ''));
 const MAKS_PERCOBAAN = 8;
 
 /**
@@ -138,18 +138,16 @@ export async function simpanPenumpangKapal(d: InputPenumpangKapal): Promise<{ id
         sql: `INSERT INTO data_penumpang_kapal
                 (wilker, kode_wilker, no_baris, tanggal_tiba, nama_kapal, abk_datang, abk_berangkat,
                  penumpang_datang, penumpang_berangkat, keterangan, tanggal_berangkat, siaos)
-              SELECT ?, ?, COALESCE(MAX(no_baris), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?
-                FROM data_penumpang_kapal WHERE wilker = ?`,
+              SELECT ?::text, ?::text, COALESCE(MAX(no_baris), 0) + 1, ?::date, ?::text, ?::int, ?::int, ?::int, ?::int, ?::text, ?::date, ?::text
+                FROM data_penumpang_kapal WHERE wilker = ?::text
+              RETURNING id, no_baris`,
         args: [
           wilker, d.kodeWilker, d.tanggalTiba, d.namaKapal, d.abkDatang, d.abkBerangkat,
           d.penumpangDatang, d.penumpangBerangkat, d.keterangan, d.tanggalBerangkat, d.siaos, wilker,
         ],
       });
-      const cek = await db.execute({
-        sql: 'SELECT no_baris FROM data_penumpang_kapal WHERE id = ?',
-        args: [hasil.lastInsertRowid ?? 0],
-      });
-      return { id: hasil.lastInsertRowid, noBaris: Number(cek.rows[0]?.no_baris) || 0 };
+      const baru = hasil.rows[0];
+      return { id: baru?.id === undefined ? undefined : Number(baru.id), noBaris: Number(baru?.no_baris) || 0 };
     } catch (e) {
       if (bisaDiulang(e) && percobaan < MAKS_PERCOBAAN) {
         await new Promise((r) => setTimeout(r, Math.random() * 40 * percobaan));

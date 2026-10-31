@@ -69,7 +69,7 @@ export async function getTbRawData(tahun?: number, wilayahKerja?: string): Promi
   const args: string[] = [];
 
   if (tahun) {
-    kondisi.push(`DATE_FORMAT(tanggal_pelaksanaan, '%Y') = ?`);
+    kondisi.push(`to_char(tanggal_pelaksanaan, 'YYYY') = ?`);
     args.push(String(tahun));
   }
   if (wilayahKerja) {

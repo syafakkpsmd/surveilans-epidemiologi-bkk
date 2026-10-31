@@ -29,7 +29,7 @@ async function ambilBarisTahun(tahun: number, wilker?: string): Promise<BarisPen
   const hasil = await getDbClient().execute({
     sql: `SELECT tanggal_tiba, penumpang_datang, penumpang_berangkat
           FROM data_penumpang_kapal
-          WHERE DATE_FORMAT(tanggal_tiba, '%Y') = ?${kondisiWilker}`,
+          WHERE to_char(tanggal_tiba, 'YYYY') = ?${kondisiWilker}`,
     args,
   });
 
@@ -149,7 +149,7 @@ export async function getPenumpangKapalMentah(
       ? [filter.tahun - 1, filter.tahun, filter.tahun + 1]
       : [filter.tahun];
 
-  const kondisiTahun = tahunYangDiambil.map(() => `DATE_FORMAT(tanggal_tiba, '%Y') = ?`).join(" OR ");
+  const kondisiTahun = tahunYangDiambil.map(() => `to_char(tanggal_tiba, 'YYYY') = ?`).join(" OR ");
   const args: (string | number)[] = tahunYangDiambil.map(String);
 
   let kondisiWilker = "";

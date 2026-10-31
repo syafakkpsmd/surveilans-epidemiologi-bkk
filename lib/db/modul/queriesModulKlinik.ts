@@ -46,11 +46,11 @@ export async function getBarisModul(modul: ModulKey, filter: FilterModul): Promi
 
   // substr (bukan strftime) supaya tetap jalan walau ada nilai tanggal berjam
   // ("2026-07-01T08:00") -- yang penting diawali yyyy-MM-dd.
-  const kondisi: string[] = [`substr(${cfg.kolomTanggal}, 1, 4) = ?`];
+  const kondisi: string[] = [`to_char(${cfg.kolomTanggal}, 'YYYY') = ?`];
   const args: (string | number)[] = [String(filter.tahun)];
 
   if (filter.bulan) {
-    kondisi.push(`substr(${cfg.kolomTanggal}, 6, 2) = ?`);
+    kondisi.push(`to_char(${cfg.kolomTanggal}, 'MM') = ?`);
     args.push(String(filter.bulan).padStart(2, "0"));
   }
   if (filter.wilker && cfg.punyaWilayahKerja) {

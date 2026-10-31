@@ -21,10 +21,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
   await getDbClient().execute({
     sql: `INSERT INTO pengawasan_klinik_perbaikan (id, pengawasan_id, item_key, keterangan, tanggal_perbaikan)
           VALUES (?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE
-            keterangan = VALUES(keterangan),
-            tanggal_perbaikan = VALUES(tanggal_perbaikan),
-            diisi_pada = UTC_TIMESTAMP()`,
+          ON CONFLICT (pengawasan_id, item_key) DO UPDATE SET
+            keterangan = EXCLUDED.keterangan,
+            tanggal_perbaikan = EXCLUDED.tanggal_perbaikan,
+            diisi_pada = now()`,
     args: [crypto.randomUUID(), pid, itemKey, keterangan, tanggal],
   });
   return NextResponse.json({ ok: true });

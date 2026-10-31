@@ -107,7 +107,7 @@ export async function ambilStatusBulananLlo(tahun: number, bulan: number): Promi
   const turso = (tabel: string, kolomTanggal: string) =>
     daftarNamaTurso(
       `SELECT DISTINCT wilayah_kerja AS nama FROM ${tabel}
-       WHERE ${kolomTanggal} IS NOT NULL AND DATE_FORMAT(${kolomTanggal}, '%Y-%m') = ?`,
+       WHERE ${kolomTanggal} IS NOT NULL AND to_char(${kolomTanggal}, 'YYYY-MM') = ?`,
       [periode],
       'nama',
     );

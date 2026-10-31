@@ -1,8 +1,8 @@
 // lib/db/query-builder.ts
-// Adapter bergaya supabase-js (PostgREST) di atas MariaDB (lib/db/client.ts).
+// Adapter bergaya supabase-js (PostgREST) di atas PostgreSQL (lib/db/client.ts).
 //
 // Tujuan: kode lama `const { data, error } = await supabase.from('t').select(...).eq(...).order(...)`
-// tetap jalan tanpa ditulis ulang, tetapi membaca/menulis MariaDB.
+// tetap jalan tanpa ditulis ulang, tetapi membaca/menulis PostgreSQL milik sendiri (bukan Supabase).
 //
 // YANG DIDUKUNG
 //   from(t).select(cols, {count, head}) | insert | update | upsert | delete, lalu .select() untuk RETURNING
@@ -11,19 +11,18 @@
 //             throwOnError returns abortSignal(no-op)
 //   select  : '*', kolom, alias:kolom, relasi sebagai embed 1 tingkat: rel(kolom...), alias:rel(...), rel!inner(...)
 //             (to-one lewat FK anak->induk, to-many lewat FK induk<-anak; disambung di JS, bukan JOIN)
-//   rpc(nama, args): prosedur tersimpan (CALL), hasil = result set pertama
+//   rpc(nama, args): fungsi PostgreSQL bertabel (SELECT * FROM fungsi(p := ...)), argumen bernama
 //   Bentuk hasil sama dengan supabase-js: { data, error, count, status, statusText }; error.code berbentuk
 //   kode Postgres (23505 duplikat, 23503 FK, 23502 NOT NULL, 23514 CHECK, PGRST116 single).
 //
 // PERBEDAAN DISENGAJA TERHADAP SUPABASE
 //   * TIDAK ADA RLS. Adapter ini membaca/menulis sebagai pengguna database. Pemeriksaan role harus ada di
 //     kode server (lihat Tahap 5). Jangan memberi akses adapter ini ke browser.
-//   * Hasil dikonversi ke bentuk yang diharapkan kode lama: DATETIME -> ISO UTC ('...T..:..:..+00:00'),
-//     TINYINT(1) -> boolean, kolom JSON (LONGTEXT + CHECK JSON_VALID) -> objek/array.
-//   * Perbandingan teks mengikuti kolasi kolom (kolom kunci memakai utf8mb4_bin = peka huruf besar/kecil
-//     seperti Postgres; kolom teks biasa utf8mb4_unicode_ci = tidak peka). `like` dipaksa peka, `ilike` tidak.
+//   * Hasil dikonversi ke bentuk yang diharapkan kode lama: timestamptz -> ISO UTC ('...T..:..:..+00:00'),
+//     boolean -> boolean, jsonb -> objek/array, text[] -> array (pg sudah mengurai jsonb/boolean/array sendiri).
+//   * Perbandingan teks PEKA huruf besar/kecil seperti Postgres asli. `like` peka, `ilike` tidak.
 //   * Embed relasi hanya 1 tingkat. Filter pada kolom relasi (rel.kolom) belum didukung.
-import { getDbClient, getDbPool } from './client';
+import { getDbClient } from './client';
 import type { DbValue } from './client';
 import type { Penjaga } from './rls';
 import { PencatatQuery, pecahTingkatAtas } from './spec';
@@ -37,9 +36,10 @@ export type { DbError, DbResponse } from './spec';
 // ---------------------------------------------------------------------
 
 interface InfoKolom {
-  tipe: string; // DATA_TYPE huruf kecil
-  kolomTipe: string; // COLUMN_TYPE huruf kecil, mis. 'tinyint(1)'
-  json: boolean;
+  tipe: string; // 'datetime' | 'date' | 'time' | 'boolean' | 'json' | 'array' | 'bytea' | 'int' | 'numeric' | 'text' | 'uuid' | ...
+  udt: string; // nama tipe PostgreSQL (udt_name), mis. 'timestamptz', 'jsonb', '_text'
+  json: boolean; // jsonb/json: nilai objek/array harus di-JSON.stringify saat ditulis
+  array: boolean; // kolom array PostgreSQL (text[] dll): nilai array JS dikirim apa adanya
 }
 interface InfoFk {
   anak: string;
@@ -52,42 +52,58 @@ interface Meta {
   kolom: Map<string, Map<string, InfoKolom>>;
   pk: Map<string, string[]>;
   fk: InfoFk[];
-  parameter: Map<string, string[]>; // prosedur -> nama parameter berurutan
   views: Set<string>;
 }
 
 type GlobalMeta = typeof globalThis & { __epicDbMeta?: Promise<Meta> };
 const gm = globalThis as GlobalMeta;
 
+/** udt_name PostgreSQL -> kosakata tipe internal adapter. */
+function petaTipeUdt(udt: string): string {
+  switch (udt) {
+    case 'timestamptz': case 'timestamp': return 'datetime';
+    case 'date': return 'date';
+    case 'time': case 'timetz': return 'time';
+    case 'bool': return 'boolean';
+    case 'json': case 'jsonb': return 'json';
+    case 'bytea': return 'bytea';
+    case 'int2': case 'int4': case 'int8': return 'int';
+    case 'numeric': case 'float4': case 'float8': return 'numeric';
+    case 'uuid': return 'uuid';
+    default: return udt.startsWith('_') ? 'array' : 'text';
+  }
+}
+
 async function muatMeta(): Promise<Meta> {
   const db = getDbClient();
-  const [kol, pk, fk, chk, prm, vw] = await Promise.all([
-    db.execute(`SELECT TABLE_NAME t, COLUMN_NAME c, DATA_TYPE d, COLUMN_TYPE ct FROM information_schema.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION`),
-    db.execute(`SELECT TABLE_NAME t, COLUMN_NAME c FROM information_schema.KEY_COLUMN_USAGE
-                 WHERE TABLE_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'PRIMARY' ORDER BY TABLE_NAME, ORDINAL_POSITION`),
-    db.execute(`SELECT CONSTRAINT_NAME n, TABLE_NAME t, COLUMN_NAME c, REFERENCED_TABLE_NAME rt, REFERENCED_COLUMN_NAME rc
-                  FROM information_schema.KEY_COLUMN_USAGE
-                 WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION`),
-    db.execute(`SELECT TABLE_NAME t, CHECK_CLAUSE cl FROM information_schema.CHECK_CONSTRAINTS
-                 WHERE CONSTRAINT_SCHEMA = DATABASE() AND LOWER(CHECK_CLAUSE) LIKE '%json_valid%'`),
-    db.execute(`SELECT SPECIFIC_NAME n, PARAMETER_NAME p FROM information_schema.PARAMETERS
-                 WHERE SPECIFIC_SCHEMA = DATABASE() AND PARAMETER_NAME IS NOT NULL ORDER BY SPECIFIC_NAME, ORDINAL_POSITION`),
-    db.execute(`SELECT TABLE_NAME t FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE()`),
+  const [kol, pk, fk, vw] = await Promise.all([
+    db.execute(`SELECT table_name AS t, column_name AS c, udt_name AS u FROM information_schema.columns
+                 WHERE table_schema = current_schema() ORDER BY table_name, ordinal_position`),
+    db.execute(`SELECT cl.relname AS t, a.attname AS c
+                  FROM pg_constraint con
+                  JOIN pg_class cl ON cl.oid = con.conrelid
+                  JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+                  CROSS JOIN LATERAL unnest(con.conkey) WITH ORDINALITY AS u(ck, ord)
+                  JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = u.ck
+                 WHERE con.contype = 'p' AND ns.nspname = current_schema() ORDER BY cl.relname, u.ord`),
+    db.execute(`SELECT con.conname AS n, cl.relname AS t, a.attname AS c, fcl.relname AS rt, fa.attname AS rc
+                  FROM pg_constraint con
+                  JOIN pg_class cl ON cl.oid = con.conrelid
+                  JOIN pg_class fcl ON fcl.oid = con.confrelid
+                  JOIN pg_namespace ns ON ns.oid = cl.relnamespace
+                  CROSS JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY AS u(ck, fkk, ord)
+                  JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = u.ck
+                  JOIN pg_attribute fa ON fa.attrelid = con.confrelid AND fa.attnum = u.fkk
+                 WHERE con.contype = 'f' AND ns.nspname = current_schema() ORDER BY con.conname, u.ord`),
+    db.execute(`SELECT table_name AS t FROM information_schema.views WHERE table_schema = current_schema()`),
   ]);
 
-  const jsonKol = new Set<string>();
-  for (const r of chk.rows) {
-    for (const m of String(r.cl).matchAll(/json_valid\(\s*`?([A-Za-z0-9_]+)`?\s*\)/gi)) jsonKol.add(`${r.t}.${m[1]}`);
-  }
   const kolom = new Map<string, Map<string, InfoKolom>>();
   for (const r of kol.rows) {
     if (!kolom.has(r.t)) kolom.set(r.t, new Map());
-    kolom.get(r.t)!.set(r.c, {
-      tipe: String(r.d).toLowerCase(),
-      kolomTipe: String(r.ct).toLowerCase(),
-      json: jsonKol.has(`${r.t}.${r.c}`) || String(r.d).toLowerCase() === 'json',
-    });
+    const udt = String(r.u).toLowerCase();
+    const tipe = petaTipeUdt(udt);
+    kolom.get(r.t)!.set(r.c, { tipe, udt, json: tipe === 'json', array: tipe === 'array' });
   }
   const pkMap = new Map<string, string[]>();
   for (const r of pk.rows) pkMap.set(r.t, [...(pkMap.get(r.t) ?? []), r.c]);
@@ -100,10 +116,8 @@ async function muatMeta(): Promise<Meta> {
     f.kolomInduk.push(r.rc);
     perFk.set(kunci, f);
   }
-  const parameter = new Map<string, string[]>();
-  for (const r of prm.rows) parameter.set(r.n, [...(parameter.get(r.n) ?? []), r.p]);
 
-  return { kolom, pk: pkMap, fk: [...perFk.values()], parameter, views: new Set(vw.rows.map((r) => String(r.t))) };
+  return { kolom, pk: pkMap, fk: [...perFk.values()], views: new Set(vw.rows.map((r) => String(r.t))) };
 }
 
 function getMeta(): Promise<Meta> {
@@ -128,22 +142,18 @@ export function resetMetaDb(): void {
 const RE_ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
 function id(nama: string): string {
   if (!RE_ID.test(nama)) throw new Error(`Nama kolom/tabel tidak valid atau belum didukung: "${nama}"`);
-  return '`' + nama + '`';
+  return '"' + nama + '"';
 }
 
 function petakanGalat(e: unknown): DbError {
-  const x = e as { code?: string; errno?: number; sqlMessage?: string; message?: string };
+  const x = e as { code?: string; errno?: number; sqlMessage?: string; message?: string; detail?: string; hint?: string };
+  // PostgreSQL sudah memberi SQLSTATE 5 karakter (23505 duplikat, 23503 FK, 23502 NOT NULL, 23514 CHECK, 22001 terlalu panjang, ...).
+  let code = x?.code && /^[0-9A-Z]{5}$/.test(x.code) ? x.code : 'XX000';
+  // Galat buatan adapter (Object.assign(new Error, { errno })) memakai nomor MariaDB lama; petakan ke SQLSTATE.
   const no = x?.errno;
-  let code = x?.code ?? 'XX000';
-  if (no === 1062) code = '23505';
-  else if (no === 1451 || no === 1452) code = '23503';
-  else if (no === 1048 || no === 1364) code = '23502';
-  else if (no === 4025 || no === 3819) code = '23514';
-  else if (no === 1406 || no === 1264) code = '22001';
-  else if (no === 1054) code = '42703';
+  if (no === 1054) code = '42703';
   else if (no === 1146) code = '42P01';
-  else if (no === 1292 || no === 1366) code = '22007';
-  return { message: x?.sqlMessage ?? x?.message ?? String(e), code, details: null, hint: null };
+  return { message: x?.sqlMessage ?? x?.message ?? String(e), code, details: x?.detail ?? null, hint: x?.hint ?? null };
 }
 
 const dua = (n: number) => String(n).padStart(2, '0');
@@ -154,25 +164,19 @@ function utcDatetime(d: Date): string {
 /** Nilai JS -> parameter SQL, dengan memperhatikan tipe kolom tujuan. */
 function keParam(v: unknown, info?: InfoKolom): DbValue {
   if (v === undefined || v === null) return null;
-  if (v instanceof Date) return info?.tipe === 'date' ? utcDatetime(v).slice(0, 10) : utcDatetime(v);
-  if (typeof v === 'boolean') return v ? 1 : 0;
+  if (v instanceof Date) return info?.tipe === 'date' ? utcDatetime(v).slice(0, 10) : utcDatetime(v) + '+00';
+  if (typeof v === 'boolean') return v;
   if (typeof v === 'bigint') return v.toString();
   if (Buffer.isBuffer(v) || v instanceof Uint8Array || v instanceof ArrayBuffer) return v as DbValue;
-  if (typeof v === 'object') return JSON.stringify(v); // objek/array -> kolom JSON
+  if (Array.isArray(v) && info?.array) return v as DbValue; // text[] dll: pg mengubah array JS menjadi literal array
+  if (typeof v === 'object' || Array.isArray(v)) return JSON.stringify(v); // objek/array -> kolom jsonb
   if (typeof v === 'string' && info) {
-    if ((info.tipe === 'datetime' || info.tipe === 'timestamp') && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(v)) {
-      // ISO dengan 'T', 'Z' atau offset -> UTC 'YYYY-MM-DD HH:MM:SS'
-      if (/(Z|[+-]\d{2}(:?\d{2})?)$/.test(v) || v.includes('T')) {
-        const d = new Date(/(Z|[+-]\d{2}(:?\d{2})?)$/.test(v) ? v : v.replace(' ', 'T') + 'Z');
-        if (!Number.isNaN(d.getTime())) return utcDatetime(d);
-      }
-    }
     if (info.tipe === 'date' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return v.slice(0, 10);
   }
   return v as DbValue;
 }
 
-/** Baris hasil MariaDB -> bentuk PostgREST. */
+/** Baris hasil PostgreSQL -> bentuk PostgREST. */
 function keBentukPostgrest(row: Row, kolom: Map<string, InfoKolom> | undefined, aliasKe?: Map<string, string>): Row {
   if (!kolom) return row;
   const out: Row = {};
@@ -187,19 +191,15 @@ function keBentukPostgrest(row: Row, kolom: Map<string, InfoKolom> | undefined, 
 function konversiNilai(v: unknown, info: InfoKolom): unknown {
   if (v === null || v === undefined) return v ?? null;
   if (info.json && typeof v === 'string') {
-    try {
-      return JSON.parse(v);
-    } catch {
-      return v;
-    }
+    // jsonb yang berisi string JSON tunggal sudah diurai pg menjadi string biasa; jangan diurai dua kali.
+    return v;
   }
-  if (info.tipe === 'datetime' || info.tipe === 'timestamp') {
+  if (info.tipe === 'datetime') {
     const s = String(v);
     const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/.exec(s);
     return m ? `${m[1]}T${m[2]}+00:00` : s;
   }
-  if (info.kolomTipe === 'tinyint(1)' && (typeof v === 'number' || typeof v === 'string')) return Number(v) !== 0;
-  return v;
+  return v; // boolean/jsonb/array sudah bertipe benar dari pg
 }
 
 // ---------------------------------------------------------------------
@@ -236,9 +236,9 @@ function kompilKond(k: Kond, info: Map<string, InfoKolom> | undefined, p: DbValu
     case 'lte':
       return `${c} <= ${push(k.val)}`;
     case 'like':
-      return `${c} COLLATE utf8mb4_bin LIKE ${push(nilaiPola(k.val))}`;
+      return `${c} LIKE ${push(nilaiPola(k.val))}`;
     case 'ilike':
-      return `${c} COLLATE utf8mb4_unicode_ci LIKE ${push(nilaiPola(k.val))}`;
+      return `${c} ILIKE ${push(nilaiPola(k.val))}`;
     case 'is': {
       const v = k.val;
       if (v === null || v === 'null') return `${c} IS NULL`;
@@ -364,17 +364,14 @@ export class QueryBuilder extends PencatatQuery implements PromiseLike<DbRespons
     if (!this.urutan.length) return '';
     const bagian = this.urutan.map((o) => {
       const c = id(o.kol);
-      // NULL: Postgres menganggap NULL "terbesar"; MariaDB "terkecil". Samakan secara eksplisit.
-      const n = `(${c} IS NULL) ${o.nullsFirst ? 'DESC' : 'ASC'}`;
-      return `${n}, ${c} ${o.asc ? 'ASC' : 'DESC'}`;
+      return `${c} ${o.asc ? 'ASC' : 'DESC'} NULLS ${o.nullsFirst ? 'FIRST' : 'LAST'}`;
     });
     return ' ORDER BY ' + bagian.join(', ');
   }
 
   private limitSql(): string {
     if (this.batas === null && this.mulai === 0) return '';
-    // MariaDB: OFFSET butuh LIMIT; angka besar = "tanpa batas".
-    return ` LIMIT ${this.batas === null ? '18446744073709551615' : Math.trunc(this.batas)} OFFSET ${Math.trunc(this.mulai)}`;
+    return ` LIMIT ${this.batas === null ? 'ALL' : Math.trunc(this.batas)} OFFSET ${Math.trunc(this.mulai)}`;
   }
 
   /** Daftar kolom SQL untuk SELECT/RETURNING + peta alias + relasi yang perlu disambung. */
@@ -553,10 +550,11 @@ export class QueryBuilder extends PencatatQuery implements PromiseLike<DbRespons
       if (this.op === 'upsert') {
         const kunci = this.onConflict ?? meta.pk.get(this.tabel) ?? [];
         const ubah = kolom.filter((k) => !kunci.includes(k));
-        const set = this.abaikanDuplikat || !ubah.length
-          ? [`${id(kunci[0] ?? kolom[0])} = ${id(kunci[0] ?? kolom[0])}`]
-          : ubah.map((k) => `${id(k)} = VALUES(${id(k)})`);
-        sql += ' ON DUPLICATE KEY UPDATE ' + set.join(', ');
+        if (!kunci.length) throw new Error(`upsert() pada ${this.tabel} butuh onConflict atau PRIMARY KEY`);
+        sql += ` ON CONFLICT (${kunci.map(id).join(', ')}) `;
+        sql += this.abaikanDuplikat || !ubah.length
+          ? 'DO NOTHING'
+          : 'DO UPDATE SET ' + ubah.map((k) => `${id(k)} = EXCLUDED.${id(k)}`).join(', ');
       }
       const rak = this.kembalikan ? this.rakitKolom(meta) : null;
       if (rak) sql += ` RETURNING ${rak.sql}`;
@@ -583,30 +581,14 @@ export class QueryBuilder extends PencatatQuery implements PromiseLike<DbRespons
         await db.execute({ sql: `UPDATE ${id(this.tabel)} SET ${set}${where}`, args: [...ps, ...pw] });
         return { data: null, error: null, count: null, status: 204, statusText: 'No Content' };
       }
-      // MariaDB tidak punya UPDATE ... RETURNING: kunci baris, ubah, lalu baca ulang lewat PK.
-      const pk = meta.pk.get(this.tabel);
-      if (!pk?.length) throw new Error(`update().select() butuh PRIMARY KEY pada tabel ${this.tabel}`);
-      const tx = await db.transaction();
-      try {
-        const pk0: DbValue[] = [];
-        const w0 = this.whereSql(meta, pk0);
-        const ids = (await tx.execute({ sql: `SELECT ${pk.map(id).join(',')} FROM ${id(this.tabel)}${w0} FOR UPDATE`, args: pk0 })).rows;
-        await tx.execute({ sql: `UPDATE ${id(this.tabel)} SET ${set}${where}`, args: [...ps, ...pw] });
-        let rows: Row[] = [];
-        if (ids.length) {
-          const rak = this.rakitKolom(meta);
-          const pb: DbValue[] = [];
-          const cond = ids.map((r) => '(' + pk.map((c) => { pb.push(r[c] as DbValue); return `${id(c)} = ?`; }).join(' AND ') + ')').join(' OR ');
-          const ambil = await tx.execute({ sql: `SELECT ${rak.sql} FROM ${id(this.tabel)} WHERE ${cond}${this.orderSql()}`, args: pb });
-          rows = ambil.rows.map((x) => keBentukPostgrest(x, info, rak.alias));
-          if (rak.relasi.length) rows = await this.sambungRelasi(meta, rows, rak.relasi);
-        }
-        await tx.commit();
-        return this.bentukRespons(rows, null);
-      } catch (e) {
-        await tx.rollback();
-        throw e;
-      }
+      const rak = this.rakitKolom(meta);
+      const r = await db.execute({
+        sql: `UPDATE ${id(this.tabel)} SET ${set}${where} RETURNING ${rak.sql}`,
+        args: [...ps, ...pw],
+      });
+      let rows = r.rows.map((x) => keBentukPostgrest(x, info, rak.alias));
+      if (rak.relasi.length) rows = await this.sambungRelasi(meta, rows, rak.relasi);
+      return this.bentukRespons(rows, null);
     }
 
     // delete
@@ -632,14 +614,15 @@ export function dbRpc(nama: string, args: Row = {}): PromiseLike<DbResponse> {
   const jalan = async (): Promise<DbResponse> => {
     try {
       id(nama);
-      const meta = await getMeta();
-      const parameter = meta.parameter.get(nama);
-      if (!parameter) throw Object.assign(new Error(`Prosedur ${nama} tidak ada`), { errno: 1305, sqlMessage: `Prosedur ${nama} tidak ada` });
-      const nilai = parameter.map((p) => keParam(args[p] ?? args[p.replace(/^p_/, '')] ?? null));
-      // CALL mengembalikan [result sets..., OkPacket]; ambil result set pertama.
-      const [hasil] = await getDbPool().query(`CALL ${id(nama)}(${parameter.map(() => '?').join(',')})`, nilai);
-      const rs = Array.isArray(hasil) && Array.isArray(hasil[0]) ? (hasil[0] as Row[]) : [];
-      return { data: rs.map((x) => ({ ...x })), error: null, count: null, status: 200, statusText: 'OK' } as DbResponse;
+      const kunci = Object.keys(args).filter((k) => args[k] !== undefined);
+      for (const k of kunci) id(k);
+      const p: DbValue[] = [];
+      const daftar = kunci.map((k) => {
+        p.push(keParam(args[k]));
+        return `${id(k)} => ?`; // notasi bernama PostgreSQL: urutan argumen tidak penting
+      });
+      const r = await getDbClient().execute({ sql: `SELECT * FROM ${id(nama)}(${daftar.join(', ')})`, args: p });
+      return { data: r.rows, error: null, count: null, status: 200, statusText: 'OK' } as DbResponse;
     } catch (e) {
       return { data: null, error: petakanGalat(e), count: null, status: 400, statusText: 'Bad Request' };
     }
@@ -651,7 +634,7 @@ export function dbFrom(tabel: string, penjaga?: Penjaga): QueryBuilder {
   return new QueryBuilder(tabel, penjaga);
 }
 
-/** Klien bentuk supabase-js yang hanya punya .from() dan .rpc(), di atas MariaDB. */
+/** Klien bentuk supabase-js yang hanya punya .from() dan .rpc(), di atas PostgreSQL. */
 export function buatKlienDb(penjaga?: Penjaga) {
   return { from: (t: string) => dbFrom(t, penjaga), rpc: dbRpc };
 }

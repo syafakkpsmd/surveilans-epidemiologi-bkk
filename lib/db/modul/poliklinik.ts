@@ -38,7 +38,7 @@ export async function getKunjunganRawData(tahun?: number, wilayahKerja?: string)
   const args: (string | number)[] = [];
 
   if (tahun) {
-    kondisi.push(`DATE_FORMAT(tanggal_pemeriksaan, '%Y') = ?`);
+    kondisi.push(`to_char(tanggal_pemeriksaan, 'YYYY') = ?`);
     args.push(String(tahun));
   }
   if (wilayahKerja) {

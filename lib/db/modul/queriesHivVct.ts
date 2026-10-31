@@ -55,11 +55,11 @@ export interface FilterHivVct {
  * tanggal kegiatan. Dipakai untuk generate Excel/PDF unduhan & preview.
  */
 export async function getBarisHivVct(filter: FilterHivVct): Promise<BarisHivVct[]> {
-  const kondisi: string[] = [`DATE_FORMAT(tanggal_kegiatan, '%Y') = ?`];
+  const kondisi: string[] = [`to_char(tanggal_kegiatan, 'YYYY') = ?`];
   const args: (string | number)[] = [String(filter.tahun)];
 
   if (filter.bulan) {
-    kondisi.push(`DATE_FORMAT(tanggal_kegiatan, '%m') = ?`);
+    kondisi.push(`to_char(tanggal_kegiatan, 'MM') = ?`);
     args.push(String(filter.bulan).padStart(2, "0"));
   }
   if (filter.wilker) {

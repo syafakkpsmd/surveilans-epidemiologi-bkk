@@ -26,8 +26,8 @@ export async function POST(req: Request) {
     // UPSERT: baris id=1 dibuat bila belum ada (update Supabase lama diam-diam tidak berbuat apa-apa)
     await getDbClient().execute({
       sql: `INSERT INTO pengaturan_klinik (id, standar_hari_vaksin, updated_by) VALUES (1, ?, ?)
-            ON DUPLICATE KEY UPDATE standar_hari_vaksin = VALUES(standar_hari_vaksin),
-                                    updated_by = VALUES(updated_by), updated_at = NOW()`,
+            ON CONFLICT (id) DO UPDATE SET standar_hari_vaksin = EXCLUDED.standar_hari_vaksin,
+                                    updated_by = EXCLUDED.updated_by, updated_at = now()`,
       args: [standarHariBaru, user.id],
     });
   } catch (err: any) {

@@ -8,10 +8,11 @@
 //                   isian lama (COALESCE). Jadi isian manual petugas (RBA dst.) aman bila berkas diunggah ulang.
 import { randomUUID } from 'node:crypto';
 import { getDbClient, type DbValue } from '@/lib/db/client';
+import { galatDuplikat } from '@/lib/db/errors';
 import type { ModulInput } from './modul';
 import { kunciBaris, validasiBaris, type NilaiBaris } from './validasi';
 
-const q = (id: string) => '`' + id.replace(/`/g, '') + '`';
+const q = (id: string) => '"' + id.replace(/"/g, '') + '"';
 const UKURAN_KELOMPOK = 200;
 
 export function wilayahDalam(modul: ModulInput, baris: NilaiBaris[]): string[] {
@@ -25,17 +26,13 @@ async function petaAda(ek: Eksekutor, modul: ModulInput, tahun: number, wilayah:
   const peta = new Map<string, string>();
   if (!wilayah.length) return peta;
   const kolW = q(modul.kolomWilayah), kolT = q(modul.kolomTanggal), kolK = q(modul.kolomKunci);
-  const tambahan = modul.kolomKunciTambahan ?? [];
   const r = await ek.execute({
-    sql: `SELECT ${q('id')} AS id, ${kolW} AS w, ${kolK} AS k, ${kolT} AS t${tambahan.map((c, i) => `, ${q(c)} AS x${i}`).join('')} FROM ${q(modul.tabel)}
+    sql: `SELECT ${q('id')} AS id, ${kolW} AS w, ${kolK} AS k, ${kolT} AS t FROM ${q(modul.tabel)}
           WHERE ${kolT} >= ? AND ${kolT} < ? AND LOWER(REPLACE(${kolW},' ','')) IN (${wilayah.map(() => '?').join(',')})`,
     args: [`${tahun}-01-01`, `${tahun + 1}-01-01`, ...wilayah.map((w) => w.toLowerCase().replace(/\s+/g, ''))],
   });
   for (const x of r.rows) {
-    const kunci = kunciBaris(modul, {
-      [modul.kolomWilayah]: x.w as string, [modul.kolomKunci]: x.k as string, [modul.kolomTanggal]: x.t as string,
-      ...Object.fromEntries(tambahan.map((c, i) => [c, x[`x${i}`] as string | null])),
-    });
+    const kunci = kunciBaris(modul, { [modul.kolomWilayah]: x.w as string, [modul.kolomKunci]: x.k as string, [modul.kolomTanggal]: x.t as string });
     if (kunci && !peta.has(kunci)) peta.set(kunci, String(x.id));
   }
   return peta;
@@ -120,7 +117,7 @@ export async function tambahSatu(modul: ModulInput, nilai: NilaiBaris): Promise<
     });
     return 'ok';
   } catch (e) {
-    if ((e as { code?: string })?.code === 'ER_DUP_ENTRY') return 'duplikat';
+    if (galatDuplikat(e)) return 'duplikat';
     throw e;
   }
 }
@@ -196,7 +193,7 @@ export async function daftarData(modul: ModulInput, f: FilterDaftar) {
 
 export async function daftarTahun(modul: ModulInput): Promise<number[]> {
   const r = await getDbClient().execute(
-    `SELECT DISTINCT YEAR(${q(modul.kolomTanggal)}) AS t FROM ${q(modul.tabel)} WHERE ${q(modul.kolomTanggal)} IS NOT NULL ORDER BY t DESC`,
+    `SELECT DISTINCT EXTRACT(YEAR FROM ${q(modul.kolomTanggal)})::int AS t FROM ${q(modul.tabel)} WHERE ${q(modul.kolomTanggal)} IS NOT NULL ORDER BY t DESC`,
   );
   return r.rows.map((x) => Number(x.t)).filter((t) => t > 1990);
 }

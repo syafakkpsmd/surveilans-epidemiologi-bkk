@@ -49,7 +49,7 @@ export async function simpanMaster(nama: string, negara: string, pengguna: strin
   if (!n || !g || !k || n.length > 255 || g.length > 100) return 'galat';
   await getDbClient().execute({
     sql: `INSERT INTO master_pelabuhan_negara (kunci, nama_pelabuhan, negara, dibuat_oleh) VALUES (?,?,?,?)
-          ON DUPLICATE KEY UPDATE negara = VALUES(negara), nama_pelabuhan = VALUES(nama_pelabuhan)`,
+          ON CONFLICT (kunci) DO UPDATE SET negara = EXCLUDED.negara, nama_pelabuhan = EXCLUDED.nama_pelabuhan`,
     args: [k, n, g, pengguna.slice(0, 255)],
   });
   return 'ok';

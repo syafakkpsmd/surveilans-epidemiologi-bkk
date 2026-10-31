@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
 import { createHash, randomBytes } from "node:crypto";
-import { unstable_rethrow } from "next/navigation"; // <-- Ditambahkan untuk menangani error internal Next.js
 import { sql } from "./db";
 import { verifikasiPassword } from "./password";
 
@@ -26,33 +25,25 @@ const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 /** Pengguna dari cookie sesi, atau null. Di-cache per request. */
 export const getPengguna = cache(async (): Promise<Pengguna | null> => {
-  try {
-    const jar = await cookies();
-    const token = jar.get(NAMA_COOKIE)?.value;
-    if (!token) return null;
-    
-    const rows = await sql<any>(
-      `SELECT p.id, p.role, p.status, p.nama_lengkap, k.email
-         FROM auth_sesi s
-         JOIN profiles p ON p.id = s.user_id
-         LEFT JOIN auth_kredensial k ON k.user_id = s.user_id
-        WHERE s.token_hash = ? AND s.berakhir_pada > NOW(3)
-          AND p.status = '${STATUS_AKTIF}'
-          AND s.terakhir_aktif > NOW(3) - INTERVAL ${BATAS_TIDAK_AKTIF_MENIT} MINUTE
-        LIMIT 1`,
-      [sha256(token)],
-    );
-    const r = rows[0];
-    if (!r) return null;
-    
-    // perpanjang masa aktif (maks. 1x per menit agar tidak menulis di setiap request)
-    await sql(`UPDATE auth_sesi SET terakhir_aktif = NOW(3) WHERE token_hash = ? AND terakhir_aktif < NOW(3) - INTERVAL 1 MINUTE`, [sha256(token)]);
-    return { id: r.id, email: r.email ?? null, role: r.role, status: r.status, namaLengkap: r.nama_lengkap ?? null };
-  } catch (error) {
-    // Memastikan sinyal redirect atau dynamic server usage Next.js tidak tertelan oleh catch global
-    unstable_rethrow(error);
-    return null;
-  }
+  const jar = await cookies();
+  const token = jar.get(NAMA_COOKIE)?.value;
+  if (!token) return null;
+  const rows = await sql<any>(
+    `SELECT p.id, p.role, p.status, p.nama_lengkap, k.email
+       FROM auth_sesi s
+       JOIN profiles p ON p.id = s.user_id
+       LEFT JOIN auth_kredensial k ON k.user_id = s.user_id
+      WHERE s.token_hash = ? AND s.berakhir_pada > now()
+        AND p.status = '${STATUS_AKTIF}'
+        AND s.terakhir_aktif > now() - INTERVAL '${BATAS_TIDAK_AKTIF_MENIT} minutes'
+      LIMIT 1`,
+    [sha256(token)],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  // perpanjang masa aktif (maks. 1x per menit agar tidak menulis di setiap request)
+  await sql(`UPDATE auth_sesi SET terakhir_aktif = now() WHERE token_hash = ? AND terakhir_aktif < now() - INTERVAL '1 minute'`, [sha256(token)]);
+  return { id: r.id, email: r.email ?? null, role: r.role, status: r.status, namaLengkap: r.nama_lengkap ?? null };
 });
 
 /** Hanya untuk Route Handler / Server Action (cookie hanya boleh ditulis di sana). */
@@ -65,7 +56,7 @@ export async function masuk(email: string, password: string, ip = ""): Promise<H
   const kunci = `${em}|${ip}`.slice(0, 320);
 
   const [p] = await sql<{ jumlah: number }>(
-    `SELECT jumlah FROM auth_percobaan WHERE kunci = ? AND jendela_mulai > NOW(3) - INTERVAL ${JENDELA_MENIT} MINUTE`,
+    `SELECT jumlah FROM auth_percobaan WHERE kunci = ? AND jendela_mulai > now() - INTERVAL '${JENDELA_MENIT} minutes'`,
     [kunci],
   );
   if (p && p.jumlah >= MAKS_PERCOBAAN) return { ok: false, alasan: "terkunci" };
@@ -76,10 +67,10 @@ export async function masuk(email: string, password: string, ip = ""): Promise<H
 
   if (!benar || !k) {
     await sql(
-      `INSERT INTO auth_percobaan (kunci, jumlah, jendela_mulai) VALUES (?, 1, NOW(3))
-         ON DUPLICATE KEY UPDATE
-           jumlah = IF(jendela_mulai > NOW(3) - INTERVAL ${JENDELA_MENIT} MINUTE, jumlah + 1, 1),
-           jendela_mulai = IF(jendela_mulai > NOW(3) - INTERVAL ${JENDELA_MENIT} MINUTE, jendela_mulai, NOW(3))`,
+      `INSERT INTO auth_percobaan (kunci, jumlah, jendela_mulai) VALUES (?, 1, now())
+       ON CONFLICT (kunci) DO UPDATE SET
+         jumlah = CASE WHEN auth_percobaan.jendela_mulai > now() - INTERVAL '${JENDELA_MENIT} minutes' THEN auth_percobaan.jumlah + 1 ELSE 1 END,
+         jendela_mulai = CASE WHEN auth_percobaan.jendela_mulai > now() - INTERVAL '${JENDELA_MENIT} minutes' THEN auth_percobaan.jendela_mulai ELSE now() END`,
       [kunci],
     );
     return { ok: false, alasan: "salah" };
@@ -94,7 +85,7 @@ export async function masuk(email: string, password: string, ip = ""): Promise<H
 
   const token = randomBytes(32).toString("base64url");
   await sql(
-    `INSERT INTO auth_sesi (token_hash, user_id, berakhir_pada) VALUES (?, ?, NOW(3) + INTERVAL ${UMUR_SESI_HARI} DAY)`,
+    `INSERT INTO auth_sesi (token_hash, user_id, berakhir_pada) VALUES (?, ?, now() + INTERVAL '${UMUR_SESI_HARI} days')`,
     [sha256(token), k.user_id],
   );
   (await cookies()).set(NAMA_COOKIE, token, {

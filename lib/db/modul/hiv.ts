@@ -23,7 +23,7 @@ export async function ambilHivRaw(tahun: number): Promise<HivRow[]> {
     sql: `SELECT wilayah_kerja, tanggal_kegiatan, sex, tanggal_lahir, status_perkawinan,
                  kunjungan, hasil, jenis_reagen, hubungan_berisiko
           FROM hiv_data
-          WHERE DATE_FORMAT(tanggal_kegiatan, '%Y') = ? AND tanggal_kegiatan IS NOT NULL`,
+          WHERE to_char(tanggal_kegiatan, 'YYYY') = ? AND tanggal_kegiatan IS NOT NULL`,
     args: [String(tahun)]
   });
   return result.rows as unknown as HivRow[];

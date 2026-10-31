@@ -35,7 +35,7 @@ const angka = (v: unknown): number | null => (v === null || v === undefined || v
 
 export async function getTahunSklt(): Promise<number[]> {
   const rs = await getDbClient().execute(
-    `SELECT DISTINCT substr(tanggal,1,4) AS t FROM sklt_penumpang
+    `SELECT DISTINCT to_char(tanggal, 'YYYY') AS t FROM sklt_penumpang
      WHERE tanggal IS NOT NULL ORDER BY t DESC`
   );
   return rs.rows.map((r) => Number(r.t)).filter((n) => Number.isFinite(n));
@@ -46,7 +46,7 @@ export async function getSkltData(tahun: number): Promise<SkltRow[]> {
     sql: `SELECT id, tanggal, nama, maskapai, rute, jenis_kelamin, umur, diagnosis, status_laik,
                  jenis_penyakit, gcs, nadi, suhu, hamil, pendamping, fasilitas
           FROM sklt_penumpang
-          WHERE substr(tanggal,1,4) = ?
+          WHERE to_char(tanggal, 'YYYY') = ?
           ORDER BY tanggal DESC, no_urut DESC`,
     args: [String(tahun)],
   });

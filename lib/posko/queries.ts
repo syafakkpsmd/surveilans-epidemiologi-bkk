@@ -86,9 +86,9 @@ export const SQL_KAPAL_BERANGKAT =
   `WITH b AS (
      SELECT wilker, abk_berangkat, penumpang_berangkat,
             COALESCE(
-              date(NULLIF(tanggal_berangkat, '')),
+              tanggal_berangkat,
               CASE WHEN COALESCE(abk_berangkat, 0) + COALESCE(penumpang_berangkat, 0) > 0
-                   THEN date(tanggal_tiba) END
+                   THEN tanggal_tiba END
             ) AS tgl
      FROM data_penumpang_kapal
    )

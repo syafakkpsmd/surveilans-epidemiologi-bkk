@@ -58,8 +58,8 @@ export async function simpanPeriodePosko(input: {
   try {
     await getDbClient().execute({
       sql: `INSERT INTO posko_periode (posko, tahun, nama, tanggal_mulai, tanggal_selesai) VALUES (?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE
-              nama = VALUES(nama), tanggal_mulai = VALUES(tanggal_mulai), tanggal_selesai = VALUES(tanggal_selesai)`,
+            ON CONFLICT (posko, tahun) DO UPDATE SET
+              nama = EXCLUDED.nama, tanggal_mulai = EXCLUDED.tanggal_mulai, tanggal_selesai = EXCLUDED.tanggal_selesai`,
       args: [input.posko, input.tahun, nama, input.tanggalMulai, input.tanggalSelesai],
     });
   } catch (err) {

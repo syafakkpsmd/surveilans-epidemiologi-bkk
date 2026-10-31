@@ -71,7 +71,7 @@ async function ambilBarisTahun(tahun: number, wilayahKerja?: string): Promise<Ba
     sql: `SELECT wilayah_kerja, no_baris, nama, tanggal_lahir, jenis_kelamin, alamat,
                  tujuan_pemeriksaan, tanggal_pemeriksaan, kesimpulan, tempat_terbit
           FROM kier_kesehatan
-          WHERE substr(tanggal_pemeriksaan, 1, 4) = ? ${kondisiWilker}
+          WHERE to_char(tanggal_pemeriksaan, 'YYYY') = ? ${kondisiWilker}
           ORDER BY tanggal_pemeriksaan ASC`,
     args,
   });
@@ -182,7 +182,7 @@ export async function getTrenBulananKier(
 /** Daftar tahun yang tersedia di data, untuk dropdown filter tahun */
 export async function getDaftarTahunKier(): Promise<number[]> {
   const result = await getDbClient().execute({
-    sql: `SELECT DISTINCT substr(tanggal_pemeriksaan, 1, 4) AS tahun
+    sql: `SELECT DISTINCT to_char(tanggal_pemeriksaan, 'YYYY') AS tahun
           FROM kier_kesehatan
           WHERE tanggal_pemeriksaan IS NOT NULL
           ORDER BY tahun DESC`,
@@ -201,7 +201,7 @@ export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
   const result = await getDbClient().execute({
     sql: `SELECT DISTINCT wilayah_kerja
           FROM kier_kesehatan
-          WHERE substr(tanggal_pemeriksaan, 1, 4) = ?
+          WHERE to_char(tanggal_pemeriksaan, 'YYYY') = ?
             AND wilayah_kerja IS NOT NULL AND wilayah_kerja != ''`,
     args: [String(tahun)],
   });

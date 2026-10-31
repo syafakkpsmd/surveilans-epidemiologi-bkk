@@ -72,11 +72,11 @@ export interface FilterTb {
 }
 
 export async function getBarisTb(filter: FilterTb): Promise<BarisTb[]> {
-  const kondisi: string[] = [`DATE_FORMAT(tanggal_pelaksanaan, '%Y') = ?`];
+  const kondisi: string[] = [`to_char(tanggal_pelaksanaan, 'YYYY') = ?`];
   const args: (string | number)[] = [String(filter.tahun)];
 
   if (filter.bulan) {
-    kondisi.push(`DATE_FORMAT(tanggal_pelaksanaan, '%m') = ?`);
+    kondisi.push(`to_char(tanggal_pelaksanaan, 'MM') = ?`);
     args.push(String(filter.bulan).padStart(2, "0"));
   }
   if (filter.wilker) {

@@ -20,6 +20,7 @@ const RUTE_TERLINDUNGI: RegExp[] = [
   /^\/dashboard\/posko\/[^/]+\/input(\/|$)/,
   /^\/lalu-lintas-orang\/input-penumpang-kapal(\/|$)/,
   /^\/dashboard\/input-data(\/|$)/,
+  /^\/dashboard\/klinik\/input(\/|$)/,
 ];
 
 export function proxy(request: NextRequest) {
@@ -44,5 +45,6 @@ export const config = {
     '/dashboard/posko/:jenis/input/:path*',
     '/lalu-lintas-orang/input-penumpang-kapal/:path*',
     '/dashboard/input-data/:path*',
+    '/dashboard/klinik/input/:path*',
   ],
 };

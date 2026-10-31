@@ -1,6 +1,7 @@
 // app/api/klinik/tren/route.ts
 import { NextResponse } from 'next/server';
 import { getDatasetKlinik } from '@/lib/klinik/dataset';
+import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
 import { parseTanggalSheet } from '@/lib/klinik/tanggal';
 import { trenDistribusiGender, trenLayananPerKlinik, trenPenerbitanIcv, trenPenerbitanPerVaksin } from '@/lib/klinik/agregasiTren';
 
@@ -11,7 +12,7 @@ export async function GET(req: Request) {
   const akhir = searchParams.get('akhir');
   const klinikIds = searchParams.get('klinik')?.split(',').filter(Boolean);
 
-  let dataset = await getDatasetKlinik();
+  let dataset = await getDatasetKlinik(opsiDariAkses(await getAksesKlinik()));
   if (klinikIds?.length) dataset = dataset.filter((d) => klinikIds.includes(String(d.klinik.id)));
 
   if (mulai && akhir) {

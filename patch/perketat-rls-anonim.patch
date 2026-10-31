@@ -1,0 +1,432 @@
+From b76b605666dfa02c6ed5821097448928d67d69c8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 30 Oct 2026 11:48:57 +0000
+Subject: [PATCH 1/2] Keamanan: batasi penulisan anonim di /api/db ke 4 tabel
+ yang disetujui
+
+Aturan RLS tiruan menyalin policy Supabase lama yang mengizinkan pengunjung
+anonim menulis ke 19 tabel (dulu untuk sinkronisasi Google Sheets). Karena
+/api/db terbuka ke internet, hanya ispa_harian dan kualitas_udara_harian
+(formulir publik) serta kunjungan_tamu dan statistik_kunjungan (penghitung)
+yang tetap boleh INSERT tanpa login; 21 aturan lain menjadi wajib login.
+
+Daftar ada di ANONIM_BOLEH_TULIS (buat-rls.mjs). Uji regresi baru
+uji-rls-anonim.ts menulis ulang daftar itu agar penambahan tabel memaksa
+tinjauan. Terbukti gagal terhadap aturan lama.
+---
+ lib/db/rls-policy.generated.ts    | 42 ++++++++++-----------
+ scripts/migrate/buat-rls.mjs      | 29 +++++++++++++++
+ scripts/migrate/uji-rls-anonim.ts | 61 +++++++++++++++++++++++++++++++
+ scripts/migrate/uji-rls.ts        |  6 +--
+ 4 files changed, 114 insertions(+), 24 deletions(-)
+ create mode 100644 scripts/migrate/uji-rls-anonim.ts
+
+diff --git a/lib/db/rls-policy.generated.ts b/lib/db/rls-policy.generated.ts
+index 3abde17..3d7fac6 100644
+--- a/lib/db/rls-policy.generated.ts
++++ b/lib/db/rls-policy.generated.ts
+@@ -60,7 +60,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+       { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     UPDATE: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
+@@ -104,38 +104,38 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+       { untuk: [ 'public' ], t: 'login' }
+     ],
+     UPDATE: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ]
+   },
+   kegiatan_cop: {
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'anon' ], t: 'semua' },
+       { untuk: [ 'public' ], t: 'semua' }
+     ],
+     UPDATE: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ]
+   },
+   kegiatan_pesawat: {
+     INSERT: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'public' ], t: 'semua' }
+     ],
+     UPDATE: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ]
+   },
+   kegiatan_phqc: {
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     UPDATE: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'public' ], t: 'semua' }
+@@ -167,11 +167,11 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+   },
+   laporan_penyakit_emerging: {
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'semua' },
+       { untuk: [ 'authenticated' ], t: 'role', roles: [ 'petugas', 'admin' ] }
+     ],
+     UPDATE: [
+-      { untuk: [ 'anon' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'semua' },
+       { untuk: [ 'authenticated' ], t: 'role', roles: [ 'petugas', 'admin' ] }
+     ],
+     SELECT: [
+@@ -180,10 +180,10 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+   },
+   laporan_penyakit_nasional: {
+     INSERT: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     UPDATE: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'public' ], t: 'semua' }
+@@ -210,7 +210,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+   },
+   pab: {
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'public' ], t: 'semua' }
+@@ -221,7 +221,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
+     ],
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ]
+   },
+   pengawasan_klinik_dokumen: {
+@@ -230,7 +230,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
+     ],
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'semua' },
+       { untuk: [ 'authenticated' ], t: 'semua' }
+     ]
+   },
+@@ -240,7 +240,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+       { untuk: [ 'public' ], t: 'semua' }
+     ],
+     INSERT: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     UPDATE: [
+       { untuk: [ 'public' ], t: 'role', roles: [ 'admin', 'petugas' ] }
+@@ -264,7 +264,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+   },
+   rat_guard: {
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
+@@ -329,10 +329,10 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+   },
+   skdr_mingguan: {
+     INSERT: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     UPDATE: [
+-      { untuk: [ 'public' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'public' ], t: 'semua' }
+@@ -355,7 +355,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+   },
+   tpp: {
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'public' ], t: 'semua' }
+@@ -363,7 +363,7 @@ export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>
+   },
+   ttu: {
+     INSERT: [
+-      { untuk: [ 'anon' ], t: 'semua' }
++      { untuk: [ 'authenticated' ], t: 'semua' }
+     ],
+     SELECT: [
+       { untuk: [ 'public' ], t: 'semua' }
+diff --git a/scripts/migrate/buat-rls.mjs b/scripts/migrate/buat-rls.mjs
+index bea7e3f..919894a 100644
+--- a/scripts/migrate/buat-rls.mjs
++++ b/scripts/migrate/buat-rls.mjs
+@@ -36,6 +36,33 @@ for (const p of dump.policy_rls) {
+     ((hasil[p.tablename] ??= {})[cmd] ??= []).push({ untuk: roles, ...aturan });
+   }
+ }
++
++// ---------------------------------------------------------------------------------------------
++// PERKETAT: policy Supabase lama mengizinkan pengunjung ANONIM menulis ke banyak tabel (dulu agar
++// sinkronisasi Google Sheets bisa memakai kunci anon publik). Sheets sudah tidak dipakai, dan di
++// sini /api/db terbuka ke internet, jadi penulisan anonim hanya dipertahankan untuk daftar berikut.
++// Aturan lain yang mengizinkan 'anon'/'public' menulis diubah menjadi 'authenticated' (wajib login).
++//   * ispa_harian, kualitas_udara_harian : formulir publik (/form/ispa-harian, /form/lingkungan-harian)
++//   * kunjungan_tamu, statistik_kunjungan : penghitung kunjungan (ditulis server, tanpa login)
++// Tambahkan tabel di sini HANYA bila memang harus bisa ditulis tanpa login.
++export const ANONIM_BOLEH_TULIS = {
++  ispa_harian: ['INSERT'],
++  kualitas_udara_harian: ['INSERT'],
++  kunjungan_tamu: ['INSERT'],
++  statistik_kunjungan: ['INSERT'],
++};
++const diperketat = [];
++for (const [tabel, perintah] of Object.entries(hasil)) {
++  for (const cmd of ['INSERT', 'UPDATE', 'DELETE']) {
++    for (const a of perintah[cmd] ?? []) {
++      const anonim = a.untuk.includes('anon') || a.untuk.includes('public');
++      if (!anonim || a.t !== 'semua') continue; // aturan berbasis role/login tidak bisa dilewati anonim
++      if ((ANONIM_BOLEH_TULIS[tabel] ?? []).includes(cmd)) continue;
++      diperketat.push(`${tabel} ${cmd} (${a.untuk.join(',')} -> authenticated)`);
++      a.untuk = ['authenticated'];
++    }
++  }
++}
+ const tabelDump = new Set((dump.kolom ?? []).map((k) => k.table_name ?? k.tabel).filter(Boolean));
+ const badan = `// DIBANGKITKAN oleh scripts/migrate/buat-rls.mjs dari schema-dump/supabase_schema.json. JANGAN diedit manual.
+ // Setiap entri = policy RLS Supabase (permissive, digabung dengan OR). 'untuk' = role Postgres yang dikenai policy:
+@@ -54,4 +81,6 @@ const ringkas = badan
+   .replace(/"/g, "'");
+ writeFileSync('lib/db/rls-policy.generated.ts', ringkas);
+ console.log(`Tabel dengan policy: ${Object.keys(hasil).length}`);
++console.log(`Aturan tulis anonim diperketat: ${diperketat.length}`);
++for (const d of diperketat) console.log('  - ' + d);
+ console.log(tak.length ? 'TIDAK DIKENALI (jadi tolak):\n' + tak.join('\n') : 'Semua policy dikenali.');
+diff --git a/scripts/migrate/uji-rls-anonim.ts b/scripts/migrate/uji-rls-anonim.ts
+new file mode 100644
+index 0000000..5bee7a2
+--- /dev/null
++++ b/scripts/migrate/uji-rls-anonim.ts
+@@ -0,0 +1,61 @@
++// Uji regresi keamanan: pengunjung ANONIM (belum login) hanya boleh menulis ke tabel yang disetujui.
++// Tanpa database. Jalankan: npx tsx --test scripts/migrate/uji-rls-anonim.ts
++// Daftar di bawah SENGAJA ditulis ulang di sini (bukan diimpor dari buat-rls.mjs): bila seseorang
++// menambah tabel ke ANONIM_BOLEH_TULIS, uji ini gagal dan memaksa keputusan itu ditinjau.
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import { putuskan } from '../../lib/db/rls';
++import { POLICY_RLS } from '../../lib/db/rls-policy.generated';
++import type { KonteksAuth } from '../../lib/db/rls';
++
++const ANON: KonteksAuth = { uid: null, role: null };
++const PETUGAS: KonteksAuth = { uid: '11111111-1111-1111-1111-111111111111', role: 'petugas' };
++const KLINIK: KonteksAuth = { uid: '33333333-3333-3333-3333-333333333333', role: 'petugas_klinik' };
++const ADMIN: KonteksAuth = { uid: '22222222-2222-2222-2222-222222222222', role: 'admin' };
++
++const ANONIM_BOLEH: Record<string, string[]> = {
++  ispa_harian: ['INSERT'], // formulir publik
++  kualitas_udara_harian: ['INSERT'], // formulir publik
++  kunjungan_tamu: ['INSERT'], // penghitung kunjungan
++  statistik_kunjungan: ['INSERT'], // penghitung kunjungan
++};
++const PERINTAH_TULIS = ['INSERT', 'UPDATE', 'DELETE'] as const;
++
++test('anonim DITOLAK menulis ke semua tabel kecuali daftar yang disetujui', () => {
++  const salah: string[] = [];
++  for (const tabel of Object.keys(POLICY_RLS)) {
++    for (const cmd of PERINTAH_TULIS) {
++      const izin = putuskan(tabel, cmd, ANON).izin !== 'tolak';
++      const seharusnya = (ANONIM_BOLEH[tabel] ?? []).includes(cmd);
++      if (izin !== seharusnya) salah.push(`${tabel} ${cmd}: anonim ${izin ? 'DIIZINKAN' : 'ditolak'}, seharusnya ${seharusnya ? 'diizinkan' : 'ditolak'}`);
++    }
++  }
++  assert.deepEqual(salah, []);
++});
++
++test('tabel di luar POLICY_RLS (RLS aktif tanpa policy) tertutup untuk semua role, termasuk admin', () => {
++  for (const k of [ANON, PETUGAS, KLINIK, ADMIN]) {
++    for (const cmd of ['SELECT', ...PERINTAH_TULIS] as const) assert.equal(putuskan('pengaturan_ai', cmd, k).izin, 'tolak');
++  }
++});
++
++test('pengguna login tetap bisa menulis di tabel yang sebelumnya terbuka untuk anonim', () => {
++  for (const tabel of ['kegiatan_cop', 'kegiatan_pesawat', 'kegiatan_phqc', 'skdr_mingguan', 'laporan_penyakit_nasional']) {
++    assert.notEqual(putuskan(tabel, 'INSERT', PETUGAS).izin, 'tolak', `${tabel} INSERT petugas`);
++    assert.notEqual(putuskan(tabel, 'UPDATE', PETUGAS).izin, 'tolak', `${tabel} UPDATE petugas`);
++  }
++  // alur pengawasan klinik dikerjakan petugas_klinik: tidak boleh ikut terkunci
++  assert.notEqual(putuskan('pengawasan_klinik', 'INSERT', KLINIK).izin, 'tolak');
++  assert.notEqual(putuskan('pengawasan_klinik_dokumen', 'INSERT', KLINIK).izin, 'tolak');
++});
++
++test('membaca data publik tidak berubah (dashboard untuk tamu tetap jalan)', () => {
++  for (const tabel of ['rat_guard', 'ispa_harian', 'kualitas_udara_harian', 'hotspot_nasa_kaltim']) {
++    assert.notEqual(putuskan(tabel, 'SELECT', ANON).izin, 'tolak', `${tabel} SELECT anonim`);
++  }
++});
++
++test('profiles: tidak ada jalur anonim; pengguna biasa hanya barisnya sendiri', () => {
++  for (const cmd of ['SELECT', ...PERINTAH_TULIS] as const) assert.equal(putuskan('profiles', cmd, ANON).izin, 'tolak');
++  assert.deepEqual(putuskan('profiles', 'UPDATE', PETUGAS), { izin: 'baris', kolom: 'id', nilai: PETUGAS.uid });
++});
+diff --git a/scripts/migrate/uji-rls.ts b/scripts/migrate/uji-rls.ts
+index 82536d7..72c5a3d 100644
+--- a/scripts/migrate/uji-rls.ts
++++ b/scripts/migrate/uji-rls.ts
+@@ -25,9 +25,9 @@ test('keputusan murni: anon/login/admin/diri/tanpa policy', () => {
+   assert.deepEqual(putuskan('profiles', 'UPDATE', ADMIN), { izin: 'bebas' });
+   assert.deepEqual(putuskan('profiles', 'UPDATE', PETUGAS), { izin: 'baris', kolom: 'id', nilai: PETUGAS.uid });
+   assert.deepEqual(putuskan('profiles', 'DELETE', ADMIN), { izin: 'tolak' }); // tidak ada policy DELETE
+-  // policy hanya untuk role anon tidak berlaku bagi pengguna yang sudah login (perilaku Postgres)
+-  assert.deepEqual(putuskan('rat_guard', 'INSERT', ANON), { izin: 'bebas' });
+-  assert.deepEqual(putuskan('rat_guard', 'INSERT', PETUGAS), { izin: 'tolak' });
++  // penulisan anonim sengaja dibatasi (ANONIM_BOLEH_TULIS di buat-rls.mjs): rat_guard dulu terbuka untuk anon, kini wajib login
++  assert.deepEqual(putuskan('rat_guard', 'INSERT', ANON), { izin: 'tolak' });
++  assert.deepEqual(putuskan('rat_guard', 'INSERT', PETUGAS), { izin: 'bebas' });
+   assert.deepEqual(putuskan('view_apa_saja', 'SELECT', ANON, true), { izin: 'bebas' });
+ });
+ 
+-- 
+2.43.0
+
+From 853992c3c127b1ca88a5d5c2a6197c39dadd4d72 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 30 Oct 2026 11:48:58 +0000
+Subject: [PATCH 2/2] Hapus halaman sementara /tes-koneksi
+
+Halaman uji (ditandai 'HAPUS setelah Segmen 5') ikut ter-build sebagai halaman
+statis publik dan menampilkan hasil kueri serta pesan galat database.
+---
+ app/tes-koneksi/page.tsx | 94 ----------------------------------------
+ 1 file changed, 94 deletions(-)
+ delete mode 100644 app/tes-koneksi/page.tsx
+
+diff --git a/app/tes-koneksi/page.tsx b/app/tes-koneksi/page.tsx
+deleted file mode 100644
+index 2a662c3..0000000
+--- a/app/tes-koneksi/page.tsx
++++ /dev/null
+@@ -1,94 +0,0 @@
+-import { getRingkasanMingguan } from "@/lib/db/queries/umum";
+-
+-/**
+- * HALAMAN SEMENTARA -- hanya untuk verifikasi manual bahwa koneksi
+- * Supabase & view sudah benar. HAPUS folder ini setelah Segmen 5
+- * (Dashboard) selesai dan sudah terbukti menampilkan data asli di sana.
+- */
+-export default async function TesKoneksiPage() {
+-  const tahunSekarang = new Date().getFullYear();
+-
+-  let hasilCop: unknown = null;
+-  let errorCop: string | null = null;
+-  let hasilPhqc: unknown = null;
+-  let errorPhqc: string | null = null;
+-
+-  try {
+-    hasilCop = await getRingkasanMingguan("cop", tahunSekarang);
+-  } catch (err) {
+-    errorCop = err instanceof Error ? err.message : "Terjadi kesalahan tidak diketahui.";
+-  }
+-
+-  try {
+-    hasilPhqc = await getRingkasanMingguan("phqc", tahunSekarang);
+-  } catch (err) {
+-    errorPhqc = err instanceof Error ? err.message : "Terjadi kesalahan tidak diketahui.";
+-  }
+-
+-  return (
+-    <main
+-      style={{
+-        padding: 24,
+-        fontFamily: "monospace",
+-        background: "#EEF1F4",
+-        minHeight: "100vh",
+-        color: "#1B2733",
+-      }}
+-    >
+-      <h1 style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+-        Tes Koneksi Supabase
+-      </h1>
+-      <p style={{ fontSize: 13, color: "#5B7083", marginBottom: 24 }}>
+-        Halaman sementara -- hapus folder app/tes-koneksi setelah Segmen 5 selesai.
+-      </p>
+-
+-      <section style={{ marginBottom: 24 }}>
+-        <h2 style={{ fontWeight: 700, marginBottom: 8 }}>
+-          view_mingguan_ringkasan (COP)
+-        </h2>
+-        {errorCop ? (
+-          <pre style={{ color: "#D62839", background: "#fff", padding: 12, borderRadius: 8 }}>
+-            ERROR: {errorCop}
+-          </pre>
+-        ) : (
+-          <pre
+-            style={{
+-              whiteSpace: "pre-wrap",
+-              background: "#fff",
+-              padding: 12,
+-              borderRadius: 8,
+-              maxHeight: 400,
+-              overflow: "auto",
+-            }}
+-          >
+-            {JSON.stringify(hasilCop, null, 2)}
+-          </pre>
+-        )}
+-      </section>
+-
+-      <section>
+-        <h2 style={{ fontWeight: 700, marginBottom: 8 }}>
+-          view_mingguan_ringkasan_phqc (PHQC)
+-        </h2>
+-        {errorPhqc ? (
+-          <pre style={{ color: "#D62839", background: "#fff", padding: 12, borderRadius: 8 }}>
+-            ERROR: {errorPhqc}
+-          </pre>
+-        ) : (
+-          <pre
+-            style={{
+-              whiteSpace: "pre-wrap",
+-              background: "#fff",
+-              padding: 12,
+-              borderRadius: 8,
+-              maxHeight: 400,
+-              overflow: "auto",
+-            }}
+-          >
+-            {JSON.stringify(hasilPhqc, null, 2)}
+-          </pre>
+-        )}
+-      </section>
+-    </main>
+-  );
+-}
+-- 
+2.43.0
+

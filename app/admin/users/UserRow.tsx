@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { approveUser, suspendUser, deleteUser, updateUserNama, updateUserRole, resetPasswordUser } from '@/lib/auth/admin-actions';
 import { Pencil, Check, X } from 'lucide-react';
+import KlinikAksesEditor from './KlinikAksesEditor';
 
 
 interface Props {
@@ -10,6 +11,8 @@ interface Props {
   namaAwal: string;
   role: string;
   status: string;
+  klinikTersedia: { id: string; nama_klinik: string }[];
+  klinikTerpilih: string[];
 }
 
 const OPSI_ROLE = [
@@ -18,7 +21,7 @@ const OPSI_ROLE = [
   { value: 'petugas_klinik', label: 'Petugas Klinik' },
 ];
 
-export default function UserRow({ id, namaAwal, role: roleAwal, status }: Props) {
+export default function UserRow({ id, namaAwal, role: roleAwal, status, klinikTersedia, klinikTerpilih }: Props) {
   const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [nama, setNama] = useState(namaAwal);
@@ -149,6 +152,7 @@ export default function UserRow({ id, namaAwal, role: roleAwal, status }: Props)
             </button>
           </div>
         )}
+        {role === 'petugas_klinik' && <KlinikAksesEditor userId={id} klinikTersedia={klinikTersedia} klinikTerpilihAwal={klinikTerpilih} />}
       </td>
 
       <td className="px-4 py-3 align-middle">

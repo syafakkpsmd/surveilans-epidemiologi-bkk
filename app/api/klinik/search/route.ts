@@ -1,6 +1,7 @@
 // app/api/klinik/search/route.ts
 import { NextResponse } from 'next/server';
 import { getDatasetKlinik } from '@/lib/klinik/dataset';
+import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
 import { parseTanggalSheet } from '@/lib/klinik/tanggal';
 
 function formatTanggal(nilai: any): string {
@@ -9,6 +10,10 @@ function formatTanggal(nilai: any): string {
 }
 
 export async function GET(req: Request) {
+  // Hasil pencarian memuat data pribadi (nama, NIK, paspor, kontak, vaksin, komorbid): WAJIB login.
+  const akses = await getAksesKlinik();
+  if (!akses.pengguna) return NextResponse.json({ success: false, error: 'Silakan login untuk mencari data peserta' }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim().toLowerCase();
 
@@ -16,7 +21,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: 'Kata kunci minimal 3 karakter' }, { status: 400 });
   }
 
-  const dataset = await getDatasetKlinik();
+  const dataset = await getDatasetKlinik(opsiDariAkses(akses));
   const hasil = dataset.flatMap((d) =>
     d.icv
       .filter((row: Record<string, any>) => {

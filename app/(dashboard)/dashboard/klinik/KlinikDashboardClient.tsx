@@ -1,5 +1,6 @@
 "use client";
 
+import Link from 'next/link';
 import { useMemo, useState } from "react";
 import KlinikClient from "./KlinikClient";
 import GrafikTotalGabungan from "./GrafikTotalGabungan";
@@ -52,6 +53,17 @@ export default function KlinikDashboardClient({
         <p className="text-xs text-gray-500 mt-1">Layanan Vaksinasi Internasional Tahun {tahunBerjalan} — Wilayah Kerja BKK & Klinik Binaan</p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+        {(role === 'admin' || role === 'petugas' || role === 'petugas_klinik') && (
+          <Link href="/dashboard/klinik/input"
+            className="rounded-lg bg-[#0F4C5C] px-3 py-2 text-xs font-medium text-white shadow-xs hover:bg-[#0c3d4a]">
+            + Input Data
+          </Link>
+        )}
+        <Link href="/dashboard/stok-vaksin"
+          className="rounded-lg border border-[#0F4C5C] px-3 py-2 text-xs font-medium text-[#0F4C5C] hover:bg-gray-50">
+          Dashboard Stok Vaksin
+        </Link>
         <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
           <button type="button" onClick={() => setGranularitas("mingguan")}
             className={`rounded-md px-3 py-1.5 transition-all ${granularitas === "mingguan" ? "bg-[#0F4C5C] text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}>
@@ -61,6 +73,7 @@ export default function KlinikDashboardClient({
             className={`rounded-md px-3 py-1.5 transition-all ${granularitas === "bulanan" ? "bg-[#0F4C5C] text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}>
             Bulanan
           </button>
+        </div>
         </div>
       </div>
 

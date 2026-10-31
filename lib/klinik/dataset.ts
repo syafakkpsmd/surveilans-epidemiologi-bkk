@@ -1,10 +1,18 @@
 // lib/klinik/dataset.ts
 import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { getDbClient } from '@/lib/db/client';
+import { kunciSumberApp } from './akses';
 
 export type BarisIcv = Record<string, string | number | null>;
 
-export async function getDatasetKlinik() {
+export interface OpsiDataset {
+  /** Batasi ke klinik tertentu (id klinik_binaan). undefined = semua. Array kosong = tidak ada klinik. */
+  klinikIds?: string[];
+}
+
+
+
+export async function getDatasetKlinik(opsi?: OpsiDataset) {
   const supabase = createDbServiceClient();
   const { data: daftarKlinik } = await supabase
     .from('klinik_binaan')
@@ -13,7 +21,15 @@ export async function getDatasetKlinik() {
 
   if (!daftarKlinik || daftarKlinik.length === 0) return [];
 
-  const idsValid = daftarKlinik.map((k) => k.spreadsheet_id).filter(Boolean) as string[];
+  const boleh = opsi?.klinikIds ? new Set(opsi.klinikIds) : null;
+  const daftarDipakai = boleh ? daftarKlinik.filter((k) => boleh.has(k.id as string)) : daftarKlinik;
+  if (daftarDipakai.length === 0) return [];
+
+  // Baris dari Sheets (spreadsheet_id klinik) + baris yang diinput lewat aplikasi (app:<id klinik>)
+  const idsValid = [...new Set([
+    ...(daftarDipakai.map((k) => k.spreadsheet_id).filter(Boolean) as string[]),
+    ...daftarDipakai.map((k) => kunciSumberApp(k.id as string)),
+  ])];
 
   let grouped: Record<string, BarisIcv[]> = {};
   let gagalTotal = false;
@@ -36,9 +52,12 @@ export async function getDatasetKlinik() {
     }
   }
 
-  return daftarKlinik.map((klinik) => ({
+  return daftarDipakai.map((klinik) => ({
     klinik,
-    icv: klinik.spreadsheet_id ? (grouped[klinik.spreadsheet_id] ?? []) : [],
+    icv: [
+      ...(klinik.spreadsheet_id ? (grouped[klinik.spreadsheet_id] ?? []) : []),
+      ...(klinik.spreadsheet_id === kunciSumberApp(klinik.id as string) ? [] : (grouped[kunciSumberApp(klinik.id as string)] ?? [])),
+    ],
     gagalDimuat: gagalTotal,
   }));
 }

@@ -1,0 +1,3261 @@
+diff --git a/app/(dashboard)/dashboard/klinik/KlinikDashboardClient.tsx b/app/(dashboard)/dashboard/klinik/KlinikDashboardClient.tsx
+index ae95549..f3daae7 100644
+--- a/app/(dashboard)/dashboard/klinik/KlinikDashboardClient.tsx
++++ b/app/(dashboard)/dashboard/klinik/KlinikDashboardClient.tsx
+@@ -1,5 +1,6 @@
+ "use client";
+ 
++import Link from 'next/link';
+ import { useMemo, useState } from "react";
+ import KlinikClient from "./KlinikClient";
+ import GrafikTotalGabungan from "./GrafikTotalGabungan";
+@@ -52,6 +53,17 @@ export default function KlinikDashboardClient({
+         <p className="text-xs text-gray-500 mt-1">Layanan Vaksinasi Internasional Tahun {tahunBerjalan} — Wilayah Kerja BKK & Klinik Binaan</p>
+         </div>
+ 
++        <div className="flex flex-wrap items-center gap-2">
++        {(role === 'admin' || role === 'petugas' || role === 'petugas_klinik') && (
++          <Link href="/dashboard/klinik/input"
++            className="rounded-lg bg-[#0F4C5C] px-3 py-2 text-xs font-medium text-white shadow-xs hover:bg-[#0c3d4a]">
++            + Input Data
++          </Link>
++        )}
++        <Link href="/dashboard/stok-vaksin"
++          className="rounded-lg border border-[#0F4C5C] px-3 py-2 text-xs font-medium text-[#0F4C5C] hover:bg-gray-50">
++          Dashboard Stok Vaksin
++        </Link>
+         <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
+           <button type="button" onClick={() => setGranularitas("mingguan")}
+             className={`rounded-md px-3 py-1.5 transition-all ${granularitas === "mingguan" ? "bg-[#0F4C5C] text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}>
+@@ -62,6 +74,7 @@ export default function KlinikDashboardClient({
+             Bulanan
+           </button>
+         </div>
++        </div>
+       </div>
+ 
+       {klinikGagalDimuat.length > 0 && (
+diff --git a/app/(dashboard)/dashboard/klinik/input/InputIcvClient.tsx b/app/(dashboard)/dashboard/klinik/input/InputIcvClient.tsx
+new file mode 100644
+index 0000000..c3b7691
+--- /dev/null
++++ b/app/(dashboard)/dashboard/klinik/input/InputIcvClient.tsx
+@@ -0,0 +1,321 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import { MAKS_KOMORBID, MAKS_VAKSIN, OPSI_KOMORBID, OPSI_LAYANAN, OPSI_VAKSIN } from '@/lib/klinik/icv-input';
++
++type Baris = { id: number; noBaris: number; sumber: string; batchId: string | null; data: Record<string, string> };
++interface Daftar { total: number; ukuran: number; baris: Baris[] }
++interface Pratinjau {
++  jumlahBaris: number; sah: number; ditolak: number; akanMasuk: number; akanDilewati: number;
++  galat: { baris: number; pesan: string[] }[]; galatTerpotong: boolean; peringatan: { baris: number; pesan: string[] }[];
++}
++interface Riwayat { id: string; nama_file: string; jumlah_masuk: number; jumlah_ditolak: number; dibuat_oleh: string | null; dibuat_pada: string }
++type Tab = 'form' | 'unggah' | 'daftar';
++
++const LAINNYA = '__lainnya__';
++const kls = {
++  input: 'w-full rounded border border-gray-300 px-2 py-1 text-sm',
++  tombol: 'rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50',
++  putih: 'rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50',
++  kartu: 'mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm',
++};
++
++async function panggil<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; data: T & { error?: string; galat?: string[] } }> {
++  const r = await fetch(url, { cache: 'no-store', ...init });
++  return { ok: r.ok, data: (await r.json().catch(() => ({}))) as T & { error?: string; galat?: string[] } };
++}
++
++const waktuWita = (s: string) => {
++  const d = new Date(s.replace(' ', 'T') + 'Z');
++  return Number.isNaN(d.getTime()) ? s : new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(d) + ' WITA';
++};
++
++interface Isian {
++  noDok: string; tglTerbit: string; nama: string; tglLahir: string; jk: string; kebangsaan: string; paspor: string; nik: string;
++  tglBerangkat: string; hp: string; email: string; wus: string; hasilWus: string; kontra: string; masaMM: string; kipi: string;
++  layanan: string; travel: string; petugasTravel: string; hpTravel: string; ket: string;
++}
++const KOSONG: Isian = {
++  noDok: '', tglTerbit: '', nama: '', tglLahir: '', jk: '', kebangsaan: 'Indonesia', paspor: '', nik: '', tglBerangkat: '', hp: '', email: '',
++  wus: '', hasilWus: '', kontra: '', masaMM: '', kipi: 'Tidak', layanan: 'Vaksinasi', travel: '', petugasTravel: '', hpTravel: '', ket: '',
++};
++
++/** Tanggal input type=date (yyyy-mm-dd) -> dd/mm/yyyy yang dibaca server tanpa ambigu. */
++const dd = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso.slice(8)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso);
++
++function PilihDaftar({ nilai, onUbah, opsi, placeholder }: { nilai: string; onUbah: (v: string) => void; opsi: readonly string[]; placeholder: string }) {
++  const dalamDaftar = nilai === '' || opsi.includes(nilai);
++  const [bebas, setBebas] = useState(!dalamDaftar);
++  return (
++    <div className="flex gap-2">
++      <select className={kls.input} value={bebas ? LAINNYA : nilai}
++        onChange={(e) => { if (e.target.value === LAINNYA) { setBebas(true); onUbah(''); } else { setBebas(false); onUbah(e.target.value); } }}>
++        <option value="">{placeholder}</option>
++        {opsi.map((o) => <option key={o} value={o}>{o}</option>)}
++        <option value={LAINNYA}>Lainnya (ketik sendiri)…</option>
++      </select>
++      {bebas && <input className={kls.input} placeholder="Ketik nama" value={nilai} onChange={(e) => onUbah(e.target.value)} />}
++    </div>
++  );
++}
++
++export default function InputIcvClient({ klinikId, namaKlinik }: { klinikId: string; namaKlinik: string }) {
++  const [tab, setTab] = useState<Tab>('form');
++  const [pesan, setPesan] = useState<{ jenis: 'ok' | 'galat'; teks: string } | null>(null);
++  const [sibuk, setSibuk] = useState(false);
++
++  const [f, setF] = useState<Isian>(KOSONG);
++  const [vaksin, setVaksin] = useState<string[]>(['']);
++  const [komorbid, setKomorbid] = useState<string[]>([]);
++  const [galatForm, setGalatForm] = useState<string[]>([]);
++  const [peringatanForm, setPeringatanForm] = useState<string[]>([]);
++
++  const [q, setQ] = useState('');
++  const [halaman, setHalaman] = useState(1);
++  const [daftar, setDaftar] = useState<Daftar | null>(null);
++  const [berkas, setBerkas] = useState<File | null>(null);
++  const [pratinjau, setPratinjau] = useState<Pratinjau | null>(null);
++  const [riwayat, setRiwayat] = useState<Riwayat[]>([]);
++
++  const ubah = (k: keyof Isian) => (v: string) => setF((x) => ({ ...x, [k]: v }));
++  const teks = (k: keyof Isian, tipe = 'text') => (
++    <input className={kls.input} type={tipe} value={f[k]} onChange={(e) => ubah(k)(e.target.value)} />
++  );
++
++  const muatDaftar = useCallback(async () => {
++    const p = new URLSearchParams({ klinik: klinikId, halaman: String(halaman) });
++    if (q.trim()) p.set('q', q.trim());
++    const r = await panggil<Daftar>(`/api/klinik/icv/daftar?${p}`);
++    if (r.ok) setDaftar(r.data); else setPesan({ jenis: 'galat', teks: r.data.error ?? 'Gagal memuat daftar' });
++  }, [klinikId, halaman, q]);
++  const muatRiwayat = useCallback(async () => {
++    const r = await panggil<{ riwayat: Riwayat[] }>(`/api/klinik/icv/riwayat?klinik=${klinikId}`);
++    if (r.ok) setRiwayat(r.data.riwayat);
++  }, [klinikId]);
++
++  // eslint-disable-next-line react-hooks/set-state-in-effect
++  useEffect(() => { void muatDaftar(); }, [muatDaftar]);
++  // eslint-disable-next-line react-hooks/set-state-in-effect
++  useEffect(() => { void muatRiwayat(); }, [muatRiwayat]);
++
++  async function simpanForm() {
++    setSibuk(true); setGalatForm([]); setPeringatanForm([]); setPesan(null);
++    const nilai: Record<string, string> = {
++      'No Dokumen ICV / e-ICV': f.noDok, 'Tanggal Terbit': dd(f.tglTerbit), 'Nama': f.nama, 'Tanggal Lahir': dd(f.tglLahir), 'Jenis Kelamin': f.jk,
++      'Kebangsaan': f.kebangsaan, 'No Paspor': f.paspor, 'NIK': f.nik, 'Tanggal Berangkat': dd(f.tglBerangkat), 'No HP': f.hp, 'Email': f.email,
++      'WUS': f.wus, 'Hasil WUS': f.hasilWus, 'Kontraindikasi': f.kontra, 'Masa Berlaku MM Sampai': dd(f.masaMM), 'KIPI': f.kipi,
++      'Jenis Layanan': f.layanan, 'Nama Travel': f.travel, 'Nama Petugas Travel': f.petugasTravel, 'No HP Travel': f.hpTravel, 'Keterangan': f.ket,
++    };
++    vaksin.forEach((v, i) => { nilai[`Jenis Vaksin ${i + 1}`] = v; });
++    komorbid.forEach((v, i) => { nilai[`Komorbid ${i + 1}`] = v; });
++    const r = await panggil<{ peringatan?: string[] }>('/api/klinik/icv/baris', {
++      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ klinikId, nilai }),
++    });
++    setSibuk(false);
++    if (!r.ok) { setGalatForm(r.data.galat ?? [r.data.error ?? 'Gagal menyimpan']); return; }
++    setPesan({ jenis: 'ok', teks: `Data ${f.nama} tersimpan.` });
++    setPeringatanForm(r.data.peringatan ?? []);
++    setF({ ...KOSONG, tglTerbit: f.tglTerbit, layanan: f.layanan, travel: f.travel, petugasTravel: f.petugasTravel, hpTravel: f.hpTravel }); // tanggal terbit & travel dipertahankan untuk input berurutan
++    setVaksin(['']); setKomorbid([]);
++    void muatDaftar();
++  }
++
++  async function kirimBerkas(mode: 'pratinjau' | 'simpan') {
++    if (!berkas) return;
++    setSibuk(true); setPesan(null);
++    const fd = new FormData();
++    fd.set('file', berkas); fd.set('klinikId', klinikId); fd.set('mode', mode);
++    const r = await panggil<Pratinjau & { baru?: number; dilewati?: number; ditolak?: number }>('/api/klinik/icv/unggah', { method: 'POST', body: fd });
++    setSibuk(false);
++    if (!r.ok) { setPesan({ jenis: 'galat', teks: r.data.error ?? 'Gagal memproses berkas' }); if (mode === 'pratinjau') setPratinjau(null); return; }
++    if (mode === 'pratinjau') { setPratinjau(r.data); return; }
++    setPesan({ jenis: 'ok', teks: `Tersimpan: ${r.data.baru} baris baru, ${r.data.dilewati} dilewati (nomor dokumen sudah ada), ${r.data.ditolak} ditolak.` });
++    setBerkas(null); setPratinjau(null);
++    void muatDaftar(); void muatRiwayat();
++  }
++
++  async function hapus(jenis: 'baris' | 'batch', id: string | number, tanya: string) {
++    if (!window.confirm(tanya)) return;
++    const r = await panggil<{ dihapus: number }>(`/api/klinik/icv/${jenis}?klinik=${klinikId}&id=${encodeURIComponent(String(id))}`, { method: 'DELETE' });
++    if (!r.ok) { setPesan({ jenis: 'galat', teks: r.data.error ?? 'Gagal menghapus' }); return; }
++    setPesan({ jenis: 'ok', teks: `${r.data.dihapus} baris dihapus.` });
++    void muatDaftar(); void muatRiwayat();
++  }
++
++  const tombolTab = (t: Tab, label: string) => (
++    <button key={t} onClick={() => { setTab(t); setPesan(null); }} className={tab === t ? kls.tombol : kls.putih}>{label}</button>
++  );
++  const totalHalaman = daftar ? Math.max(1, Math.ceil(daftar.total / daftar.ukuran)) : 1;
++
++  return (
++    <div>
++      <div className="mb-4"><div className="flex gap-2">{tombolTab('form', 'Input Data')}{tombolTab('unggah', 'Unggah Excel')}{tombolTab('daftar', 'Daftar Data')}</div></div>
++
++      {pesan && <div role="status" className={`mb-4 rounded border p-3 text-sm ${pesan.jenis === 'ok' ? 'border-green-300 bg-green-50 text-green-800' : 'border-red-300 bg-red-50 text-red-800'}`}>{pesan.teks}</div>}
++
++      {tab === 'form' && (
++        <section className={kls.kartu}>
++          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
++            <label className="text-sm">Jenis Layanan *<br />
++              <select className={kls.input} value={f.layanan} onChange={(e) => ubah('layanan')(e.target.value)}>{OPSI_LAYANAN.map((o) => <option key={o}>{o}</option>)}</select>
++            </label>
++            <label className="text-sm">No Dokumen ICV / e-ICV *<br />{teks('noDok')}</label>
++            <label className="text-sm">Tanggal Terbit *<br />{teks('tglTerbit', 'date')}</label>
++            <label className="text-sm">Nama *<br />{teks('nama')}</label>
++            <label className="text-sm">Tanggal Lahir *<br />{teks('tglLahir', 'date')}</label>
++            <label className="text-sm">Jenis Kelamin *<br />
++              <select className={kls.input} value={f.jk} onChange={(e) => ubah('jk')(e.target.value)}><option value="">— pilih —</option><option>Laki-laki</option><option>Perempuan</option></select>
++            </label>
++            <label className="text-sm">Kebangsaan<br />{teks('kebangsaan')}</label>
++            <label className="text-sm">No Paspor<br />{teks('paspor')}</label>
++            <label className="text-sm">NIK<br />{teks('nik')}</label>
++            <label className="text-sm">Tanggal Berangkat<br />{teks('tglBerangkat', 'date')}</label>
++            <label className="text-sm">No HP<br />{teks('hp', 'tel')}</label>
++            <label className="text-sm">Email<br />{teks('email', 'email')}</label>
++            {f.jk === 'Perempuan' && (
++              <>
++                <label className="text-sm">WUS<br />
++                  <select className={kls.input} value={f.wus} onChange={(e) => ubah('wus')(e.target.value)}><option value="">— pilih —</option><option>Ya</option><option>Tidak</option></select>
++                </label>
++                {f.wus === 'Ya' && <label className="text-sm">Hasil WUS<br />{teks('hasilWus')}</label>}
++              </>
++            )}
++          </div>
++
++          <div className="mt-4 grid gap-4 md:grid-cols-2">
++            <div>
++              <h2 className="mb-1 text-sm font-medium">Jenis Vaksin (maksimal {MAKS_VAKSIN}){f.layanan === 'Vaksinasi' ? ' *' : ''}</h2>
++              {vaksin.map((v, i) => (
++                <div key={i} className="mb-2 flex items-start gap-2">
++                  <span className="w-5 pt-1 text-sm">{i + 1}.</span>
++                  <div className="flex-1"><PilihDaftar nilai={v} placeholder="— pilih vaksin —" opsi={OPSI_VAKSIN.filter((o) => o === v || !vaksin.includes(o))}
++                    onUbah={(x) => setVaksin(vaksin.map((y, j) => (j === i ? x : y)))} /></div>
++                  {vaksin.length > 1 && <button className="text-sm text-red-600" onClick={() => setVaksin(vaksin.filter((_, j) => j !== i))}>Hapus</button>}
++                </div>
++              ))}
++              {vaksin.length < MAKS_VAKSIN && <button className={kls.putih} onClick={() => setVaksin([...vaksin, ''])}>+ Tambah vaksin</button>}
++            </div>
++            <div>
++              <h2 className="mb-1 text-sm font-medium">Komorbid (satu penyakit per isian, maksimal {MAKS_KOMORBID})</h2>
++              {komorbid.length === 0 && <p className="mb-2 text-sm text-gray-500">Tidak ada komorbid. Klik tombol di bawah bila ada.</p>}
++              {komorbid.map((v, i) => (
++                <div key={i} className="mb-2 flex items-start gap-2">
++                  <span className="w-5 pt-1 text-sm">{i + 1}.</span>
++                  <div className="flex-1"><PilihDaftar nilai={v} placeholder="— pilih penyakit —" opsi={OPSI_KOMORBID.filter((o) => o === v || !komorbid.includes(o))}
++                    onUbah={(x) => setKomorbid(komorbid.map((y, j) => (j === i ? x : y)))} /></div>
++                  <button className="text-sm text-red-600" onClick={() => setKomorbid(komorbid.filter((_, j) => j !== i))}>Hapus</button>
++                </div>
++              ))}
++              {komorbid.length < MAKS_KOMORBID && <button className={kls.putih} onClick={() => setKomorbid([...komorbid, ''])}>+ Tambah komorbid</button>}
++            </div>
++          </div>
++
++          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
++            <label className="text-sm">Kontraindikasi<br /><input className={kls.input} placeholder="-" value={f.kontra} onChange={(e) => ubah('kontra')(e.target.value)} /></label>
++            <label className="text-sm">Masa Berlaku MM Sampai<br />{teks('masaMM', 'date')}</label>
++            <label className="text-sm">KIPI<br />
++              <select className={kls.input} value={f.kipi} onChange={(e) => ubah('kipi')(e.target.value)}><option>Tidak</option><option>Ya</option></select>
++            </label>
++            <label className="text-sm">Nama Travel<br />{teks('travel')}</label>
++            <label className="text-sm">Nama Petugas Travel<br />{teks('petugasTravel')}</label>
++            <label className="text-sm">No HP Travel<br />{teks('hpTravel', 'tel')}</label>
++            <label className="text-sm sm:col-span-2 lg:col-span-3">Keterangan<br />{teks('ket')}</label>
++          </div>
++
++          {galatForm.length > 0 && <ul className="mt-3 list-disc pl-5 text-sm text-red-700">{galatForm.map((g) => <li key={g}>{g}</li>)}</ul>}
++          {peringatanForm.length > 0 && <ul className="mt-3 list-disc pl-5 text-sm text-amber-700">{peringatanForm.map((g) => <li key={g}>{g}</li>)}</ul>}
++          <button className={`${kls.tombol} mt-4`} disabled={sibuk} onClick={simpanForm}>Simpan data</button>
++          <p className="mt-2 text-xs text-gray-500">Kolom bertanda * wajib diisi. Nomor dokumen yang sama tidak bisa dimasukkan dua kali di klinik yang sama.</p>
++        </section>
++      )}
++
++      {tab === 'unggah' && (
++        <>
++          <section className={kls.kartu}>
++            <h2 className="mb-2 font-medium">Unggah Excel — {namaKlinik}</h2>
++            <div className="flex flex-wrap items-end gap-3">
++              <label className="text-sm">Berkas (.xlsx / .xls)<br />
++                <input type="file" accept=".xlsx,.xls" className="text-sm" onChange={(e) => { setBerkas(e.target.files?.[0] ?? null); setPratinjau(null); setPesan(null); }} />
++              </label>
++              <button className={kls.putih} disabled={!berkas || sibuk} onClick={() => kirimBerkas('pratinjau')}>Periksa berkas</button>
++              {/* unduhan berkas, bukan navigasi halaman */}
++              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
++              <a className={kls.putih} href="/api/klinik/icv/template">Unduh template</a>
++            </div>
++            <p className="mt-2 text-xs text-gray-500">
++              Judul kolom sama dengan sheet lama (baris judul laporan di atasnya dilewati). Tanggal boleh berbentuk 27/10/2026, 27 Oktober 2026, atau tanggal Excel; bila satu kolom bercampur gaya hari/bulan dan bulan/hari, berkas ditolak.
++              Nomor dokumen yang sudah ada <b>dilewati</b> (tidak menimpa data yang mungkin sudah dikoreksi). Kolom NIK harus berformat Teks.
++            </p>
++            {pratinjau && (
++              <div className="mt-4 text-sm">
++                <p>Baris data: <b>{pratinjau.jumlahBaris}</b> · sah: <b className="text-green-700">{pratinjau.sah}</b> · ditolak: <b className="text-red-700">{pratinjau.ditolak}</b> · akan masuk: <b>{pratinjau.akanMasuk}</b> · dilewati (sudah ada): <b>{pratinjau.akanDilewati}</b></p>
++                {pratinjau.galat.length > 0 && (
++                  <div className="mt-2 max-h-56 overflow-auto rounded border border-red-200 bg-red-50 p-2">
++                    {pratinjau.galat.map((g) => <div key={g.baris}>Baris {g.baris}: {g.pesan.join('; ')}</div>)}
++                    {pratinjau.galatTerpotong && <div className="mt-1 italic">Daftar dipotong; perbaiki lalu periksa ulang.</div>}
++                  </div>
++                )}
++                {pratinjau.peringatan.length > 0 && (
++                  <div className="mt-2 max-h-40 overflow-auto rounded border border-amber-200 bg-amber-50 p-2 text-amber-800">
++                    {pratinjau.peringatan.map((g) => <div key={g.baris}>Baris {g.baris}: {g.pesan.join('; ')}</div>)}
++                  </div>
++                )}
++                <button className={`${kls.tombol} mt-3`} disabled={sibuk || pratinjau.akanMasuk === 0} onClick={() => kirimBerkas('simpan')}>
++                  Simpan {pratinjau.akanMasuk} baris baru{pratinjau.ditolak ? ` (lewati ${pratinjau.ditolak} yang ditolak)` : ''}
++                </button>
++              </div>
++            )}
++          </section>
++          <section className={kls.kartu}>
++            <h2 className="mb-2 font-medium">Riwayat unggahan</h2>
++            <table className="min-w-full text-left text-sm">
++              <thead><tr className="border-b bg-gray-50"><th className="px-2 py-1">Waktu</th><th className="px-2 py-1">Oleh</th><th className="px-2 py-1">Berkas</th><th className="px-2 py-1">Masuk</th><th className="px-2 py-1">Ditolak</th><th /></tr></thead>
++              <tbody>
++                {riwayat.map((r) => (
++                  <tr key={r.id} className="border-b">
++                    <td className="px-2 py-1">{waktuWita(r.dibuat_pada)}</td><td className="px-2 py-1">{r.dibuat_oleh}</td><td className="px-2 py-1">{r.nama_file}</td>
++                    <td className="px-2 py-1">{r.jumlah_masuk}</td><td className="px-2 py-1">{r.jumlah_ditolak}</td>
++                    <td className="px-2 py-1"><button className="text-red-600 hover:underline" onClick={() => hapus('batch', r.id, `Batalkan unggahan ini? ${r.jumlah_masuk} baris yang dimasukkannya akan dihapus.`)}>Batalkan</button></td>
++                  </tr>
++                ))}
++                {riwayat.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={6}>Belum ada unggahan.</td></tr>}
++              </tbody>
++            </table>
++          </section>
++        </>
++      )}
++
++      {tab === 'daftar' && (
++        <section className={kls.kartu}>
++          <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
++            <input className={`${kls.input} max-w-xs`} placeholder="Cari nama / NIK / nomor dokumen" value={q} onChange={(e) => { setQ(e.target.value); setHalaman(1); }} />
++            <span className="text-gray-500">{daftar ? `${daftar.total} baris (diinput lewat aplikasi)` : 'Memuat…'}</span>
++          </div>
++          <div className="overflow-x-auto">
++            <table className="min-w-full text-left text-sm">
++              <thead><tr className="border-b bg-gray-50">
++                {['Tanggal Terbit', 'No Dokumen', 'Nama', 'Vaksin', 'Layanan', 'Sumber', ''].map((h) => <th key={h} className="whitespace-nowrap px-2 py-1 font-medium">{h}</th>)}
++              </tr></thead>
++              <tbody>
++                {daftar?.baris.map((b) => (
++                  <tr key={b.id} className="border-b">
++                    <td className="px-2 py-1">{b.data['Tanggal Terbit']}</td><td className="px-2 py-1">{b.data['No Dokumen ICV / e-ICV']}</td><td className="px-2 py-1">{b.data['Nama']}</td>
++                    <td className="px-2 py-1">{[1, 2, 3].map((i) => b.data[`Jenis Vaksin ${i}`]).filter(Boolean).join(', ')}</td>
++                    <td className="px-2 py-1">{b.data['Jenis Layanan']}</td><td className="px-2 py-1">{b.sumber === 'upload' ? 'Excel' : 'Form'}</td>
++                    <td className="px-2 py-1"><button className="text-red-600 hover:underline" onClick={() => hapus('baris', b.id, `Hapus data ${b.data['Nama']}?`)}>Hapus</button></td>
++                  </tr>
++                ))}
++                {daftar && daftar.baris.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={7}>Belum ada data yang diinput lewat aplikasi.</td></tr>}
++              </tbody>
++            </table>
++          </div>
++          <div className="mt-3 flex items-center gap-3 text-sm">
++            <button className={kls.putih} disabled={halaman <= 1} onClick={() => setHalaman(halaman - 1)}>Sebelumnya</button>
++            <span>Halaman {halaman} dari {totalHalaman}</span>
++            <button className={kls.putih} disabled={halaman >= totalHalaman} onClick={() => setHalaman(halaman + 1)}>Berikutnya</button>
++          </div>
++        </section>
++      )}
++    </div>
++  );
++}
+diff --git a/app/(dashboard)/dashboard/klinik/input/InputKlinikShell.tsx b/app/(dashboard)/dashboard/klinik/input/InputKlinikShell.tsx
+new file mode 100644
+index 0000000..a3866b7
+--- /dev/null
++++ b/app/(dashboard)/dashboard/klinik/input/InputKlinikShell.tsx
+@@ -0,0 +1,44 @@
++'use client';
++
++import { useState } from 'react';
++import Link from 'next/link';
++import InputIcvClient from './InputIcvClient';
++import InputStokClient from './InputStokClient';
++
++type Bagian = 'vaksinasi' | 'stok';
++
++/** Satu halaman input untuk klinik: pilih klinik, lalu Vaksinasi (ICV/e-ICV) atau Stok (ICV/e-ICV dan vaksin). */
++export default function InputKlinikShell({ klinik, awal }: { klinik: { id: string; nama: string }[]; awal: Bagian }) {
++  const [klinikId, setKlinikId] = useState(klinik[0].id);
++  const [bagian, setBagian] = useState<Bagian>(awal);
++  const nama = klinik.find((k) => k.id === klinikId)?.nama ?? '';
++  const tombol = (b: Bagian, label: string) => (
++    <button key={b} onClick={() => setBagian(b)}
++      className={`rounded-lg px-4 py-2 text-sm font-medium ${bagian === b ? 'bg-[#0F4C5C] text-white' : 'border border-[#0F4C5C] text-[#0F4C5C] hover:bg-gray-50'}`}>{label}</button>
++  );
++  return (
++    <div className="mx-auto max-w-6xl p-4 sm:p-6">
++      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
++        <h1 className="text-xl font-semibold">Input Data Klinik</h1>
++        <div className="flex gap-2">
++          <Link href="/dashboard/klinik" className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Dashboard Klinik</Link>
++          <Link href="/dashboard/stok-vaksin" className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50">Dashboard Stok</Link>
++        </div>
++      </div>
++      <div className="mb-5 flex flex-wrap items-end gap-3">
++        {klinik.length > 1 ? (
++          <label className="text-sm">Klinik<br />
++            <select className="rounded border border-gray-300 px-2 py-1.5 text-sm" value={klinikId} onChange={(e) => setKlinikId(e.target.value)}>
++              {klinik.map((k) => <option key={k.id} value={k.id}>{k.nama}</option>)}
++            </select>
++          </label>
++        ) : <p className="text-sm text-gray-600">Klinik: <b>{nama}</b></p>}
++        <div className="flex gap-2">{tombol('vaksinasi', 'Vaksinasi ICV / e-ICV')}{tombol('stok', 'Stok ICV / e-ICV dan Vaksin')}</div>
++      </div>
++      {/* key = klinik: berpindah klinik mengosongkan isian dan memuat ulang data */}
++      {bagian === 'vaksinasi'
++        ? <InputIcvClient key={`v-${klinikId}`} klinikId={klinikId} namaKlinik={nama} />
++        : <InputStokClient key={`s-${klinikId}`} klinikId={klinikId} namaKlinik={nama} />}
++    </div>
++  );
++}
+diff --git a/app/(dashboard)/dashboard/klinik/input/InputStokClient.tsx b/app/(dashboard)/dashboard/klinik/input/InputStokClient.tsx
+new file mode 100644
+index 0000000..45c9353
+--- /dev/null
++++ b/app/(dashboard)/dashboard/klinik/input/InputStokClient.tsx
+@@ -0,0 +1,266 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import { JENIS_STOK_INPUT } from '@/lib/klinik/stok-input';
++
++type Tab = 'form' | 'unggah' | 'daftar';
++interface Saldo { jenis: string; sisa: number; tanggal: string }
++interface BarisStok { tanggal: string; masuk: number; terbit: number; rusak: number; sisa: number; keterangan: string; sumber: string }
++interface Daftar { total: number; ukuran: number; baris: BarisStok[] }
++interface Pratinjau {
++  jumlahBaris: number; sah: number; ditolak: number; akanBaru: number; akanDiganti: number;
++  galat: { baris: number; pesan: string[] }[]; galatTerpotong: boolean; peringatan: { baris: number; pesan: string[] }[];
++}
++interface Riwayat { id: string; nama_file: string; jumlah_masuk: number; jumlah_ditolak: number; dibuat_oleh: string | null; dibuat_pada: string }
++
++const kls = {
++  input: 'w-full rounded border border-gray-300 px-2 py-1 text-sm',
++  tombol: 'rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50',
++  putih: 'rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50',
++  kartu: 'mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm',
++};
++const labelJenis = (k: string) => JENIS_STOK_INPUT.find((j) => j.kunci === k)?.label ?? k;
++const satuan = (k: string) => JENIS_STOK_INPUT.find((j) => j.kunci === k)?.satuan ?? '';
++const tglId = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
++const waktuWita = (s: string) => {
++  const d = new Date(s.replace(' ', 'T') + 'Z');
++  return Number.isNaN(d.getTime()) ? s : new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(d) + ' WITA';
++};
++/** Tanggal hari ini menurut WITA (yyyy-mm-dd), bukan zona perangkat. */
++const hariIniWita = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(new Date());
++
++async function panggil<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; data: T & { error?: string; galat?: string[]; sudahAda?: boolean } }> {
++  const r = await fetch(url, { cache: 'no-store', ...init });
++  return { ok: r.ok, status: r.status, data: (await r.json().catch(() => ({}))) as T & { error?: string; galat?: string[]; sudahAda?: boolean } };
++}
++
++function PilihJenis({ nilai, onUbah, kosong }: { nilai: string; onUbah: (v: string) => void; kosong?: string }) {
++  return (
++    <select className={kls.input} value={nilai} onChange={(e) => onUbah(e.target.value)}>
++      {kosong !== undefined && <option value="">{kosong}</option>}
++      <optgroup label="Buku ICV / e-ICV">{JENIS_STOK_INPUT.filter((j) => j.kelompok === 'buku').map((j) => <option key={j.kunci} value={j.kunci}>{j.label}</option>)}</optgroup>
++      <optgroup label="Vaksin">{JENIS_STOK_INPUT.filter((j) => j.kelompok === 'vaksin').map((j) => <option key={j.kunci} value={j.kunci}>{j.label}</option>)}</optgroup>
++    </select>
++  );
++}
++
++export default function InputStokClient({ klinikId, namaKlinik }: { klinikId: string; namaKlinik: string }) {
++  const [tab, setTab] = useState<Tab>('form');
++  const [pesan, setPesan] = useState<{ jenis: 'ok' | 'galat'; teks: string } | null>(null);
++  const [sibuk, setSibuk] = useState(false);
++  const [saldo, setSaldo] = useState<Saldo[]>([]);
++
++  const [jenis, setJenis] = useState('e-icv');
++  const [tanggal, setTanggal] = useState(hariIniWita());
++  const [masuk, setMasuk] = useState('');
++  const [terbit, setTerbit] = useState('');
++  const [rusak, setRusak] = useState('');
++  const [ket, setKet] = useState('');
++  const [galatForm, setGalatForm] = useState<string[]>([]);
++
++  const [jenisDaftar, setJenisDaftar] = useState('e-icv');
++  const [halaman, setHalaman] = useState(1);
++  const [daftar, setDaftar] = useState<Daftar | null>(null);
++
++  const [jenisBawaan, setJenisBawaan] = useState('');
++  const [berkas, setBerkas] = useState<File | null>(null);
++  const [pratinjau, setPratinjau] = useState<Pratinjau | null>(null);
++  const [riwayat, setRiwayat] = useState<Riwayat[]>([]);
++
++  const muatSaldo = useCallback(async () => {
++    const r = await panggil<{ saldo: Saldo[] }>(`/api/klinik/stok/input/saldo?klinik=${klinikId}`);
++    if (r.ok) setSaldo(r.data.saldo);
++  }, [klinikId]);
++  const muatDaftar = useCallback(async () => {
++    const r = await panggil<Daftar>(`/api/klinik/stok/input/daftar?klinik=${klinikId}&jenis=${jenisDaftar}&halaman=${halaman}`);
++    if (r.ok) setDaftar(r.data); else setPesan({ jenis: 'galat', teks: r.data.error ?? 'Gagal memuat daftar' });
++  }, [klinikId, jenisDaftar, halaman]);
++  const muatRiwayat = useCallback(async () => {
++    const r = await panggil<{ riwayat: Riwayat[] }>(`/api/klinik/stok/input/riwayat?klinik=${klinikId}`);
++    if (r.ok) setRiwayat(r.data.riwayat);
++  }, [klinikId]);
++
++  // eslint-disable-next-line react-hooks/set-state-in-effect
++  useEffect(() => { void muatSaldo(); }, [muatSaldo]);
++  // eslint-disable-next-line react-hooks/set-state-in-effect
++  useEffect(() => { void muatDaftar(); }, [muatDaftar]);
++  // eslint-disable-next-line react-hooks/set-state-in-effect
++  useEffect(() => { void muatRiwayat(); }, [muatRiwayat]);
++
++  const segarkan = () => { void muatSaldo(); void muatDaftar(); void muatRiwayat(); };
++
++  async function kirimForm(ganti: boolean) {
++    setSibuk(true); setGalatForm([]); setPesan(null);
++    const r = await panggil<{ peringatan?: string[] }>('/api/klinik/stok/input/baris', {
++      method: 'POST', headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ klinikId, ganti, nilai: { jenis, tanggal, masuk, terbit, rusak, keterangan: ket } }),
++    });
++    setSibuk(false);
++    if (r.status === 409 && r.data.sudahAda) {
++      if (window.confirm(`Data ${labelJenis(jenis)} tanggal ${tglId(tanggal)} sudah ada. Ganti dengan isian ini?`)) void kirimForm(true);
++      return;
++    }
++    if (!r.ok) { setGalatForm(r.data.galat ?? [r.data.error ?? 'Gagal menyimpan']); return; }
++    setPesan({ jenis: 'ok', teks: `Stok ${labelJenis(jenis)} tanggal ${tglId(tanggal)} tersimpan.` });
++    setMasuk(''); setTerbit(''); setRusak(''); setKet('');
++    setJenisDaftar(jenis); setHalaman(1);
++    segarkan();
++  }
++
++  async function kirimBerkas(mode: 'pratinjau' | 'simpan') {
++    if (!berkas) return;
++    setSibuk(true); setPesan(null);
++    const fd = new FormData();
++    fd.set('file', berkas); fd.set('klinikId', klinikId); fd.set('mode', mode);
++    if (jenisBawaan) fd.set('jenisBawaan', jenisBawaan);
++    const r = await panggil<Pratinjau & { baru?: number; diganti?: number; ditolak?: number }>('/api/klinik/stok/input/unggah', { method: 'POST', body: fd });
++    setSibuk(false);
++    if (!r.ok) { setPesan({ jenis: 'galat', teks: r.data.error ?? 'Gagal memproses berkas' }); if (mode === 'pratinjau') setPratinjau(null); return; }
++    if (mode === 'pratinjau') { setPratinjau(r.data); return; }
++    setPesan({ jenis: 'ok', teks: `Tersimpan: ${r.data.baru} hari baru, ${r.data.diganti} hari diganti, ${r.data.ditolak} ditolak.` });
++    setBerkas(null); setPratinjau(null);
++    segarkan();
++  }
++
++  async function hapus(url: string, tanya: string) {
++    if (!window.confirm(tanya)) return;
++    const r = await panggil<{ dihapus: number }>(url, { method: 'DELETE' });
++    if (!r.ok) { setPesan({ jenis: 'galat', teks: r.data.error ?? 'Gagal menghapus' }); return; }
++    setPesan({ jenis: 'ok', teks: `${r.data.dihapus} baris dihapus.` });
++    segarkan();
++  }
++
++  const tombolTab = (t: Tab, label: string) => (
++    <button key={t} onClick={() => { setTab(t); setPesan(null); }} className={tab === t ? kls.tombol : kls.putih}>{label}</button>
++  );
++  const totalHalaman = daftar ? Math.max(1, Math.ceil(daftar.total / daftar.ukuran)) : 1;
++  const saldoJenis = saldo.find((s) => s.jenis === jenis);
++
++  return (
++    <div>
++      <div className="mb-4 flex flex-wrap gap-2">{tombolTab('form', 'Input Stok')}{tombolTab('unggah', 'Unggah Excel')}{tombolTab('daftar', 'Riwayat Stok')}</div>
++
++      {saldo.length > 0 && (
++        <div className="mb-4 flex flex-wrap gap-2">
++          {saldo.map((s) => (
++            <div key={s.jenis} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm">
++              <div className="text-xs text-gray-500">{labelJenis(s.jenis)}</div>
++              <div className="font-semibold">{s.sisa} <span className="text-xs font-normal text-gray-500">{satuan(s.jenis)} · per {tglId(s.tanggal)}</span></div>
++            </div>
++          ))}
++        </div>
++      )}
++
++      {pesan && <div role="status" className={`mb-4 rounded border p-3 text-sm ${pesan.jenis === 'ok' ? 'border-green-300 bg-green-50 text-green-800' : 'border-red-300 bg-red-50 text-red-800'}`}>{pesan.teks}</div>}
++
++      {tab === 'form' && (
++        <section className={kls.kartu}>
++          <h2 className="mb-3 font-medium">Catatan stok harian — {namaKlinik}</h2>
++          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
++            <label className="text-sm">Jenis stok *<br /><PilihJenis nilai={jenis} onUbah={setJenis} /></label>
++            <label className="text-sm">Tanggal *<br /><input className={kls.input} type="date" value={tanggal} max={hariIniWita()} onChange={(e) => setTanggal(e.target.value)} /></label>
++            <div className="text-sm">Sisa terakhir<br /><div className="py-1 font-semibold">{saldoJenis ? `${saldoJenis.sisa} ${satuan(jenis)} (per ${tglId(saldoJenis.tanggal)})` : 'Belum ada catatan'}</div></div>
++            <label className="text-sm">Stok masuk<br /><input className={kls.input} type="number" min={0} step={1} value={masuk} onChange={(e) => setMasuk(e.target.value)} /></label>
++            <label className="text-sm">Terbit / dipakai<br /><input className={kls.input} type="number" min={0} step={1} value={terbit} onChange={(e) => setTerbit(e.target.value)} /></label>
++            <label className="text-sm">Rusak<br /><input className={kls.input} type="number" min={0} step={1} value={rusak} onChange={(e) => setRusak(e.target.value)} /></label>
++            <label className="text-sm sm:col-span-2 lg:col-span-3">Keterangan<br /><input className={kls.input} maxLength={500} value={ket} onChange={(e) => setKet(e.target.value)} /></label>
++          </div>
++          {galatForm.length > 0 && <ul className="mt-3 list-disc pl-5 text-sm text-red-700">{galatForm.map((g) => <li key={g}>{g}</li>)}</ul>}
++          <button className={`${kls.tombol} mt-4`} disabled={sibuk} onClick={() => void kirimForm(false)}>Simpan</button>
++          <p className="mt-2 text-xs text-gray-500">
++            Sisa dihitung otomatis: sisa kemarin + stok masuk − terbit − rusak. Stok awal klinik diisi sebagai <b>Stok masuk</b> pada tanggal mulai memakai aplikasi.
++            Satu baris per tanggal per jenis; mengisi tanggal yang sudah ada akan menawarkan penggantian. Isian yang membuat sisa negatif ditolak.
++          </p>
++        </section>
++      )}
++
++      {tab === 'unggah' && (
++        <>
++          <section className={kls.kartu}>
++            <h2 className="mb-2 font-medium">Unggah Excel stok — {namaKlinik}</h2>
++            <div className="flex flex-wrap items-end gap-3">
++              <label className="text-sm">Jenis stok (bila berkas tanpa kolom Jenis Stok)<br />
++                <PilihJenis nilai={jenisBawaan} onUbah={(v) => { setJenisBawaan(v); setPratinjau(null); }} kosong="— ikuti kolom berkas —" />
++              </label>
++              <label className="text-sm">Berkas (.xlsx / .xls)<br />
++                <input type="file" accept=".xlsx,.xls" className="text-sm" onChange={(e) => { setBerkas(e.target.files?.[0] ?? null); setPratinjau(null); setPesan(null); }} />
++              </label>
++              <button className={kls.putih} disabled={!berkas || sibuk} onClick={() => void kirimBerkas('pratinjau')}>Periksa berkas</button>
++              {/* unduhan berkas, bukan navigasi halaman */}
++              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
++              <a className={kls.putih} href="/api/klinik/stok/input/template">Unduh template</a>
++            </div>
++            <p className="mt-2 text-xs text-gray-500">
++              Judul tab Sheets lama dikenali (Stok Pelayanan, E-ICV Terbit, Vaksin Terbit, Vaksin Rusak); kolom Sisa diabaikan karena dihitung ulang.
++              Baris yang hanya berisi tanggal (sisa templat) dilewati. Tanggal yang sudah terisi akan <b>diganti</b> oleh isi berkas; unggahan yang membuat sisa negatif ditolak seluruhnya.
++            </p>
++            {pratinjau && (
++              <div className="mt-4 text-sm">
++                <p>Baris data: <b>{pratinjau.jumlahBaris}</b> · sah: <b className="text-green-700">{pratinjau.sah}</b> · ditolak: <b className="text-red-700">{pratinjau.ditolak}</b> · hari baru: <b>{pratinjau.akanBaru}</b> · hari diganti: <b className="text-amber-700">{pratinjau.akanDiganti}</b></p>
++                {pratinjau.galat.length > 0 && (
++                  <div className="mt-2 max-h-56 overflow-auto rounded border border-red-200 bg-red-50 p-2">
++                    {pratinjau.galat.map((g) => <div key={g.baris}>Baris {g.baris}: {g.pesan.join('; ')}</div>)}
++                    {pratinjau.galatTerpotong && <div className="mt-1 italic">Daftar dipotong; perbaiki lalu periksa ulang.</div>}
++                  </div>
++                )}
++                {pratinjau.peringatan.length > 0 && (
++                  <div className="mt-2 max-h-40 overflow-auto rounded border border-amber-200 bg-amber-50 p-2 text-amber-800">
++                    {pratinjau.peringatan.map((g) => <div key={g.baris}>Baris {g.baris}: {g.pesan.join('; ')}</div>)}
++                  </div>
++                )}
++                <button className={`${kls.tombol} mt-3`} disabled={sibuk || pratinjau.sah === 0} onClick={() => void kirimBerkas('simpan')}>
++                  Simpan {pratinjau.sah} baris{pratinjau.ditolak ? ` (lewati ${pratinjau.ditolak} yang ditolak)` : ''}
++                </button>
++              </div>
++            )}
++          </section>
++          <section className={kls.kartu}>
++            <h2 className="mb-2 font-medium">Riwayat unggahan</h2>
++            <table className="min-w-full text-left text-sm">
++              <thead><tr className="border-b bg-gray-50"><th className="px-2 py-1">Waktu</th><th className="px-2 py-1">Oleh</th><th className="px-2 py-1">Berkas</th><th className="px-2 py-1">Hari</th><th className="px-2 py-1">Ditolak</th><th /></tr></thead>
++              <tbody>
++                {riwayat.map((r) => (
++                  <tr key={r.id} className="border-b">
++                    <td className="px-2 py-1">{waktuWita(r.dibuat_pada)}</td><td className="px-2 py-1">{r.dibuat_oleh}</td><td className="px-2 py-1">{r.nama_file}</td>
++                    <td className="px-2 py-1">{r.jumlah_masuk}</td><td className="px-2 py-1">{r.jumlah_ditolak}</td>
++                    <td className="px-2 py-1"><button className="text-red-600 hover:underline" onClick={() => void hapus(`/api/klinik/stok/input/batch?klinik=${klinikId}&id=${r.id}`, `Batalkan unggahan ini? Hari-hari yang dimasukkannya dihapus dan sisa dihitung ulang. Hari lama yang sempat diganti tidak kembali.`)}>Batalkan</button></td>
++                  </tr>
++                ))}
++                {riwayat.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={6}>Belum ada unggahan.</td></tr>}
++              </tbody>
++            </table>
++          </section>
++        </>
++      )}
++
++      {tab === 'daftar' && (
++        <section className={kls.kartu}>
++          <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
++            <label>Jenis stok <PilihJenis nilai={jenisDaftar} onUbah={(v) => { setJenisDaftar(v); setHalaman(1); }} /></label>
++            <span className="text-gray-500">{daftar ? `${daftar.total} hari tercatat (diinput lewat aplikasi)` : 'Memuat…'}</span>
++          </div>
++          <div className="overflow-x-auto">
++            <table className="min-w-full text-left text-sm">
++              <thead><tr className="border-b bg-gray-50">{['Tanggal', 'Stok masuk', 'Terbit', 'Rusak', 'Sisa', 'Keterangan', 'Sumber', ''].map((h) => <th key={h} className="whitespace-nowrap px-2 py-1 font-medium">{h}</th>)}</tr></thead>
++              <tbody>
++                {daftar?.baris.map((b) => (
++                  <tr key={b.tanggal} className="border-b">
++                    <td className="px-2 py-1">{tglId(b.tanggal)}</td><td className="px-2 py-1">{b.masuk || ''}</td><td className="px-2 py-1">{b.terbit}</td><td className="px-2 py-1">{b.rusak || ''}</td>
++                    <td className="px-2 py-1 font-semibold">{b.sisa}</td><td className="px-2 py-1">{b.keterangan}</td><td className="px-2 py-1">{b.sumber === 'upload' ? 'Excel' : 'Form'}</td>
++                    <td className="px-2 py-1"><button className="text-red-600 hover:underline" onClick={() => void hapus(`/api/klinik/stok/input/baris?klinik=${klinikId}&jenis=${jenisDaftar}&tanggal=${b.tanggal}`, `Hapus catatan ${labelJenis(jenisDaftar)} tanggal ${tglId(b.tanggal)}? Sisa hari berikutnya dihitung ulang.`)}>Hapus</button></td>
++                  </tr>
++                ))}
++                {daftar && daftar.baris.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={8}>Belum ada catatan untuk jenis ini.</td></tr>}
++              </tbody>
++            </table>
++          </div>
++          <div className="mt-3 flex items-center gap-3 text-sm">
++            <button className={kls.putih} disabled={halaman <= 1} onClick={() => setHalaman(halaman - 1)}>Sebelumnya</button>
++            <span>Halaman {halaman} dari {totalHalaman}</span>
++            <button className={kls.putih} disabled={halaman >= totalHalaman} onClick={() => setHalaman(halaman + 1)}>Berikutnya</button>
++          </div>
++        </section>
++      )}
++    </div>
++  );
++}
+diff --git a/app/(dashboard)/dashboard/klinik/input/page.tsx b/app/(dashboard)/dashboard/klinik/input/page.tsx
+new file mode 100644
+index 0000000..5d3c6f3
+--- /dev/null
++++ b/app/(dashboard)/dashboard/klinik/input/page.tsx
+@@ -0,0 +1,30 @@
++// Input data vaksinasi ICV / e-ICV per klinik: form, unggah Excel, dan daftar. Admin/petugas: semua klinik;
++// petugas_klinik: hanya klinik yang ditautkan admin ke akunnya (lib/klinik/akses.ts).
++import { redirect } from 'next/navigation';
++import Link from 'next/link';
++import { getPengguna } from '@/lib/auth/session';
++import { daftarKlinikDiizinkan } from '@/lib/klinik/akses';
++import InputKlinikShell from './InputKlinikShell';
++
++export const dynamic = 'force-dynamic';
++
++export default async function InputIcvPage({ searchParams }: { searchParams: Promise<{ bagian?: string | string[] }> }) {
++  const sp = await searchParams;
++  const bagian = (Array.isArray(sp.bagian) ? sp.bagian[0] : sp.bagian) === 'stok' ? 'stok' : 'vaksinasi';
++  const pengguna = await getPengguna();
++  if (!pengguna) redirect('/login');
++  const klinik = await daftarKlinikDiizinkan(pengguna);
++
++  if (klinik.length === 0) {
++    return (
++      <div className="mx-auto max-w-xl p-6">
++        <h1 className="mb-2 text-xl font-semibold">Input Data Klinik</h1>
++        <p className="text-sm text-gray-600">
++          Akun Anda belum ditautkan ke klinik mana pun, jadi belum ada data yang dapat diisi. Hubungi admin BKK untuk menautkan akun Anda ke klinik.
++        </p>
++        <Link href="/dashboard/klinik" className="mt-4 inline-block text-sm text-[#0F4C5C] underline">&larr; Kembali ke dashboard</Link>
++      </div>
++    );
++  }
++  return <InputKlinikShell klinik={klinik.map((k) => ({ id: k.id, nama: k.nama_klinik }))} awal={bagian} />;
++}
+diff --git a/app/(dashboard)/dashboard/klinik/page.tsx b/app/(dashboard)/dashboard/klinik/page.tsx
+index 645942a..ffa8bc4 100644
+--- a/app/(dashboard)/dashboard/klinik/page.tsx
++++ b/app/(dashboard)/dashboard/klinik/page.tsx
+@@ -3,20 +3,22 @@ import { getRingkasanKlinikMingguan, getRingkasanKlinikBulanan } from '@/lib/kli
+ import { getDatasetKlinik } from '@/lib/klinik/dataset';
+ import { ringkasanKartuIcv, donutJenisKelamin, donutUmur, donutJenisDokumenIcv, donutWus } from '@/lib/klinik/agregasiIcv';
+ import { getStandarHariVaksin } from '@/lib/klinik/pengaturan';
+-import { getPengguna } from '@/lib/auth/session';
++import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
+ import { getDbClient } from '@/lib/db/client';
+ import { periodeMingguanDariTanggal, periodeBulananDariTanggal } from '@/lib/ai/periode';
+ 
+ const kategoriEfektif = (k: any) => k.kategori ?? 'klinik';
+ 
+ export default async function KlinikPage() {
+-  const user = await getPengguna();
++  const akses = await getAksesKlinik();
++  const user = akses.pengguna;
++  const opsi = opsiDariAkses(akses); // petugas_klinik: hanya klinik yang ditautkan ke akunnya
+ 
+   const [dataMingguanAll, dataBulananAll, { rows: daftarKlinikRow }, dataset, standarHariVaksin] = await Promise.all([
+-    getRingkasanKlinikMingguan(),
+-    getRingkasanKlinikBulanan(),
+-    getDbClient().execute('SELECT nama_klinik, kategori FROM klinik_binaan ORDER BY nama_klinik'),
+-    getDatasetKlinik(),
++    getRingkasanKlinikMingguan(opsi),
++    getRingkasanKlinikBulanan(opsi),
++    getDbClient().execute('SELECT id, nama_klinik, kategori FROM klinik_binaan ORDER BY nama_klinik'),
++    getDatasetKlinik(opsi),
+     getStandarHariVaksin(),
+   ]);
+ 
+@@ -36,8 +38,9 @@ export default async function KlinikPage() {
+     .filter((d) => d.gagalDimuat)
+     .map((d) => d.klinik.nama_klinik as string);
+ 
+-  const daftarKlinikNama = (daftarKlinikRow ?? []).filter((k) => kategoriEfektif(k) === 'klinik').map((k) => k.nama_klinik);
+-  const daftarBkkNama = (daftarKlinikRow ?? []).filter((k) => kategoriEfektif(k) === 'bkk').map((k) => k.nama_klinik);
++  const baris = (daftarKlinikRow ?? []).filter((k) => akses.semua || akses.klinikIds.includes(k.id as string));
++  const daftarKlinikNama = baris.filter((k) => kategoriEfektif(k) === 'klinik').map((k) => k.nama_klinik);
++  const daftarBkkNama = baris.filter((k) => kategoriEfektif(k) === 'bkk').map((k) => k.nama_klinik);
+ 
+   const sekarang = new Date();
+   const periodeMingguSekarang = periodeMingguanDariTanggal(sekarang);
+diff --git a/app/(dashboard)/dashboard/stok-vaksin/page.tsx b/app/(dashboard)/dashboard/stok-vaksin/page.tsx
+index 2d55a7f..6f9afae 100644
+--- a/app/(dashboard)/dashboard/stok-vaksin/page.tsx
++++ b/app/(dashboard)/dashboard/stok-vaksin/page.tsx
+@@ -1,26 +1,43 @@
+ import { getDatasetStokVaksin } from '@/lib/klinik/dataset-stok';
+ import StokDashboardClient from './StokDashboardClient';
+-import { getPengguna } from '@/lib/auth/session';
++import Link from 'next/link';
++import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
+ import { getDbClient } from '@/lib/db/client';
+ 
+ type OpsiKlinik = { id: string; nama_klinik: string; kategori: string | null; spreadsheet_id: string | null };
+ 
+ export default async function StokVaksinPage() {
+-  const user = await getPengguna();
++  const akses = await getAksesKlinik();
++  const user = akses.pengguna;
+ 
+-  const { ringkasan, gagalDimuat } = await getDatasetStokVaksin();
++  // petugas_klinik: hanya stok klinik yang ditautkan ke akunnya
++  const { ringkasan, gagalDimuat } = await getDatasetStokVaksin(opsiDariAkses(akses));
+ 
+   // BARU: daftar klinik+BKK untuk opsi filter di grafik Pemakaian vs Kerusakan
+   const { rows: daftarKlinikOpsi } = await getDbClient().execute(
+     'SELECT id, nama_klinik, kategori, spreadsheet_id FROM klinik_binaan ORDER BY nama_klinik'
+   );
+ 
++  const opsiKlinik = (daftarKlinikOpsi as OpsiKlinik[]).filter((k) => akses.semua || akses.klinikIds.includes(k.id));
++
+   return (
+-    <StokDashboardClient
+-      ringkasan={ringkasan}
+-      gagalDimuat={gagalDimuat}
+-      role={user?.role ?? 'publik'}
+-      daftarKlinikOpsi={daftarKlinikOpsi as OpsiKlinik[]}
+-    />
++    <>
++      <div className="mb-4 flex flex-wrap items-center gap-2">
++        <Link href="/dashboard/klinik" className="rounded-lg border border-[#0F4C5C] px-3 py-2 text-xs font-medium text-[#0F4C5C] hover:bg-gray-50">
++          &larr; Dashboard Klinik Binaan
++        </Link>
++        {(user?.role === 'admin' || user?.role === 'petugas' || user?.role === 'petugas_klinik') && (
++          <Link href="/dashboard/klinik/input?bagian=stok" className="rounded-lg bg-[#0F4C5C] px-3 py-2 text-xs font-medium text-white hover:bg-[#0c3d4a]">
++            + Input Data
++          </Link>
++        )}
++      </div>
++      <StokDashboardClient
++        ringkasan={ringkasan}
++        gagalDimuat={gagalDimuat}
++        role={user?.role ?? 'publik'}
++        daftarKlinikOpsi={opsiKlinik}
++      />
++    </>
+   );
+ }
+\ No newline at end of file
+diff --git a/app/admin/users/KlinikAksesEditor.tsx b/app/admin/users/KlinikAksesEditor.tsx
+new file mode 100644
+index 0000000..f27bae1
+--- /dev/null
++++ b/app/admin/users/KlinikAksesEditor.tsx
+@@ -0,0 +1,62 @@
++'use client';
++
++import { useState, useTransition } from 'react';
++import { setKlinikAkses } from '@/lib/auth/admin-actions';
++
++interface Props {
++  userId: string;
++  klinikTersedia: { id: string; nama_klinik: string }[];
++  klinikTerpilihAwal: string[];
++}
++
++/** Tautan akun Petugas Klinik ke klinik. Tanpa tautan, akun itu tidak melihat data klinik mana pun. */
++export default function KlinikAksesEditor({ userId, klinikTersedia, klinikTerpilihAwal }: Props) {
++  const [isPending, startTransition] = useTransition();
++  const [buka, setBuka] = useState(false);
++  const [dipilih, setDipilih] = useState<string[]>(klinikTerpilihAwal);
++  const [tersimpan, setTersimpan] = useState<string[]>(klinikTerpilihAwal);
++  const [galat, setGalat] = useState<string | null>(null);
++
++  const nama = (id: string) => klinikTersedia.find((k) => k.id === id)?.nama_klinik ?? id;
++  const simpan = () => {
++    setGalat(null);
++    startTransition(async () => {
++      try {
++        await setKlinikAkses(userId, dipilih);
++        setTersimpan(dipilih);
++        setBuka(false);
++      } catch (e) {
++        setGalat((e as Error).message || 'Gagal menyimpan.');
++      }
++    });
++  };
++
++  return (
++    <div className="mt-1 text-xs normal-case">
++      <div className="flex flex-wrap items-center gap-2">
++        {tersimpan.length === 0
++          ? <span className="font-medium text-[#D62839]">Belum ditautkan ke klinik (tidak melihat data apa pun)</span>
++          : <span className="text-[#0F2A38]/70">Klinik: {tersimpan.map(nama).join(', ')}</span>}
++        <button onClick={() => setBuka(!buka)} className="text-[#0F4C5C] underline">{buka ? 'Tutup' : 'Atur klinik'}</button>
++      </div>
++      {buka && (
++        <div className="mt-2 rounded-md border border-black/10 bg-[#F5F7FA] p-2">
++          <div className="grid max-h-48 gap-1 overflow-auto sm:grid-cols-2">
++            {klinikTersedia.map((k) => (
++              <label key={k.id} className="flex items-center gap-2">
++                <input type="checkbox" checked={dipilih.includes(k.id)}
++                  onChange={(e) => setDipilih(e.target.checked ? [...dipilih, k.id] : dipilih.filter((x) => x !== k.id))} />
++                {k.nama_klinik}
++              </label>
++            ))}
++          </div>
++          {galat && <p className="mt-1 text-[#D62839]">{galat}</p>}
++          <div className="mt-2 flex gap-2">
++            <button onClick={simpan} disabled={isPending} className="rounded-md bg-green-600 px-3 py-1 text-white hover:bg-green-700 disabled:opacity-50">Simpan</button>
++            <button onClick={() => { setDipilih(tersimpan); setBuka(false); }} className="rounded-md bg-gray-200 px-3 py-1 hover:bg-gray-300">Batal</button>
++          </div>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/app/admin/users/UserRow.tsx b/app/admin/users/UserRow.tsx
+index 5946e10..7610821 100644
+--- a/app/admin/users/UserRow.tsx
++++ b/app/admin/users/UserRow.tsx
+@@ -3,6 +3,7 @@
+ import { useState, useTransition } from 'react';
+ import { approveUser, suspendUser, deleteUser, updateUserNama, updateUserRole, resetPasswordUser } from '@/lib/auth/admin-actions';
+ import { Pencil, Check, X } from 'lucide-react';
++import KlinikAksesEditor from './KlinikAksesEditor';
+ 
+ 
+ interface Props {
+@@ -10,6 +11,8 @@ interface Props {
+   namaAwal: string;
+   role: string;
+   status: string;
++  klinikTersedia: { id: string; nama_klinik: string }[];
++  klinikTerpilih: string[];
+ }
+ 
+ const OPSI_ROLE = [
+@@ -18,7 +21,7 @@ const OPSI_ROLE = [
+   { value: 'petugas_klinik', label: 'Petugas Klinik' },
+ ];
+ 
+-export default function UserRow({ id, namaAwal, role: roleAwal, status }: Props) {
++export default function UserRow({ id, namaAwal, role: roleAwal, status, klinikTersedia, klinikTerpilih }: Props) {
+   const [isPending, startTransition] = useTransition();
+   const [editing, setEditing] = useState(false);
+   const [nama, setNama] = useState(namaAwal);
+@@ -149,6 +152,7 @@ export default function UserRow({ id, namaAwal, role: roleAwal, status }: Props)
+             </button>
+           </div>
+         )}
++        {role === 'petugas_klinik' && <KlinikAksesEditor userId={id} klinikTersedia={klinikTersedia} klinikTerpilihAwal={klinikTerpilih} />}
+       </td>
+ 
+       <td className="px-4 py-3 align-middle">
+diff --git a/app/admin/users/page.tsx b/app/admin/users/page.tsx
+index 4bf1263..994ab9b 100644
+--- a/app/admin/users/page.tsx
++++ b/app/admin/users/page.tsx
+@@ -1,4 +1,5 @@
+ import { createDbClient } from '@/lib/db/server';
++import { sql } from '@/lib/auth/db';
+ import { getUserRole } from '@/lib/auth/get-user-role';
+ import { redirect } from 'next/navigation';
+ import Link from 'next/link';
+@@ -15,6 +16,11 @@ export default async function AdminUsersPage() {
+     .select('id, nama_lengkap, role, status')
+     .order('status', { ascending: true });
+ 
++  const klinikTersedia = await sql<{ id: string; nama_klinik: string }>('SELECT id, nama_klinik FROM klinik_binaan ORDER BY nama_klinik');
++  const tautan = await sql<{ user_id: string; klinik_id: string }>('SELECT user_id, klinik_id FROM klinik_akses');
++  const klinikPerUser = new Map<string, string[]>();
++  for (const t of tautan) klinikPerUser.set(t.user_id, [...(klinikPerUser.get(t.user_id) ?? []), t.klinik_id]);
++
+   return (
+     <main className="p-6 max-w-4xl mx-auto">
+       <div className="flex items-center justify-between mb-4">
+@@ -55,6 +61,8 @@ export default async function AdminUsersPage() {
+                   namaAwal={u.nama_lengkap ?? ''}
+                   role={u.role}
+                   status={u.status}
++                  klinikTersedia={klinikTersedia}
++                  klinikTerpilih={klinikPerUser.get(u.id) ?? []}
+                 />
+               ))}
+             </tbody>
+diff --git a/app/api/klinik/icv/[aksi]/route.ts b/app/api/klinik/icv/[aksi]/route.ts
+new file mode 100644
+index 0000000..5e967a7
+--- /dev/null
++++ b/app/api/klinik/icv/[aksi]/route.ts
+@@ -0,0 +1,137 @@
++// API input ICV / e-ICV per klinik (form + unggah Excel). Setiap aksi memeriksa login DAN hak atas klinik
++// (admin/petugas: semua klinik; petugas_klinik: hanya klinik yang ditautkan di klinik_akses).
++//   GET    /api/klinik/icv/klinik                          -> klinik yang boleh diisi orang ini
++//   GET    /api/klinik/icv/template                        -> berkas .xlsx kosong
++//   GET    /api/klinik/icv/daftar?klinik=ID&q=&halaman=    -> baris terbaru klinik (dari aplikasi dan Sheets)
++//   GET    /api/klinik/icv/riwayat?klinik=ID               -> riwayat unggahan
++//   POST   /api/klinik/icv/baris    {klinikId, nilai}      -> tambah satu (form)
++//   POST   /api/klinik/icv/unggah   multipart: file, klinikId, mode=pratinjau|simpan
++//   DELETE /api/klinik/icv/baris?klinik=ID&id=N            -> hapus satu baris yang berasal dari aplikasi
++//   DELETE /api/klinik/icv/batch?klinik=ID&id=UUID         -> batalkan satu unggahan
++import { NextResponse, type NextRequest } from 'next/server';
++import { getPengguna } from '@/lib/auth/session';
++import { daftarKlinikDiizinkan, klinikBolehDiakses, kunciSumberApp, type KlinikRingkas } from '@/lib/klinik/akses';
++import { validasiIcv } from '@/lib/klinik/icv-input';
++import { bacaExcelIcv, buatTemplateIcv } from '@/lib/klinik/icv-excel';
++import { daftarIcvTerbaru, hapusBarisIcv, hapusBatchIcv, noDokumenSudahAda, riwayatIcv, simpanUnggahanIcv, tambahIcv } from '@/lib/klinik/icv-simpan';
++import { kunciDokumen } from '@/lib/klinik/icv-input';
++
++export const dynamic = 'force-dynamic';
++type Ctx = { params: Promise<{ aksi: string }> };
++const MAKS_BYTE = 10 * 1024 * 1024;
++
++const galat = (pesan: string, status: number, ekstra: object = {}) => NextResponse.json({ error: pesan, ...ekstra }, { status });
++
++async function izin(klinikId: string | null): Promise<{ klinik: KlinikRingkas; pengguna: string } | NextResponse> {
++  const p = await getPengguna();
++  if (!p) return galat('Silakan login', 401);
++  if (!klinikId) return galat('Klinik belum dipilih', 400);
++  const klinik = await klinikBolehDiakses(p, klinikId);
++  if (!klinik) return galat('Anda tidak memiliki akses ke klinik ini', 403);
++  return { klinik, pengguna: p.email ?? p.namaLengkap ?? p.id };
++}
++
++export async function GET(req: NextRequest, ctx: Ctx) {
++  const { aksi } = await ctx.params;
++  const sp = req.nextUrl.searchParams;
++  try {
++    if (aksi === 'klinik') {
++      const p = await getPengguna();
++      if (!p) return galat('Silakan login', 401);
++      const daftar = await daftarKlinikDiizinkan(p);
++      return NextResponse.json({ klinik: daftar.map((k) => ({ id: k.id, nama_klinik: k.nama_klinik })) });
++    }
++    if (aksi === 'template') {
++      if (!(await getPengguna())) return galat('Silakan login', 401);
++      return new NextResponse(new Uint8Array(await buatTemplateIcv()), {
++        headers: {
++          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
++          'Content-Disposition': 'attachment; filename="template-icv.xlsx"',
++        },
++      });
++    }
++    if (aksi === 'daftar' || aksi === 'riwayat') {
++      const a = await izin(sp.get('klinik'));
++      if (a instanceof NextResponse) return a;
++      if (aksi === 'riwayat') return NextResponse.json({ riwayat: await riwayatIcv(a.klinik.id) });
++      return NextResponse.json(await daftarIcvTerbaru(kunciSumberApp(a.klinik.id), {
++        q: sp.get('q') ?? undefined, halaman: Number(sp.get('halaman')) || undefined,
++      }));
++    }
++  } catch (e) {
++    console.error('[klinik/icv] GET', aksi, (e as Error).message);
++    return galat('Terjadi kesalahan pada server', 500);
++  }
++  return galat('Aksi tidak dikenal', 404);
++}
++
++export async function POST(req: NextRequest, ctx: Ctx) {
++  const { aksi } = await ctx.params;
++  try {
++    if (aksi === 'baris') {
++      const b = (await req.json().catch(() => null)) as { klinikId?: string; nilai?: Record<string, unknown> } | null;
++      const a = await izin(b?.klinikId ?? null);
++      if (a instanceof NextResponse) return a;
++      if (!b?.nilai || typeof b.nilai !== 'object') return galat('Data kosong', 400);
++      const h = validasiIcv(b.nilai);
++      if (!h.nilai) return galat('Data belum valid', 422, { galat: h.galat });
++      const r = await tambahIcv(a.klinik, h.nilai);
++      if (r === 'duplikat') return galat('Nomor dokumen ini sudah ada di klinik ini', 409);
++      return NextResponse.json({ ok: true, peringatan: h.peringatan });
++    }
++    if (aksi === 'unggah') {
++      const form = await req.formData();
++      const a = await izin(String(form.get('klinikId') ?? '') || null);
++      if (a instanceof NextResponse) return a;
++      const berkas = form.get('file');
++      if (!(berkas instanceof File)) return galat('Berkas belum dipilih', 400);
++      if (berkas.size > MAKS_BYTE) return galat('Berkas lebih dari 10 MB', 413);
++      const mode = form.get('mode') === 'simpan' ? 'simpan' : 'pratinjau';
++
++      const h = await bacaExcelIcv(Buffer.from(await berkas.arrayBuffer()));
++      if (h.fatal) return galat(h.fatal, 422);
++      const baris = h.sah.map((s) => s.nilai);
++      const ada = await noDokumenSudahAda(kunciSumberApp(a.klinik.id), baris.map((x) => x['No Dokumen ICV / e-ICV']));
++      const sudahAda = baris.filter((x) => ada.has(kunciDokumen(x['No Dokumen ICV / e-ICV']))).length;
++
++      if (mode === 'pratinjau') {
++        return NextResponse.json({
++          mode, jumlahBaris: h.jumlahBaris, sah: h.sah.length, ditolak: h.galat.length,
++          akanDilewati: sudahAda, akanMasuk: h.sah.length - sudahAda,
++          galat: h.galat.slice(0, 50), galatTerpotong: h.galat.length > 50,
++          peringatan: h.sah.filter((s) => s.peringatan.length).slice(0, 20).map((s) => ({ baris: s.baris, pesan: s.peringatan })),
++          urutan: h.urutan,
++        });
++      }
++      const r = await simpanUnggahanIcv({ klinik: a.klinik, namaFile: berkas.name, baris, jumlahBaris: h.jumlahBaris, jumlahDitolak: h.galat.length, pengguna: a.pengguna });
++      return NextResponse.json({ mode, ...r, ditolak: h.galat.length });
++    }
++  } catch (e) {
++    console.error('[klinik/icv] POST', aksi, (e as Error).message);
++    return galat('Terjadi kesalahan pada server', 500);
++  }
++  return galat('Aksi tidak dikenal', 404);
++}
++
++export async function DELETE(req: NextRequest, ctx: Ctx) {
++  const { aksi } = await ctx.params;
++  const sp = req.nextUrl.searchParams;
++  try {
++    const a = await izin(sp.get('klinik'));
++    if (a instanceof NextResponse) return a;
++    const id = sp.get('id') ?? '';
++    if (aksi === 'baris') {
++      const n = Number(id);
++      if (!Number.isInteger(n)) return galat('id tidak valid', 400);
++      return NextResponse.json({ dihapus: await hapusBarisIcv(kunciSumberApp(a.klinik.id), n) });
++    }
++    if (aksi === 'batch') {
++      if (!/^[0-9a-f-]{36}$/i.test(id)) return galat('id tidak valid', 400);
++      return NextResponse.json({ dihapus: await hapusBatchIcv(a.klinik.id, kunciSumberApp(a.klinik.id), id) });
++    }
++  } catch (e) {
++    console.error('[klinik/icv] DELETE', aksi, (e as Error).message);
++    return galat('Terjadi kesalahan pada server', 500);
++  }
++  return galat('Aksi tidak dikenal', 404);
++}
+diff --git a/app/api/klinik/rekap/route.ts b/app/api/klinik/rekap/route.ts
+index 583d176..4c8d97d 100644
+--- a/app/api/klinik/rekap/route.ts
++++ b/app/api/klinik/rekap/route.ts
+@@ -1,13 +1,14 @@
+ // app/api/klinik/rekap/route.ts
+ import { NextResponse } from 'next/server';
+ import { getDatasetKlinik } from '@/lib/klinik/dataset';
++import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
+ import { ringkasanKartuIcv, donutJenisKelamin, donutUmur, donutJenisDokumenIcv, donutWus } from '@/lib/klinik/agregasiIcv';
+ 
+ export async function GET(req: Request) {
+   const { searchParams } = new URL(req.url);
+   const klinikFilter = searchParams.get('klinik'); // opsional, nama klinik
+ 
+-  const dataset = await getDatasetKlinik();
++  const dataset = await getDatasetKlinik(opsiDariAkses(await getAksesKlinik()));
+   const relevan = klinikFilter ? dataset.filter((d) => d.klinik.nama_klinik === klinikFilter) : dataset;
+   const semuaIcv = relevan.flatMap((d) => d.icv);
+ 
+diff --git a/app/api/klinik/search/route.ts b/app/api/klinik/search/route.ts
+index fe1a96f..b25fdd7 100644
+--- a/app/api/klinik/search/route.ts
++++ b/app/api/klinik/search/route.ts
+@@ -1,6 +1,7 @@
+ // app/api/klinik/search/route.ts
+ import { NextResponse } from 'next/server';
+ import { getDatasetKlinik } from '@/lib/klinik/dataset';
++import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
+ import { parseTanggalSheet } from '@/lib/klinik/tanggal';
+ 
+ function formatTanggal(nilai: any): string {
+@@ -9,6 +10,10 @@ function formatTanggal(nilai: any): string {
+ }
+ 
+ export async function GET(req: Request) {
++  // Hasil pencarian memuat data pribadi (nama, NIK, paspor, kontak, vaksin, komorbid): WAJIB login.
++  const akses = await getAksesKlinik();
++  if (!akses.pengguna) return NextResponse.json({ success: false, error: 'Silakan login untuk mencari data peserta' }, { status: 401 });
++
+   const { searchParams } = new URL(req.url);
+   const q = searchParams.get('q')?.trim().toLowerCase();
+ 
+@@ -16,7 +21,7 @@ export async function GET(req: Request) {
+     return NextResponse.json({ success: false, error: 'Kata kunci minimal 3 karakter' }, { status: 400 });
+   }
+ 
+-  const dataset = await getDatasetKlinik();
++  const dataset = await getDatasetKlinik(opsiDariAkses(akses));
+   const hasil = dataset.flatMap((d) =>
+     d.icv
+       .filter((row: Record<string, any>) => {
+diff --git a/app/api/klinik/stok/input/[aksi]/route.ts b/app/api/klinik/stok/input/[aksi]/route.ts
+new file mode 100644
+index 0000000..d113524
+--- /dev/null
++++ b/app/api/klinik/stok/input/[aksi]/route.ts
+@@ -0,0 +1,135 @@
++// API input stok ICV/e-ICV dan vaksin per klinik (form + unggah Excel). Setiap aksi memeriksa login DAN hak atas klinik
++// (admin/petugas: semua klinik; petugas_klinik: hanya klinik yang ditautkan di klinik_akses).
++//   GET    /api/klinik/stok/input/jenis                              -> daftar jenis stok
++//   GET    /api/klinik/stok/input/saldo?klinik=ID                    -> sisa terkini per jenis (buku aplikasi)
++//   GET    /api/klinik/stok/input/daftar?klinik=ID&jenis=K&halaman=  -> riwayat harian satu jenis
++//   GET    /api/klinik/stok/input/riwayat?klinik=ID                  -> riwayat unggahan
++//   GET    /api/klinik/stok/input/template                           -> berkas .xlsx kosong
++//   POST   /api/klinik/stok/input/baris   {klinikId, nilai, ganti?}  -> tambah/ganti satu hari
++//   POST   /api/klinik/stok/input/unggah  multipart: file, klinikId, mode=pratinjau|simpan, [jenisBawaan]
++//   DELETE /api/klinik/stok/input/baris?klinik=ID&jenis=K&tanggal=YYYY-MM-DD
++//   DELETE /api/klinik/stok/input/batch?klinik=ID&id=UUID
++import { NextResponse, type NextRequest } from 'next/server';
++import { getPengguna } from '@/lib/auth/session';
++import { klinikBolehDiakses, type KlinikRingkas } from '@/lib/klinik/akses';
++import { JENIS_STOK_INPUT, kunciJenisValid, validasiStok } from '@/lib/klinik/stok-input';
++import { bacaExcelStok, buatTemplateStok } from '@/lib/klinik/stok-excel';
++import { GalatStok, daftarStokApp, hapusBatchStok, hapusEntriStok, hitungRencanaStok, riwayatStok, saldoStokApp, simpanEntriStok, simpanUnggahanStok } from '@/lib/klinik/stok-simpan';
++
++export const dynamic = 'force-dynamic';
++type Ctx = { params: Promise<{ aksi: string }> };
++const MAKS_BYTE = 10 * 1024 * 1024;
++
++const galat = (pesan: string, status: number, ekstra: object = {}) => NextResponse.json({ error: pesan, ...ekstra }, { status });
++
++async function izin(klinikId: string | null): Promise<{ klinik: KlinikRingkas; pengguna: string } | NextResponse> {
++  const p = await getPengguna();
++  if (!p) return galat('Silakan login', 401);
++  if (!klinikId) return galat('Klinik belum dipilih', 400);
++  const klinik = await klinikBolehDiakses(p, klinikId);
++  if (!klinik) return galat('Anda tidak memiliki akses ke klinik ini', 403);
++  return { klinik, pengguna: p.email ?? p.namaLengkap ?? p.id };
++}
++
++function tangani(e: unknown, label: string) {
++  if (e instanceof GalatStok) return galat(e.message, 422);
++  console.error('[klinik/stok/input]', label, (e as Error).message);
++  return galat('Terjadi kesalahan pada server', 500);
++}
++
++export async function GET(req: NextRequest, ctx: Ctx) {
++  const { aksi } = await ctx.params;
++  const sp = req.nextUrl.searchParams;
++  try {
++    if (aksi === 'jenis') return NextResponse.json({ jenis: JENIS_STOK_INPUT });
++    if (aksi === 'template') {
++      if (!(await getPengguna())) return galat('Silakan login', 401);
++      return new NextResponse(new Uint8Array(await buatTemplateStok()), {
++        headers: {
++          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
++          'Content-Disposition': 'attachment; filename="template-stok.xlsx"',
++        },
++      });
++    }
++    if (aksi === 'saldo' || aksi === 'daftar' || aksi === 'riwayat') {
++      const a = await izin(sp.get('klinik'));
++      if (a instanceof NextResponse) return a;
++      if (aksi === 'saldo') return NextResponse.json({ saldo: await saldoStokApp(a.klinik.id) });
++      if (aksi === 'riwayat') return NextResponse.json({ riwayat: await riwayatStok(a.klinik.id) });
++      const jenis = sp.get('jenis') ?? '';
++      if (!kunciJenisValid(jenis)) return galat('Jenis stok tidak valid', 400);
++      return NextResponse.json(await daftarStokApp(a.klinik.id, jenis, { halaman: Number(sp.get('halaman')) || undefined }));
++    }
++  } catch (e) {
++    return tangani(e, 'GET ' + aksi);
++  }
++  return galat('Aksi tidak dikenal', 404);
++}
++
++export async function POST(req: NextRequest, ctx: Ctx) {
++  const { aksi } = await ctx.params;
++  try {
++    if (aksi === 'baris') {
++      const b = (await req.json().catch(() => null)) as { klinikId?: string; nilai?: Record<string, unknown>; ganti?: boolean } | null;
++      const a = await izin(b?.klinikId ?? null);
++      if (a instanceof NextResponse) return a;
++      if (!b?.nilai || typeof b.nilai !== 'object') return galat('Data kosong', 400);
++      const h = validasiStok(b.nilai);
++      if (!h.nilai) return galat('Data belum valid', 422, { galat: h.galat });
++      const r = await simpanEntriStok(a.klinik, h.nilai, { ganti: b.ganti === true });
++      if (r === 'ada') return galat('Tanggal ini sudah terisi untuk jenis stok tersebut', 409, { sudahAda: true });
++      return NextResponse.json({ ok: true, peringatan: h.peringatan });
++    }
++    if (aksi === 'unggah') {
++      const form = await req.formData();
++      const a = await izin(String(form.get('klinikId') ?? '') || null);
++      if (a instanceof NextResponse) return a;
++      const berkas = form.get('file');
++      if (!(berkas instanceof File)) return galat('Berkas belum dipilih', 400);
++      if (berkas.size > MAKS_BYTE) return galat('Berkas lebih dari 10 MB', 413);
++      const mode = form.get('mode') === 'simpan' ? 'simpan' : 'pratinjau';
++      const jenisBawaan = String(form.get('jenisBawaan') ?? '');
++      if (jenisBawaan && !kunciJenisValid(jenisBawaan)) return galat('Jenis stok tidak valid', 400);
++
++      const h = await bacaExcelStok(Buffer.from(await berkas.arrayBuffer()), { jenisBawaan: jenisBawaan || undefined });
++      if (h.fatal) return galat(h.fatal, 422);
++      const entri = h.sah.map((s) => s.nilai);
++      if (mode === 'pratinjau') {
++        const rencana = await hitungRencanaStok(a.klinik, entri);
++        return NextResponse.json({
++          mode, jumlahBaris: h.jumlahBaris, sah: h.sah.length, ditolak: h.galat.length, akanBaru: rencana.baru, akanDiganti: rencana.diganti,
++          galat: h.galat.slice(0, 50), galatTerpotong: h.galat.length > 50,
++          peringatan: h.sah.filter((s) => s.peringatan.length).slice(0, 20).map((s) => ({ baris: s.baris, pesan: s.peringatan })),
++        });
++      }
++      const r = await simpanUnggahanStok({ klinik: a.klinik, namaFile: berkas.name, entri, jumlahBaris: h.jumlahBaris, jumlahDitolak: h.galat.length, pengguna: a.pengguna });
++      return NextResponse.json({ mode, ...r, ditolak: h.galat.length });
++    }
++  } catch (e) {
++    return tangani(e, 'POST ' + aksi);
++  }
++  return galat('Aksi tidak dikenal', 404);
++}
++
++export async function DELETE(req: NextRequest, ctx: Ctx) {
++  const { aksi } = await ctx.params;
++  const sp = req.nextUrl.searchParams;
++  try {
++    const a = await izin(sp.get('klinik'));
++    if (a instanceof NextResponse) return a;
++    if (aksi === 'baris') {
++      const jenis = sp.get('jenis') ?? '';
++      const tanggal = sp.get('tanggal') ?? '';
++      if (!kunciJenisValid(jenis) || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return galat('Parameter tidak valid', 400);
++      return NextResponse.json({ dihapus: await hapusEntriStok(a.klinik, jenis, tanggal) });
++    }
++    if (aksi === 'batch') {
++      const id = sp.get('id') ?? '';
++      if (!/^[0-9a-f-]{36}$/i.test(id)) return galat('id tidak valid', 400);
++      return NextResponse.json({ dihapus: await hapusBatchStok(a.klinik, id) });
++    }
++  } catch (e) {
++    return tangani(e, 'DELETE ' + aksi);
++  }
++  return galat('Aksi tidak dikenal', 404);
++}
+diff --git a/app/api/klinik/stok/pemakaian/route.ts b/app/api/klinik/stok/pemakaian/route.ts
+index 38e055f..01635e0 100644
+--- a/app/api/klinik/stok/pemakaian/route.ts
++++ b/app/api/klinik/stok/pemakaian/route.ts
+@@ -1,13 +1,18 @@
+ import { NextResponse } from 'next/server';
+ import { createDbServiceClient } from '@/lib/db/serviceRole';
+-import { getStokDenganFilter } from '@/lib/klinik/stok-queries';
++import { getStokDenganFilter, getSumberAktifStok, idSumberStok } from '@/lib/klinik/stok-queries';
+ import { ambilTerbit, ambilRusak, JENIS_STOK_LABEL } from '@/lib/klinik/agregasiStok';
++import { getAksesKlinik } from '@/lib/klinik/akses';
+ 
+ export async function GET(req: Request) {
+   const { searchParams } = new URL(req.url);
+   const mulai = searchParams.get('mulai');
+   const akhir = searchParams.get('akhir');
+-  const klinikIds = searchParams.get('klinik')?.split(',').filter(Boolean);
++  const diminta = searchParams.get('klinik')?.split(',').filter(Boolean);
++  // petugas_klinik hanya boleh klinik yang ditautkan ke akunnya, apa pun isi parameter
++  const akses = await getAksesKlinik();
++  const klinikIds = akses.semua ? diminta : (diminta?.length ? diminta.filter((id) => akses.klinikIds.includes(id)) : akses.klinikIds);
++  if (!akses.semua && klinikIds?.length === 0) return NextResponse.json({ success: true, data: [], tidakAdaAkses: true });
+ 
+   if (!mulai || !akhir) {
+     return NextResponse.json(
+@@ -21,8 +26,13 @@ export async function GET(req: Request) {
+   if (klinikIds?.length) query = query.in('id', klinikIds);
+   const { data: daftarKlinik } = await query;
+ 
+-  const idsValid = (daftarKlinik ?? []).map((k) => k.spreadsheet_id).filter(Boolean) as string[];
+-  const baris = await getStokDenganFilter(idsValid, mulai, akhir);
++  const klinikStok = (daftarKlinik ?? []) as { id: string; nama_klinik: string; spreadsheet_id: string | null }[];
++  const sumberAktif = await getSumberAktifStok(klinikStok);
++  // petakan spreadsheet_id -> klinik, lalu buang baris dari sumber yang tidak aktif (hindari hitung ganda Sheets + aplikasi)
++  const klinikDariId = new Map<string, string>();
++  for (const k of klinikStok) for (const id of idSumberStok(k)) klinikDariId.set(id, k.id);
++  const semuaBaris = await getStokDenganFilter([...klinikDariId.keys()], mulai, akhir);
++  const baris = semuaBaris.filter((b) => sumberAktif.get(`${klinikDariId.get(b.spreadsheetId)}|${b.jenisStok}`) === b.spreadsheetId);
+ 
+   const jenisUnik = Array.from(new Set(baris.map((b) => b.jenisStok)));
+   const data = jenisUnik.map((jenis) => {
+diff --git a/app/api/klinik/tren/route.ts b/app/api/klinik/tren/route.ts
+index 7a04e74..a7e8608 100644
+--- a/app/api/klinik/tren/route.ts
++++ b/app/api/klinik/tren/route.ts
+@@ -1,6 +1,7 @@
+ // app/api/klinik/tren/route.ts
+ import { NextResponse } from 'next/server';
+ import { getDatasetKlinik } from '@/lib/klinik/dataset';
++import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
+ import { parseTanggalSheet } from '@/lib/klinik/tanggal';
+ import { trenDistribusiGender, trenLayananPerKlinik, trenPenerbitanIcv, trenPenerbitanPerVaksin } from '@/lib/klinik/agregasiTren';
+ 
+@@ -11,7 +12,7 @@ export async function GET(req: Request) {
+   const akhir = searchParams.get('akhir');
+   const klinikIds = searchParams.get('klinik')?.split(',').filter(Boolean);
+ 
+-  let dataset = await getDatasetKlinik();
++  let dataset = await getDatasetKlinik(opsiDariAkses(await getAksesKlinik()));
+   if (klinikIds?.length) dataset = dataset.filter((d) => klinikIds.includes(String(d.klinik.id)));
+ 
+   if (mulai && akhir) {
+diff --git a/docs/KLINIK_INPUT.md b/docs/KLINIK_INPUT.md
+new file mode 100644
+index 0000000..0199543
+--- /dev/null
++++ b/docs/KLINIK_INPUT.md
+@@ -0,0 +1,12 @@
++# Input data klinik binaan (ICV/e-ICV) dan akses per klinik
++
++- Tabel: `schema/mariadb/08_klinik_akses.sql` (`klinik_akses`, serta kolom `no_dokumen`, `sumber`, `batch_id` di `data_icv` dan `sumber`, `batch_id` di `stok_vaksin`).
++- Akses (`lib/klinik/akses.ts`): admin dan petugas melihat/mengisi semua klinik; **petugas_klinik hanya klinik yang ditautkan admin** (Admin → Verifikasi Akun → "Atur klinik"). Tanpa tautan = tidak ada data (gagal tertutup). Penyaringan di server: dashboard klinik, stok vaksin, `/api/klinik/{rekap,tren,search,stok/pemakaian}`.
++- `/api/klinik/search` (data pribadi peserta) kini WAJIB login; sebelumnya terbuka untuk siapa pun.
++- Input: `/dashboard/klinik/input` (form + unggah Excel + daftar), API `/api/klinik/icv/*`. Judul kolom = sheet lama; Jenis Vaksin 1-3 dan Komorbid (tombol Tambah, maksimal 6) mengikuti dropdown sheet.
++- Baris dari aplikasi disimpan dengan `spreadsheet_id = app-<id klinik>` dan `sumber` 'input'/'upload', terpisah dari baris sinkronisasi Sheets (yang tidak pernah menyentuhnya). Dashboard membaca keduanya. Nomor dokumen yang sudah ada dilewati saat unggah (tidak menimpa).
++- Tanggal diproses `lib/tanggal/parse-tanggal.ts` (bersama). Kolom Excel bercampur gaya hari/bulan dan bulan/hari ditolak; teks ambigu dibaca hari/bulan dan diberi peringatan.
++- Dashboard komorbid kini membaca semua `Komorbid N`, mengenali Hipertiroid dan Riwayat Tumor, dan menghitung penyakit di luar daftar sebagai "Lainnya".
++- Stok: halaman yang sama (`/dashboard/klinik/input?bagian=stok`), SATU form dengan dropdown jenis (e-ICV, ICV, Meningitis MM, Yellow Fever, Polio, Influenza), unggah Excel, dan riwayat. Stok = buku besar per (klinik, jenis): petugas mengisi Stok Masuk, Terbit, Rusak; **Sisa dihitung otomatis** (sisa kemarin + masuk − terbit − rusak), dihitung ulang bila ada input mundur/hapus, dan isian yang membuat sisa negatif ditolak. Stok awal = "Stok Masuk" di tanggal mulai. Satu baris per tanggal per jenis (isian di tanggal yang ada menawarkan ganti). Judul tab Sheets lama dikenali di unggahan (Stok Pelayanan, E-ICV Terbit, Vaksin Terbit/Rusak); kolom Sisa diabaikan.
++- Dashboard stok: per (klinik, jenis) dipakai SATU sumber, yang tanggalnya paling baru (sama = aplikasi), supaya klinik yang beralih dari Sheets ke aplikasi tidak dihitung ganda (`getSumberAktifStok`). Rata-rata pemakaian harian dihitung per hari yang tercatat; hari tanpa catatan tidak dihitung (estimasi hari habis sedikit lebih pendek).
++- Uji: `NODE_OPTIONS="--conditions=react-server" npx tsx --test --test-force-exit scripts/migrate/uji-klinik-icv.ts` (butuh MariaDB berisi schema 01, 02, 05, 08); stok: `uji-klinik-stok.ts` (cara sama).
+diff --git a/lib/auth/admin-actions.ts b/lib/auth/admin-actions.ts
+index f37f568..bf6e397 100644
+--- a/lib/auth/admin-actions.ts
++++ b/lib/auth/admin-actions.ts
+@@ -2,6 +2,7 @@
+ 
+ import { revalidatePath } from 'next/cache';
+ import { sql } from '@/lib/auth/db';
++import { getDbClient } from '@/lib/db/client';
+ import { requireAdmin } from '@/lib/auth/guard';
+ import { hapusSesiPengguna } from '@/lib/auth/session';
+ import { hashPassword } from '@/lib/auth/password';
+@@ -56,4 +57,32 @@ export async function resetPasswordUser(userId: string, passwordBaru: string) {
+   await sql(`UPDATE auth_kredensial SET password_hash = ? WHERE user_id = ?`, [await hashPassword(passwordBaru), userId]);
+   await hapusSesiPengguna(userId);
+   revalidatePath('/admin/users');
+-}
+\ No newline at end of file
++}
++/**
++ * Tautkan akun petugas_klinik ke klinik-klinik tertentu (mengganti seluruh daftar tautan akun itu).
++ * Tanpa tautan, petugas klinik tidak melihat data klinik mana pun. Hanya admin.
++ */
++export async function setKlinikAkses(userId: string, klinikIds: string[]) {
++  await requireAdmin();
++  const profil = await sql<{ role: string }>('SELECT role FROM profiles WHERE id = ?', [userId]);
++  if (!profil.length) throw new Error('Akun tidak ditemukan.');
++  if (profil[0].role !== 'petugas_klinik') throw new Error('Tautan klinik hanya untuk akun berperan Petugas Klinik.');
++
++  const unik = [...new Set(klinikIds.filter((x) => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x)))];
++  if (unik.length) {
++    const ada = await sql<{ id: string }>(`SELECT id FROM klinik_binaan WHERE id IN (${unik.map(() => '?').join(',')})`, unik);
++    if (ada.length !== unik.length) throw new Error('Ada klinik yang tidak ditemukan.');
++  }
++  const tx = await getDbClient().transaction();
++  try {
++    await tx.execute({ sql: 'DELETE FROM klinik_akses WHERE user_id = ?', args: [userId] });
++    for (const id of unik) await tx.execute({ sql: 'INSERT INTO klinik_akses (user_id, klinik_id) VALUES (?, ?)', args: [userId, id] });
++    await tx.commit();
++  } catch (e) {
++    await tx.rollback().catch(() => undefined);
++    throw e;
++  } finally {
++    tx.close();
++  }
++  revalidatePath('/admin/users');
++}
+diff --git a/lib/klinik/akses.ts b/lib/klinik/akses.ts
+new file mode 100644
+index 0000000..83f9ea2
+--- /dev/null
++++ b/lib/klinik/akses.ts
+@@ -0,0 +1,68 @@
++// lib/klinik/akses.ts
++// Siapa boleh melihat/mengisi data klinik mana.
++//  * admin dan petugas (BKK): semua klinik.
++//  * petugas_klinik: HANYA klinik yang ditautkan di `klinik_akses`; tanpa tautan = tidak ada klinik (gagal tertutup).
++//  * peran lain / belum login: tidak boleh mengisi data klinik. Dashboard agregat tetap terbuka seperti semula
++//    (getAksesKlinik().semua = true), kecuali untuk petugas_klinik yang dipersempit ke kliniknya.
++// Penyaringan dilakukan di server (dataset), bukan di tampilan.
++import { getPengguna, type Pengguna } from '@/lib/auth/session';
++import { sql } from '@/lib/auth/db';
++
++export interface KlinikRingkas {
++  id: string;
++  nama_klinik: string;
++  spreadsheet_id: string | null;
++  kategori: string | null;
++}
++
++/** Kunci sumber untuk baris ICV yang diinput lewat aplikasi (terpisah dari spreadsheet_id Google Sheets). */
++export const kunciSumberApp = (klinikId: string) => `app-${klinikId}`;
++export async function pastikanKunciSumber(klinik: Pick<KlinikRingkas, 'id'>): Promise<string> {
++  return kunciSumberApp(klinik.id);
++}
++
++const KOLOM = 'k.id, k.nama_klinik, k.spreadsheet_id, k.kategori';
++
++/** Klinik yang boleh diisi/dilihat per orang untuk fitur input. null/peran lain = tidak ada. */
++export async function daftarKlinikDiizinkan(pengguna: Pengguna | null): Promise<KlinikRingkas[]> {
++  if (!pengguna) return [];
++  if (pengguna.role === 'admin' || pengguna.role === 'petugas') {
++    return sql<KlinikRingkas>(`SELECT ${KOLOM} FROM klinik_binaan k ORDER BY k.nama_klinik`);
++  }
++  if (pengguna.role === 'petugas_klinik') {
++    return sql<KlinikRingkas>(
++      `SELECT ${KOLOM} FROM klinik_binaan k JOIN klinik_akses a ON a.klinik_id = k.id WHERE a.user_id = ? ORDER BY k.nama_klinik`,
++      [pengguna.id],
++    );
++  }
++  return [];
++}
++
++/** Klinik ini bila boleh diakses orang ini, selain itu null. */
++export async function klinikBolehDiakses(pengguna: Pengguna | null, klinikId: string): Promise<KlinikRingkas | null> {
++  return (await daftarKlinikDiizinkan(pengguna)).find((k) => k.id === klinikId) ?? null;
++}
++
++// ---------------------------------------------------------------- penyempitan dashboard
++
++export interface AksesKlinik {
++  pengguna: Pengguna | null;
++  /** true = tidak dipersempit per klinik */
++  semua: boolean;
++  /** id klinik yang boleh dilihat bila semua=false */
++  klinikIds: string[];
++}
++
++export async function getAksesKlinik(): Promise<AksesKlinik> {
++  const pengguna = await getPengguna();
++  if (pengguna?.role === 'petugas_klinik') {
++    const rows = await sql<{ klinik_id: string }>('SELECT klinik_id FROM klinik_akses WHERE user_id = ?', [pengguna.id]);
++    return { pengguna, semua: false, klinikIds: rows.map((r) => r.klinik_id) };
++  }
++  return { pengguna, semua: true, klinikIds: [] };
++}
++
++/** Opsi untuk getDatasetKlinik & turunannya; undefined = semua klinik. */
++export function opsiDariAkses(a: AksesKlinik): { klinikIds: string[] } | undefined {
++  return a.semua ? undefined : { klinikIds: a.klinikIds };
++}
+diff --git a/lib/klinik/dataset-stok.ts b/lib/klinik/dataset-stok.ts
+index ca550b7..5987a36 100644
+--- a/lib/klinik/dataset-stok.ts
++++ b/lib/klinik/dataset-stok.ts
+@@ -1,6 +1,6 @@
+ // lib/klinik/dataset-stok.ts
+ import { createDbServiceClient } from '@/lib/db/serviceRole';
+-import { getStokTerbaruSemua } from './stok-queries';
++import { getStokTerbaruSemua, getSumberAktifStok, idSumberStok } from './stok-queries';
+ import {
+   hitungRingkasanKlinik,
+   RingkasanStokKlinik,
+@@ -14,7 +14,8 @@ import {
+ // Contoh: ICV sudah digantikan e-ICV di sebagian besar klinik.
+ const JENIS_DIABAIKAN_JIKA_NOL = ['icv'];
+ 
+-export async function getDatasetStokVaksin() {
++/** klinikIds: batasi ke klinik tertentu (id klinik_binaan); undefined = semua; array kosong = tidak ada. */
++export async function getDatasetStokVaksin(opsi?: { klinikIds?: string[] }) {
+   const supabase = createDbServiceClient();
+   const { data: daftarKlinik } = await supabase
+     .from('klinik_binaan')
+@@ -25,7 +26,12 @@ export async function getDatasetStokVaksin() {
+     return { ringkasan: [] as RingkasanStokKlinik[], gagalDimuat: false };
+   }
+ 
+-  const idsValid = daftarKlinik.map((k) => k.spreadsheet_id).filter(Boolean) as string[];
++  const boleh = opsi?.klinikIds ? new Set(opsi.klinikIds) : null;
++  const klinikDipakai = boleh ? daftarKlinik.filter((k) => boleh.has(k.id as string)) : daftarKlinik;
++  if (klinikDipakai.length === 0) return { ringkasan: [] as RingkasanStokKlinik[], gagalDimuat: false };
++
++  // Sheets + aplikasi: per (klinik, jenis) dipakai satu sumber saja (lihat getSumberAktifStok)
++  const idsValid = [...new Set(klinikDipakai.flatMap((k) => idSumberStok(k as never)))];
+ 
+   let gagalDimuat = false;
+   let barisMentah: Awaited<ReturnType<typeof getStokTerbaruSemua>> = [];
+@@ -48,23 +54,25 @@ export async function getDatasetStokVaksin() {
+     grup.get(kunci)!.push(b);
+   }
+ 
+-  const petaKlinik = new Map(daftarKlinik.map((k) => [k.spreadsheet_id, k]));
++  const sumberAktif = await getSumberAktifStok(klinikDipakai as never);
+   const ringkasan: RingkasanStokKlinik[] = [];
+ 
+-  for (const [kunci, baris] of grup) {
+-    const [spreadsheetId, jenisStok] = kunci.split('|');
+-    const klinik = petaKlinik.get(spreadsheetId);
+-    if (!klinik) continue;
+-
+-    ringkasan.push(
+-      hitungRingkasanKlinik(
+-        klinik.nama_klinik,
+-        jenisStok,
+-        baris.map((b) => b.data),
+-        AMBANG_STOK_TETAP_DEFAULT,
+-        AMBANG_HARI_DEFAULT
+-      )
+-    );
++  for (const klinik of klinikDipakai) {
++    for (const [kunciKJ, spreadsheetId] of sumberAktif) {
++      const [klinikId, jenisStok] = kunciKJ.split('|');
++      if (klinikId !== (klinik.id as string)) continue;
++      const baris = grup.get(spreadsheetId + '|' + jenisStok);
++      if (!baris) continue;
++      ringkasan.push(
++        hitungRingkasanKlinik(
++          klinik.nama_klinik,
++          jenisStok,
++          baris.map((b) => b.data),
++          AMBANG_STOK_TETAP_DEFAULT,
++          AMBANG_HARI_DEFAULT
++        )
++      );
++    }
+   }
+ 
+   // Buang entri jenis stok yang sisanya 0 DAN memang jenis yang boleh diabaikan kalau nol
+diff --git a/lib/klinik/dataset.ts b/lib/klinik/dataset.ts
+index 5417242..d627289 100644
+--- a/lib/klinik/dataset.ts
++++ b/lib/klinik/dataset.ts
+@@ -1,10 +1,18 @@
+ // lib/klinik/dataset.ts
+ import { createDbServiceClient } from '@/lib/db/serviceRole';
+ import { getDbClient } from '@/lib/db/client';
++import { kunciSumberApp } from './akses';
+ 
+ export type BarisIcv = Record<string, string | number | null>;
+ 
+-export async function getDatasetKlinik() {
++export interface OpsiDataset {
++  /** Batasi ke klinik tertentu (id klinik_binaan). undefined = semua. Array kosong = tidak ada klinik. */
++  klinikIds?: string[];
++}
++
++
++
++export async function getDatasetKlinik(opsi?: OpsiDataset) {
+   const supabase = createDbServiceClient();
+   const { data: daftarKlinik } = await supabase
+     .from('klinik_binaan')
+@@ -13,7 +21,15 @@ export async function getDatasetKlinik() {
+ 
+   if (!daftarKlinik || daftarKlinik.length === 0) return [];
+ 
+-  const idsValid = daftarKlinik.map((k) => k.spreadsheet_id).filter(Boolean) as string[];
++  const boleh = opsi?.klinikIds ? new Set(opsi.klinikIds) : null;
++  const daftarDipakai = boleh ? daftarKlinik.filter((k) => boleh.has(k.id as string)) : daftarKlinik;
++  if (daftarDipakai.length === 0) return [];
++
++  // Baris dari Sheets (spreadsheet_id klinik) + baris yang diinput lewat aplikasi (app:<id klinik>)
++  const idsValid = [...new Set([
++    ...(daftarDipakai.map((k) => k.spreadsheet_id).filter(Boolean) as string[]),
++    ...daftarDipakai.map((k) => kunciSumberApp(k.id as string)),
++  ])];
+ 
+   let grouped: Record<string, BarisIcv[]> = {};
+   let gagalTotal = false;
+@@ -36,9 +52,12 @@ export async function getDatasetKlinik() {
+     }
+   }
+ 
+-  return daftarKlinik.map((klinik) => ({
++  return daftarDipakai.map((klinik) => ({
+     klinik,
+-    icv: klinik.spreadsheet_id ? (grouped[klinik.spreadsheet_id] ?? []) : [],
++    icv: [
++      ...(klinik.spreadsheet_id ? (grouped[klinik.spreadsheet_id] ?? []) : []),
++      ...(klinik.spreadsheet_id === kunciSumberApp(klinik.id as string) ? [] : (grouped[kunciSumberApp(klinik.id as string)] ?? [])),
++    ],
+     gagalDimuat: gagalTotal,
+   }));
+ }
+diff --git a/lib/klinik/icv-excel.ts b/lib/klinik/icv-excel.ts
+new file mode 100644
+index 0000000..89994b8
+--- /dev/null
++++ b/lib/klinik/icv-excel.ts
+@@ -0,0 +1,110 @@
++// lib/klinik/icv-excel.ts
++//
++// Membaca berkas Excel data ICV / e-ICV (unduhan sheet lama atau template), memvalidasi tiap baris dengan validasiIcv(),
++// dan membuat template kosong. SERVER-ONLY (exceljs lewat lib/input-data/parse-excel).
++// Tanggal teks yang ambigu (mis. 02/01/2026) diselesaikan per kolom: bila ada satu saja nilai seperti 25/10/2026 di kolom itu,
++// seluruh kolom dibaca hari/bulan/tahun (tentukanUrutanKolom). Selebihnya dibaca hari/bulan/tahun (gaya Indonesia) dan ditandai.
++import ExcelJS from 'exceljs';
++import { MAKS_BARIS, MAKS_BYTE, bacaGrid, petakanKolom, type GalatBaris } from '@/lib/input-data/parse-excel';
++import { kunciJudul } from '@/lib/input-data/modul';
++import { selMentah } from '@/lib/input-data/nilai';
++import { tentukanUrutanKolom, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
++import { JUDUL_ICV, OPSI_KOMORBID, OPSI_LAYANAN, OPSI_VAKSIN, judulDikenali, kunciDokumen, validasiIcv, type MentahIcv } from './icv-input';
++
++export interface BarisSah { baris: number; nilai: Record<string, string>; peringatan: string[] }
++export interface HasilBacaIcv {
++  fatal: string | null;
++  jumlahBaris: number;
++  sah: BarisSah[];
++  galat: GalatBaris[];
++  kolomDiabaikan: string[];
++  /** urutan hari/bulan yang disimpulkan per kolom tanggal (null = tidak ada bukti, dibaca hari/bulan) */
++  urutan: Record<string, UrutanTanggal | null>;
++}
++
++const KOLOM_TANGGAL = ['Tanggal Terbit', 'Tanggal Lahir', 'Tanggal Berangkat', 'Masa Berlaku MM Sampai'];
++
++export async function bacaExcelIcv(buffer: Buffer, opsi: { hariIni?: Date } = {}): Promise<HasilBacaIcv> {
++  const kosong: HasilBacaIcv = { fatal: null, jumlahBaris: 0, sah: [], galat: [], kolomDiabaikan: [], urutan: {} };
++  if (buffer.byteLength > MAKS_BYTE) return { ...kosong, fatal: `Berkas lebih dari ${MAKS_BYTE / 1024 / 1024} MB.` };
++
++  const g = await bacaGrid(buffer);
++  if ('fatal' in g) return { ...kosong, fatal: g.fatal };
++
++  const peta = new Map<string, string>();
++  for (const j of judulDikenali()) peta.set(kunciJudul(j), j);
++  peta.set(kunciJudul('No Dokumen'), 'No Dokumen ICV / e-ICV');
++  peta.set(kunciJudul('No. Dokumen ICV'), 'No Dokumen ICV / e-ICV');
++  const pk = petakanKolom(g.grid, peta);
++  if (!pk) return { ...kosong, fatal: 'Baris judul kolom tidak ditemukan. Gunakan template dari tombol "Unduh template".' };
++
++  const ada = new Set(pk.kolomKe.values());
++  const hilang = ['No Dokumen ICV / e-ICV', 'Tanggal Terbit', 'Nama', 'Tanggal Lahir', 'Jenis Kelamin'].filter((k) => !ada.has(k));
++  if (hilang.length) return { ...kosong, kolomDiabaikan: pk.diabaikan, fatal: `Kolom wajib tidak ditemukan: ${hilang.join(', ')}.` };
++
++  // baris data -> objek mentah
++  const baris: { r: number; mentah: MentahIcv }[] = [];
++  for (let r = pk.barisJudul + 1; r < g.grid.length; r++) {
++    const row = g.grid[r];
++    const mentah: MentahIcv = {};
++    let isi = false;
++    for (const [n, nama] of pk.kolomKe) {
++      const v = selMentah(row[n]);
++      mentah[nama] = v;
++      if (v !== null && String(v).trim() !== '') isi = true;
++    }
++    if (!isi) continue;
++    if (baris.length >= MAKS_BARIS) return { ...kosong, kolomDiabaikan: pk.diabaikan, fatal: `Berkas lebih dari ${MAKS_BARIS} baris data. Pecah menjadi beberapa berkas.` };
++    baris.push({ r: r + 1, mentah }); // nomor baris 1-based seperti di Excel
++  }
++
++  // urutan hari/bulan per kolom tanggal dari seluruh isi kolom
++  const urutan: Record<string, UrutanTanggal | null> = {};
++  for (const k of KOLOM_TANGGAL) {
++    const s = tentukanUrutanKolom(baris.map((b) => b.mentah[k]));
++    urutan[k] = s.bertentangan ? null : s.urutan;
++  }
++  const bertentangan = KOLOM_TANGGAL.filter((k) => tentukanUrutanKolom(baris.map((b) => b.mentah[k])).bertentangan);
++
++  const hasil: HasilBacaIcv = { ...kosong, kolomDiabaikan: pk.diabaikan, urutan, jumlahBaris: baris.length };
++  if (bertentangan.length) {
++    return { ...hasil, fatal: `Kolom ${bertentangan.join(', ')} bercampur dua gaya tanggal (hari/bulan dan bulan/hari). Samakan format kolom itu lalu unggah ulang.` };
++  }
++
++  const terlihat = new Map<string, number>();
++  for (const b of baris) {
++    const h = validasiIcv(b.mentah, { urutan, hariIni: opsi.hariIni });
++    if (!h.nilai) { hasil.galat.push({ baris: b.r, pesan: h.galat }); continue; }
++    const kd = kunciDokumen(h.nilai['No Dokumen ICV / e-ICV']);
++    const pertama = terlihat.get(kd);
++    if (pertama !== undefined) { hasil.galat.push({ baris: b.r, pesan: [`No Dokumen ICV / e-ICV sama dengan baris ${pertama} di berkas`] }); continue; }
++    terlihat.set(kd, b.r);
++    hasil.sah.push({ baris: b.r, nilai: h.nilai, peringatan: h.peringatan });
++  }
++  return hasil;
++}
++
++export async function buatTemplateIcv(): Promise<Buffer> {
++  const wb = new ExcelJS.Workbook();
++  const ws = wb.addWorksheet('Data ICV');
++  ws.addRow(JUDUL_ICV);
++  ws.getRow(1).font = { bold: true };
++  ws.views = [{ state: 'frozen', ySplit: 1 }];
++  JUDUL_ICV.forEach((j, i) => {
++    const kol = ws.getColumn(i + 1);
++    kol.width = Math.max(14, j.length + 4);
++    if (['NIK', 'No Paspor', 'No HP', 'No HP Travel', 'No Dokumen ICV / e-ICV'].includes(j)) kol.numFmt = '@'; // teks: NIK 16 digit tidak boleh jadi angka
++  });
++  const petunjuk = wb.addWorksheet('Petunjuk');
++  for (const t of [
++    'Kolom wajib: No Dokumen ICV / e-ICV, Tanggal Terbit, Nama, Tanggal Lahir, Jenis Kelamin, dan Jenis Vaksin 1 (untuk layanan Vaksinasi).',
++    'Tanggal: HH/BB/TTTT (mis. 27/10/2026), TTTT-BB-HH, atau "27 Oktober 2026". Sel tanggal asli Excel juga diterima.',
++    'NIK dan No Paspor: format sel Teks agar digit tidak rusak. Jenis Kelamin: Laki-laki atau Perempuan. WUS (hanya Perempuan): Ya atau Tidak.',
++    `Jenis Vaksin 1-3: ${OPSI_VAKSIN.join(', ')} (di luar daftar tetap diterima dengan peringatan).`,
++    `Komorbid: satu penyakit per kolom (Komorbid 1, Komorbid 2, ... sampai Komorbid 6), jangan dipisah koma. Contoh: ${OPSI_KOMORBID.slice(0, 4).join(', ')}.`,
++    `Jenis Layanan: ${OPSI_LAYANAN.join(', ')} (kosong = Vaksinasi). KIPI: Ya atau Tidak (kosong = Tidak).`,
++    'Nomor dokumen yang sudah ada di klinik ini dilewati (tidak menimpa). Kolom lain di luar template diabaikan.',
++  ]) petunjuk.addRow([t]);
++  petunjuk.getColumn(1).width = 130;
++  return Buffer.from(await wb.xlsx.writeBuffer());
++}
+diff --git a/lib/klinik/icv-input.ts b/lib/klinik/icv-input.ts
+new file mode 100644
+index 0000000..77da152
+--- /dev/null
++++ b/lib/klinik/icv-input.ts
+@@ -0,0 +1,214 @@
++// lib/klinik/icv-input.ts
++//
++// Validasi dan normalisasi satu baris data ICV / e-ICV (form dan unggah Excel). MURNI: tanpa database, aman dipakai
++// di browser maupun server. Hasilnya adalah objek dengan KUNCI = judul kolom sheet lama ("Tanggal Terbit", "Jenis Vaksin 1",
++// "Komorbid 1", ...) karena itulah yang dibaca semua dashboard dari kolom raw_json tabel data_icv. Tanggal disimpan
++// dd/mm/yyyy, sama dengan baris hasil sinkronisasi Sheets.
++import { parseTanggal, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
++
++// Opsi dropdown, sama dengan validasi data di sheet lama (ejaan dipertahankan karena dashboard mengelompokkan menurut teks).
++export const OPSI_VAKSIN = [
++  'Meningitis', 'Yellow Fever', 'Polio', 'Influenza', 'Tifoid', 'MMR', 'Varisela', 'Dengue', 'Rabies', 'Difteria',
++  'Hepatitis A', 'Hepatitis B', 'Herpes Zoster', 'Japanese Ecephalitis', 'Kolera Oral', 'Pneumokokus', 'Rotavirus', 'Tetanus', 'Varicella',
++] as const;
++
++export const OPSI_KOMORBID = [
++  'Hipertensi', 'Diabetes', 'Penyakit Jantung', 'Penyakit Paru-paru', 'Gangguan Ginjal', 'Kanker', 'Asma', 'Anemia', 'Alergi',
++  'Leukimia', 'HIV / AIDS', 'Autoimun', 'Hipertiroid', 'Riwayat Tumor',
++] as const;
++
++export const OPSI_LAYANAN = ['Vaksinasi', 'Legalisasi', 'Kontraindikasi'] as const;
++export const OPSI_JENIS_KELAMIN = ['Laki-laki', 'Perempuan'] as const;
++
++export const MAKS_VAKSIN = 3;
++export const MAKS_KOMORBID = 6;
++
++/** Judul kolom ekspor/sheet lama, urut. Dipakai template Excel dan pemetaan judul unggahan. */
++export const JUDUL_ICV: string[] = [
++  'No', 'No Dokumen ICV / e-ICV', 'Tanggal Terbit', 'Nama', 'Tanggal Lahir', 'Jenis Kelamin', 'Kebangsaan', 'No Paspor', 'NIK',
++  'Tanggal Berangkat', 'No HP', 'Email', 'Jenis Vaksin 1', 'Jenis Vaksin 2', 'Jenis Vaksin 3', 'WUS', 'Hasil WUS',
++  'Komorbid 1', 'Komorbid 2', 'Kontraindikasi', 'Masa Berlaku MM Sampai', 'KIPI', 'Jenis Layanan', 'Nama Travel',
++  'Nama Petugas Travel', 'No HP Travel', 'Keterangan',
++];
++
++/** Judul kolom yang dikenali saat unggah (kolom Komorbid ke-3.. dst. ikut dikenali). */
++export function judulDikenali(): string[] {
++  const tambahan = Array.from({ length: MAKS_KOMORBID - 2 }, (_, i) => `Komorbid ${i + 3}`);
++  return [...JUDUL_ICV, ...tambahan].filter((j) => j !== 'No');
++}
++
++export type MentahIcv = Record<string, unknown>;
++
++export interface OpsiValidasiIcv {
++  /** Urutan hari/bulan untuk tanggal teks yang ambigu; diisi dari tentukanUrutanKolom() per kolom saat unggah. */
++  urutan?: Partial<Record<string, UrutanTanggal | null>>;
++  hariIni?: Date;
++}
++
++export interface HasilIcv {
++  /** objek siap disimpan sebagai raw_json, atau null bila ada galat */
++  nilai: Record<string, string> | null;
++  galat: string[];
++  /** hal yang diterima tetapi sebaiknya diperiksa petugas */
++  peringatan: string[];
++}
++
++const KOLOM_TANGGAL = ['Tanggal Terbit', 'Tanggal Lahir', 'Tanggal Berangkat', 'Masa Berlaku MM Sampai'] as const;
++
++const dd = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
++
++/** Sel mentah -> teks bersih. Date dari exceljs dibaca dengan komponen UTC (sel Excel tidak punya zona waktu). */
++function teks(v: unknown): string {
++  if (v === null || v === undefined) return '';
++  if (v instanceof Date) {
++    if (Number.isNaN(v.getTime())) return '';
++    return `${v.getUTCFullYear()}-${String(v.getUTCMonth() + 1).padStart(2, '0')}-${String(v.getUTCDate()).padStart(2, '0')}`;
++  }
++  return String(v).replace(/^'+/, '').replace(/\s+/g, ' ').trim();
++}
++
++const bandingkan = (a: string, b: string) => a.localeCompare(b, 'id', { sensitivity: 'base' }) === 0;
++const cocok = (nilai: string, opsi: readonly string[]) => opsi.find((o) => bandingkan(o, nilai));
++
++function normJenisKelamin(s: string): string | null {
++  const n = s.toLowerCase().replace(/[^a-z]/g, '');
++  if (['lakilaki', 'laki', 'l', 'pria', 'male', 'm'].includes(n)) return 'Laki-laki';
++  if (['perempuan', 'p', 'wanita', 'female', 'f'].includes(n)) return 'Perempuan';
++  return null;
++}
++
++const NEGATIF = new Set(['', '-', '--', 'tidak', 'tidak ada', 'tdk', 'tdk ada', 'tidak ada komorbid', 'nihil', 'none', 'no', 'n/a']);
++
++export function validasiIcv(mentah: MentahIcv, opsi: OpsiValidasiIcv = {}): HasilIcv {
++  const galat: string[] = [];
++  const peringatan: string[] = [];
++  const nilai: Record<string, string> = {};
++  const hariIni = opsi.hariIni ?? new Date();
++
++  // ---- teks wajib
++  const noDok = teks(mentah['No Dokumen ICV / e-ICV']);
++  if (!noDok) galat.push('No Dokumen ICV / e-ICV: wajib diisi');
++  else if (noDok.length > 100) galat.push('No Dokumen ICV / e-ICV: terlalu panjang');
++  nilai['No Dokumen ICV / e-ICV'] = noDok;
++
++  const nama = teks(mentah['Nama']);
++  if (!nama) galat.push('Nama: wajib diisi');
++  else if (nama.length > 255) galat.push('Nama: terlalu panjang');
++  nilai['Nama'] = nama; // huruf tidak diubah: data lama campuran
++
++  // ---- tanggal
++  for (const k of KOLOM_TANGGAL) {
++    const sel = mentah[k];
++    const wajib = k === 'Tanggal Terbit' || k === 'Tanggal Lahir';
++    const ada = !(sel === null || sel === undefined || teks(sel) === '');
++    if (!ada) {
++      if (wajib) galat.push(`${k}: wajib diisi`);
++      nilai[k] = '';
++      continue;
++    }
++    const sudahIso = sel instanceof Date ? teks(sel) : null;
++    const r = parseTanggal(sudahIso ?? (typeof sel === 'number' ? sel : teks(sel)), { urutanAmbigu: opsi.urutan?.[k] ?? 'dmy', hariIni, tahunMin: k === 'Tanggal Lahir' ? 1900 : 2000, ...(k === 'Masa Berlaku MM Sampai' ? { tahunMaks: hariIni.getFullYear() + 10 } : {}) });
++    if (!r.iso) { galat.push(`${k}: ${r.pesan ?? 'tanggal tidak valid'}`); nilai[k] = ''; continue; }
++    if (r.ambigu && !opsi.urutan?.[k]) peringatan.push(`${k}: ${r.pesan}`);
++    if (r.masaDepan && k === 'Tanggal Terbit') galat.push('Tanggal Terbit: tidak boleh di masa depan');
++    if (k === 'Tanggal Lahir' && r.masaDepan) galat.push('Tanggal Lahir: tidak boleh di masa depan');
++    nilai[k] = dd(r.iso);
++  }
++
++  // ---- jenis kelamin
++  const jk = normJenisKelamin(teks(mentah['Jenis Kelamin']));
++  if (!jk) galat.push('Jenis Kelamin: pilih Laki-laki atau Perempuan');
++  nilai['Jenis Kelamin'] = jk ?? '';
++
++  // ---- identitas
++  nilai['Kebangsaan'] = teks(mentah['Kebangsaan']) || 'Indonesia';
++  nilai['No Paspor'] = teks(mentah['No Paspor']).toUpperCase();
++
++  const nikSel = mentah['NIK'];
++  if (typeof nikSel === 'number' && Math.abs(nikSel) >= 1e15) {
++    galat.push('NIK: tersimpan sebagai angka di Excel sehingga digit belakangnya rusak. Ubah kolom NIK menjadi format Teks lalu isi ulang');
++    nilai['NIK'] = '';
++  } else {
++    const nik = teks(nikSel).replace(/[\s.-]/g, '');
++    if (nik && !/^\d+$/.test(nik)) galat.push('NIK: hanya boleh berisi angka');
++    else if (nik && nik.length !== 16 && /indonesia/i.test(nilai['Kebangsaan'])) peringatan.push(`NIK: ${nik.length} digit (seharusnya 16)`);
++    nilai['NIK'] = nik;
++  }
++
++  nilai['No HP'] = teks(mentah['No HP']).replace(/[^\d+]/g, '');
++  const email = teks(mentah['Email']);
++  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) peringatan.push('Email: bentuk tidak lazim');
++  nilai['Email'] = email;
++
++  // ---- layanan
++  const layananMentah = teks(mentah['Jenis Layanan']);
++  const layanan = layananMentah ? cocok(layananMentah, OPSI_LAYANAN) : 'Vaksinasi';
++  if (!layanan) galat.push(`Jenis Layanan: pilih salah satu dari ${OPSI_LAYANAN.join(', ')}`);
++  nilai['Jenis Layanan'] = layanan ?? '';
++
++  // ---- vaksin 1..3 (Vaksin 1 wajib untuk layanan Vaksinasi; tidak boleh ganda; boleh di luar daftar)
++  const vaksin: string[] = [];
++  for (let i = 1; i <= MAKS_VAKSIN; i++) {
++    const v = teks(mentah[`Jenis Vaksin ${i}`]);
++    if (!v) continue;
++    const baku = cocok(v, OPSI_VAKSIN) ?? v;
++    if (vaksin.some((x) => bandingkan(x, baku))) { galat.push(`Jenis Vaksin ${i}: "${baku}" sudah dipilih`); continue; }
++    if (!cocok(v, OPSI_VAKSIN)) peringatan.push(`Jenis Vaksin ${i}: "${v}" tidak ada di daftar`);
++    vaksin.push(baku);
++  }
++  for (let i = 1; i <= MAKS_VAKSIN; i++) nilai[`Jenis Vaksin ${i}`] = vaksin[i - 1] ?? '';
++  if (layanan === 'Vaksinasi' && vaksin.length === 0) galat.push('Jenis Vaksin 1: wajib diisi untuk layanan Vaksinasi');
++
++  // ---- WUS hanya untuk perempuan
++  const wus = teks(mentah['WUS']);
++  const hasilWus = teks(mentah['Hasil WUS']);
++  if (jk === 'Perempuan') {
++    const w = wus ? (bandingkan(wus, 'Ya') ? 'Ya' : bandingkan(wus, 'Tidak') ? 'Tidak' : null) : '';
++    if (w === null) galat.push('WUS: isi Ya atau Tidak');
++    nilai['WUS'] = w ?? '';
++    nilai['Hasil WUS'] = w === 'Ya' ? hasilWus : '';
++  } else {
++    nilai['WUS'] = '';
++    nilai['Hasil WUS'] = '';
++  }
++
++  // ---- komorbid: daftar bebas (bukan dipisah koma); "-"/"tidak" dianggap kosong; hapus ganda
++  const komorbid: string[] = [];
++  const kunciKomorbid = Object.keys(mentah)
++    .map((k) => /^Komorbid (\d+)$/.exec(k))
++    .filter((m): m is RegExpExecArray => !!m)
++    .map((m) => Number(m[1]))
++    .sort((a, b) => a - b);
++  for (const n of kunciKomorbid) {
++    const v = teks(mentah[`Komorbid ${n}`]);
++    if (NEGATIF.has(v.toLowerCase())) continue;
++    if (v.includes(',') || v.includes(';')) { galat.push(`Komorbid ${n}: satu penyakit per isian, jangan dipisah koma (gunakan tombol Tambah)`); continue; }
++    if (v.length > 100) { galat.push(`Komorbid ${n}: terlalu panjang`); continue; }
++    const baku = cocok(v, OPSI_KOMORBID) ?? v;
++    if (komorbid.some((x) => bandingkan(x, baku))) continue;
++    komorbid.push(baku);
++  }
++  if (komorbid.length > MAKS_KOMORBID) galat.push(`Komorbid: maksimal ${MAKS_KOMORBID} penyakit`);
++  const jumlahKolomKomorbid = Math.max(2, komorbid.length);
++  for (let i = 1; i <= jumlahKolomKomorbid; i++) nilai[`Komorbid ${i}`] = komorbid[i - 1] ?? '';
++
++  // ---- sisanya
++  nilai['Kontraindikasi'] = teks(mentah['Kontraindikasi']) || '-';
++  const kipi = teks(mentah['KIPI']);
++  const kipiBaku = kipi ? (bandingkan(kipi, 'Ya') ? 'Ya' : bandingkan(kipi, 'Tidak') ? 'Tidak' : null) : 'Tidak';
++  if (kipiBaku === null) galat.push('KIPI: isi Ya atau Tidak');
++  nilai['KIPI'] = kipiBaku ?? '';
++  for (const k of ['Nama Travel', 'Nama Petugas Travel', 'No HP Travel', 'Keterangan']) nilai[k] = teks(mentah[k]);
++
++  // ---- hubungan antar tanggal
++  const [tT, tB] = [nilai['Tanggal Terbit'], nilai['Tanggal Berangkat']];
++  if (tT && tB) {
++    const iso = (s: string) => `${s.slice(6, 10)}-${s.slice(3, 5)}-${s.slice(0, 2)}`;
++    if (iso(tB) < iso(tT)) peringatan.push('Tanggal Berangkat lebih awal dari Tanggal Terbit');
++  }
++
++  return galat.length ? { nilai: null, galat, peringatan } : { nilai, galat: [], peringatan };
++}
++
++/** Kunci pencocokan duplikat: nomor dokumen, tanpa memperhatikan huruf/spasi. */
++export const kunciDokumen = (noDokumen: string) => noDokumen.trim().replace(/\s+/g, ' ').toLowerCase();
+diff --git a/lib/klinik/icv-simpan.ts b/lib/klinik/icv-simpan.ts
+new file mode 100644
+index 0000000..3fa6442
+--- /dev/null
++++ b/lib/klinik/icv-simpan.ts
+@@ -0,0 +1,150 @@
++// lib/klinik/icv-simpan.ts
++//
++// Menyimpan data ICV / e-ICV dari aplikasi (form dan unggah Excel) ke tabel data_icv, memakai kunci sumber klinik
++// (spreadsheet_id) dan nomor baris berlanjut, sehingga seluruh dashboard yang sudah ada membacanya tanpa perubahan.
++// SERVER-ONLY. Pemeriksaan hak akses klinik dilakukan pemanggil (lib/klinik/akses.ts).
++import { getDbClient, type DbValue } from '@/lib/db/client';
++import { kunciDokumen } from './icv-input';
++import { pastikanKunciSumber, type KlinikRingkas } from './akses';
++
++export const modulRiwayatIcv = (klinikId: string) => `icv:${klinikId}`; // upload_riwayat.modul VARCHAR(40): 4 + 36
++
++const UKURAN_POTONG = 400;
++
++/** Himpunan kunciDokumen() dari nomor dokumen yang SUDAH ada untuk klinik ini. */
++export async function noDokumenSudahAda(kunciSumber: string, daftar: string[]): Promise<Set<string>> {
++  const unik = [...new Set(daftar.map((d) => d.trim()).filter(Boolean))];
++  const ada = new Set<string>();
++  for (let i = 0; i < unik.length; i += UKURAN_POTONG) {
++    const potong = unik.slice(i, i + UKURAN_POTONG);
++    const r = await getDbClient().execute({
++      sql: `SELECT no_dokumen FROM data_icv WHERE spreadsheet_id = ? AND no_dokumen IN (${potong.map(() => '?').join(',')})`,
++      args: [kunciSumber, ...potong],
++    });
++    for (const x of r.rows) ada.add(kunciDokumen(String(x.no_dokumen)));
++  }
++  return ada;
++}
++
++const sisip = `INSERT INTO data_icv (spreadsheet_id, nama_klinik, no_baris, nik, no_dokumen, raw_json, sumber, batch_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
++
++/** Tambah satu baris dari form. 'duplikat' bila nomor dokumen sudah ada di klinik ini. */
++export async function tambahIcv(klinik: KlinikRingkas, nilai: Record<string, string>): Promise<'ok' | 'duplikat'> {
++  const kunci = await pastikanKunciSumber(klinik);
++  const tx = await getDbClient().transaction();
++  try {
++    // kunci baris-baris klinik ini sambil menghitung nomor berikutnya (mencegah dua petugas mendapat nomor sama)
++    const m = await tx.execute({ sql: 'SELECT COALESCE(MAX(no_baris), 0) + 1 AS n FROM data_icv WHERE spreadsheet_id = ? FOR UPDATE', args: [kunci] });
++    const dup = await tx.execute({ sql: 'SELECT 1 FROM data_icv WHERE spreadsheet_id = ? AND no_dokumen = ? LIMIT 1', args: [kunci, nilai['No Dokumen ICV / e-ICV']] });
++    if (dup.rows.length) { await tx.rollback(); return 'duplikat'; }
++    await tx.execute({
++      sql: sisip,
++      args: [kunci, klinik.nama_klinik, Number(m.rows[0].n), nilai['NIK'] || null, nilai['No Dokumen ICV / e-ICV'], JSON.stringify(nilai), 'input', null],
++    });
++    await tx.commit();
++    return 'ok';
++  } catch (e) {
++    await tx.rollback().catch(() => undefined);
++    throw e;
++  } finally {
++    tx.close();
++  }
++}
++
++export interface HasilSimpanUnggahan { batchId: string; baru: number; dilewati: number }
++
++/** Simpan hasil unggah Excel. Nomor dokumen yang sudah ada DILEWATI (tidak menimpa data yang mungkin sudah dikoreksi). */
++export async function simpanUnggahanIcv(a: {
++  klinik: KlinikRingkas; namaFile: string; baris: Record<string, string>[]; jumlahBaris: number; jumlahDitolak: number; pengguna: string;
++}): Promise<HasilSimpanUnggahan> {
++  const kunci = await pastikanKunciSumber(a.klinik);
++  const tx = await getDbClient().transaction();
++  try {
++    const m = await tx.execute({ sql: 'SELECT COALESCE(MAX(no_baris), 0) AS n FROM data_icv WHERE spreadsheet_id = ? FOR UPDATE', args: [kunci] });
++    let no = Number(m.rows[0].n);
++    // periksa duplikat DI DALAM transaksi (setelah baris klinik terkunci)
++    const ada = new Set<string>();
++    const nomor = [...new Set(a.baris.map((b) => b['No Dokumen ICV / e-ICV']))];
++    for (let i = 0; i < nomor.length; i += UKURAN_POTONG) {
++      const potong = nomor.slice(i, i + UKURAN_POTONG);
++      const r = await tx.execute({ sql: `SELECT no_dokumen FROM data_icv WHERE spreadsheet_id = ? AND no_dokumen IN (${potong.map(() => '?').join(',')})`, args: [kunci, ...potong] });
++      for (const x of r.rows) ada.add(kunciDokumen(String(x.no_dokumen)));
++    }
++    const baru = a.baris.filter((b) => !ada.has(kunciDokumen(b['No Dokumen ICV / e-ICV'])));
++
++    const rw = await tx.execute({ sql: 'SELECT UUID() AS id' });
++    const batchId = String(rw.rows[0].id);
++    await tx.execute({
++      sql: `INSERT INTO upload_riwayat (id, modul, tahun, sumber, nama_file, jumlah_baris, jumlah_masuk, jumlah_ditolak, jumlah_diganti, dibuat_oleh) VALUES (?,?,?,?,?,?,?,?,?,?)`,
++      args: [batchId, modulRiwayatIcv(a.klinik.id), null, 'upload', a.namaFile.slice(0, 255), a.jumlahBaris, baru.length, a.jumlahDitolak, 0, a.pengguna.slice(0, 255)],
++    });
++    for (const b of baru) {
++      no += 1;
++      const args: DbValue[] = [kunci, a.klinik.nama_klinik, no, b['NIK'] || null, b['No Dokumen ICV / e-ICV'], JSON.stringify(b), 'upload', batchId];
++      await tx.execute({ sql: sisip, args });
++    }
++    await tx.commit();
++    return { batchId, baru: baru.length, dilewati: a.baris.length - baru.length };
++  } catch (e) {
++    await tx.rollback().catch(() => undefined);
++    throw e;
++  } finally {
++    tx.close();
++  }
++}
++
++/** Baris terbaru klinik ini (no_baris menurun), dengan pencarian nama/NIK/nomor dokumen. */
++export async function daftarIcvTerbaru(kunciSumber: string, o: { q?: string; halaman?: number; ukuran?: number } = {}) {
++  const ukuran = Math.min(Math.max(o.ukuran ?? 20, 1), 100);
++  const offset = (Math.max(o.halaman ?? 1, 1) - 1) * ukuran;
++  const args: DbValue[] = [kunciSumber];
++  let cari = '';
++  const q = (o.q ?? '').trim();
++  if (q) {
++    cari = ` AND (nik LIKE ? OR no_dokumen LIKE ? OR JSON_UNQUOTE(JSON_EXTRACT(raw_json, '$.Nama')) COLLATE utf8mb4_unicode_ci LIKE ?)`;
++    const pola = `%${q.replace(/[%_\\]/g, (c) => '\\' + c)}%`;
++    args.push(pola, pola, pola);
++  }
++  const db = getDbClient();
++  const [jml, isi] = await Promise.all([
++    db.execute({ sql: `SELECT COUNT(*) AS n FROM data_icv WHERE spreadsheet_id = ?${cari}`, args }),
++    db.execute({ sql: `SELECT id, no_baris, sumber, batch_id, raw_json FROM data_icv WHERE spreadsheet_id = ?${cari} ORDER BY no_baris DESC LIMIT ${ukuran} OFFSET ${offset}`, args }),
++  ]);
++  return {
++    total: Number(jml.rows[0]?.n ?? 0),
++    ukuran,
++    baris: isi.rows.map((r) => ({ id: r.id as number, noBaris: r.no_baris as number, sumber: r.sumber as string, batchId: (r.batch_id as string) ?? null, data: JSON.parse(r.raw_json as string) as Record<string, string> })),
++  };
++}
++
++export async function riwayatIcv(klinikId: string, batas = 30) {
++  const r = await getDbClient().execute({
++    sql: `SELECT id, nama_file, jumlah_baris, jumlah_masuk, jumlah_ditolak, dibuat_oleh, dibuat_pada FROM upload_riwayat WHERE modul = ? ORDER BY dibuat_pada DESC LIMIT ${Math.min(batas, 100)}`,
++    args: [modulRiwayatIcv(klinikId)],
++  });
++  return r.rows;
++}
++
++/** Batalkan satu unggahan: hapus baris yang dimasukkannya, lalu catatan riwayatnya. */
++export async function hapusBatchIcv(klinikId: string, kunciSumber: string, batchId: string): Promise<number> {
++  const tx = await getDbClient().transaction();
++  try {
++    const cek = await tx.execute({ sql: 'SELECT 1 FROM upload_riwayat WHERE id = ? AND modul = ?', args: [batchId, modulRiwayatIcv(klinikId)] });
++    if (!cek.rows.length) { await tx.rollback(); return 0; }
++    const d = await tx.execute({ sql: 'DELETE FROM data_icv WHERE batch_id = ? AND spreadsheet_id = ?', args: [batchId, kunciSumber] });
++    await tx.execute({ sql: 'DELETE FROM upload_riwayat WHERE id = ?', args: [batchId] });
++    await tx.commit();
++    return d.rowsAffected;
++  } catch (e) {
++    await tx.rollback().catch(() => undefined);
++    throw e;
++  } finally {
++    tx.close();
++  }
++}
++
++/** Hapus satu baris (hanya yang berasal dari aplikasi). */
++export async function hapusBarisIcv(kunciSumber: string, id: number): Promise<number> {
++  const d = await getDbClient().execute({ sql: `DELETE FROM data_icv WHERE id = ? AND spreadsheet_id = ? AND sumber IN ('input','upload')`, args: [id, kunciSumber] });
++  return d.rowsAffected;
++}
+diff --git a/lib/klinik/komorbid.ts b/lib/klinik/komorbid.ts
+index f7de4e2..cd0feda 100644
+--- a/lib/klinik/komorbid.ts
++++ b/lib/klinik/komorbid.ts
+@@ -11,6 +11,8 @@ export const DAFTAR_KOMORBID = [
+   { key: 'leukimia', label: 'Leukimia', warna: '#9333EA' },
+   { key: 'hiv_aids', label: 'HIV / AIDS', warna: '#BE185D' },
+   { key: 'autoimun', label: 'Autoimun', warna: '#0D9488' },
++  { key: 'hipertiroid', label: 'Hipertiroid', warna: '#F59E0B' },
++  { key: 'tumor', label: 'Riwayat Tumor', warna: '#4B5563' },
+   { key: 'lainnya', label: 'Lainnya', warna: '#6B7280' },
+ ] as const;
+ 
+@@ -37,6 +39,20 @@ export function deteksiKomorbid(nilai: string | null | undefined): KomorbidKey |
+   if (n.includes('leukimia')) return 'leukimia';
+   if (n.includes('hiv') || n.includes('aids')) return 'hiv_aids';
+   if (n.includes('autoimun')) return 'autoimun';
++  if (n.includes('hipertiroid')) return 'hipertiroid';
++  if (n.includes('tumor')) return 'tumor';
+   if (n.includes('lainnya')) return 'lainnya';
+-  return null;
++  if (TIDAK_ADA.has(n)) return null;
++  return 'lainnya'; // penyakit di luar daftar dropdown tetap terhitung, sebagai "Lainnya"
++}
++
++const TIDAK_ADA = new Set(['tidak', 'tidak ada', 'tdk', 'tdk ada', 'nihil', 'none', 'no', 'n/a', '--']);
++
++/** Semua isian komorbid satu baris: "Komorbid 1", "Komorbid 2", ... "Komorbid N" (form aplikasi bisa lebih dari 2). */
++export function komorbidDariBaris(row: Record<string, unknown>): string[] {
++  return Object.keys(row)
++    .map((k) => ({ k, m: /^Komorbid (\d+)$/.exec(k) }))
++    .filter((x): x is { k: string; m: RegExpExecArray } => !!x.m)
++    .sort((a, b) => Number(a.m[1]) - Number(b.m[1]))
++    .map((x) => String(row[x.k] ?? ''));
+ }
+\ No newline at end of file
+diff --git a/lib/klinik/ringkasanPeriode.ts b/lib/klinik/ringkasanPeriode.ts
+index 0366d1b..8bffe59 100644
+--- a/lib/klinik/ringkasanPeriode.ts
++++ b/lib/klinik/ringkasanPeriode.ts
+@@ -1,10 +1,10 @@
+ // lib/klinik/ringkasanPeriode.ts
+-import { getDatasetKlinik } from './dataset';
++import { getDatasetKlinik, type OpsiDataset } from './dataset';
+ import { hitungKepatuhanVaksin } from './kepatuhan';
+ import { periodeMingguanDariTanggal, periodeBulananDariTanggal } from '@/lib/ai/periode';
+ import { parseTanggalSheet } from './tanggal';
+ import { getStandarHariVaksin } from './pengaturan';
+-import { komorbidKosong, deteksiKomorbid } from './komorbid';
++import { komorbidKosong, deteksiKomorbid, komorbidDariBaris } from './komorbid';
+ 
+ function deteksiJenis(nama: string) {
+   const n = nama.toLowerCase();
+@@ -15,9 +15,9 @@ function deteksiJenis(nama: string) {
+   return null;
+ }
+ 
+-async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan') {
++async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan', opsi?: OpsiDataset) {
+   const standarHari = await getStandarHariVaksin(); // <-- tambah, sekali saja
+-  const dataset = await getDatasetKlinik();
++  const dataset = await getDatasetKlinik(opsi);
+   const peta = new Map<string, any>();
+   const tahunBerjalan = new Date().getUTCFullYear(); // <-- BARU: untuk filter baris lintas-tahun
+ 
+@@ -59,7 +59,7 @@ async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan'
+         if (jenis) { existing[jenis] += 1; existing.jumlah_icv += 1; }
+       }
+ 
+-      for (const nilaiKomorbid of [row['Komorbid 1'], row['Komorbid 2']]) {
++      for (const nilaiKomorbid of komorbidDariBaris(row)) {
+         const key = deteksiKomorbid(nilaiKomorbid);
+         if (key) existing[key] += 1;
+       }
+@@ -78,5 +78,5 @@ async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan'
+   return Array.from(peta.values());
+ }
+ 
+-export const getRingkasanKlinikMingguan = () => ringkasanPerKlinikPerPeriode('mingguan');
+-export const getRingkasanKlinikBulanan = () => ringkasanPerKlinikPerPeriode('bulanan');
+\ No newline at end of file
++export const getRingkasanKlinikMingguan = (opsi?: OpsiDataset) => ringkasanPerKlinikPerPeriode('mingguan', opsi);
++export const getRingkasanKlinikBulanan = (opsi?: OpsiDataset) => ringkasanPerKlinikPerPeriode('bulanan', opsi);
+\ No newline at end of file
+diff --git a/lib/klinik/stok-excel.ts b/lib/klinik/stok-excel.ts
+new file mode 100644
+index 0000000..2b78405
+--- /dev/null
++++ b/lib/klinik/stok-excel.ts
+@@ -0,0 +1,99 @@
++// lib/klinik/stok-excel.ts
++// Membaca Excel stok (ICV/e-ICV dan vaksin) -> entri tervalidasi. SERVER-ONLY (exceljs). Menerima judul kolom template
++// maupun judul tab Sheets lama ("Stok Pelayanan", "E-ICV Terbit", "Vaksin Rusak", ...); kolom "Sisa" diabaikan (dihitung ulang).
++import ExcelJS from 'exceljs';
++import { kunciJudul } from '@/lib/input-data/modul';
++import { bacaGrid, petakanKolom } from '@/lib/input-data/parse-excel';
++import { selMentah } from '@/lib/input-data/nilai';
++import { tentukanUrutanKolom, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
++import { JENIS_STOK_INPUT, validasiStok, type EntriStok } from './stok-input';
++
++const MAKS_BYTE = 10 * 1024 * 1024;
++const MAKS_BARIS = 5000;
++
++const JUDUL: [string, string[]][] = [
++  ['jenis', ['Jenis Stok', 'Jenis', 'Jenis Vaksin', 'Vaksin']],
++  ['tanggal', ['Tanggal']],
++  ['masuk', ['Stok Masuk', 'Stok Pelayanan', 'Masuk', 'Stok Baru']],
++  ['terbit', ['Terbit', 'Vaksin Terbit', 'E-ICV Terbit', 'ICV Terbit', 'e-ICV Terbit']],
++  ['rusak', ['Rusak', 'Vaksin Rusak']],
++  ['keterangan', ['Keterangan']],
++];
++
++export interface HasilBacaStok {
++  fatal: string | null;
++  jumlahBaris: number;
++  sah: { baris: number; nilai: EntriStok; peringatan: string[] }[];
++  galat: { baris: number; pesan: string[] }[];
++  kolomDiabaikan: string[];
++  urutanTanggal: UrutanTanggal | null;
++}
++
++export async function bacaExcelStok(buffer: Buffer, opsi: { hariIni?: Date; jenisBawaan?: string } = {}): Promise<HasilBacaStok> {
++  const kosong: HasilBacaStok = { fatal: null, jumlahBaris: 0, sah: [], galat: [], kolomDiabaikan: [], urutanTanggal: null };
++  if (buffer.byteLength > MAKS_BYTE) return { ...kosong, fatal: `Berkas lebih dari ${MAKS_BYTE / 1024 / 1024} MB.` };
++  const g = await bacaGrid(buffer);
++  if ('fatal' in g) return { ...kosong, fatal: g.fatal };
++
++  const peta = new Map<string, string>();
++  for (const [nama, daftar] of JUDUL) for (const j of daftar) peta.set(kunciJudul(j), nama);
++  const pk = petakanKolom(g.grid, peta);
++  if (!pk) return { ...kosong, fatal: 'Baris judul kolom tidak ditemukan. Gunakan template dari tombol "Unduh template".' };
++
++  const ada = new Set(pk.kolomKe.values());
++  if (!ada.has('tanggal')) return { ...kosong, kolomDiabaikan: pk.diabaikan, fatal: 'Kolom wajib tidak ditemukan: Tanggal.' };
++  if (!['masuk', 'terbit', 'rusak'].some((k) => ada.has(k))) {
++    return { ...kosong, kolomDiabaikan: pk.diabaikan, fatal: 'Tidak ada kolom angka: perlu salah satu dari Stok Masuk, Terbit, atau Rusak.' };
++  }
++  if (!ada.has('jenis') && !opsi.jenisBawaan) {
++    return { ...kosong, kolomDiabaikan: pk.diabaikan, fatal: 'Kolom Jenis Stok tidak ada. Tambahkan kolomnya, atau pilih jenis stok di atas sebelum memeriksa berkas.' };
++  }
++
++  const baris: { r: number; mentah: Record<string, unknown> }[] = [];
++  for (let r = pk.barisJudul + 1; r < g.grid.length; r++) {
++    const mentah: Record<string, unknown> = {};
++    for (const [n, nama] of pk.kolomKe) mentah[nama] = selMentah(g.grid[r][n]);
++    const tanpaIsi = (v: unknown) => v === null || v === undefined || String(v).trim() === '';
++    // baris yang hanya berisi tanggal (sisa templat Sheets sampai Desember) bukan data
++    if (tanpaIsi(mentah.masuk) && tanpaIsi(mentah.terbit) && tanpaIsi(mentah.rusak) && tanpaIsi(mentah.keterangan)) continue;
++    if (baris.length >= MAKS_BARIS) return { ...kosong, kolomDiabaikan: pk.diabaikan, fatal: `Berkas lebih dari ${MAKS_BARIS} baris data. Pecah menjadi beberapa berkas.` };
++    baris.push({ r: r + 1, mentah });
++  }
++
++  const sk = tentukanUrutanKolom(baris.map((b) => b.mentah.tanggal));
++  const hasil: HasilBacaStok = { ...kosong, kolomDiabaikan: pk.diabaikan, jumlahBaris: baris.length, urutanTanggal: sk.urutan };
++  if (sk.bertentangan) return { ...hasil, fatal: 'Kolom Tanggal bercampur dua gaya (hari/bulan dan bulan/hari). Samakan formatnya lalu unggah ulang.' };
++
++  const terlihat = new Map<string, number>();
++  for (const b of baris) {
++    const h = validasiStok(b.mentah, { hariIni: opsi.hariIni, urutan: sk.urutan, jenisBawaan: opsi.jenisBawaan });
++    if (!h.nilai) { hasil.galat.push({ baris: b.r, pesan: h.galat }); continue; }
++    const kunci = `${h.nilai.jenis}|${h.nilai.tanggal}`;
++    const pertama = terlihat.get(kunci);
++    if (pertama !== undefined) { hasil.galat.push({ baris: b.r, pesan: [`Jenis dan tanggal sama dengan baris ${pertama} di berkas`] }); continue; }
++    terlihat.set(kunci, b.r);
++    hasil.sah.push({ baris: b.r, nilai: h.nilai, peringatan: h.peringatan });
++  }
++  return hasil;
++}
++
++export async function buatTemplateStok(): Promise<Buffer> {
++  const wb = new ExcelJS.Workbook();
++  const ws = wb.addWorksheet('Stok');
++  ws.addRow(['Jenis Stok', 'Tanggal', 'Stok Masuk', 'Terbit', 'Rusak', 'Keterangan']);
++  ws.getRow(1).font = { bold: true };
++  ws.views = [{ state: 'frozen', ySplit: 1 }];
++  [16, 14, 12, 10, 10, 40].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
++  ws.getColumn(2).numFmt = 'dd/mm/yyyy';
++  const p = wb.addWorksheet('Petunjuk');
++  for (const t of [
++    `Jenis Stok: ${JENIS_STOK_INPUT.map((j) => j.label).join(', ')} (boleh kosong bila jenis dipilih di halaman unggah).`,
++    'Satu baris per tanggal per jenis. Stok Masuk = tambahan stok ke pelayanan pada hari itu (stok awal diisi sebagai Stok Masuk di tanggal mulai).',
++    'Terbit = jumlah yang dipakai/diterbitkan hari itu; Rusak = yang rusak. Kolom Sisa TIDAK perlu diisi (dihitung otomatis).',
++    'Tanggal: HH/BB/TTTT (mis. 27/10/2026), TTTT-BB-HH, atau "27 Oktober 2026"; tidak boleh lebih dari besok.',
++    'Tanggal yang sudah terisi di aplikasi akan DIGANTI oleh isi berkas. Unggahan ditolak bila membuat sisa stok negatif.',
++    'Judul kolom tab Sheets lama juga dikenali (Stok Pelayanan, E-ICV Terbit, Vaksin Terbit, Vaksin Rusak); kolom Sisa diabaikan.',
++  ]) p.addRow([t]);
++  p.getColumn(1).width = 130;
++  return Buffer.from(await wb.xlsx.writeBuffer());
++}
+diff --git a/lib/klinik/stok-input.ts b/lib/klinik/stok-input.ts
+new file mode 100644
+index 0000000..b9936fd
+--- /dev/null
++++ b/lib/klinik/stok-input.ts
+@@ -0,0 +1,103 @@
++// lib/klinik/stok-input.ts
++// Aturan input stok ICV/e-ICV dan vaksin. MURNI (tanpa database), aman dipakai di browser maupun server.
++// Stok adalah BUKU BESAR per (klinik, jenis): tiap hari satu baris berisi Stok Masuk, Terbit, Rusak; Sisa dihitung
++// berjalan: sisa = sisa kemarin + masuk - terbit - rusak (sama seperti rumus di Sheets lama). Stok awal klinik diisi
++// sebagai "Stok Masuk" pada tanggal mulai pemakaian aplikasi.
++import { parseTanggal, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
++
++export type KelompokStok = 'buku' | 'vaksin';
++export interface JenisStokInput { kunci: string; label: string; kelompok: KelompokStok; satuan: string }
++
++/** Kunci sama dengan stok_vaksin.jenis_stok yang dibaca dashboard (lib/klinik/agregasiStok.ts). */
++export const JENIS_STOK_INPUT: JenisStokInput[] = [
++  { kunci: 'e-icv', label: 'e-ICV', kelompok: 'buku', satuan: 'Buku' },
++  { kunci: 'icv', label: 'ICV', kelompok: 'buku', satuan: 'Buku' },
++  { kunci: 'mm', label: 'Meningitis (MM)', kelompok: 'vaksin', satuan: 'Vial' },
++  { kunci: 'yf', label: 'Yellow Fever', kelompok: 'vaksin', satuan: 'Vial' },
++  { kunci: 'polio', label: 'Polio', kelompok: 'vaksin', satuan: 'Vial' },
++  { kunci: 'flu', label: 'Influenza', kelompok: 'vaksin', satuan: 'Vial' },
++];
++export const kunciJenisValid = (k: string) => JENIS_STOK_INPUT.some((j) => j.kunci === k);
++
++const SINONIM_JENIS: [RegExp, string][] = [
++  [/^e[\s-]?icv\b/, 'e-icv'], [/^icv\b/, 'icv'], [/^(mm|meningitis)\b/, 'mm'], [/^(yf|yellow\s*fever)\b/, 'yf'],
++  [/^polio\b/, 'polio'], [/^(flu|influenza)\b/, 'flu'],
++];
++/** "Meningitis (MM)", "e-ICV", "Yellow Fever", "yf" -> kunci jenis; tidak dikenal -> null. */
++export function jenisDariTeks(v: unknown): string | null {
++  const t = String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
++  if (!t) return null;
++  for (const [re, kunci] of SINONIM_JENIS) if (re.test(t)) return kunci;
++  return null;
++}
++
++export interface EntriStok { jenis: string; tanggal: string; masuk: number; terbit: number; rusak: number; keterangan: string }
++export interface MentahStok { jenis?: unknown; tanggal?: unknown; masuk?: unknown; terbit?: unknown; rusak?: unknown; keterangan?: unknown }
++export interface HasilValidasiStok { nilai: EntriStok | null; galat: string[]; peringatan: string[] }
++
++const MAKS_ANGKA = 1_000_000;
++
++function angka(v: unknown, label: string, galat: string[]): number {
++  if (v === null || v === undefined || (typeof v === 'string' && v.trim() === '')) return 0;
++  const n = typeof v === 'number' ? v : /^\s*\d+\s*$/.test(String(v)) ? Number(String(v).trim()) : NaN;
++  if (!Number.isInteger(n) || n < 0) { galat.push(`${label}: harus bilangan bulat 0 atau lebih`); return 0; }
++  if (n > MAKS_ANGKA) { galat.push(`${label}: terlalu besar`); return 0; }
++  return n;
++}
++
++export function validasiStok(m: MentahStok, opsi: { hariIni?: Date; urutan?: UrutanTanggal | null; jenisBawaan?: string } = {}): HasilValidasiStok {
++  const galat: string[] = [];
++  const peringatan: string[] = [];
++  const hariIni = opsi.hariIni ?? new Date();
++
++  const jenis = jenisDariTeks(m.jenis) ?? (m.jenis ? null : opsi.jenisBawaan ?? null);
++  if (!jenis) galat.push(m.jenis ? `Jenis stok "${String(m.jenis)}" tidak dikenal` : 'Jenis stok wajib dipilih');
++
++  const t = parseTanggal(m.tanggal, { hariIni, urutanAmbigu: opsi.urutan ?? 'dmy' });
++  let tanggal = '';
++  if (!t.iso) galat.push(`Tanggal: ${t.pesan ?? 'tidak valid'}`);
++  else if (t.masaDepan) galat.push('Tanggal: tidak boleh lebih dari besok');
++  else { tanggal = t.iso; if (t.ambigu && !opsi.urutan) peringatan.push(`Tanggal ${tanggal}: ${t.pesan}`); }
++
++  const masuk = angka(m.masuk, 'Stok Masuk', galat);
++  const terbit = angka(m.terbit, 'Terbit', galat);
++  const rusak = angka(m.rusak, 'Rusak', galat);
++  const keterangan = String(m.keterangan ?? '').trim();
++  if (keterangan.length > 500) galat.push('Keterangan: maksimal 500 karakter');
++
++  if (galat.length || !jenis) return { nilai: null, galat, peringatan };
++  return { nilai: { jenis, tanggal, masuk, terbit, rusak, keterangan }, galat: [], peringatan };
++}
++
++export interface BarisBuku { tanggal: string; masuk: number; terbit: number; rusak: number; keterangan: string }
++
++/** Sisa berjalan untuk baris yang SUDAH terurut menurut tanggal. negatif = indeks baris pertama yang membuat sisa < 0. */
++export function hitungSisa(baris: BarisBuku[]): { sisa: number[]; negatif: { indeks: number; tanggal: string; sisa: number } | null } {
++  const sisa: number[] = [];
++  let berjalan = 0;
++  let negatif: { indeks: number; tanggal: string; sisa: number } | null = null;
++  baris.forEach((b, i) => {
++    berjalan = berjalan + b.masuk - b.terbit - b.rusak;
++    sisa.push(berjalan);
++    if (berjalan < 0 && !negatif) negatif = { indeks: i, tanggal: b.tanggal, sisa: berjalan };
++  });
++  return { sisa, negatif };
++}
++
++/** Terapkan entri ke buku (satu baris per tanggal): tambah, atau ganti baris di tanggal itu. Hasil terurut menurut tanggal. */
++export function terapkanEntri(buku: BarisBuku[], e: EntriStok, ganti: boolean): { buku: BarisBuku[]; sudahAda: boolean } {
++  const ada = buku.some((b) => b.tanggal === e.tanggal);
++  if (ada && !ganti) return { buku, sudahAda: true };
++  const baru: BarisBuku = { tanggal: e.tanggal, masuk: e.masuk, terbit: e.terbit, rusak: e.rusak, keterangan: e.keterangan };
++  const hasil = [...buku.filter((b) => b.tanggal !== e.tanggal), baru].sort((a, b) => (a.tanggal < b.tanggal ? -1 : a.tanggal > b.tanggal ? 1 : 0));
++  return { buku: hasil, sudahAda: ada };
++}
++
++const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
++
++/** Bentuk raw_json yang dibaca dashboard stok (kunci sama dengan Sheets: Tanggal, Stok Masuk, Terbit, Rusak, Sisa...). */
++export function rawJsonStok(b: BarisBuku, sisa: number): Record<string, string | number> {
++  return {
++    'Tanggal': dmy(b.tanggal), 'Stok Masuk': b.masuk, 'Terbit': b.terbit, 'Rusak': b.rusak, 'Sisa Stok (Pelayanan)': sisa, 'Keterangan': b.keterangan,
++  };
++}
+diff --git a/lib/klinik/stok-queries.ts b/lib/klinik/stok-queries.ts
+index 173af24..d71cf96 100644
+--- a/lib/klinik/stok-queries.ts
++++ b/lib/klinik/stok-queries.ts
+@@ -73,4 +73,39 @@ export async function getStokDenganFilter(
+     tanggal: row.tanggal as string,
+     data: JSON.parse(row.raw_json as string),
+   }));
+-}
+\ No newline at end of file
++}
++// ---------------------------------------------------------------- sumber stok aktif (Sheets vs aplikasi)
++// Satu klinik bisa punya buku stok dari sinkronisasi Sheets (spreadsheet_id klinik) DAN dari aplikasi (app-<id>).
++// Sisa stok adalah buku besar berjalan, jadi per (klinik, jenis) hanya SATU sumber yang dipakai: yang tanggalnya
++// paling baru; sama = aplikasi. Dengan begitu klinik yang beralih ke aplikasi tidak dihitung dua kali.
++import { kunciSumberApp } from './akses';
++
++export interface KlinikStok { id: string; nama_klinik: string; spreadsheet_id: string | null }
++
++export function idSumberStok(k: KlinikStok): string[] {
++  return [...new Set([k.spreadsheet_id, kunciSumberApp(k.id)].filter(Boolean) as string[])];
++}
++
++/** Peta `${id klinik}|${jenis}` -> spreadsheet_id sumber yang dipakai. */
++export async function getSumberAktifStok(klinik: KlinikStok[]): Promise<Map<string, string>> {
++  const ids = [...new Set(klinik.flatMap(idSumberStok))];
++  const hasil = new Map<string, string>();
++  if (ids.length === 0) return hasil;
++  const r = await getDbClient().execute({
++    sql: `SELECT spreadsheet_id, jenis_stok, MAX(tanggal) AS mx FROM stok_vaksin WHERE spreadsheet_id IN (${ids.map(() => '?').join(',')}) GROUP BY spreadsheet_id, jenis_stok`,
++    args: ids,
++  });
++  const mx = new Map<string, string>(); // `${spreadsheet_id}|${jenis}` -> tanggal terbaru
++  for (const x of r.rows) mx.set(`${x.spreadsheet_id}|${x.jenis_stok}`, String(x.mx ?? '').slice(0, 10));
++  for (const k of klinik) {
++    const app = kunciSumberApp(k.id);
++    for (const jenis of new Set([...mx.keys()].map((s) => s.split('|')[1]))) {
++      const tApp = mx.get(`${app}|${jenis}`);
++      const tSheet = k.spreadsheet_id && k.spreadsheet_id !== app ? mx.get(`${k.spreadsheet_id}|${jenis}`) : undefined;
++      if (tApp === undefined && tSheet === undefined) continue;
++      const pakaiApp = tApp !== undefined && (tSheet === undefined || tApp >= tSheet);
++      hasil.set(`${k.id}|${jenis}`, pakaiApp ? app : (k.spreadsheet_id as string));
++    }
++  }
++  return hasil;
++}
+diff --git a/lib/klinik/stok-simpan.ts b/lib/klinik/stok-simpan.ts
+new file mode 100644
+index 0000000..6ed6aae
+--- /dev/null
++++ b/lib/klinik/stok-simpan.ts
+@@ -0,0 +1,189 @@
++// lib/klinik/stok-simpan.ts
++// Penyimpanan buku stok ICV/e-ICV dan vaksin yang diinput lewat aplikasi. SERVER-ONLY.
++// Baris disimpan di stok_vaksin dengan spreadsheet_id "app-<id klinik>" (tidak pernah disentuh sinkronisasi Sheets).
++// Setiap perubahan MENULIS ULANG seluruh buku (klinik, jenis) dalam satu transaksi: no_baris mengikuti urutan tanggal dan
++// Sisa dihitung ulang, sehingga input mundur (tanggal lampau) atau penghapusan tidak merusak sisa hari-hari berikutnya.
++import { getDbClient } from '@/lib/db/client';
++import { kunciSumberApp, type KlinikRingkas } from './akses';
++import { hitungSisa, rawJsonStok, terapkanEntri, type BarisBuku, type EntriStok } from './stok-input';
++
++export const modulRiwayatStok = (klinikId: string) => `stk:${klinikId}`; // upload_riwayat.modul VARCHAR(40): 4 + 36
++
++/** Penyimpanan ditolak karena sisa stok akan negatif (mis. terbit melebihi stok yang ada). */
++export class GalatStok extends Error {}
++
++type Tx = Awaited<ReturnType<ReturnType<typeof getDbClient>['transaction']>>;
++interface BarisTersimpan extends BarisBuku { sumber: string; batchId: string | null }
++
++const fmtTanggal = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
++
++async function muatBuku(ek: Tx | ReturnType<typeof getDbClient>, kunci: string, jenis: string): Promise<BarisTersimpan[]> {
++  const r = await ek.execute({
++    sql: 'SELECT tanggal, raw_json, sumber, batch_id FROM stok_vaksin WHERE spreadsheet_id = ? AND jenis_stok = ? ORDER BY tanggal, no_baris',
++    args: [kunci, jenis],
++  });
++  return r.rows.map((x) => {
++    const j = JSON.parse(String(x.raw_json)) as Record<string, string | number>;
++    return {
++      tanggal: String(x.tanggal).slice(0, 10), masuk: Number(j['Stok Masuk'] ?? 0), terbit: Number(j['Terbit'] ?? 0),
++      rusak: Number(j['Rusak'] ?? 0), keterangan: String(j['Keterangan'] ?? ''), sumber: String(x.sumber), batchId: x.batch_id ? String(x.batch_id) : null,
++    };
++  });
++}
++
++/** Hitung sisa lalu tulis ulang seluruh buku. Melempar GalatStok bila ada hari dengan sisa negatif. */
++async function tulisBuku(tx: Tx, klinik: KlinikRingkas, jenis: string, buku: BarisTersimpan[]): Promise<void> {
++  const kunci = kunciSumberApp(klinik.id);
++  const { sisa, negatif } = hitungSisa(buku);
++  if (negatif) {
++    throw new GalatStok(`Stok tidak cukup: pada ${fmtTanggal(negatif.tanggal)} sisa menjadi ${negatif.sisa} (kurang ${-negatif.sisa}). Periksa angka Terbit/Rusak atau tambahkan Stok Masuk lebih dulu.`);
++  }
++  await tx.execute({ sql: 'DELETE FROM stok_vaksin WHERE spreadsheet_id = ? AND jenis_stok = ?', args: [kunci, jenis] });
++  for (let i = 0; i < buku.length; i++) {
++    const b = buku[i];
++    await tx.execute({
++      sql: 'INSERT INTO stok_vaksin (spreadsheet_id, nama_klinik, jenis_stok, no_baris, tanggal, sumber, batch_id, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
++      args: [kunci, klinik.nama_klinik, jenis, i + 1, b.tanggal, b.sumber, b.batchId, JSON.stringify(rawJsonStok(b, sisa[i]))],
++    });
++  }
++}
++
++async function dalamTransaksi<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
++  const tx = await getDbClient().transaction();
++  try {
++    const hasil = await fn(tx);
++    await tx.commit();
++    return hasil;
++  } catch (e) {
++    await tx.rollback().catch(() => undefined);
++    throw e;
++  } finally {
++    tx.close();
++  }
++}
++
++/** Tambah (atau ganti bila ganti=true) satu hari. 'ada' = tanggal itu sudah terisi dan ganti=false. */
++export async function simpanEntriStok(klinik: KlinikRingkas, e: EntriStok, o: { ganti?: boolean } = {}): Promise<'ok' | 'ada'> {
++  return dalamTransaksi(async (tx) => {
++    const buku = await muatBuku(tx, kunciSumberApp(klinik.id), e.jenis);
++    const { buku: baru, sudahAda } = terapkanEntri(buku, e, !!o.ganti);
++    if (sudahAda && !o.ganti) return 'ada' as const;
++    const sumberLama = new Map(buku.map((b) => [b.tanggal, b]));
++    await tulisBuku(tx, klinik, e.jenis, baru.map((b) => ({ ...b, sumber: b.tanggal === e.tanggal ? 'input' : sumberLama.get(b.tanggal)?.sumber ?? 'input', batchId: b.tanggal === e.tanggal ? null : sumberLama.get(b.tanggal)?.batchId ?? null })));
++    return 'ok' as const;
++  });
++}
++
++export async function hapusEntriStok(klinik: KlinikRingkas, jenis: string, tanggal: string): Promise<number> {
++  return dalamTransaksi(async (tx) => {
++    const buku = await muatBuku(tx, kunciSumberApp(klinik.id), jenis);
++    const sisa = buku.filter((b) => b.tanggal !== tanggal);
++    if (sisa.length === buku.length) return 0;
++    await tulisBuku(tx, klinik, jenis, sisa);
++    return 1;
++  });
++}
++
++export interface HasilUnggahanStok { batchId: string; baru: number; diganti: number }
++
++/** Berapa entri unggahan yang akan jadi baris baru dan berapa yang mengganti hari yang sudah terisi (untuk pratinjau). */
++export async function hitungRencanaStok(klinik: KlinikRingkas, entri: EntriStok[]): Promise<{ baru: number; diganti: number }> {
++  let baru = 0;
++  let diganti = 0;
++  for (const jenis of new Set(entri.map((e) => e.jenis))) {
++    const ada = new Set((await muatBuku(getDbClient(), kunciSumberApp(klinik.id), jenis)).map((b) => b.tanggal));
++    for (const e of entri.filter((x) => x.jenis === jenis)) {
++      if (ada.has(e.tanggal)) diganti++; else baru++;
++    }
++  }
++  return { baru, diganti };
++}
++
++/** Simpan hasil unggahan Excel: tiap (jenis, tanggal) menambah atau MENGGANTI hari itu; sisa dihitung ulang. Satu transaksi. */
++export async function simpanUnggahanStok(a: {
++  klinik: KlinikRingkas; namaFile: string; entri: EntriStok[]; jumlahBaris: number; jumlahDitolak: number; pengguna: string;
++}): Promise<HasilUnggahanStok> {
++  return dalamTransaksi(async (tx) => {
++    const id = (await tx.execute({ sql: 'SELECT UUID() AS id', args: [] })).rows[0].id as string;
++    let baru = 0;
++    let diganti = 0;
++    for (const jenis of new Set(a.entri.map((e) => e.jenis))) {
++      let buku: BarisTersimpan[] = await muatBuku(tx, kunciSumberApp(a.klinik.id), jenis);
++      for (const e of a.entri.filter((x) => x.jenis === jenis)) {
++        const ada = buku.some((b) => b.tanggal === e.tanggal);
++        if (ada) diganti++; else baru++;
++        const sisaMap = new Map(buku.map((b) => [b.tanggal, b]));
++        const { buku: terapan } = terapkanEntri(buku, e, true);
++        buku = terapan.map((b) => (b.tanggal === e.tanggal ? { ...b, sumber: 'upload', batchId: id } : { ...b, sumber: sisaMap.get(b.tanggal)?.sumber ?? 'upload', batchId: sisaMap.get(b.tanggal)?.batchId ?? null }));
++      }
++      await tulisBuku(tx, a.klinik, jenis, buku);
++    }
++    await tx.execute({
++      sql: `INSERT INTO upload_riwayat (id, modul, tahun, sumber, nama_file, jumlah_baris, jumlah_masuk, jumlah_ditolak, jumlah_diganti, dibuat_oleh)
++            VALUES (?, ?, NULL, 'upload', ?, ?, ?, ?, ?, ?)`,
++      args: [id, modulRiwayatStok(a.klinik.id), a.namaFile.slice(0, 255), a.jumlahBaris, baru + diganti, a.jumlahDitolak, diganti, a.pengguna.slice(0, 255)],
++    });
++    return { batchId: id, baru, diganti };
++  });
++}
++
++/** Batalkan satu unggahan: hapus hari-hari yang dimasukkannya. Hari lama yang sempat DIGANTI tidak kembali. */
++export async function hapusBatchStok(klinik: KlinikRingkas, batchId: string): Promise<number> {
++  return dalamTransaksi(async (tx) => {
++    const cek = await tx.execute({ sql: 'SELECT 1 FROM upload_riwayat WHERE id = ? AND modul = ?', args: [batchId, modulRiwayatStok(klinik.id)] });
++    if (!cek.rows.length) return 0;
++    const kunci = kunciSumberApp(klinik.id);
++    const jenisTerkena = (await tx.execute({ sql: 'SELECT DISTINCT jenis_stok FROM stok_vaksin WHERE spreadsheet_id = ? AND batch_id = ?', args: [kunci, batchId] })).rows.map((r) => String(r.jenis_stok));
++    let dihapus = 0;
++    for (const jenis of jenisTerkena) {
++      const buku = await muatBuku(tx, kunci, jenis);
++      const sisa = buku.filter((b) => b.batchId !== batchId);
++      dihapus += buku.length - sisa.length;
++      await tulisBuku(tx, klinik, jenis, sisa);
++    }
++    await tx.execute({ sql: 'DELETE FROM upload_riwayat WHERE id = ?', args: [batchId] });
++    return dihapus;
++  });
++}
++
++export async function daftarStokApp(klinikId: string, jenis: string, o: { halaman?: number; ukuran?: number } = {}) {
++  const ukuran = Math.min(Math.max(o.ukuran ?? 30, 1), 100);
++  const offset = (Math.max(o.halaman ?? 1, 1) - 1) * ukuran;
++  const kunci = kunciSumberApp(klinikId);
++  const db = getDbClient();
++  const [jml, isi] = await Promise.all([
++    db.execute({ sql: 'SELECT COUNT(*) AS n FROM stok_vaksin WHERE spreadsheet_id = ? AND jenis_stok = ?', args: [kunci, jenis] }),
++    db.execute({
++      sql: `SELECT tanggal, raw_json, sumber FROM stok_vaksin WHERE spreadsheet_id = ? AND jenis_stok = ? ORDER BY tanggal DESC, no_baris DESC LIMIT ${ukuran} OFFSET ${offset}`,
++      args: [kunci, jenis],
++    }),
++  ]);
++  return {
++    total: Number(jml.rows[0]?.n ?? 0), ukuran,
++    baris: isi.rows.map((x) => {
++      const j = JSON.parse(String(x.raw_json)) as Record<string, string | number>;
++      return { tanggal: String(x.tanggal).slice(0, 10), masuk: Number(j['Stok Masuk'] ?? 0), terbit: Number(j['Terbit'] ?? 0), rusak: Number(j['Rusak'] ?? 0), sisa: Number(j['Sisa Stok (Pelayanan)'] ?? 0), keterangan: String(j['Keterangan'] ?? ''), sumber: String(x.sumber) };
++    }),
++  };
++}
++
++/** Sisa terkini per jenis untuk buku aplikasi klinik ini. */
++export async function saldoStokApp(klinikId: string): Promise<{ jenis: string; sisa: number; tanggal: string }[]> {
++  const r = await getDbClient().execute({
++    sql: `SELECT s.jenis_stok, s.tanggal, s.raw_json FROM stok_vaksin s
++          JOIN (SELECT jenis_stok, MAX(no_baris) AS mx FROM stok_vaksin WHERE spreadsheet_id = ? GROUP BY jenis_stok) t
++            ON t.jenis_stok = s.jenis_stok AND t.mx = s.no_baris
++          WHERE s.spreadsheet_id = ?`,
++    args: [kunciSumberApp(klinikId), kunciSumberApp(klinikId)],
++  });
++  return r.rows.map((x) => ({ jenis: String(x.jenis_stok), tanggal: String(x.tanggal).slice(0, 10), sisa: Number((JSON.parse(String(x.raw_json)) as Record<string, number>)['Sisa Stok (Pelayanan)'] ?? 0) }));
++}
++
++export async function riwayatStok(klinikId: string, batas = 30) {
++  const r = await getDbClient().execute({
++    sql: `SELECT id, nama_file, jumlah_baris, jumlah_masuk, jumlah_ditolak, dibuat_oleh, dibuat_pada FROM upload_riwayat WHERE modul = ? ORDER BY dibuat_pada DESC LIMIT ${Math.min(batas, 100)}`,
++    args: [modulRiwayatStok(klinikId)],
++  });
++  return r.rows;
++}
++
+diff --git a/proxy.ts b/proxy.ts
+index f8dd58d..8aed530 100644
+--- a/proxy.ts
++++ b/proxy.ts
+@@ -20,6 +20,7 @@ const RUTE_TERLINDUNGI: RegExp[] = [
+   /^\/dashboard\/posko\/[^/]+\/input(\/|$)/,
+   /^\/lalu-lintas-orang\/input-penumpang-kapal(\/|$)/,
+   /^\/dashboard\/input-data(\/|$)/,
++  /^\/dashboard\/klinik\/input(\/|$)/,
+ ];
+ 
+ export function proxy(request: NextRequest) {
+@@ -44,5 +45,6 @@ export const config = {
+     '/dashboard/posko/:jenis/input/:path*',
+     '/lalu-lintas-orang/input-penumpang-kapal/:path*',
+     '/dashboard/input-data/:path*',
++    '/dashboard/klinik/input/:path*',
+   ],
+ };
+diff --git a/schema/mariadb/08_klinik_akses.sql b/schema/mariadb/08_klinik_akses.sql
+new file mode 100644
+index 0000000..0226d08
+--- /dev/null
++++ b/schema/mariadb/08_klinik_akses.sql
+@@ -0,0 +1,48 @@
++-- =====================================================================
++-- 08_klinik_akses.sql  (akun petugas klinik terhubung ke klinik binaan + data ICV yang diinput lewat aplikasi)
++-- Jalankan setelah 01, 02, 05, 06:
++--   node --env-file=.env.local scripts/migrate/jalankan-sql.mjs schema/mariadb/08_klinik_akses.sql
++-- Aman diulang. Tidak mengubah isi baris data yang ada (hanya mengisi kolom baru no_dokumen dari raw_json).
++--
++-- klinik_akses: satu akun petugas_klinik boleh memegang satu atau lebih klinik. Petugas klinik TANPA baris di sini
++-- tidak melihat data klinik mana pun (gagal tertutup). Admin dan petugas BKK tetap melihat semua klinik.
++--
++-- data_icv.sumber: 'sheet' (hasil sinkronisasi Google Sheets, bawaan) | 'input' (form) | 'upload' (Excel).
++-- Baris dari aplikasi memakai spreadsheet_id berawalan "app-" + id klinik, jadi sinkronisasi Sheets (bekerja per
++-- spreadsheet_id dan menghapus baris yang tidak ada lagi di Sheets) tidak pernah menyentuhnya; dashboard membaca
++-- keduanya (lib/klinik/dataset.ts). no_dokumen dipakai untuk mencegah dokumen ICV/e-ICV yang sama masuk dua kali.
++-- =====================================================================
++SET NAMES utf8mb4;
++
++CREATE TABLE IF NOT EXISTS `klinik_akses` (
++  `user_id`     CHAR(36) COLLATE utf8mb4_bin NOT NULL,
++  `klinik_id`   CHAR(36) COLLATE utf8mb4_bin NOT NULL,
++  `dibuat_pada` DATETIME NOT NULL DEFAULT UTC_TIMESTAMP(),
++  PRIMARY KEY (`user_id`, `klinik_id`),
++  KEY `idx_klinik_akses_klinik` (`klinik_id`),
++  CONSTRAINT `fk_klinik_akses_klinik` FOREIGN KEY (`klinik_id`) REFERENCES `klinik_binaan` (`id`) ON DELETE CASCADE
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
++
++ALTER TABLE `data_icv`
++  ADD COLUMN IF NOT EXISTS `no_dokumen` VARCHAR(100) NULL AFTER `nik`,
++  ADD COLUMN IF NOT EXISTS `sumber`     VARCHAR(10) NOT NULL DEFAULT 'sheet' AFTER `no_dokumen`,
++  ADD COLUMN IF NOT EXISTS `batch_id`   CHAR(36) COLLATE utf8mb4_bin NULL AFTER `sumber`;
++
++-- Isi no_dokumen untuk baris hasil sinkronisasi (dari raw_json) agar pemeriksaan duplikat juga mengenalinya.
++UPDATE `data_icv`
++   SET `no_dokumen` = NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(`raw_json`, '$."No Dokumen ICV / e-ICV"'))), '')
++ WHERE `no_dokumen` IS NULL AND JSON_VALID(`raw_json`);
++
++CREATE INDEX IF NOT EXISTS `idx_data_icv_dokumen` ON `data_icv` (`spreadsheet_id`, `no_dokumen`);
++CREATE INDEX IF NOT EXISTS `idx_data_icv_batch` ON `data_icv` (`batch_id`);
++
++-- ---------------------------------------------------------------------
++-- Stok (ICV/e-ICV dan vaksin) yang diinput lewat aplikasi: baris memakai spreadsheet_id "app-<id klinik>" (sama seperti
++-- data_icv), `sumber` 'input' | 'upload' | 'sheet', `batch_id` menunjuk upload_riwayat.id (modul "stk:<id klinik>").
++-- Sisa stok dihitung aplikasi (buku besar per klinik+jenis), tidak diketik.
++-- ---------------------------------------------------------------------
++ALTER TABLE `stok_vaksin`
++  ADD COLUMN IF NOT EXISTS `sumber`   VARCHAR(10) NOT NULL DEFAULT 'sheet' AFTER `tanggal`,
++  ADD COLUMN IF NOT EXISTS `batch_id` CHAR(36) COLLATE utf8mb4_bin NULL AFTER `sumber`;
++
++CREATE INDEX IF NOT EXISTS `idx_stok_vaksin_batch` ON `stok_vaksin` (`batch_id`);
+diff --git a/scripts/migrate/uji-klinik-icv.ts b/scripts/migrate/uji-klinik-icv.ts
+new file mode 100644
+index 0000000..e1b5fce
+--- /dev/null
++++ b/scripts/migrate/uji-klinik-icv.ts
+@@ -0,0 +1,289 @@
++// Uji input ICV/e-ICV (form + unggah Excel), akses per klinik, dan parse-tanggal bersama.
++// Bagian 1 murni. Bagian 2 butuh MariaDB berisi schema 01, 02, 05, 08.
++//   DB_USER=... DB_PASSWORD=... DB_NAME=... [DB_SOCKET=...] npx tsx --test --test-force-exit scripts/migrate/uji-klinik-icv.ts
++// Data KARANGAN (bukan data pasien); judul kolom dan bentuk nilai meniru sheet ICV lama.
++import { test, after } from 'node:test';
++import assert from 'node:assert/strict';
++import ExcelJS from 'exceljs';
++import { parseTanggal, tentukanUrutanKolom } from '../../lib/tanggal/parse-tanggal';
++import { JUDUL_ICV, validasiIcv } from '../../lib/klinik/icv-input';
++import { bacaExcelIcv, buatTemplateIcv } from '../../lib/klinik/icv-excel';
++import { deteksiKomorbid, komorbidDariBaris } from '../../lib/klinik/komorbid';
++import { daftarKlinikDiizinkan, klinikBolehDiakses, kunciSumberApp } from '../../lib/klinik/akses';
++import { daftarIcvTerbaru, hapusBatchIcv, hapusBarisIcv, noDokumenSudahAda, simpanUnggahanIcv, tambahIcv } from '../../lib/klinik/icv-simpan';
++import { getDatasetKlinik } from '../../lib/klinik/dataset';
++import { getDatasetStokVaksin } from '../../lib/klinik/dataset-stok';
++import { getDbClient, tutupDb } from '../../lib/db/client';
++import type { Pengguna } from '../../lib/auth/session';
++
++const HARI_INI = new Date(2026, 9, 29);
++
++// ---------------------------------------------------------------- Bagian 1: murni
++
++test('parse-tanggal bersama: format Indonesia/Inggris/serial, ambigu ditandai, tidak valid ditolak', () => {
++  const p = (v: unknown) => parseTanggal(v as never, { hariIni: HARI_INI });
++  assert.deepEqual(p('28/02/2026'), { iso: '2026-02-28', ambigu: false });
++  assert.equal(p('02/01/2026').iso, '2026-01-02');
++  assert.equal(p('02/01/2026').ambigu, true);
++  assert.deepEqual(p('27 Oktober 2026'), { iso: '2026-10-27', ambigu: false });
++  assert.equal(p(46322).iso, '2026-10-27');
++  assert.equal(p('13/13/2026').iso, null);
++  assert.equal(p('01/01/2099').iso, null);
++  assert.deepEqual(tentukanUrutanKolom(['02/01/2026', '28/02/2026']).urutan, 'dmy');
++  assert.equal(tentukanUrutanKolom(['25/10/2026', '10/25/2026']).bertentangan, true);
++});
++
++// Baris contoh dari sheet lama (nilai karangan)
++const BARIS_CONTOH: Record<string, unknown> = {
++  'No Dokumen ICV / e-ICV': 'E26-000002254', 'Tanggal Terbit': '02/01/2026', 'Nama': 'DEWI UJI KINDI', 'Tanggal Lahir': '28/05/1975',
++  'Jenis Kelamin': 'Perempuan', 'Kebangsaan': 'Indonesia', 'No Paspor': 'e0479084', 'NIK': '6472036805750001', 'Tanggal Berangkat': '17/01/2026',
++  'No HP': '08125520028', 'Email': 'uji@example.com', 'Jenis Vaksin 1': 'meningitis', 'Jenis Vaksin 2': 'Polio', 'WUS': 'Tidak',
++  'Kontraindikasi': '-', 'Masa Berlaku MM Sampai': '02/01/2029', 'KIPI': 'Tidak', 'Jenis Layanan': 'Vaksinasi', 'Nama Travel': 'Sejati',
++};
++
++test('validasi ICV: baris sheet lama diterima dan dinormalkan ke kunci/format dashboard', () => {
++  const h = validasiIcv(BARIS_CONTOH, { hariIni: HARI_INI });
++  assert.deepEqual(h.galat, []);
++  const n = h.nilai!;
++  assert.equal(n['Tanggal Terbit'], '02/01/2026');           // dd/mm/yyyy, sama dengan baris hasil sinkronisasi lama
++  assert.equal(n['Tanggal Lahir'], '28/05/1975');
++  assert.equal(n['Jenis Vaksin 1'], 'Meningitis');           // dibakukan menurut daftar
++  assert.equal(n['Jenis Vaksin 3'], '');
++  assert.equal(n['No Paspor'], 'E0479084');
++  assert.equal(n['WUS'], 'Tidak');
++  assert.equal(n['Komorbid 1'], ''); assert.equal(n['Komorbid 2'], '');
++  assert.ok(h.peringatan.some((x) => x.startsWith('Tanggal Terbit: ambigu')), 'tanggal ambigu harus diberi peringatan');
++});
++
++test('validasi ICV: wajib, vaksin tak boleh ganda, WUS hanya perempuan, tanggal masa depan, NIK', () => {
++  const g = (o: Record<string, unknown>) => validasiIcv({ ...BARIS_CONTOH, ...o }, { hariIni: HARI_INI });
++  assert.match(g({ 'Nama': '' }).galat.join('|'), /Nama: wajib/);
++  assert.match(g({ 'No Dokumen ICV / e-ICV': '' }).galat.join('|'), /No Dokumen/);
++  assert.match(g({ 'Jenis Vaksin 1': '', 'Jenis Vaksin 2': '' }).galat.join('|'), /Jenis Vaksin 1: wajib/);
++  assert.equal(g({ 'Jenis Vaksin 1': '', 'Jenis Vaksin 2': '', 'Jenis Layanan': 'Legalisasi' }).galat.length, 0); // bukan vaksinasi
++  assert.match(g({ 'Jenis Vaksin 2': 'meningitis' }).galat.join('|'), /sudah dipilih/);
++  assert.match(g({ 'Tanggal Terbit': '05/11/2026' }).galat.join('|'), /masa depan/);
++  assert.match(g({ 'Tanggal Terbit': '31/02/2026' }).galat.join('|'), /Tanggal Terbit/);
++  assert.match(g({ 'Jenis Kelamin': 'X' }).galat.join('|'), /Jenis Kelamin/);
++  assert.match(g({ 'NIK': '64720ABC' }).galat.join('|'), /NIK: hanya boleh berisi angka/);
++  assert.match(g({ 'NIK': '12345' }).peringatan.join('|'), /NIK: 5 digit/);
++  assert.match(g({ 'NIK': 6472036805750001 }).galat.join('|'), /NIK: tersimpan sebagai angka/);
++  const pria = g({ 'Jenis Kelamin': 'Pria', 'WUS': 'Ya', 'Hasil WUS': 'Hamil' }).nilai!;
++  assert.equal(pria['Jenis Kelamin'], 'Laki-laki'); assert.equal(pria['WUS'], ''); assert.equal(pria['Hasil WUS'], '');
++  assert.match(g({ 'WUS': 'mungkin' }).galat.join('|'), /WUS/);
++  assert.equal(g({ 'WUS': 'Ya', 'Hasil WUS': 'Hamil' }).nilai!['Hasil WUS'], 'Hamil');
++  assert.match(g({ 'Jenis Layanan': 'Lain' }).galat.join('|'), /Jenis Layanan/);
++});
++
++test('validasi ICV: komorbid bisa ditambah (bukan koma), tanpa ganda, "-" dianggap kosong', () => {
++  const g = (o: Record<string, unknown>) => validasiIcv({ ...BARIS_CONTOH, ...o }, { hariIni: HARI_INI });
++  const n = g({ 'Komorbid 1': 'hipertensi', 'Komorbid 2': 'Diabetes', 'Komorbid 3': 'Hipertiroid', 'Komorbid 4': 'diabetes', 'Komorbid 5': '-' }).nilai!;
++  assert.deepEqual([n['Komorbid 1'], n['Komorbid 2'], n['Komorbid 3'], n['Komorbid 4']], ['Hipertensi', 'Diabetes', 'Hipertiroid', undefined]);
++  assert.match(g({ 'Komorbid 1': 'Hipertensi, Diabetes' }).galat.join('|'), /jangan dipisah koma/);
++  assert.equal(g({ 'Komorbid 1': 'Penyakit Langka X' }).nilai!['Komorbid 1'], 'Penyakit Langka X'); // penyakit di luar daftar diterima
++  assert.equal(g({ 'Komorbid 1': '-' }).nilai!['Komorbid 1'], '');
++});
++
++test('validasi ICV: sel Date Excel dibaca komponen UTC (aman di zona waktu mana pun)', () => {
++  const h = validasiIcv({ ...BARIS_CONTOH, 'Tanggal Terbit': new Date(Date.UTC(2026, 9, 27)), 'Tanggal Lahir': new Date(Date.UTC(1975, 4, 28)) }, { hariIni: HARI_INI });
++  assert.deepEqual(h.galat, []);
++  assert.equal(h.nilai!['Tanggal Terbit'], '27/10/2026');
++  assert.equal(h.nilai!['Tanggal Lahir'], '28/05/1975');
++});
++
++
++test('dashboard komorbid: semua isian Komorbid N dibaca; Hipertiroid/Riwayat Tumor dikenal; penyakit lain = Lainnya', () => {
++  assert.deepEqual(komorbidDariBaris({ 'Komorbid 3': 'C', 'Komorbid 1': 'A', 'Komorbid 2': 'B', 'Nama': 'X' }), ['A', 'B', 'C']);
++  assert.equal(deteksiKomorbid('Hipertiroid'), 'hipertiroid');
++  assert.equal(deteksiKomorbid('Riwayat Tumor'), 'tumor');
++  assert.equal(deteksiKomorbid('Hipertensi'), 'hipertensi');
++  assert.equal(deteksiKomorbid('Penyakit Langka X'), 'lainnya');
++  assert.equal(deteksiKomorbid('-'), null);
++  assert.equal(deteksiKomorbid('Tidak'), null);
++  assert.equal(deteksiKomorbid(''), null);
++});
++
++// ---------------------------------------------------------------- Excel (tanpa DB)
++
++async function xlsx(rows: unknown[][], judul = JUDUL_ICV): Promise<Buffer> {
++  const wb = new ExcelJS.Workbook();
++  const ws = wb.addWorksheet('Data ICV');
++  ws.addRow(['Laporan ICV karangan']); ws.addRow([]);
++  ws.addRow(judul);
++  rows.forEach((r) => ws.addRow(r));
++  return Buffer.from(await wb.xlsx.writeBuffer());
++}
++const baris = (o: Record<string, unknown>, judul = JUDUL_ICV) => judul.map((j) => (j === 'No' ? 1 : o[j] ?? ''));
++
++test('Excel ICV: judul laporan dilewati, tanggal teks per kolom diselesaikan, duplikat dalam berkas dan galat dilaporkan', async () => {
++  const a = { ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'U-1', 'Tanggal Terbit': '25/10/2026' };           // bukti dmy
++  const b = { ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'U-2', 'Tanggal Terbit': '02/01/2026' };           // ambigu -> dmy karena kolom terbukti dmy
++  const c = { ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'U-1', 'Nama': 'DUPLIKAT DALAM BERKAS' };         // nomor sama dengan baris a
++  const d = { ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'U-4', 'Nama': '' };                                // galat
++  const h = await bacaExcelIcv(await xlsx([baris(a), baris(b), baris(c), baris(d)]), { hariIni: HARI_INI });
++  assert.equal(h.fatal, null);
++  assert.equal(h.jumlahBaris, 4);
++  assert.deepEqual(h.sah.map((s) => s.nilai['No Dokumen ICV / e-ICV']), ['U-1', 'U-2']);
++  assert.equal(h.sah[1].nilai['Tanggal Terbit'], '02/01/2026');
++  assert.equal(h.urutan['Tanggal Terbit'], 'dmy');
++  assert.equal(h.sah[1].peringatan.some((x) => x.startsWith('Tanggal Terbit: ambigu')), false); // sudah terbukti, tak perlu peringatan
++  assert.equal(h.galat.length, 2);
++  assert.match(h.galat[0].pesan[0], /sama dengan baris 4/); // nomor baris Excel (judul laporan 2 baris + judul kolom di baris 3)
++  assert.match(h.galat[1].pesan.join('|'), /Nama: wajib/);
++});
++
++test('Excel ICV: kolom tanggal bercampur dua gaya ditolak seluruhnya; bergaya bulan/hari terbukti dibaca benar', async () => {
++  const x = { ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'M-1', 'Tanggal Terbit': '10/25/2026' };
++  const y = { ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'M-2', 'Tanggal Terbit': '25/10/2026' };
++  assert.match((await bacaExcelIcv(await xlsx([baris(x), baris(y)]), { hariIni: HARI_INI })).fatal ?? '', /bercampur dua gaya/);
++  const z = { ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'M-3', 'Tanggal Terbit': '10/05/2026' };
++  const h = await bacaExcelIcv(await xlsx([baris(x), baris(z)]), { hariIni: HARI_INI });
++  assert.equal(h.urutan['Tanggal Terbit'], 'mdy');
++  assert.equal(h.sah[1].nilai['Tanggal Terbit'], '05/10/2026'); // 10/05/2026 gaya AS = 5 Oktober
++});
++
++test('Excel ICV: kolom wajib hilang, NIK sebagai angka, template terbaca kembali', async () => {
++  const tanpaNama = JUDUL_ICV.filter((j) => j !== 'Nama');
++  assert.match((await bacaExcelIcv(await xlsx([baris(BARIS_CONTOH, tanpaNama)], tanpaNama))).fatal ?? '', /Kolom wajib tidak ditemukan: Nama/);
++  const nikAngka = await bacaExcelIcv(await xlsx([baris({ ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'N-1', 'NIK': 6472036805750001 })]), { hariIni: HARI_INI });
++  assert.match(nikAngka.galat[0].pesan.join('|'), /NIK: tersimpan sebagai angka/);
++  const t = await bacaExcelIcv(await buatTemplateIcv(), { hariIni: HARI_INI });
++  assert.equal(t.fatal, null); assert.equal(t.jumlahBaris, 0);
++});
++
++// ---------------------------------------------------------------- Bagian 2: database
++
++const PENGGUNA = (role: string, id = 'u-' + role): Pengguna => ({ id, role, email: null, status: 'approved', namaLengkap: null });
++const KLINIK_A = 'UJI-KLINIK-A';
++const KLINIK_B = 'UJI-KLINIK-B';
++let idA = '', idB = '';
++
++async function siapkan() {
++  const db = getDbClient();
++  await bersihkan();
++  await db.execute({ sql: `INSERT INTO klinik_binaan (nama_klinik, kategori) VALUES (?, 'klinik'), (?, 'klinik')`, args: [KLINIK_A, KLINIK_B] });
++  const r = await db.execute({ sql: 'SELECT id, nama_klinik FROM klinik_binaan WHERE nama_klinik IN (?, ?)', args: [KLINIK_A, KLINIK_B] });
++  idA = String(r.rows.find((x) => x.nama_klinik === KLINIK_A)!.id);
++  idB = String(r.rows.find((x) => x.nama_klinik === KLINIK_B)!.id);
++}
++async function bersihkan() {
++  const db = getDbClient();
++  const r = await db.execute({ sql: 'SELECT id FROM klinik_binaan WHERE nama_klinik IN (?, ?)', args: [KLINIK_A, KLINIK_B] });
++  for (const k of r.rows) {
++    await db.execute({ sql: 'DELETE FROM data_icv WHERE spreadsheet_id = ?', args: ['app-' + k.id] });
++    await db.execute({ sql: 'DELETE FROM upload_riwayat WHERE modul = ?', args: ['icv:' + k.id] });
++  }
++  await db.execute({ sql: 'DELETE FROM klinik_akses WHERE user_id LIKE ?', args: ['uji-%'] });
++  await db.execute({ sql: 'DELETE FROM klinik_binaan WHERE nama_klinik IN (?, ?)', args: [KLINIK_A, KLINIK_B] });
++}
++after(async () => { await bersihkan(); await tutupDb(); });
++
++test('akses klinik: admin/petugas semua klinik; petugas klinik hanya yang ditautkan; lainnya tidak ada', async () => {
++  await siapkan();
++  const db = getDbClient();
++  await db.execute({ sql: 'INSERT INTO klinik_akses (user_id, klinik_id) VALUES (?, ?)', args: ['uji-pk1', idA] });
++  const nama = async (p: Pengguna | null) => (await daftarKlinikDiizinkan(p)).map((k) => k.nama_klinik).filter((n) => n.startsWith('UJI-'));
++  assert.deepEqual(await nama(PENGGUNA('petugas_klinik', 'uji-pk1')), [KLINIK_A]);
++  assert.deepEqual(await nama(PENGGUNA('petugas_klinik', 'uji-pk-lain')), []);
++  assert.deepEqual((await nama(PENGGUNA('admin'))).sort(), [KLINIK_A, KLINIK_B]);
++  assert.deepEqual((await nama(PENGGUNA('petugas'))).sort(), [KLINIK_A, KLINIK_B]);
++  assert.deepEqual(await nama(PENGGUNA('tamu')), []);
++  assert.deepEqual(await nama(null), []);
++  assert.ok(await klinikBolehDiakses(PENGGUNA('petugas_klinik', 'uji-pk1'), idA));
++  assert.equal(await klinikBolehDiakses(PENGGUNA('petugas_klinik', 'uji-pk1'), idB), null, 'tidak boleh klinik lain');
++  await db.execute({ sql: 'DELETE FROM klinik_binaan WHERE id = ?', args: [idA] }); // FK ON DELETE CASCADE membersihkan akses
++  assert.equal((await db.execute({ sql: 'SELECT COUNT(*) n FROM klinik_akses WHERE klinik_id = ?', args: [idA] })).rows[0].n, 0);
++});
++
++test('tambah satu: kunci sumber dibuat, nomor baris berlanjut, duplikat ditolak, terbaca dashboard', async () => {
++  await siapkan();
++  const k = (await daftarKlinikDiizinkan(PENGGUNA('admin'))).find((x) => x.nama_klinik === KLINIK_A)!;
++  const nilai = validasiIcv(BARIS_CONTOH, { hariIni: HARI_INI }).nilai!;
++  assert.equal(await tambahIcv(k, nilai), 'ok');
++  assert.equal(await tambahIcv(k, nilai), 'duplikat');
++  assert.equal(await tambahIcv(k, { ...nilai, 'No Dokumen ICV / e-ICV': 'E26-000002255', 'Nama': 'ANAK UJI' }), 'ok');
++  const sumber = kunciSumberApp(k.id);
++  assert.equal(sumber, 'app-' + k.id);
++  // kolom spreadsheet_id klinik (ID Google Sheets) TIDAK diubah oleh input aplikasi
++  assert.equal((await getDbClient().execute({ sql: 'SELECT spreadsheet_id FROM klinik_binaan WHERE id = ?', args: [k.id] })).rows[0].spreadsheet_id, null);
++  const d = await daftarIcvTerbaru(sumber);
++  assert.equal(d.total, 2);
++  assert.deepEqual(d.baris.map((b) => b.noBaris), [2, 1]);
++  assert.equal(d.baris[0].data['Nama'], 'ANAK UJI');
++  assert.equal(d.baris[0].sumber, 'input');
++  assert.equal((await daftarIcvTerbaru(sumber, { q: 'anak' })).total, 1);           // cari nama
++  assert.equal((await daftarIcvTerbaru(sumber, { q: '6472036805750001' })).total, 2); // cari NIK
++  assert.equal((await daftarIcvTerbaru(sumber, { q: '50%' })).total, 0);             // % bukan wildcard
++  // dashboard yang sudah ada membaca baris ini lewat getDatasetKlinik() tanpa diubah
++  const ds = (await getDatasetKlinik()).find((x) => x.klinik.nama_klinik === KLINIK_A)!;
++  assert.equal(ds.icv.length, 2);
++  assert.equal(ds.icv.find((r) => r['Nama'] === 'ANAK UJI')?.['Tanggal Terbit'], '02/01/2026');
++  assert.equal(await hapusBarisIcv(sumber, d.baris[0].id), 1);
++  assert.equal((await daftarIcvTerbaru(sumber)).total, 1);
++});
++
++test('unggah Excel: pratinjau->simpan, nomor lama dilewati, klinik lain terpisah, batalkan batch', async () => {
++  await siapkan();
++  const semua = await daftarKlinikDiizinkan(PENGGUNA('admin'));
++  const kA = semua.find((x) => x.nama_klinik === KLINIK_A)!;
++  const kB = semua.find((x) => x.nama_klinik === KLINIK_B)!;
++  const r = (id: string, nama: string) => baris({ ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': id, 'Nama': nama, 'Tanggal Terbit': '25/10/2026' });
++  const h = await bacaExcelIcv(await xlsx([r('X-1', 'SATU'), r('X-2', 'DUA'), r('X-3', 'TIGA')]), { hariIni: HARI_INI });
++  assert.equal(h.sah.length, 3);
++  const brs = h.sah.map((s) => s.nilai);
++
++  const s1 = await simpanUnggahanIcv({ klinik: kA, namaFile: 'a.xlsx', baris: brs, jumlahBaris: 3, jumlahDitolak: 0, pengguna: 'uji' });
++  assert.deepEqual([s1.baru, s1.dilewati], [3, 0]);
++  const sumberA = 'app-' + kA.id;
++  assert.equal((await noDokumenSudahAda(sumberA, ['X-1', 'x-2', 'Z'])).size, 2);
++
++  const s2 = await simpanUnggahanIcv({ klinik: kA, namaFile: 'a2.xlsx', baris: [...brs, ...[r('X-4', 'EMPAT')].map(() => h.sah[0].nilai).map((n) => ({ ...n, 'No Dokumen ICV / e-ICV': 'X-4', 'Nama': 'EMPAT' }))], jumlahBaris: 4, jumlahDitolak: 0, pengguna: 'uji' });
++  assert.deepEqual([s2.baru, s2.dilewati], [1, 3], 'nomor yang sudah ada dilewati, tidak menimpa');
++  assert.equal((await daftarIcvTerbaru(sumberA)).total, 4);
++
++  // klinik B memakai nomor yang sama tanpa bentrok (kunci duplikat berlaku per klinik)
++  const sB = await simpanUnggahanIcv({ klinik: kB, namaFile: 'b.xlsx', baris: brs, jumlahBaris: 3, jumlahDitolak: 0, pengguna: 'uji' });
++  assert.equal(sB.baru, 3);
++  assert.equal((await daftarIcvTerbaru('app-' + kB.id)).total, 3);
++  assert.equal((await daftarIcvTerbaru(sumberA)).total, 4);
++
++  // batalkan unggahan s2: hanya 1 baris barunya yang hilang; batch klinik lain tak bisa dibatalkan lewat klinik A
++  assert.equal(await hapusBatchIcv(kA.id, sumberA, sB.batchId), 0);
++  assert.equal(await hapusBatchIcv(kA.id, sumberA, s2.batchId), 1);
++  assert.equal((await daftarIcvTerbaru(sumberA)).total, 3);
++  assert.equal((await daftarIcvTerbaru('app-' + kB.id)).total, 3);
++});
++
++test('dataset dipersempit per klinik: hanya klinik diminta; kosong = tidak ada; baris Sheets dan baris aplikasi digabung tanpa ganda', async () => {
++  await siapkan();
++  const db = getDbClient();
++  // klinik A punya Sheets sungguhan (SHEET-UJI) + baris dari aplikasi; klinik B tanpa Sheets
++  await db.execute({ sql: 'UPDATE klinik_binaan SET spreadsheet_id = ? WHERE id = ?', args: ['SHEET-UJI-A', idA] });
++  await db.execute({ sql: `INSERT INTO data_icv (spreadsheet_id, nama_klinik, no_baris, nik, no_dokumen, raw_json, sumber) VALUES (?, ?, 1, NULL, 'S-1', ?, 'sheet')`,
++    args: ['SHEET-UJI-A', KLINIK_A, JSON.stringify({ 'Nama': 'DARI SHEETS', 'No Dokumen ICV / e-ICV': 'S-1' })] });
++  try {
++    const semua = await daftarKlinikDiizinkan(PENGGUNA('admin'));
++    const kA = semua.find((x) => x.nama_klinik === KLINIK_A)!;
++    const kB = semua.find((x) => x.nama_klinik === KLINIK_B)!;
++    await tambahIcv(kA, validasiIcv(BARIS_CONTOH, { hariIni: HARI_INI }).nilai!);          // baris aplikasi klinik A
++    await tambahIcv(kB, validasiIcv({ ...BARIS_CONTOH, 'No Dokumen ICV / e-ICV': 'B-1', 'Nama': 'KLINIK B' }, { hariIni: HARI_INI }).nilai!);
++
++    const hanyaA = await getDatasetKlinik({ klinikIds: [idA] });
++    assert.deepEqual(hanyaA.map((d) => d.klinik.nama_klinik), [KLINIK_A]);
++    assert.deepEqual(hanyaA[0].icv.map((r) => r['Nama']).sort(), ['DARI SHEETS', 'DEWI UJI KINDI']);   // Sheets + aplikasi, masing-masing sekali
++
++    assert.deepEqual((await getDatasetKlinik({ klinikIds: [] })).map((d) => d.klinik.nama_klinik), []); // petugas_klinik tanpa tautan
++    const gabungan = await getDatasetKlinik({ klinikIds: [idA, idB] });
++    assert.equal(gabungan.find((d) => d.klinik.nama_klinik === KLINIK_B)!.icv.length, 1);
++    assert.equal(gabungan.find((d) => d.klinik.nama_klinik === KLINIK_B)!.icv[0]['Nama'], 'KLINIK B');
++
++    // klinik yang spreadsheet_id-nya sama dengan kunci aplikasi tidak menghitung baris dua kali
++    await db.execute({ sql: 'UPDATE klinik_binaan SET spreadsheet_id = ? WHERE id = ?', args: ['app-' + idB, idB] });
++    assert.equal((await getDatasetKlinik({ klinikIds: [idB] }))[0].icv.length, 1);
++
++    // stok: daftar klinik kosong = tidak ada ringkasan
++    assert.deepEqual((await getDatasetStokVaksin({ klinikIds: [] })).ringkasan, []);
++  } finally {
++    await db.execute({ sql: 'DELETE FROM data_icv WHERE spreadsheet_id = ?', args: ['SHEET-UJI-A'] });
++  }
++});
+diff --git a/scripts/migrate/uji-klinik-stok.ts b/scripts/migrate/uji-klinik-stok.ts
+new file mode 100644
+index 0000000..d6f2510
+--- /dev/null
++++ b/scripts/migrate/uji-klinik-stok.ts
+@@ -0,0 +1,224 @@
++// Uji input stok ICV/e-ICV dan vaksin: buku besar (sisa berjalan), input mundur, stok negatif, unggah Excel, pembatalan,
++// pemilihan sumber stok (Sheets vs aplikasi). Bagian 1 murni; bagian 2 butuh MariaDB berisi schema 01, 02, 05, 08.
++//   NODE_OPTIONS="--conditions=react-server" npx tsx --test --test-force-exit scripts/migrate/uji-klinik-stok.ts
++import { test, after } from 'node:test';
++import assert from 'node:assert/strict';
++import ExcelJS from 'exceljs';
++import { hitungSisa, jenisDariTeks, terapkanEntri, validasiStok, type BarisBuku } from '../../lib/klinik/stok-input';
++import { bacaExcelStok, buatTemplateStok } from '../../lib/klinik/stok-excel';
++import { GalatStok, daftarStokApp, hapusBatchStok, hapusEntriStok, hitungRencanaStok, saldoStokApp, simpanEntriStok, simpanUnggahanStok } from '../../lib/klinik/stok-simpan';
++import { daftarKlinikDiizinkan, kunciSumberApp, type KlinikRingkas } from '../../lib/klinik/akses';
++import { getDatasetStokVaksin } from '../../lib/klinik/dataset-stok';
++import { getSumberAktifStok } from '../../lib/klinik/stok-queries';
++import { getDbClient, tutupDb } from '../../lib/db/client';
++
++const HARI_INI = new Date(2026, 9, 29);
++
++// ---------------------------------------------------------------- Bagian 1: murni
++
++test('sisa berjalan seperti rumus Sheets (sheet: 119 masuk, terbit 0, lalu 30, 25 -> 119, 89, 64)', () => {
++  const b: BarisBuku[] = [
++    { tanggal: '2026-01-01', masuk: 119, terbit: 0, rusak: 0, keterangan: '' },
++    { tanggal: '2026-01-02', masuk: 0, terbit: 30, rusak: 0, keterangan: '' },
++    { tanggal: '2026-01-03', masuk: 0, terbit: 25, rusak: 0, keterangan: '' },
++    { tanggal: '2026-01-04', masuk: 0, terbit: 1, rusak: 0, keterangan: '' },
++    { tanggal: '2026-01-05', masuk: 100, terbit: 34, rusak: 0, keterangan: '' },
++  ];
++  assert.deepEqual(hitungSisa(b).sisa, [119, 89, 64, 63, 129]);
++  assert.equal(hitungSisa([{ tanggal: '2026-01-01', masuk: 5, terbit: 4, rusak: 3, keterangan: '' }]).negatif?.sisa, -2);
++});
++
++test('terapkanEntri: tambah, tolak tanggal ganda tanpa ganti, ganti, urut tanggal', () => {
++  const dasar: BarisBuku[] = [{ tanggal: '2026-01-05', masuk: 10, terbit: 0, rusak: 0, keterangan: '' }];
++  const e = { jenis: 'mm', tanggal: '2026-01-02', masuk: 1, terbit: 0, rusak: 0, keterangan: '' };
++  assert.deepEqual(terapkanEntri(dasar, e, false).buku.map((x) => x.tanggal), ['2026-01-02', '2026-01-05']);
++  assert.equal(terapkanEntri(dasar, { ...e, tanggal: '2026-01-05' }, false).sudahAda, true);
++  assert.equal(terapkanEntri(dasar, { ...e, tanggal: '2026-01-05', masuk: 99 }, true).buku[0].masuk, 99);
++});
++
++test('validasi: jenis, tanggal, angka; masa depan dan angka tidak sah ditolak', () => {
++  const ok = validasiStok({ jenis: 'e-icv', tanggal: '2026-10-27', masuk: '119', terbit: 30, rusak: '', keterangan: ' booster ' }, { hariIni: HARI_INI });
++  assert.deepEqual(ok.nilai, { jenis: 'e-icv', tanggal: '2026-10-27', masuk: 119, terbit: 30, rusak: 0, keterangan: 'booster' });
++  assert.equal(validasiStok({ jenis: 'mm', tanggal: '27/10/2026', masuk: 1 }, { hariIni: HARI_INI }).nilai?.tanggal, '2026-10-27');
++  assert.match(validasiStok({ jenis: 'mm', tanggal: '2026-12-31', masuk: 1 }, { hariIni: HARI_INI }).galat.join(), /besok/);
++  assert.match(validasiStok({ jenis: 'mm', tanggal: '2026-10-27', terbit: '-3' }, { hariIni: HARI_INI }).galat.join(), /Terbit/);
++  assert.match(validasiStok({ jenis: 'mm', tanggal: '2026-10-27', terbit: '1,5' }, { hariIni: HARI_INI }).galat.join(), /Terbit/);
++  assert.match(validasiStok({ jenis: 'mm', tanggal: '2026-10-27', terbit: 1.5 }, { hariIni: HARI_INI }).galat.join(), /Terbit/);
++  assert.match(validasiStok({ jenis: 'racun', tanggal: '2026-10-27' }, { hariIni: HARI_INI }).galat.join(), /tidak dikenal/);
++  assert.match(validasiStok({ tanggal: '2026-10-27' }, { hariIni: HARI_INI }).galat.join(), /wajib dipilih/);
++  assert.equal(validasiStok({ tanggal: '2026-10-27', masuk: 1 }, { hariIni: HARI_INI, jenisBawaan: 'yf' }).nilai?.jenis, 'yf');
++});
++
++test('jenisDariTeks: nama tab/label Sheets dikenali', () => {
++  for (const [t, k] of [['e-ICV', 'e-icv'], ['E-ICV', 'e-icv'], ['eicv', 'e-icv'], ['ICV', 'icv'], ['Meningitis (MM)', 'mm'], ['MM', 'mm'], ['Yellow Fever', 'yf'], ['YF', 'yf'], ['Polio', 'polio'], ['Influenza', 'flu'], ['flu', 'flu']]) assert.equal(jenisDariTeks(t), k, t);
++  assert.equal(jenisDariTeks('Rabies'), null);
++  assert.equal(jenisDariTeks(''), null);
++});
++
++async function buku(baris: unknown[][]): Promise<Buffer> {
++  const wb = new ExcelJS.Workbook();
++  const ws = wb.addWorksheet('Stok E-ICV');
++  baris.forEach((b) => ws.addRow(b));
++  return Buffer.from(await wb.xlsx.writeBuffer());
++}
++
++test('Excel berjudul tab Sheets lama (Tanggal, Stok Masuk, E-ICV Terbit, Sisa): baris templat kosong dilewati, Sisa diabaikan', async () => {
++  const b = await buku([
++    ['Laporan stok e-ICV'], [],
++    ['Tanggal', 'Stok Masuk', 'E-ICV Terbit', 'Sisa'],
++    ['01/01/2026', 119, 0, 119], ['02/01/2026', '', 30, 89], ['03/01/2026', '', 25, 64], ['04/01/2026', '', '', 64], ['05/01/2026', 100, 34, 129],
++  ]);
++  const h = await bacaExcelStok(b, { hariIni: HARI_INI, jenisBawaan: 'e-icv' });
++  assert.equal(h.fatal, null);
++  assert.equal(h.jumlahBaris, 4); // 04/01 tanpa angka = sisa templat, bukan data
++  assert.equal(h.sah.length, 4, JSON.stringify(h.galat));
++  assert.deepEqual(h.sah.map((s) => [s.nilai.tanggal, s.nilai.masuk, s.nilai.terbit]), [['2026-01-01', 119, 0], ['2026-01-02', 0, 30], ['2026-01-03', 0, 25], ['2026-01-05', 100, 34]]);
++  assert.ok(h.kolomDiabaikan.includes('Sisa'));
++  // tanpa kolom jenis dan tanpa jenis bawaan = ditolak dengan petunjuk
++  assert.match((await bacaExcelStok(b, { hariIni: HARI_INI })).fatal ?? '', /Jenis Stok/);
++});
++
++test('Excel template: kolom jenis per baris; tanggal ganda dan tanggal masa depan ditolak per baris; gaya tanggal bercampur ditolak', async () => {
++  const b = await buku([
++    ['Jenis Stok', 'Tanggal', 'Stok Masuk', 'Terbit', 'Rusak', 'Keterangan'],
++    ['Meningitis (MM)', '27/10/2026', 50, 0, 0, 'awal'], ['MM', '27/10/2026', 1, 0, 0, ''], ['Polio', '28/10/2026', 5, 1, 0, ''],
++    ['Rabies', '27/10/2026', 5, 0, 0, ''], ['Flu', '01/12/2026', 5, 0, 0, ''],
++  ]);
++  const h = await bacaExcelStok(b, { hariIni: HARI_INI });
++  assert.equal(h.sah.length, 2);
++  assert.equal(h.galat.length, 3);
++  const pesan = h.galat.map((g) => g.pesan.join(' '));
++  assert.ok(pesan.some((p) => /sama dengan baris/.test(p)));
++  assert.ok(pesan.some((p) => /tidak dikenal/.test(p)));
++  assert.ok(pesan.some((p) => /besok/.test(p)));
++  const campur = await buku([['Tanggal', 'Terbit'], ['25/10/2026', 1], ['10/25/2026', 1]]);
++  assert.match((await bacaExcelStok(campur, { hariIni: HARI_INI, jenisBawaan: 'mm' })).fatal ?? '', /bercampur/);
++  const t = await bacaExcelStok(await buatTemplateStok(), { hariIni: HARI_INI });
++  assert.equal(t.fatal, null);
++  assert.equal(t.jumlahBaris, 0);
++});
++
++// ---------------------------------------------------------------- Bagian 2: database
++
++const NAMA_A = 'UJI-STOK-A';
++const NAMA_B = 'UJI-STOK-B';
++let A: KlinikRingkas;
++let B: KlinikRingkas;
++
++async function bersihkan() {
++  const db = getDbClient();
++  const r = await db.execute({ sql: 'SELECT id FROM klinik_binaan WHERE nama_klinik IN (?, ?)', args: [NAMA_A, NAMA_B] });
++  for (const x of r.rows) {
++    await db.execute({ sql: 'DELETE FROM stok_vaksin WHERE spreadsheet_id = ?', args: [kunciSumberApp(String(x.id))] });
++    await db.execute({ sql: 'DELETE FROM upload_riwayat WHERE modul = ?', args: ['stk:' + String(x.id)] });
++  }
++  await db.execute({ sql: 'DELETE FROM stok_vaksin WHERE spreadsheet_id IN (?, ?)', args: ['SHEET-UJI-STOK-A', 'SHEET-UJI-STOK-B'] });
++  await db.execute({ sql: 'DELETE FROM klinik_binaan WHERE nama_klinik IN (?, ?)', args: [NAMA_A, NAMA_B] });
++}
++async function siapkan() {
++  const db = getDbClient();
++  await bersihkan();
++  await db.execute({ sql: `INSERT INTO klinik_binaan (nama_klinik, kategori) VALUES (?, 'klinik'), (?, 'klinik')`, args: [NAMA_A, NAMA_B] });
++  const hasil = await daftarKlinikDiizinkan({ id: 'u', role: 'admin', email: null, status: 'approved', namaLengkap: null });
++  A = hasil.find((k) => k.nama_klinik === NAMA_A)!;
++  B = hasil.find((k) => k.nama_klinik === NAMA_B)!;
++}
++after(async () => { await bersihkan(); await tutupDb(); });
++
++const E = (jenis: string, tanggal: string, masuk = 0, terbit = 0, rusak = 0, keterangan = '') => ({ jenis, tanggal, masuk, terbit, rusak, keterangan });
++
++test('buku stok: sisa berjalan, ganti hari, input mundur menghitung ulang, stok negatif ditolak tanpa mengubah apa pun', async () => {
++  await siapkan();
++  assert.equal(await simpanEntriStok(A, E('mm', '2026-10-01', 100)), 'ok');
++  assert.equal(await simpanEntriStok(A, E('mm', '2026-10-03', 0, 30, 2)), 'ok');
++  assert.equal(await simpanEntriStok(A, E('mm', '2026-10-03', 0, 1)), 'ada');           // tanggal sudah terisi, tidak menimpa diam-diam
++  let d = await daftarStokApp(A.id, 'mm');
++  assert.deepEqual(d.baris.map((x) => [x.tanggal, x.sisa]), [['2026-10-03', 68], ['2026-10-01', 100]]);
++
++  // input mundur: hari tengah menggeser sisa hari sesudahnya
++  assert.equal(await simpanEntriStok(A, E('mm', '2026-10-02', 0, 10)), 'ok');
++  d = await daftarStokApp(A.id, 'mm');
++  assert.deepEqual(d.baris.map((x) => [x.tanggal, x.sisa]), [['2026-10-03', 58], ['2026-10-02', 90], ['2026-10-01', 100]]);
++
++  // ganti hari yang ada
++  assert.equal(await simpanEntriStok(A, E('mm', '2026-10-03', 0, 5, 0, 'koreksi'), { ganti: true }), 'ok');
++  assert.equal((await daftarStokApp(A.id, 'mm')).baris[0].sisa, 85);
++  assert.equal((await daftarStokApp(A.id, 'mm')).baris[0].keterangan, 'koreksi');
++
++  // stok negatif: ditolak dan buku tidak berubah
++  await assert.rejects(simpanEntriStok(A, E('mm', '2026-10-04', 0, 500)), (e: unknown) => e instanceof GalatStok && /Stok tidak cukup/.test((e as Error).message));
++  assert.equal((await daftarStokApp(A.id, 'mm')).total, 3);
++  // input mundur yang membuat hari sesudahnya negatif juga ditolak
++  await assert.rejects(simpanEntriStok(A, E('mm', '2026-10-02', 0, 98), { ganti: true }), GalatStok); // 100-98=2, lalu 10-03 terbit 5 -> -3
++  assert.equal((await daftarStokApp(A.id, 'mm')).baris[1].sisa, 90);
++
++  // jenis lain dan klinik lain terpisah
++  assert.equal(await simpanEntriStok(A, E('yf', '2026-10-01', 7)), 'ok');
++  assert.equal(await simpanEntriStok(B, E('mm', '2026-10-01', 3)), 'ok');
++  assert.deepEqual((await saldoStokApp(A.id)).map((s) => [s.jenis, s.sisa]).sort(), [['mm', 85], ['yf', 7]]);
++  assert.deepEqual((await saldoStokApp(B.id)).map((s) => [s.jenis, s.sisa]), [['mm', 3]]);
++
++  // hapus satu hari menghitung ulang; menghapus hari yang membuat sisa negatif ditolak
++  assert.equal(await hapusEntriStok(A, 'mm', '2026-10-02'), 1);
++  assert.equal((await daftarStokApp(A.id, 'mm')).baris[0].sisa, 95);
++  await assert.rejects(hapusEntriStok(A, 'mm', '2026-10-01'), GalatStok); // buang stok awal -> sisa negatif
++  assert.equal(await hapusEntriStok(A, 'mm', '2099-01-01'), 0);
++});
++
++test('unggah Excel stok: pratinjau = hasil simpan; ganti hari lama; batalkan hanya hari yang dimasukkan unggahan', async () => {
++  await siapkan();
++  await simpanEntriStok(A, E('e-icv', '2026-01-01', 119));
++  const entri = [E('e-icv', '2026-01-01', 119), E('e-icv', '2026-01-02', 0, 30), E('e-icv', '2026-01-03', 0, 25), E('icv', '2026-01-01', 10)];
++  const rencana = await hitungRencanaStok(A, entri);
++  assert.deepEqual(rencana, { baru: 3, diganti: 1 });
++  const r = await simpanUnggahanStok({ klinik: A, namaFile: 'stok.xlsx', entri, jumlahBaris: 4, jumlahDitolak: 0, pengguna: 'uji' });
++  assert.deepEqual([r.baru, r.diganti], [3, 1]);
++  assert.deepEqual((await daftarStokApp(A.id, 'e-icv')).baris.map((x) => x.sisa), [64, 89, 119]);
++
++  // pembatalan menghapus semua hari yang dimasukkan unggahan itu (termasuk hari yang diganti)
++  assert.equal(await hapusBatchStok(A, r.batchId), 4);
++  assert.equal((await daftarStokApp(A.id, 'e-icv')).total, 0);
++
++  // unggahan yang membuat sisa negatif ditolak seluruhnya (tidak ada yang tersimpan)
++  await assert.rejects(simpanUnggahanStok({ klinik: A, namaFile: 'x.xlsx', entri: [E('mm', '2026-02-01', 5), E('mm', '2026-02-02', 0, 9)], jumlahBaris: 2, jumlahDitolak: 0, pengguna: 'uji' }), GalatStok);
++  assert.equal((await daftarStokApp(A.id, 'mm')).total, 0);
++  assert.equal(Number((await getDbClient().execute({ sql: 'SELECT COUNT(*) n FROM upload_riwayat WHERE modul = ?', args: ['stk:' + A.id] })).rows[0].n), 0);
++});
++
++test('dashboard stok: sumber aktif = yang tanggalnya terbaru (sama = aplikasi); klinik dipersempit; tidak dihitung ganda', async () => {
++  await siapkan();
++  const db = getDbClient();
++  await db.execute({ sql: 'UPDATE klinik_binaan SET spreadsheet_id = ? WHERE id = ?', args: ['SHEET-UJI-STOK-A', A.id] });
++  const sheetRow = (no: number, tgl: string, sisa: number) => db.execute({
++    sql: `INSERT INTO stok_vaksin (spreadsheet_id, nama_klinik, jenis_stok, no_baris, tanggal, sumber, raw_json) VALUES ('SHEET-UJI-STOK-A', ?, 'mm', ?, ?, 'sheet', ?)`,
++    args: [NAMA_A, no, tgl, JSON.stringify({ 'Tanggal': tgl, 'Vaksin Terbit': 5, 'Vaksin Rusak': 0, 'Sisa Stok (Pelayanan)': sisa })],
++  });
++  await sheetRow(1, '2026-09-29', 40); await sheetRow(2, '2026-09-30', 35);
++
++  const kl = [{ id: A.id, nama_klinik: NAMA_A, spreadsheet_id: 'SHEET-UJI-STOK-A' }];
++  // hanya Sheets
++  assert.equal((await getSumberAktifStok(kl)).get(`${A.id}|mm`), 'SHEET-UJI-STOK-A');
++  let r = (await getDatasetStokVaksin({ klinikIds: [A.id] })).ringkasan.filter((x) => x.jenisStok === 'mm');
++  assert.deepEqual(r.map((x) => x.sisaStokTerkini), [35]);
++
++  // aplikasi dengan data lebih baru mengambil alih; Sheets tidak ikut dihitung
++  await simpanEntriStok(A, E('mm', '2026-10-05', 20, 4));
++  assert.equal((await getSumberAktifStok(kl)).get(`${A.id}|mm`), kunciSumberApp(A.id));
++  r = (await getDatasetStokVaksin({ klinikIds: [A.id] })).ringkasan.filter((x) => x.jenisStok === 'mm');
++  assert.deepEqual(r.map((x) => x.sisaStokTerkini), [16]);
++  assert.equal(r[0].totalTerbit, 4);
++
++  // aplikasi lebih lama dari Sheets -> Sheets tetap dipakai
++  await bersihkan(); await siapkan();
++  await db.execute({ sql: 'UPDATE klinik_binaan SET spreadsheet_id = ? WHERE id = ?', args: ['SHEET-UJI-STOK-A', A.id] });
++  await sheetRow(1, '2026-10-20', 12);
++  await simpanEntriStok(A, E('mm', '2026-10-01', 9));
++  const kl2 = [{ id: A.id, nama_klinik: NAMA_A, spreadsheet_id: 'SHEET-UJI-STOK-A' }]; // klinik dibuat ulang: id baru
++  assert.equal((await getSumberAktifStok(kl2)).get(`${A.id}|mm`), 'SHEET-UJI-STOK-A');
++
++  // dipersempit: klinik B tidak ikut; daftar kosong = tidak ada
++  await simpanEntriStok(B, E('mm', '2026-10-05', 3));
++  const hanyaB = (await getDatasetStokVaksin({ klinikIds: [B.id] })).ringkasan;
++  assert.deepEqual(hanyaB.map((x) => x.namaKlinik), [NAMA_B]);
++  assert.deepEqual((await getDatasetStokVaksin({ klinikIds: [] })).ringkasan, []);
++});

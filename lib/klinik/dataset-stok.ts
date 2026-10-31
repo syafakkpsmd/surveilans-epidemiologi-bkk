@@ -1,6 +1,6 @@
 // lib/klinik/dataset-stok.ts
 import { createDbServiceClient } from '@/lib/db/serviceRole';
-import { getStokTerbaruSemua } from './stok-queries';
+import { getStokTerbaruSemua, getSumberAktifStok, idSumberStok } from './stok-queries';
 import {
   hitungRingkasanKlinik,
   RingkasanStokKlinik,
@@ -14,7 +14,8 @@ import {
 // Contoh: ICV sudah digantikan e-ICV di sebagian besar klinik.
 const JENIS_DIABAIKAN_JIKA_NOL = ['icv'];
 
-export async function getDatasetStokVaksin() {
+/** klinikIds: batasi ke klinik tertentu (id klinik_binaan); undefined = semua; array kosong = tidak ada. */
+export async function getDatasetStokVaksin(opsi?: { klinikIds?: string[] }) {
   const supabase = createDbServiceClient();
   const { data: daftarKlinik } = await supabase
     .from('klinik_binaan')
@@ -25,7 +26,12 @@ export async function getDatasetStokVaksin() {
     return { ringkasan: [] as RingkasanStokKlinik[], gagalDimuat: false };
   }
 
-  const idsValid = daftarKlinik.map((k) => k.spreadsheet_id).filter(Boolean) as string[];
+  const boleh = opsi?.klinikIds ? new Set(opsi.klinikIds) : null;
+  const klinikDipakai = boleh ? daftarKlinik.filter((k) => boleh.has(k.id as string)) : daftarKlinik;
+  if (klinikDipakai.length === 0) return { ringkasan: [] as RingkasanStokKlinik[], gagalDimuat: false };
+
+  // Sheets + aplikasi: per (klinik, jenis) dipakai satu sumber saja (lihat getSumberAktifStok)
+  const idsValid = [...new Set(klinikDipakai.flatMap((k) => idSumberStok(k as never)))];
 
   let gagalDimuat = false;
   let barisMentah: Awaited<ReturnType<typeof getStokTerbaruSemua>> = [];
@@ -48,23 +54,25 @@ export async function getDatasetStokVaksin() {
     grup.get(kunci)!.push(b);
   }
 
-  const petaKlinik = new Map(daftarKlinik.map((k) => [k.spreadsheet_id, k]));
+  const sumberAktif = await getSumberAktifStok(klinikDipakai as never);
   const ringkasan: RingkasanStokKlinik[] = [];
 
-  for (const [kunci, baris] of grup) {
-    const [spreadsheetId, jenisStok] = kunci.split('|');
-    const klinik = petaKlinik.get(spreadsheetId);
-    if (!klinik) continue;
-
-    ringkasan.push(
-      hitungRingkasanKlinik(
-        klinik.nama_klinik,
-        jenisStok,
-        baris.map((b) => b.data),
-        AMBANG_STOK_TETAP_DEFAULT,
-        AMBANG_HARI_DEFAULT
-      )
-    );
+  for (const klinik of klinikDipakai) {
+    for (const [kunciKJ, spreadsheetId] of sumberAktif) {
+      const [klinikId, jenisStok] = kunciKJ.split('|');
+      if (klinikId !== (klinik.id as string)) continue;
+      const baris = grup.get(spreadsheetId + '|' + jenisStok);
+      if (!baris) continue;
+      ringkasan.push(
+        hitungRingkasanKlinik(
+          klinik.nama_klinik,
+          jenisStok,
+          baris.map((b) => b.data),
+          AMBANG_STOK_TETAP_DEFAULT,
+          AMBANG_HARI_DEFAULT
+        )
+      );
+    }
   }
 
   // Buang entri jenis stok yang sisanya 0 DAN memang jenis yang boleh diabaikan kalau nol

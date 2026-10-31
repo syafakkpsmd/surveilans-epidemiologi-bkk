@@ -74,3 +74,38 @@ export async function getStokDenganFilter(
     data: JSON.parse(row.raw_json as string),
   }));
 }
+// ---------------------------------------------------------------- sumber stok aktif (Sheets vs aplikasi)
+// Satu klinik bisa punya buku stok dari sinkronisasi Sheets (spreadsheet_id klinik) DAN dari aplikasi (app-<id>).
+// Sisa stok adalah buku besar berjalan, jadi per (klinik, jenis) hanya SATU sumber yang dipakai: yang tanggalnya
+// paling baru; sama = aplikasi. Dengan begitu klinik yang beralih ke aplikasi tidak dihitung dua kali.
+import { kunciSumberApp } from './akses';
+
+export interface KlinikStok { id: string; nama_klinik: string; spreadsheet_id: string | null }
+
+export function idSumberStok(k: KlinikStok): string[] {
+  return [...new Set([k.spreadsheet_id, kunciSumberApp(k.id)].filter(Boolean) as string[])];
+}
+
+/** Peta `${id klinik}|${jenis}` -> spreadsheet_id sumber yang dipakai. */
+export async function getSumberAktifStok(klinik: KlinikStok[]): Promise<Map<string, string>> {
+  const ids = [...new Set(klinik.flatMap(idSumberStok))];
+  const hasil = new Map<string, string>();
+  if (ids.length === 0) return hasil;
+  const r = await getDbClient().execute({
+    sql: `SELECT spreadsheet_id, jenis_stok, MAX(tanggal) AS mx FROM stok_vaksin WHERE spreadsheet_id IN (${ids.map(() => '?').join(',')}) GROUP BY spreadsheet_id, jenis_stok`,
+    args: ids,
+  });
+  const mx = new Map<string, string>(); // `${spreadsheet_id}|${jenis}` -> tanggal terbaru
+  for (const x of r.rows) mx.set(`${x.spreadsheet_id}|${x.jenis_stok}`, String(x.mx ?? '').slice(0, 10));
+  for (const k of klinik) {
+    const app = kunciSumberApp(k.id);
+    for (const jenis of new Set([...mx.keys()].map((s) => s.split('|')[1]))) {
+      const tApp = mx.get(`${app}|${jenis}`);
+      const tSheet = k.spreadsheet_id && k.spreadsheet_id !== app ? mx.get(`${k.spreadsheet_id}|${jenis}`) : undefined;
+      if (tApp === undefined && tSheet === undefined) continue;
+      const pakaiApp = tApp !== undefined && (tSheet === undefined || tApp >= tSheet);
+      hasil.set(`${k.id}|${jenis}`, pakaiApp ? app : (k.spreadsheet_id as string));
+    }
+  }
+  return hasil;
+}

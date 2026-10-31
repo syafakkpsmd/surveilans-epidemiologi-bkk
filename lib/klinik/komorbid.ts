@@ -11,6 +11,8 @@ export const DAFTAR_KOMORBID = [
   { key: 'leukimia', label: 'Leukimia', warna: '#9333EA' },
   { key: 'hiv_aids', label: 'HIV / AIDS', warna: '#BE185D' },
   { key: 'autoimun', label: 'Autoimun', warna: '#0D9488' },
+  { key: 'hipertiroid', label: 'Hipertiroid', warna: '#F59E0B' },
+  { key: 'tumor', label: 'Riwayat Tumor', warna: '#4B5563' },
   { key: 'lainnya', label: 'Lainnya', warna: '#6B7280' },
 ] as const;
 
@@ -37,6 +39,20 @@ export function deteksiKomorbid(nilai: string | null | undefined): KomorbidKey |
   if (n.includes('leukimia')) return 'leukimia';
   if (n.includes('hiv') || n.includes('aids')) return 'hiv_aids';
   if (n.includes('autoimun')) return 'autoimun';
+  if (n.includes('hipertiroid')) return 'hipertiroid';
+  if (n.includes('tumor')) return 'tumor';
   if (n.includes('lainnya')) return 'lainnya';
-  return null;
+  if (TIDAK_ADA.has(n)) return null;
+  return 'lainnya'; // penyakit di luar daftar dropdown tetap terhitung, sebagai "Lainnya"
+}
+
+const TIDAK_ADA = new Set(['tidak', 'tidak ada', 'tdk', 'tdk ada', 'nihil', 'none', 'no', 'n/a', '--']);
+
+/** Semua isian komorbid satu baris: "Komorbid 1", "Komorbid 2", ... "Komorbid N" (form aplikasi bisa lebih dari 2). */
+export function komorbidDariBaris(row: Record<string, unknown>): string[] {
+  return Object.keys(row)
+    .map((k) => ({ k, m: /^Komorbid (\d+)$/.exec(k) }))
+    .filter((x): x is { k: string; m: RegExpExecArray } => !!x.m)
+    .sort((a, b) => Number(a.m[1]) - Number(b.m[1]))
+    .map((x) => String(row[x.k] ?? ''));
 }

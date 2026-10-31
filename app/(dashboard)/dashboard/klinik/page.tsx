@@ -3,20 +3,22 @@ import { getRingkasanKlinikMingguan, getRingkasanKlinikBulanan } from '@/lib/kli
 import { getDatasetKlinik } from '@/lib/klinik/dataset';
 import { ringkasanKartuIcv, donutJenisKelamin, donutUmur, donutJenisDokumenIcv, donutWus } from '@/lib/klinik/agregasiIcv';
 import { getStandarHariVaksin } from '@/lib/klinik/pengaturan';
-import { getPengguna } from '@/lib/auth/session';
+import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
 import { getDbClient } from '@/lib/db/client';
 import { periodeMingguanDariTanggal, periodeBulananDariTanggal } from '@/lib/ai/periode';
 
 const kategoriEfektif = (k: any) => k.kategori ?? 'klinik';
 
 export default async function KlinikPage() {
-  const user = await getPengguna();
+  const akses = await getAksesKlinik();
+  const user = akses.pengguna;
+  const opsi = opsiDariAkses(akses); // petugas_klinik: hanya klinik yang ditautkan ke akunnya
 
   const [dataMingguanAll, dataBulananAll, { rows: daftarKlinikRow }, dataset, standarHariVaksin] = await Promise.all([
-    getRingkasanKlinikMingguan(),
-    getRingkasanKlinikBulanan(),
-    getDbClient().execute('SELECT nama_klinik, kategori FROM klinik_binaan ORDER BY nama_klinik'),
-    getDatasetKlinik(),
+    getRingkasanKlinikMingguan(opsi),
+    getRingkasanKlinikBulanan(opsi),
+    getDbClient().execute('SELECT id, nama_klinik, kategori FROM klinik_binaan ORDER BY nama_klinik'),
+    getDatasetKlinik(opsi),
     getStandarHariVaksin(),
   ]);
 
@@ -36,8 +38,9 @@ export default async function KlinikPage() {
     .filter((d) => d.gagalDimuat)
     .map((d) => d.klinik.nama_klinik as string);
 
-  const daftarKlinikNama = (daftarKlinikRow ?? []).filter((k) => kategoriEfektif(k) === 'klinik').map((k) => k.nama_klinik);
-  const daftarBkkNama = (daftarKlinikRow ?? []).filter((k) => kategoriEfektif(k) === 'bkk').map((k) => k.nama_klinik);
+  const baris = (daftarKlinikRow ?? []).filter((k) => akses.semua || akses.klinikIds.includes(k.id as string));
+  const daftarKlinikNama = baris.filter((k) => kategoriEfektif(k) === 'klinik').map((k) => k.nama_klinik);
+  const daftarBkkNama = baris.filter((k) => kategoriEfektif(k) === 'bkk').map((k) => k.nama_klinik);
 
   const sekarang = new Date();
   const periodeMingguSekarang = periodeMingguanDariTanggal(sekarang);

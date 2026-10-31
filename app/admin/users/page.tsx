@@ -1,4 +1,5 @@
 import { createDbClient } from '@/lib/db/server';
+import { sql } from '@/lib/auth/db';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -14,6 +15,11 @@ export default async function AdminUsersPage() {
     .from('profiles')
     .select('id, nama_lengkap, role, status')
     .order('status', { ascending: true });
+
+  const klinikTersedia = await sql<{ id: string; nama_klinik: string }>('SELECT id, nama_klinik FROM klinik_binaan ORDER BY nama_klinik');
+  const tautan = await sql<{ user_id: string; klinik_id: string }>('SELECT user_id, klinik_id FROM klinik_akses');
+  const klinikPerUser = new Map<string, string[]>();
+  for (const t of tautan) klinikPerUser.set(t.user_id, [...(klinikPerUser.get(t.user_id) ?? []), t.klinik_id]);
 
   return (
     <main className="p-6 max-w-4xl mx-auto">
@@ -55,6 +61,8 @@ export default async function AdminUsersPage() {
                   namaAwal={u.nama_lengkap ?? ''}
                   role={u.role}
                   status={u.status}
+                  klinikTersedia={klinikTersedia}
+                  klinikTerpilih={klinikPerUser.get(u.id) ?? []}
                 />
               ))}
             </tbody>

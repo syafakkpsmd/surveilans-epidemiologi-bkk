@@ -1,10 +1,10 @@
 // lib/klinik/ringkasanPeriode.ts
-import { getDatasetKlinik } from './dataset';
+import { getDatasetKlinik, type OpsiDataset } from './dataset';
 import { hitungKepatuhanVaksin } from './kepatuhan';
 import { periodeMingguanDariTanggal, periodeBulananDariTanggal } from '@/lib/ai/periode';
 import { parseTanggalSheet } from './tanggal';
 import { getStandarHariVaksin } from './pengaturan';
-import { komorbidKosong, deteksiKomorbid } from './komorbid';
+import { komorbidKosong, deteksiKomorbid, komorbidDariBaris } from './komorbid';
 
 function deteksiJenis(nama: string) {
   const n = nama.toLowerCase();
@@ -15,9 +15,9 @@ function deteksiJenis(nama: string) {
   return null;
 }
 
-async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan') {
+async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan', opsi?: OpsiDataset) {
   const standarHari = await getStandarHariVaksin(); // <-- tambah, sekali saja
-  const dataset = await getDatasetKlinik();
+  const dataset = await getDatasetKlinik(opsi);
   const peta = new Map<string, any>();
   const tahunBerjalan = new Date().getUTCFullYear(); // <-- BARU: untuk filter baris lintas-tahun
 
@@ -59,7 +59,7 @@ async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan'
         if (jenis) { existing[jenis] += 1; existing.jumlah_icv += 1; }
       }
 
-      for (const nilaiKomorbid of [row['Komorbid 1'], row['Komorbid 2']]) {
+      for (const nilaiKomorbid of komorbidDariBaris(row)) {
         const key = deteksiKomorbid(nilaiKomorbid);
         if (key) existing[key] += 1;
       }
@@ -78,5 +78,5 @@ async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan'
   return Array.from(peta.values());
 }
 
-export const getRingkasanKlinikMingguan = () => ringkasanPerKlinikPerPeriode('mingguan');
-export const getRingkasanKlinikBulanan = () => ringkasanPerKlinikPerPeriode('bulanan');
+export const getRingkasanKlinikMingguan = (opsi?: OpsiDataset) => ringkasanPerKlinikPerPeriode('mingguan', opsi);
+export const getRingkasanKlinikBulanan = (opsi?: OpsiDataset) => ringkasanPerKlinikPerPeriode('bulanan', opsi);

@@ -1,0 +1,181 @@
+diff --git a/components/peta/FormFasilitas.tsx b/components/peta/FormFasilitas.tsx
+index c751832..131a19b 100644
+--- a/components/peta/FormFasilitas.tsx
++++ b/components/peta/FormFasilitas.tsx
+@@ -1,5 +1,6 @@
+ "use client";
+ 
++import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
+ import { useState } from "react";
+ import { createClient } from "@/lib/supabase/client";
+ import { uploadFotoFasilitas } from "@/lib/upload-fasilitas-foto";
+@@ -90,13 +91,9 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
+             <label className="text-xs font-medium text-gray-500">Wilayah Kerja</label>
+             <select value={kodeWilker} onChange={(e) => setKodeWilker(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm">
+               <option value="INDUK">INDUK - Kantor BKK Kelas I Samarinda</option>
+-              <option value="WK01">WK01 - Samarinda</option>
+-              <option value="WK02">WK02 - Tanjung Santan</option>
+-              <option value="WK03">WK03 - Tanjung Laut</option>
+-              <option value="WK04">WK04 - Lhoktuan</option>
+-              <option value="WK05">WK05 - Sangatta</option>
+-              <option value="WK06">WK06 - Sangkulirang</option>
+-              <option value="WK07">WK07 - Bandara APT Pranoto</option>
++              {OPSI_WILKER_PETA.map((w) => (
++                <option key={w.kode} value={w.kode}>{w.kode} - {w.nama}</option>
++              ))}
+             </select>
+           </div>
+         )}
+diff --git a/components/peta/KelolaFasilitasClient.tsx b/components/peta/KelolaFasilitasClient.tsx
+index e4876d0..216f379 100644
+--- a/components/peta/KelolaFasilitasClient.tsx
++++ b/components/peta/KelolaFasilitasClient.tsx
+@@ -1,18 +1,11 @@
+ "use client";
+ 
++import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
+ import { useEffect, useState, useCallback } from "react";
+ import { getFasilitas, hapusFasilitas, Fasilitas } from "@/lib/data/fasilitas";
+ import FormFasilitas from "./FormFasilitas";
+ 
+-const WILKER_LIST = [
+-  { kode: "WK01", nama: "Samarinda" },
+-  { kode: "WK02", nama: "Tanjung Santan" },
+-  { kode: "WK03", nama: "Tanjung Laut" },
+-  { kode: "WK04", nama: "Lhoktuan" },
+-  { kode: "WK05", nama: "Sangatta" },
+-  { kode: "WK06", nama: "Sangkulirang" },
+-  { kode: "WK07", nama: "Bandara APT Pranoto" },
+-];
++const WILKER_LIST = OPSI_WILKER_PETA;
+ 
+ export default function KelolaFasilitasClient() {
+   const [fasilitasList, setFasilitasList] = useState<Fasilitas[]>([]);
+diff --git a/components/peta/WilkerSelector.tsx b/components/peta/WilkerSelector.tsx
+index 97e869f..a7d1d66 100644
+--- a/components/peta/WilkerSelector.tsx
++++ b/components/peta/WilkerSelector.tsx
+@@ -1,14 +1,9 @@
+ "use client";
++import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
+ 
+ const WILKER_LIST = [
+   { kode: "INDUK", nama: "🏢 Kantor Induk BKK Kelas I Samarinda" },
+-  { kode: "WK01", nama: "Samarinda" },
+-  { kode: "WK02", nama: "Tanjung Santan" },
+-  { kode: "WK03", nama: "Tanjung Laut" },
+-  { kode: "WK04", nama: "Lhoktuan" },
+-  { kode: "WK05", nama: "Sangatta" },
+-  { kode: "WK06", nama: "Sangkulirang" },
+-  { kode: "WK07", nama: "Bandara APT Pranoto" },
++  ...OPSI_WILKER_PETA,
+ ];
+ 
+ export default function WilkerSelector({
+diff --git a/lib/ai/data.ts b/lib/ai/data.ts
+index 0ed1b5b..6a3664a 100644
+--- a/lib/ai/data.ts
++++ b/lib/ai/data.ts
+@@ -19,6 +19,7 @@
+   getRingkasanRatGuardMingguan, 
+   getRingkasanRatGuardBulanan,
+ } from '@/lib/supabase/queries';
++import { NAMA_PANJANG_BY_KODE } from '@/lib/wilayah-kerja';
+ import { getTrenDiareMultiVariabel, getTrenDiareBulanan, getHasilPengamatanPerWilker, getHasilPengamatanPerWilkerBulanan } from '@/lib/supabase/queriesVektorDiareEnhanced';
+ import type { KategoriCop } from "@/types/domain.types";
+ import {
+@@ -1650,15 +1651,7 @@ async function topKategoriUmum(
+     .slice(0, 8);
+ }
+ 
+-const NAMA_WILKER: Record<string, string> = {
+-  WK01: 'Pelabuhan Samarinda',
+-  WK02: 'Pelabuhan Tanjung Santan',
+-  WK03: 'Pelabuhan Tanjung Laut',
+-  WK04: 'Pelabuhan Lhoktuan',
+-  WK05: 'Pelabuhan Sangatta',
+-  WK06: 'Pelabuhan Sangkulirang',
+-  WK07: 'Bandara APT Pranoto',
+-};
++const NAMA_WILKER: Record<string, string> = NAMA_PANJANG_BY_KODE;
+ 
+ const DAFTAR_WILAYAH_COP = [
+   'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',
+diff --git a/lib/karhutla/constants.ts b/lib/karhutla/constants.ts
+index f0c172d..cd31417 100644
+--- a/lib/karhutla/constants.ts
++++ b/lib/karhutla/constants.ts
+@@ -1,3 +1,4 @@
++import { NAMA_PENDEK_BY_KODE } from '@/lib/wilayah-kerja';
+ export const DAFTAR_WILAYAH_KARHUTLA = [
+   { label: 'Palaran', kode_wilker: 'WK01', zona: 'Palaran' },
+   { label: 'Sidomulyo', kode_wilker: 'WK01', zona: 'Sidomulyo' },
+@@ -67,15 +68,7 @@ export const LABEL_STATUS: Record<StatusEvaluasi, string> = {
+   TIDAK_LENGKAP: 'Data Belum Lengkap',
+ };
+ 
+-export const NAMA_WILKER: Record<string, string> = {
+-  WK01: 'Samarinda',
+-  WK02: 'Tanjung Santan',
+-  WK03: 'Tanjung Laut',
+-  WK04: 'Lhoktuan',
+-  WK05: 'Sangatta',
+-  WK06: 'Sangkulirang',
+-  WK07: 'APT Pranoto',
+-};
++export const NAMA_WILKER: Record<string, string> = NAMA_PENDEK_BY_KODE;
+ 
+ export function buatOpsiWilayahIspa(
+   daftarWilayah: { label: string; kode_wilker: string; zona: string | null }[]
+diff --git a/lib/status-laporan/core.ts b/lib/status-laporan/core.ts
+index c88362e..394423a 100644
+--- a/lib/status-laporan/core.ts
++++ b/lib/status-laporan/core.ts
+@@ -1,3 +1,4 @@
++import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+ /**
+  * lib/status-laporan/core.ts
+  *
+@@ -23,15 +24,7 @@ export type StatusLaporRow = {
+  * query wilker_ref tanpa filter), supaya WK08/WK09 (yang ada di
+  * wilker_ref tapi tidak relevan untuk surveilans) tidak pernah ikut
+  * muncul di sini walau nanti wilker_ref bertambah baris lagi. */
+-export const DAFTAR_WILKER = [
+-  { kode: 'WK01', nama: 'Pelabuhan Samarinda', jenis: 'Pelabuhan' as const },
+-  { kode: 'WK02', nama: 'Pelabuhan Tanjung Santan', jenis: 'Pelabuhan' as const },
+-  { kode: 'WK03', nama: 'Pelabuhan Tanjung Laut', jenis: 'Pelabuhan' as const },
+-  { kode: 'WK04', nama: 'Pelabuhan Lhoktuan', jenis: 'Pelabuhan' as const },
+-  { kode: 'WK05', nama: 'Pelabuhan Sangatta', jenis: 'Pelabuhan' as const },
+-  { kode: 'WK06', nama: 'Pelabuhan Sangkulirang', jenis: 'Pelabuhan' as const },
+-  { kode: 'WK07', nama: 'Bandara APT Pranoto', jenis: 'Bandara' as const },
+-] as const;
++export const DAFTAR_WILKER = WILAYAH_KERJA.map(({ kode, nama, jenis }) => ({ kode, nama, jenis }));
+ 
+ export type KodeWilker = (typeof DAFTAR_WILKER)[number]['kode'];
+ 
+diff --git a/lib/turso/queriesMigrasiMalaria.ts b/lib/turso/queriesMigrasiMalaria.ts
+index c320e31..ddf3e6f 100644
+--- a/lib/turso/queriesMigrasiMalaria.ts
++++ b/lib/turso/queriesMigrasiMalaria.ts
+@@ -1,3 +1,4 @@
++import { NAMA_PENDEK_BY_KODE } from '@/lib/wilayah-kerja';
+ import type { DbValue as InValue } from '@/lib/db/client';
+ import { getRentangMingguEpid } from '@/lib/supabase/queriesVektorBreakdown';
+ import { getTursoClient } from './client';
+@@ -167,15 +168,7 @@ function urutkanBreakdown(kolom: KolomKategoriMigrasi, data: BreakdownItem[]): B
+  * tidak lengkap, mis. "Sangkulirang" bukan "Pelabuhan Sangkulirang"). Jadi
+  * pencocokan pakai kata kunci nama tempat yang khas + LIKE, bukan '=' persis.
+  */
+-const KODE_KE_KATA_KUNCI_WILKER: Record<string, string> = {
+-  WK01: 'Samarinda',
+-  WK02: 'Tanjung Santan',
+-  WK03: 'Tanjung Laut',
+-  WK04: 'Lhoktuan',
+-  WK05: 'Sangatta',
+-  WK06: 'Sangkulirang',
+-  WK07: 'APT Pranoto',
+-};
++const KODE_KE_KATA_KUNCI_WILKER: Record<string, string> = NAMA_PENDEK_BY_KODE;
+ 
+ function buildFilterWilker(kodeWilker?: string): { klausa: string; args: InValue[] } {
+   if (!kodeWilker || kodeWilker === 'Semua') {

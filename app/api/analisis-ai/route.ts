@@ -1,0 +1,708 @@
+import { NextResponse } from 'next/server';
+import { getPengguna } from '@/lib/auth/session';
+import { getDbClient } from '@/lib/db/client';
+import { keIsoUtc } from '@/lib/db/json';
+import { getStatusAkses } from '@/lib/auth/getStatusAkses';
+import {
+  ambilDataAnalisis,
+  ambilDataBreakdownAnalisis,
+  ambilDataAnalisisSanitasi,
+  isKonteksValid,
+  isKonteksBreakdown,
+  isKonteksVektor,
+  isKonteksPrediksiNonVektorValid,
+  isKonteksSanitasi,
+  ambilDataAnalisisCop,
+  ambilDataAnalisisPhqc,
+  ambilDataAnalisisPenumpang,
+  ambilDataAnalisisRatGuard,
+  ambilDataAnalisisGlobalEmerging,
+  ambilDataAnalisisNasionalEmerging,
+  ambilDataAnalisisAbkCrewPenumpang,
+  ambilDataAnalisisSkdr,
+  ambilDataAnalisisSkdrTren,
+  isKonteksSkdrTren,
+  ambilDataAnalisisKarhutlaIspaHotspot,
+  ambilDataAnalisisKarhutlaSkdrHotspot,
+  ambilDataAnalisisRisikoWilker,
+  isKonteksTb,
+  ambilDataAnalisisTb,   
+} from '@/lib/ai/data';
+import { ambilDataAnalisisKlinik } from '@/lib/ai/dataKlinik';
+import {
+  susunPrompt,
+  susunPromptRba,
+  susunPromptPrediksiRba,
+  susunPromptNegaraAsal,
+  susunPromptPrediksiNegaraAsal,
+  susunPromptFaktorRisiko,
+  susunPromptPrediksiFaktorRisiko,
+  susunPromptPhqcDaerahAsal,
+  susunPromptPrediksiPhqcDaerahAsal,
+  susunPromptPhqcDaerahTujuan,        // <-- tambah
+  susunPromptPrediksiPhqcDaerahTujuan, // <-- tambah
+  susunPromptPelabuhanPhqc,
+  susunPromptPrediksiPelabuhanPhqc,
+  susunPromptPenumpang,
+  susunPromptPrediksiPenumpang,
+  susunPromptPesawatTren,
+  susunPromptPrediksiPesawatTren,
+  susunPromptVektor,
+  susunPromptPrediksiVektor,
+  susunPromptLabTikus,
+  susunPromptPrediksiLabTikus,
+  parseHasilAi,
+  susunPromptAnopheles,
+  susunPromptPrediksiAnopheles,
+  susunPromptTpp,
+  susunPromptPrediksiTpp,
+  susunPromptTtu,
+  susunPromptPrediksiTtu,
+  susunPromptPab,
+  susunPromptPrediksiPab,
+  susunPromptPerWilker,
+  susunPromptPrediksiPerWilker,
+  susunPromptNegaraTren,
+  susunPromptPrediksiNegaraTren,
+  susunPromptVektorTikus,
+  susunPromptPrediksiVektorTikus,
+  susunPromptVektorDiare,
+  susunPromptPrediksiVektorDiare,
+  susunPromptRatGuard,
+  susunPromptPrediksiRatGuard,
+  susunPromptGlobalEmerging,
+  susunPromptPrediksiGlobalEmerging,
+  susunPromptNasionalEmerging,          // <-- tambah
+  susunPromptPrediksiNasionalEmerging,  // <-- tambah
+  susunPromptAbkCrewPenumpang,
+  susunPromptPrediksiAbkCrewPenumpang,
+  susunPromptSkdr,
+  susunPromptPrediksiSkdr,
+  susunPromptSkdrTren,
+  susunPromptPrediksiSkdrTren,
+  susunPromptKarhutlaIspaHotspot,
+  susunPromptPrediksiKarhutlaIspaHotspot,
+  susunPromptRisikoWilker,
+  susunPromptPrediksiRisikoWilker,
+  susunPromptKlinikKepatuhan,
+  susunPromptPrediksiKlinikKepatuhan,
+  susunPromptTb,             // <-- tambah
+  susunPromptPrediksiTb,     // <-- tambah
+} from '@/lib/ai/prompt';
+import { ambilDataSimulasiWabahKapal, ambilDataSimulasiWabahPesawat } from "@/lib/ai/data";
+import { susunPromptSimulasiWabahKapal, susunPromptSimulasiWabahPesawat } from "@/lib/ai/prompt";
+import { ambilDataAnalisisPesawat, type MetrikPesawat } from '@/lib/ai/dataPesawat';
+import { panggilAI } from '@/lib/ai';
+import { rentangHariIniWita } from '@/lib/ai/periode';
+import type { Wilayah, KategoriCop } from "@/types/domain.types";
+import { type MetrikVektor } from '@/lib/ai/dataVektor';
+import { bolehJalankanAI } from '@/lib/auth/aksesAI';
+
+
+export const maxDuration = 60;
+
+const DAFTAR_WILAYAH: readonly Wilayah[] = [
+  'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',
+];
+
+function isWilayahValid(nilai: unknown): nilai is Wilayah {
+  return typeof nilai === 'string' && (DAFTAR_WILAYAH as readonly string[]).includes(nilai);
+}
+
+function isKodeWilkerValid(nilai: unknown): nilai is string {
+  return typeof nilai === 'string' && /^WK\d{2}$/.test(nilai);
+}
+
+const METRIK_VEKTOR_VALID: readonly MetrikVektor[] = [
+  'hi-ci-abj', 'rumah-diperiksa', 'container-diperiksa',
+  'rumah-container-positif', 'larvasida', 'luas-insektisida',
+];
+
+function isMetrikValid(nilai: unknown): nilai is MetrikVektor {
+  return typeof nilai === 'string' && (METRIK_VEKTOR_VALID as readonly string[]).includes(nilai);
+}
+
+type TipeAnalisis = 'analisis' | 'prediksi';
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const konteks = searchParams.get('konteks');
+  const periodeKey = searchParams.get('periode_key');
+  const wilayahKerja = searchParams.get('wilayah_kerja');
+  const tipeParam = searchParams.get('tipe');
+  const metrik = searchParams.get('metrik');
+
+  if (!konteks || !isKonteksValid(konteks)) {
+    return NextResponse.json({ error: 'konteks tidak dikenal.' }, { status: 400 });
+  }
+  if (!periodeKey) {
+    return NextResponse.json({ error: 'periode_key wajib diisi.' }, { status: 400 });
+  }
+
+  const tipe: TipeAnalisis = tipeParam === 'prediksi' ? 'prediksi' : 'analisis';
+
+  let data: Record<string, any>[] = [];
+  try {
+    const kondisi = ['konteks = ?', 'periode_key = ?', 'tipe = ?'];
+    const args: string[] = [konteks, periodeKey, tipe];
+    if (wilayahKerja) { kondisi.push('wilayah_kerja = ?'); args.push(wilayahKerja); } else { kondisi.push('wilayah_kerja IS NULL'); }
+    if (metrik) { kondisi.push('metrik = ?'); args.push(metrik); } else { kondisi.push('metrik IS NULL'); }
+
+    ({ rows: data } = await getDbClient().execute({
+      sql: `SELECT * FROM riwayat_analisis_ai WHERE ${kondisi.join(' AND ')} ORDER BY dibuat_pada DESC LIMIT 1`,
+      args,
+    }));
+  } catch (error: any) {
+    console.error('Gagal membaca riwayat_analisis_ai:', error?.message);
+    return NextResponse.json({ error: 'Gagal memuat hasil Analisis AI.' }, { status: 500 });
+  }
+
+  if (!data || data.length === 0) {
+    return NextResponse.json({ ada: false });
+  }
+
+  const cache = data[0];
+  return NextResponse.json({
+    ada: true,
+    ringkasan: cache.ringkasan,
+    anomali: cache.anomali,
+    rekomendasi: cache.rekomendasi,
+    providerDipakai: cache.provider_dipakai,
+    dibuatPada: keIsoUtc(cache.dibuat_pada),
+  });
+}
+
+export async function POST(request: Request) {
+  const { role } = await getStatusAkses();
+  if (!bolehJalankanAI(role)) {
+    return NextResponse.json(
+      { error: 'Menjalankan Analisis/Prediksi AI hanya untuk Petugas/Admin yang sudah login.' },
+      { status: 403 }
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Body request harus JSON.' }, { status: 400 });
+  }
+
+  const {
+    konteks,
+    periode_key: periodeKey,
+    wilayah_kerja,
+    paksaPerbarui,
+    tipe: tipeMentah,
+    metrik: metrikMentah,
+  } = (body ?? {}) as {
+    konteks?: string;
+    periode_key?: string;
+    wilayah_kerja?: string | null;
+    paksaPerbarui?: boolean;
+    tipe?: string;
+    metrik?: string;
+  };
+
+  if (!konteks || !isKonteksValid(konteks)) {
+    return NextResponse.json(
+      {
+        error:
+  "Konteks tidak dikenal.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (!periodeKey || typeof periodeKey !== 'string') {
+    return NextResponse.json({ error: 'periode_key wajib diisi.' }, { status: 400 });
+  }
+
+  const tipe: TipeAnalisis = tipeMentah === 'prediksi' ? 'prediksi' : 'analisis';
+  const konteksVektor = 
+  isKonteksVektor(konteks) || 
+  konteks.startsWith('anopheles-');
+  const konteksPesawat = konteks === 'pesawat-mingguan' || konteks === 'pesawat-bulanan';
+  const konteksTikusLab =
+  konteks === 'tikus-lab-mingguan' ||
+  konteks === 'tikus-lab-bulanan' ||
+  konteks === 'vektor-tikus-mingguan' ||
+  konteks === 'vektor-tikus-bulanan';
+  const konteksVektorDiare =
+  konteks === 'vektor-diare-lalat-mingguan' ||
+  konteks === 'vektor-diare-kecoa-mingguan' ||
+  konteks === 'vektor-diare-lalat-bulanan' ||
+  konteks === 'vektor-diare-kecoa-bulanan';
+  const konteksSanitasi = isKonteksSanitasi(konteks);
+  const konteksGlobalEmerging = konteks.startsWith('global-emerging-');
+  const konteksNasionalEmerging = konteks.startsWith('nasional-emerging-'); // <-- tambah
+  const konteksSkdr = konteks === 'skdr-mingguan';
+  const konteksSkdrTren = isKonteksSkdrTren(konteks);
+  const konteksAbkCrewPenumpang = konteks.startsWith('abk-crew-penumpang-');
+  const konteksRisikoWilker = konteks === 'cop-risiko-wilker';
+  const konteksKlinik = konteks === 'klinik-kepatuhan-mingguan' || konteks === 'klinik-kepatuhan-bulanan';
+  const metrikVektor: MetrikVektor = isMetrikValid(metrikMentah) ? metrikMentah : 'hi-ci-abj';
+  const metrikPesawat: string = typeof metrikMentah === 'string' && metrikMentah ? metrikMentah : 'crew-penumpang';
+  const metrikUntukCache: string | null = konteksVektor
+    ? metrikVektor
+    : konteksPesawat
+    ? metrikPesawat
+    : typeof metrikMentah === 'string' && metrikMentah.trim() !== ''
+      ? metrikMentah.trim()
+      : null;
+
+  if (tipe === 'prediksi' && !konteksVektor && !isKonteksPrediksiNonVektorValid(konteks)) {
+    return NextResponse.json(
+      {
+        error:
+          'Prediksi AI belum tersedia untuk konteks ini. Saat ini Prediksi AI mendukung: data vektor (HI/CI/BI/ABJ/Curah Hujan), cop-rba, cop-negara-asal, phqc-daerah-asal, phqc-rba-mingguan, phqc-rba-bulanan, penumpang-mingguan, penumpang-bulanan, pesawat-mingguan, pesawat-bulanan.',
+      },
+      { status: 400 }
+    );
+  }
+
+  if (konteksSkdrTren && (typeof metrikMentah !== 'string' || metrikMentah.trim() === '')) {
+    return NextResponse.json(
+      { error: 'Pilih jenis penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI tren SKDR.' },
+      { status: 400 }
+    );
+  }
+
+  if (konteksGlobalEmerging && (typeof metrikMentah !== 'string' || metrikMentah.trim() === '')) {
+    return NextResponse.json(
+      { error: 'Pilih penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI Global Emerging.' },
+      { status: 400 }
+    );
+  }
+  if (konteksNasionalEmerging && (typeof metrikMentah !== 'string' || metrikMentah.trim() === '')) {
+    return NextResponse.json(
+      { error: 'Pilih penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI Nasional Emerging.' },
+      { status: 400 }
+    );
+  }
+
+
+  let wilayahKerja: string | undefined;
+
+  if (konteksVektor) {
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
+      return NextResponse.json(
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor DBD (format kode: WK01-WK07).` },
+        { status: 400 }
+      );
+    }
+    wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  } else if (konteksPesawat) {
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
+      return NextResponse.json(
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks pesawat (format kode: WK01-WK07).` },
+        { status: 400 }
+      );
+    }
+    wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  } else if (konteksTikusLab) {
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
+      return NextResponse.json(
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor tikus (format kode: WK01-WK07).` },
+        { status: 400 }
+      );
+    }
+    wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  } else if (konteksVektorDiare) {
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
+      return NextResponse.json(
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor diare (format kode: WK01-WK09).` },
+        { status: 400 }
+      );
+    }
+    wilayahKerja = isKodeWilkerValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  } else if (konteksSanitasi) {
+    wilayahKerja =
+      typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
+        ? wilayah_kerja
+        : undefined;
+  } else if (konteksSkdr) {
+    wilayahKerja =
+      typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
+        ? wilayah_kerja
+        : undefined;
+  
+  } else if (konteksSkdrTren) {
+    wilayahKerja =
+      typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0
+        ? wilayah_kerja
+        : undefined;
+
+  } else if (konteksGlobalEmerging) {
+  wilayahKerja = undefined;
+  } else if (konteksNasionalEmerging) {   // <-- tambah
+    wilayahKerja = undefined;
+  } else if (konteksAbkCrewPenumpang) {
+    wilayahKerja = undefined;
+  } else if (konteksRisikoWilker) {
+    // cop-risiko-wilker SELALU membandingkan SEMUA wilayah kerja
+    // sekaligus (itu memang tujuannya -- cari wilayah kerja dengan
+    // risiko tertinggi), jadi wilayah_kerja dari client diabaikan.
+    wilayahKerja = undefined;
+  } else if (isKonteksTb(konteks)) {
+  // TB tidak punya wilayah kerja BKK (data per Provinsi/Kabupaten-Kota)
+  wilayahKerja = undefined;
+  } else if (konteksKlinik) {
+    // Klinik Kepatuhan: "wilayah_kerja" di sini sebenarnya NAMA KLINIK
+    // (bukan wilayah kerja geografis WK01-07/Samarinda dst), jadi
+    // JANGAN divalidasi lewat isWilayahValid (daftar 6 wilayah COP/PHQC)
+    // -- itu pasti akan menolaknya sebagai "tidak dikenal". Terima apa
+    // adanya (string bebas) atau undefined ("Semua Klinik").
+    wilayahKerja = typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0 ? wilayah_kerja : undefined;
+  } else {
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
+      return NextResponse.json({ error: `wilayah_kerja "${wilayah_kerja}" tidak dikenal.` }, { status: 400 });
+    }
+    wilayahKerja = isWilayahValid(wilayah_kerja) ? wilayah_kerja : undefined;
+  }
+
+  if (!paksaPerbarui) {
+    const { mulaiUtc, akhirUtc } = rentangHariIniWita();
+
+    let cacheRows: Record<string, any>[] = [];
+    let cacheError: { message?: string } | null = null;
+    try {
+      const kondisi = ['konteks = ?', 'periode_key = ?', 'tipe = ?', 'dibuat_pada >= ?', 'dibuat_pada < ?'];
+      const args: (string | Date)[] = [konteks, periodeKey, tipe, mulaiUtc, akhirUtc];
+      if (wilayahKerja) { kondisi.push('wilayah_kerja = ?'); args.push(wilayahKerja); } else { kondisi.push('wilayah_kerja IS NULL'); }
+      if (metrikUntukCache) { kondisi.push('metrik = ?'); args.push(metrikUntukCache); } else { kondisi.push('metrik IS NULL'); }
+
+      ({ rows: cacheRows } = await getDbClient().execute({
+        sql: `SELECT * FROM riwayat_analisis_ai WHERE ${kondisi.join(' AND ')} ORDER BY dibuat_pada DESC LIMIT 1`,
+        args,
+      }));
+    } catch (e: any) {
+      cacheError = { message: e?.message ?? String(e) };
+    }
+
+    if (cacheError) {
+      console.error('Gagal cek cache riwayat_analisis_ai:', cacheError.message);
+    } else if (cacheRows && cacheRows.length > 0) {
+      const cache = cacheRows[0];
+      return NextResponse.json({
+        ringkasan: cache.ringkasan,
+        anomali: cache.anomali,
+        rekomendasi: cache.rekomendasi,
+        providerDipakai: cache.provider_dipakai,
+        dibuatPada: keIsoUtc(cache.dibuat_pada),
+        dariCache: true,
+      });
+    }
+  }
+
+  let daftarProviderAktif: any[] = [];
+  let pengaturanError: { message: string } | null = null;
+  try {
+    ({ rows: daftarProviderAktif } = await getDbClient().execute(
+      'SELECT * FROM pengaturan_ai WHERE aktif = 1 ORDER BY urutan_prioritas ASC'
+    ));
+  } catch (e: any) {
+    pengaturanError = { message: e?.message ?? String(e) };
+  }
+
+  if (pengaturanError) {
+    console.error('Gagal mengambil pengaturan_ai:', pengaturanError.message);
+    return NextResponse.json(
+      { error: 'Gagal memuat konfigurasi Analisis AI. Coba lagi sebentar lagi.' },
+      { status: 503 }
+    );
+  }
+
+  if (!daftarProviderAktif || daftarProviderAktif.length === 0) {
+    return NextResponse.json(
+      { error: 'Analisis AI belum dikonfigurasi. Hubungi Admin.' },
+      { status: 503 }
+    );
+  }
+
+  let promptTeks: string;
+  let labelPeriodeSaatIni: string | undefined;
+  let labelPeriodeSebelumnya: string | undefined;
+  try {
+    if (konteksVektor) {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja, metrikVektor);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiVektor(data) : susunPromptVektor(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteksPesawat) {
+      const data = await ambilDataAnalisisPesawat(periodeKey, wilayahKerja, metrikPesawat as MetrikPesawat, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPesawatTren(data) : susunPromptPesawatTren(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (isKonteksBreakdown(konteks)) {
+      const data = await ambilDataBreakdownAnalisis(konteks, periodeKey, wilayahKerja, tipe);
+      labelPeriodeSaatIni = data.labelPeriode;
+      if (konteks === 'cop-rba') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRba(data) : susunPromptRba(data);
+      } else if (konteks === 'cop-negara-asal') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNegaraAsal(data) : susunPromptNegaraAsal(data);
+      } else if (konteks === 'phqc-daerah-asal') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPhqcDaerahAsal(data) : susunPromptPhqcDaerahAsal(data);
+      } else if (konteks === 'phqc-daerah-tujuan') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPhqcDaerahTujuan(data) : susunPromptPhqcDaerahTujuan(data);
+      } else if (konteks === 'phqc-rba-mingguan' || konteks === 'phqc-rba-bulanan') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRba(data) : susunPromptRba(data);
+      } else if (konteks === 'phqc-pelabuhan-mingguan' || konteks === 'phqc-pelabuhan-bulanan') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPelabuhanPhqc(data) : susunPromptPelabuhanPhqc(data);
+      } else if (konteks === 'cop-per-wilker') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPerWilker(data) : susunPromptPerWilker(data);
+      } else if (konteks === 'cop-faktor-risiko') {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiFaktorRisiko(data) : susunPromptFaktorRisiko(data);
+      } else {
+        throw new Error(`Konteks breakdown "${konteks}" belum punya fungsi susunPrompt yang dipasang di route.ts.`);
+      }
+
+    } else if (konteks === 'global-emerging-mingguan' || konteks === 'global-emerging-bulanan') {
+    const data = await ambilDataAnalisisGlobalEmerging(konteks, periodeKey, metrikMentah, tipe);
+    promptTeks = tipe === 'prediksi' ? susunPromptPrediksiGlobalEmerging(data) : susunPromptGlobalEmerging(data);
+    labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+    labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'nasional-emerging-mingguan' || konteks === 'nasional-emerging-bulanan') {
+    const data = await ambilDataAnalisisNasionalEmerging(konteks, periodeKey, metrikMentah, tipe);
+    promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNasionalEmerging(data) : susunPromptNasionalEmerging(data);
+    labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+    labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (
+      konteks === 'abk-crew-penumpang-kedatangan-mingguan' ||
+      konteks === 'abk-crew-penumpang-kedatangan-bulanan' ||
+      konteks === 'abk-crew-penumpang-keberangkatan-mingguan' ||
+      konteks === 'abk-crew-penumpang-keberangkatan-bulanan'
+    ) {
+      const data = await ambilDataAnalisisAbkCrewPenumpang(konteks, periodeKey, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiAbkCrewPenumpang(data) : susunPromptAbkCrewPenumpang(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'cop-risiko-wilker') {
+      const data = await ambilDataAnalisisRisikoWilker(periodeKey);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRisikoWilker(data) : susunPromptRisikoWilker(data);
+      labelPeriodeSaatIni = data.labelPeriode;
+      labelPeriodeSebelumnya = undefined;
+
+    } else if (konteks === 'cop-negara-tren') {
+    const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+    promptTeks = tipe === 'prediksi' ? susunPromptPrediksiNegaraTren(data) : susunPromptNegaraTren(data);
+    labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+    labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'penumpang-mingguan' || konteks === 'penumpang-bulanan') {
+      const data = await ambilDataAnalisisPenumpang(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPenumpang(data) : susunPromptPenumpang(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (konteks === 'vektor-tikus-mingguan' || konteks === 'vektor-tikus-bulanan') {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiVektorTikus(data) : susunPromptVektorTikus(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'tikus-lab-mingguan' || konteks === 'tikus-lab-bulanan') {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiLabTikus(data) : susunPromptLabTikus(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'tpp-bulanan' || konteks === 'tpp-mingguan') {
+      // FIX: pakai ambilDataAnalisisSanitasi (kumulatif untuk
+      // tipe="analisis", periode tunggal untuk tipe="prediksi" --
+      // tidak lagi ambilDataAnalisis() generik.
+      const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTpp(data) : susunPromptTpp(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'ttu-bulanan' || konteks === 'ttu-mingguan') {
+      // FIX: sama seperti TPP di atas.
+      const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTtu(data) : susunPromptTtu(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'tb-mingguan' || konteks === 'tb-bulanan') {
+      const data = await ambilDataAnalisisTb(konteks, periodeKey, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiTb(data) : susunPromptTb(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (konteks === 'pab-bulanan' || konteks === 'pab-mingguan') {
+      const data = await ambilDataAnalisisSanitasi(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiPab(data) : susunPromptPab(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'rat-guard-bulanan' || konteks === 'rat-guard-mingguan') {
+      // pakai ambilDataAnalisisRatGuard sendiri, BUKAN ambilDataAnalisisSanitasi
+      // (yang else-fallback-nya jatuh ke PAB kalau dipakai untuk rat-guard).
+      const data = await ambilDataAnalisisRatGuard(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiRatGuard(data) : susunPromptRatGuard(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (konteks === 'skdr-mingguan') {
+      const data = await ambilDataAnalisisSkdr(periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiSkdr(data) : susunPromptSkdr(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (konteks === 'skdr-tren-mingguan' || konteks === 'skdr-tren-bulanan') {
+      const data = await ambilDataAnalisisSkdrTren(konteks, periodeKey, wilayahKerja, Number(metrikMentah));
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiSkdrTren(data) : susunPromptSkdrTren(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'karhutla-ispa-mingguan' || konteks === 'karhutla-ispa-bulanan') {
+      const data = await ambilDataAnalisisKarhutlaIspaHotspot(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKarhutlaIspaHotspot(data) : susunPromptKarhutlaIspaHotspot(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'skdr-ispa-mingguan') {
+      // Varian SKDR dari chart "Analisis Kasus ISPA vs Titik Panas" di
+      // halaman Karhutla -- sumber kasus ISPA dari skdr_mingguan, bukan
+      // input harian modul karhutla. Prompt-nya dipakai bareng
+      // (susunPromptKarhutlaIspaHotspot), karena bentuk DataAnalisis-nya
+      // sama persis, cuma sumber datanya beda.
+      const data = await ambilDataAnalisisKarhutlaSkdrHotspot(periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKarhutlaIspaHotspot(data) : susunPromptKarhutlaIspaHotspot(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+
+    } else if (konteks === 'simulasi-wabah-kapal' || konteks === 'simulasi-wabah-pesawat') {
+      // periodeKey di sini BUKAN format periode (2026-W27), tapi UUID id simulasi.
+      // Tidak ada "periode sebelumnya" karena ini event tunggal, bukan tren waktu.
+      const data = konteks === 'simulasi-wabah-kapal'
+        ? await ambilDataSimulasiWabahKapal(periodeKey)
+        : await ambilDataSimulasiWabahPesawat(periodeKey);
+
+      promptTeks = konteks === 'simulasi-wabah-kapal'
+        ? susunPromptSimulasiWabahKapal(data)
+        : susunPromptSimulasiWabahPesawat(data);
+
+      // tipe "prediksi" tidak berlaku untuk konteks ini — kalau tetap dikirim, treat sebagai analisis
+      labelPeriodeSaatIni = data.namaEntitas; // dipakai sebagai label tampilan pengganti periode
+      labelPeriodeSebelumnya = undefined;
+
+    } else if (
+      konteks === 'vektor-diare-lalat-mingguan' ||
+      konteks === 'vektor-diare-kecoa-mingguan' ||
+      konteks === 'vektor-diare-lalat-bulanan' ||
+      konteks === 'vektor-diare-kecoa-bulanan'
+    ) {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiVektorDiare(data) : susunPromptVektorDiare(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    
+    } else if (
+      konteks === 'anopheles-dewasa-mingguan' ||
+      konteks === 'anopheles-dewasa-bulanan' ||
+      konteks === 'anopheles-larva-mingguan' ||
+      konteks === 'anopheles-larva-bulanan'
+    ) {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      
+      try {
+        promptTeks = tipe === 'prediksi' ? susunPromptPrediksiAnopheles(data) : susunPromptAnopheles(data);
+      } catch (e) {
+        console.error("Gagal menyusun prompt karena data kosong:", e);
+        return NextResponse.json({ 
+          ada: false, 
+          pesan: 'Data surveilans Anopheles belum tersedia untuk periode dan wilayah ini.' 
+        });
+      }
+
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'klinik-kepatuhan-mingguan' || konteks === 'klinik-kepatuhan-bulanan') {
+      const data = await ambilDataAnalisisKlinik(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = tipe === 'prediksi' ? susunPromptPrediksiKlinikKepatuhan(data) : susunPromptKlinikKepatuhan(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'cop-mingguan' || konteks === 'cop-bulanan') {
+      const data = await ambilDataAnalisisCop(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = susunPrompt(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else if (konteks === 'phqc-mingguan' || konteks === 'phqc-bulanan') {
+      const data = await ambilDataAnalisisPhqc(konteks, periodeKey, wilayahKerja, tipe);
+      promptTeks = susunPrompt(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    } else {
+      const data = await ambilDataAnalisis(konteks, periodeKey, wilayahKerja);
+      promptTeks = susunPrompt(data);
+      labelPeriodeSaatIni = data.labelPeriodeSaatIni;
+      labelPeriodeSebelumnya = data.labelPeriodeSebelumnya;
+    }
+  } catch (err) {
+    const pesan = err instanceof Error ? err.message : 'Gagal mengambil data untuk dianalisis.';
+    return NextResponse.json({ error: pesan }, { status: 400 });
+  }
+
+  let hasil: ReturnType<typeof parseHasilAi> | undefined;
+  let pengaturanTerpakai: (typeof daftarProviderAktif)[number] | null = null;
+  const pesanErrorPerProvider: string[] = [];
+
+  for (const provider of daftarProviderAktif) {
+    try {
+      const teksMentah = await panggilAI(provider, promptTeks);
+      console.log(`TEKS MENTAH DARI AI (${provider.nama_tampilan}):`, teksMentah);
+      hasil = parseHasilAi(teksMentah);
+      pengaturanTerpakai = provider;
+      break;
+    } catch (err) {
+      const pesan = err instanceof Error ? err.message : 'Gagal tanpa pesan.';
+      console.error(`Provider "${provider.nama_tampilan}" gagal:`, pesan);
+      pesanErrorPerProvider.push(`${provider.nama_tampilan}: ${pesan}`);
+    }
+  }
+
+  if (!hasil || !pengaturanTerpakai) {
+    return NextResponse.json(
+      {
+        error: `Semua provider AI gagal dijalankan. Detail: ${pesanErrorPerProvider.join(' | ')}`,
+      },
+      { status: 502 }
+    );
+  }
+
+  const user = await getPengguna();
+
+  const providerDipakai = `${pengaturanTerpakai.nama_tampilan} (${pengaturanTerpakai.model})`;
+
+  try {
+    await getDbClient().execute({
+      sql: `INSERT INTO riwayat_analisis_ai
+              (konteks, periode_key, wilayah_kerja, tipe, metrik, provider_dipakai, ringkasan, anomali, rekomendasi, dibuat_oleh)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        konteks,
+        periodeKey,
+        wilayahKerja ?? null,
+        tipe,
+        metrikUntukCache ?? null,
+        providerDipakai,
+        hasil.ringkasan,
+        hasil.anomali ?? null,
+        hasil.rekomendasi ?? null,
+        user?.id ?? null,
+      ],
+    });
+  } catch (insertError: any) {
+    console.error('Gagal menyimpan riwayat_analisis_ai:', insertError?.message);
+  }
+
+  return NextResponse.json({
+    ringkasan: hasil.ringkasan,
+    anomali: hasil.anomali,
+    rekomendasi: hasil.rekomendasi,
+    providerDipakai,
+    dibuatPada: new Date().toISOString(),
+    labelPeriodeSaatIni,
+    labelPeriodeSebelumnya,
+    dariCache: false,
+  });
+}

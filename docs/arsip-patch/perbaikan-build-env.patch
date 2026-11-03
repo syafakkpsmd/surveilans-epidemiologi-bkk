@@ -1,0 +1,124 @@
+diff --git a/components/nasional-emerging/DashboardNasionalEmerging.tsx b/components/nasional-emerging/DashboardNasionalEmerging.tsx
+index a0a5948..74bc846 100644
+--- a/components/nasional-emerging/DashboardNasionalEmerging.tsx
++++ b/components/nasional-emerging/DashboardNasionalEmerging.tsx
+@@ -1,7 +1,7 @@
+ 'use client';
+ 
+ import { useEffect, useMemo, useState } from 'react';
+-import { createClient } from '@supabase/supabase-js';
++import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+ import {
+   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+   Tooltip, ResponsiveContainer
+@@ -26,10 +26,17 @@ const NasionalEmergingPeta = dynamic(
+ );
+ 
+ // ==== Konfigurasi ====
+-const supabase = createClient(
+-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+-);
++// Dibuat saat pertama dipakai (bukan saat file dimuat) agar build tidak gagal bila env belum tersedia.
++let _supabase: SupabaseClient | null = null;
++function getSupabase(): SupabaseClient {
++  if (!_supabase) {
++    _supabase = createClient(
++      process.env.NEXT_PUBLIC_SUPABASE_URL!,
++      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
++    );
++  }
++  return _supabase;
++}
+ 
+ const DAFTAR_PENYAKIT = DAFTAR_PENYAKIT_NASIONAL;
+ const OPSI_PETA_PENYAKIT = ['Semua Penyakit', ...DAFTAR_PENYAKIT_NASIONAL];
+@@ -134,7 +141,7 @@ export default function DashboardNasionalEmerging({ sudahLogin, role, hasilAwalI
+ useEffect(() => {
+   async function ambilData() {
+     setLoading(true);
+-    const { data: rows, error } = await supabase
++    const { data: rows, error } = await getSupabase()
+       .from('laporan_penyakit_nasional')
+       .select('*')
+       .eq('penyakit', penyakit)
+@@ -148,7 +155,7 @@ useEffect(() => {
+ // 2. INI YANG BARU — khusus untuk peta
+ useEffect(() => {
+   async function ambilDataPeta() {
+-    const { data: rows, error } = await supabase
++    const { data: rows, error } = await getSupabase()
+       .from('laporan_penyakit_nasional')
+       .select('*')
+       .eq('tahun_epid', tahun);
+diff --git a/lib/turso/kier.ts b/lib/turso/kier.ts
+index c7f6faa..0617752 100644
+--- a/lib/turso/kier.ts
++++ b/lib/turso/kier.ts
+@@ -8,8 +8,6 @@
+ 
+ import { getTursoClient } from '@/lib/turso/client';
+ 
+-const tursoClient = getTursoClient();
+-
+ export const DAFTAR_WILKER_KIER = ['Samarinda', 'APT Pranoto', 'Tanjung Laut', 'Lhoktuan', 'Sangatta'];
+  
+ export interface BarisKier {
+@@ -69,7 +67,7 @@ async function ambilBarisTahun(tahun: number, wilayahKerja?: string): Promise<Ba
+   const args: any[] = [String(tahun)];
+   if (wilayahKerja) args.push(wilayahKerja);
+  
+-  const result = await tursoClient.execute({
++  const result = await getTursoClient().execute({
+     sql: `SELECT wilayah_kerja, no_baris, nama, tanggal_lahir, jenis_kelamin, alamat,
+                  tujuan_pemeriksaan, tanggal_pemeriksaan, kesimpulan, tempat_terbit
+           FROM kier_kesehatan
+@@ -183,7 +181,7 @@ export async function getTrenBulananKier(
+  
+ /** Daftar tahun yang tersedia di data, untuk dropdown filter tahun */
+ export async function getDaftarTahunKier(): Promise<number[]> {
+-  const result = await tursoClient.execute({
++  const result = await getTursoClient().execute({
+     sql: `SELECT DISTINCT substr(tanggal_pemeriksaan, 1, 4) AS tahun
+           FROM kier_kesehatan
+           WHERE tanggal_pemeriksaan IS NOT NULL AND tanggal_pemeriksaan != ''
+@@ -200,7 +198,7 @@ export async function getDaftarTahunKier(): Promise<number[]> {
+  * diam-diam — supaya kelihatan kalau ada nama wilker yang tidak konsisten.
+  */
+ export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
+-  const result = await tursoClient.execute({
++  const result = await getTursoClient().execute({
+     sql: `SELECT DISTINCT wilayah_kerja
+           FROM kier_kesehatan
+           WHERE substr(tanggal_pemeriksaan, 1, 4) = ?
+diff --git a/lib/turso/sklt.ts b/lib/turso/sklt.ts
+index a216f9a..6fdd51b 100644
+--- a/lib/turso/sklt.ts
++++ b/lib/turso/sklt.ts
+@@ -2,8 +2,6 @@
+ // Import client Turso: samakan dengan yang dipakai di lib/turso/kier.ts
+ import { getTursoClient } from "@/lib/turso/client";
+ 
+-const turso = getTursoClient();
+-
+ export type SkltRow = {
+   id: number;
+   tanggal: string; // yyyy-mm-dd
+@@ -36,7 +34,7 @@ function inisial(nama: unknown): string {
+ const angka = (v: unknown): number | null => (v === null || v === undefined || v === '' ? null : Number(v));
+ 
+ export async function getTahunSklt(): Promise<number[]> {
+-  const rs = await turso.execute(
++  const rs = await getTursoClient().execute(
+     `SELECT DISTINCT substr(tanggal,1,4) AS t FROM sklt_penumpang
+      WHERE tanggal IS NOT NULL AND tanggal <> '' ORDER BY t DESC`
+   );
+@@ -44,7 +42,7 @@ export async function getTahunSklt(): Promise<number[]> {
+ }
+ 
+ export async function getSkltData(tahun: number): Promise<SkltRow[]> {
+-  const rs = await turso.execute({
++  const rs = await getTursoClient().execute({
+     sql: `SELECT id, tanggal, nama, maskapai, rute, jenis_kelamin, umur, diagnosis, status_laik,
+                  jenis_penyakit, gcs, nadi, suhu, hamil, pendamping, fasilitas
+           FROM sklt_penumpang

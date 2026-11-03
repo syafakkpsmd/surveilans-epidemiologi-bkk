@@ -1,0 +1,1877 @@
+From c2a468e5f657051d669bc6dc066aff62d31abaf7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 13:16:53 +0800
+Subject: [PATCH] Tahap 4b: adapter query builder MariaDB, pengganti RLS,
+ pembungkus klien Supabase
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01An6M23JY59d1bD377na3Tj
+---
+ docs/MIGRASI_MARIADB.md              |  14 +-
+ env.mariadb.example                  |   6 +
+ lib/db/hybrid.ts                     |  48 ++
+ lib/db/query-builder.ts              | 850 +++++++++++++++++++++++++++
+ lib/db/rls-policy.generated.ts       | 416 +++++++++++++
+ lib/db/rls.ts                        |  74 +++
+ lib/supabase/server.ts               |   7 +-
+ lib/supabase/serviceRole.ts          |   4 +-
+ scripts/migrate/buat-rls.mjs         |  57 ++
+ scripts/migrate/uji-query-builder.ts | 158 +++++
+ scripts/migrate/uji-rls.ts           |  94 +++
+ 11 files changed, 1722 insertions(+), 6 deletions(-)
+ create mode 100644 lib/db/hybrid.ts
+ create mode 100644 lib/db/query-builder.ts
+ create mode 100644 lib/db/rls-policy.generated.ts
+ create mode 100644 lib/db/rls.ts
+ create mode 100644 scripts/migrate/buat-rls.mjs
+ create mode 100644 scripts/migrate/uji-query-builder.ts
+ create mode 100644 scripts/migrate/uji-rls.ts
+
+diff --git a/docs/MIGRASI_MARIADB.md b/docs/MIGRASI_MARIADB.md
+index 66bf461..fc9f714 100644
+--- a/docs/MIGRASI_MARIADB.md
++++ b/docs/MIGRASI_MARIADB.md
+@@ -20,7 +20,7 @@
+ 3. Kalau repo private, beri token GitHub **read-only sementara** (cabut setelah selesai) atau upload repo sebagai zip.
+ 4. Setiap kali sebuah langkah selesai: perbarui checklist (bagian 4) dan **Log Status** (bagian 8), lalu commit.
+ 
+-**Posisi 26 Okt 2026:** Tahap 4 data dan view SELESAI dan terbukti (lihat bagian 4). Langkah berikutnya: **Tahap 4b** (ganti klien Supabase, mulai dari adapter) lalu **Tahap 5** (autentikasi). Lingkungan Claude (cloud) tidak punya MariaDB dan tidak bisa push ke GitHub; pekerjaan dikirim sebagai patch yang diterapkan pengguna dengan `git am`, lalu pengguna push sendiri. Uji yang butuh MariaDB atau Supabase dijalankan pengguna di komputernya dan hasilnya (tanpa data pribadi) dikirim ke chat.
++**Posisi 26 Okt 2026:** Tahap 4 data dan view SELESAI dan terbukti (lihat bagian 4). Langkah berikutnya: selesaikan **Tahap 4b** (sisi browser + pembandingan halaman dengan `DATA_BACKEND=mariadb`) lalu **Tahap 5** (autentikasi). Lingkungan Claude (cloud) tidak punya MariaDB dan tidak bisa push ke GitHub; pekerjaan dikirim sebagai patch yang diterapkan pengguna dengan `git am`, lalu pengguna push sendiri. Uji yang butuh MariaDB atau Supabase dijalankan pengguna di komputernya dan hasilnya (tanpa data pribadi) dikirim ke chat.
+ 
+ Catatan: memori Claude terikat ke akun. Akun baru **tidak** tahu isi chat ini. Semua yang penting harus ada di dokumen ini dan di repo.
+ 
+@@ -170,8 +170,15 @@ Usulan desain (belum disetujui):
+ - [x] Kolom `numeric` tanpa presisi dipersempit (26 Okt 2026) berdasarkan `schema-dump/supabase_column_stats.json`: 57 kolom diubah; aturan skala = max(desimal terukur, 2) dan digit bulat = terukur + 3 (minimal 5); kolom hasil model SIR (`r_efektif_*`, `estimasi_kasus_impor_kota`, 16-17 desimal) tetap `DECIMAL(38,18)`; kolom tanpa data memakai ukuran perkiraan (ditandai di COMMENT). **Tabel perlu dibuat ulang/diubah sebelum migrasi data sungguhan**, dan nilai di luar ukuran akan DITOLAK oleh `supabase-to-mariadb.mjs`, bukan dibulatkan diam-diam
+ - [x] **`scripts/migrate/supabase-to-mariadb.mjs` dijalankan pada data asli (26 Okt 2026): 43 dari 44 tabel masuk penuh, 0 gagal, verifikasi kolom sama, tidak ada baris yatim FK.** Satu tabel bercatatan: `wilker_nama_alias` (sumber 12, tujuan 20: 8 alias benih lokal dari `03_wilayah_kerja.sql` sengaja dipertahankan; tidak masalah). `tpp` id 21-23 bertanggal `infinity` dibersihkan di Supabase lebih dulu. Skrip: baca Supabase lewat Postgres (`SUPABASE_DB_URL`, `npm i -D pg`), upsert PK, paksa utf8mb4 + strict, `SET @lewati_trigger_hitung = 1`, melewati `hiv_data`/`tb_data`, laporan di `data-export/`. Aman diulang. **Saat cutover: jalankan ulang setelah penulisan ke sistem lama dibekukan; baris yang dihapus di Supabase TIDAK ikut terhapus di MariaDB** (skrip hanya menambah/memperbarui)
+ - [x] **`scripts/migrate/bandingkan-view.mjs` dijalankan (26 Okt 2026): 42 view, 0 bermasalah** (jumlah baris dan isi tiap kolom sama dengan Supabase pada data asli). Belum dibandingkan: prosedur `status_lapor_mingguan`/`status_lapor_bulanan` (hanya diuji pada data sintetis); bandingkan lewat halaman Status Laporan setelah adapter terpasang
+-- [ ] **Gantikan klien Supabase (Tahap 4b).** Inventaris 26 Okt 2026: **89 file** memakai klien Supabase (`lib/supabase/*` 18 berkas, sekitar 4900 baris, plus `app/**` dan `components/**`); `.rpc()` hanya 2 (`status_lapor_*` -> `CALL` prosedur, hasil di `rows[0]`); 24 file memakai `supabase.auth` (Tahap 5); tidak ada Storage/Realtime. Tabel paling sering dipanggil: `klinik_binaan` (17), `profiles` (23), `hotspot_nasa_kaltim` (12), `ispa_harian` (9), `vektor_dbd`, `skdr_mingguan`, `riwayat_analisis_ai`, `pengaturan_ai`, `kualitas_udara_harian` (masing-masing 7). **Perhatian: `lib/supabase/queries-karhutla-client.ts` dan `queriesFotoClient.ts` memanggil Supabase LANGSUNG dari browser; MariaDB tidak boleh dijangkau browser, jadi harus diganti route API/Server Action dengan pemeriksaan role di server.** Pendekatan: (1) buat adapter `lib/db/query-builder.ts` bergaya `.from().select().eq().order()` di atas `lib/db/client.ts` agar sebagian besar file hanya berganti impor, (2) migrasi per modul dengan pembanding angka halaman sebelum/sesudah, (3) file yang terlalu rumit (`select` bersarang/join PostgREST, `.upsert`, `.single()`) ditulis ulang sebagai query SQL. Kerjakan modul terkecil dulu
+-- [ ] `is_admin()` dan 103 policy RLS → pemeriksaan role di server (Tahap 5)
++- [~] **Gantikan klien Supabase (Tahap 4b), 26 Okt 2026: sisi SERVER selesai dan teruji; sisi browser dan pembandingan halaman belum.**
++  - Inventaris: 89 file memakai klien Supabase, hanya 2 `.rpc()`, 24 file `supabase.auth` (Tahap 5), tidak ada Storage/Realtime. Pemanggilan data langsung dari browser hanya di 5 file: `app/(dashboard)/dashboard/skdr/SkdrClient.tsx` (`skdr_mingguan`, `view_skdr_alert_mingguan`), `components/peta/FormFasilitas.tsx` + `lib/data/fasilitas.ts` (`fasilitas_pelabuhan`, `fasilitas_foto`), `components/nasional-emerging/DashboardNasionalEmerging.tsx` (`laporan_penyakit_nasional`), `lib/supabase/queries-karhutla-client.ts` (upsert/delete `ispa_harian`, `kualitas_udara_harian`)
++  - [x] **`lib/db/query-builder.ts`**: adapter bergaya supabase-js di atas MariaDB (`from().select/insert/update/upsert/delete`, filter `eq neq gt gte lt lte like ilike is in not or match`, `order` (NULL diperlakukan seperti Postgres), `range/limit/single/maybeSingle/count/head`, alias `a:kolom`, embed relasi 1 tingkat `rel(kolom)`/`rel!inner`, `.rpc()` untuk prosedur, `throwOnError`). Konversi hasil: DATETIME → ISO UTC `...T..:..:..+00:00`, TINYINT(1) → boolean, kolom JSON (CHECK `JSON_VALID`) → objek/array; galat dipetakan ke kode Postgres (23505, 23503, 23502, 23514, 42703, PGRST116). Belum didukung (melempar galat jelas): `contains()`, embed bersarang, filter pada kolom relasi
++  - [x] **`lib/db/rls.ts` + `lib/db/rls-policy.generated.ts`** (dibangkitkan `node scripts/migrate/buat-rls.mjs` dari 103 policy; semua dikenali): pengganti RLS di server. Meniru Postgres: role anon/authenticated, policy permissive (OR), tabel base tanpa policy = ditolak, view tidak dijaga, SELECT ditolak = kosong, UPDATE/DELETE ditolak = 0 baris tanpa galat, INSERT ditolak = 42501, `profiles` dibatasi `id = uid` kecuali admin. **Tabel Supabase tanpa policy (jadi tertutup bagi klien pengguna, terbuka bagi service-role): `pengaturan_ai`, `pengaturan_klinik`, `kegiatan_pesawat_backup_juli_agustus`.** Perhatian: policy yang hanya untuk role `anon` (mis. INSERT `rat_guard`) TIDAK berlaku bagi pengguna yang sudah login, sama seperti Postgres. GRANT tingkat tabel tidak ditiru (tidak ada di dump)
++  - [x] **`lib/db/hybrid.ts`** + perubahan `lib/supabase/server.ts` dan `serviceRole.ts`: dengan `DATA_BACKEND=mariadb` di `.env.local`, `createClient()`/`createServiceRoleClient()` mengalihkan `.from()`/`.rpc()` ke MariaDB sedangkan `.auth` tetap Supabase; **89 file pemanggil tidak berubah**. Tanpa saklar, perilaku lama utuh
++  - Teruji pada MariaDB 10.11.14 asli dengan skema 01-04: `scripts/migrate/uji-query-builder.ts` (10 uji) dan `scripts/migrate/uji-rls.ts` (6 uji) lulus; `tsc` bersih; `next build` berhasil. Jalankan: `DB_USER=... DB_PASSWORD=... DB_NAME=<db uji kosong> npx tsx --test --test-force-exit scripts/migrate/uji-query-builder.ts scripts/migrate/uji-rls.ts` (JANGAN ke database data asli)
++  - [ ] **Sisi browser (5 file di atas):** `lib/supabase/client.ts` tetap menghubungi Supabase langsung dari browser. Rencana: route `app/api/db/route.ts` yang menerima query terserialisasi, memeriksa sesi + `putuskan()` lalu menjalankan adapter; klien browser mengirim `from(...)` ke route itu. Selama belum, halaman yang memakai 5 file itu tetap membaca Supabase
++  - [ ] **Bandingkan halaman** dengan `DATA_BACKEND=supabase` vs `mariadb` (angka kartu/grafik, 8-10 halaman utama + Status Laporan yang memakai prosedur `status_lapor_*`), lalu perbaiki selisih. Hal yang perlu dicermati: kolom teks berkolasi ci vs bin, urutan hasil tanpa `order`, kolom boolean pada view (mis. `status_alert` kini 0/1)
++- [~] `is_admin()` dan 103 policy RLS: **ditiru di server untuk masa peralihan** (`lib/db/rls.ts`, lihat Tahap 4b). Tahap 5 mengganti sumber identitas (Supabase Auth → sesi sendiri) tanpa mengubah aturan
+ - [ ] Verifikasi agregat dashboard (lama vs baru)
+ 
+ **Tahap 5: Autentikasi**
+@@ -267,6 +274,7 @@ Percobaan tambahan jalur 1: lewat SSH Access, cek `node -v`. Kalau belum ada, ta
+ | 2026-10-26 | **Dua dokumen dari dua akun Claude digabung** (basis: dokumen akun yang memuat Turso lengkap, Tahap 3/3b/3c). Hasil Tahap 4 akun lain (`02_supabase_tables.sql` 46 tabel, view+fungsi+prosedur diuji terhadap PostgreSQL) dimasukkan. Duplikat view/fungsi akun B diarsipkan, penomoran SQL dirapikan. Tabel dummy HIV/TB Supabase dibuang. Keputusan: tanpa uji di `next.bkksmr.tech` | Pengguna menjalankan ulang urutan SQL 01→04 di MariaDB lokal, menjalankan `supabase-column-stats.sql`, memutuskan soal minggu epidemiologi akhir Desember; Claude menulis `supabase-to-mariadb.mjs`, lalu adapter klien Supabase |
+ | 2026-10-26 (siang) | `supabase-to-mariadb.mjs`, `supabase-migrasi-lib.mjs`, `bandingkan-view.mjs`, `uji-supabase-migrasi.mjs` ditulis; uji murni 9/9 lulus, pembacaan tipe Postgres diuji di PostgreSQL 16. Sisi tulis MariaDB belum teruji (tidak ada MariaDB di lingkungan Claude). `supabase_column_stats.json` sudah ada di repo | Pengguna: `npm i -D pg`, set `SUPABASE_DB_URL`, jalankan `--dry-run`, lalu `--tabel=wilker_ref`, lalu semua, lalu `bandingkan-view.mjs`; kirim hanya `supabase_migrasi_laporan.txt`; Claude mempersempit kolom `DECIMAL(38,18)` memakai `supabase_column_stats.json` |
+ | 2026-10-26 (siang) | Migrasi data Supabase -> MariaDB lokal dijalankan pengguna: 43/44 tabel penuh, 0 gagal, `wilker_nama_alias` 20 baris (8 benih lokal, sengaja). `bandingkan-view.mjs`: **42 view, 0 bermasalah**. Inventaris klien Supabase: 89 file, 2 RPC, 24 file auth, 2 berkas query dipanggil dari browser | Claude merancang adapter `lib/db/query-builder.ts` dan memigrasi modul terkecil dulu (Tahap 4b); pengguna membandingkan angka halaman sebelum/sesudah |
++| 2026-10-26 (sore) | Tahap 4b sisi server: adapter `query-builder.ts`, pengganti RLS (`rls.ts`, dibangkitkan dari 103 policy), pembungkus `hybrid.ts` + saklar `DATA_BACKEND`; 16 uji lulus pada MariaDB 10.11 asli (dipasang di lingkungan Claude), `tsc` dan `next build` bersih | Pengguna: terapkan patch, set `DATA_BACKEND=mariadb` di `.env.local`, jalankan `npm run dev`, bandingkan angka halaman dengan versi Supabase, kirim selisih; Claude: route `/api/db` untuk 5 file sisi browser, lalu Tahap 5 |
+ 
+ ## 9. Risiko yang diketahui
+ 
+diff --git a/env.mariadb.example b/env.mariadb.example
+index 1ca66d9..44a1e74 100644
+--- a/env.mariadb.example
++++ b/env.mariadb.example
+@@ -7,3 +7,9 @@ DB_PASSWORD=ganti-ini
+ DB_NAME=epic_ai         # di cPanel: nama database (berawalan nama akun)
+ # DB_SOCKET=/var/lib/mysql/mysql.sock   # opsional, jika hanya bisa lewat socket
+ # DB_POOL_SIZE=5
++
++# --- Tahap 4b: peralihan data Supabase -> MariaDB (login tetap Supabase Auth) ---
++# Tanpa baris ini (atau nilai 'supabase') aplikasi memakai Supabase seperti biasa.
++# 'mariadb' = .from()/.rpc() dari lib/supabase/server.ts dan serviceRole.ts dialihkan ke MariaDB.
++# Klien pengguna memakai pengganti RLS (lib/db/rls.ts); klien service-role melewati RLS.
++# DATA_BACKEND=mariadb
+diff --git a/lib/db/hybrid.ts b/lib/db/hybrid.ts
+new file mode 100644
+index 0000000..65882f4
+--- /dev/null
++++ b/lib/db/hybrid.ts
+@@ -0,0 +1,48 @@
++// lib/db/hybrid.ts
++// Masa peralihan (Tahap 4b): login tetap Supabase Auth, DATA dibaca/ditulis ke MariaDB.
++// Dipakai lewat lib/supabase/server.ts dan lib/supabase/serviceRole.ts, jadi file pemanggil TIDAK berubah.
++//
++// Saklar: DATA_BACKEND=mariadb (di .env.local). Tanpa itu (atau 'supabase') perilaku lama tidak berubah.
++// Klien pengguna (createClient) memakai pengganti RLS (lib/db/rls.ts); klien service-role melewati RLS.
++import { dbFrom, dbRpc } from './query-builder';
++import { buatPenjaga } from './rls';
++import type { KonteksAuth, Penjaga } from './rls';
++
++export function dataDiMariaDb(): boolean {
++  return process.env.DATA_BACKEND === 'mariadb';
++}
++
++interface PunyaAuth {
++  auth: { getUser: () => Promise<{ data: { user: { id: string } | null } }> };
++}
++
++/** Bungkus klien Supabase: `.from()` dan `.rpc()` dialihkan ke MariaDB; `.auth` dan lainnya tetap Supabase. */
++function bungkus<T extends object>(klien: T, penjaga?: Penjaga): T {
++  return new Proxy(klien, {
++    get(target, prop, receiver) {
++      if (prop === 'from') return (tabel: string) => dbFrom(tabel, penjaga);
++      if (prop === 'rpc') return dbRpc;
++      const nilai = Reflect.get(target, prop, receiver);
++      return typeof nilai === 'function' ? nilai.bind(target) : nilai;
++    },
++  });
++}
++
++/** Klien atas nama pengguna yang sedang login (atau anon): RLS ditiru di server. */
++export function pakaiMariaDbUntukPengguna<T extends object & PunyaAuth>(klien: T): T {
++  if (!dataDiMariaDb()) return klien;
++  const ambilKonteks = async (): Promise<KonteksAuth> => {
++    const { data } = await klien.auth.getUser();
++    const uid = data.user?.id ?? null;
++    if (!uid) return { uid: null, role: null };
++    // profiles dibaca TANPA penjaga (mencari role pengguna itu sendiri).
++    const r = await dbFrom('profiles').select('role').eq('id', uid).maybeSingle();
++    return { uid, role: (r.data?.role as string | undefined) ?? null };
++  };
++  return bungkus(klien, buatPenjaga(ambilKonteks));
++}
++
++/** Klien service-role: melewati RLS (sama seperti di Supabase). */
++export function pakaiMariaDbTanpaRls<T extends object>(klien: T): T {
++  return dataDiMariaDb() ? bungkus(klien) : klien;
++}
+diff --git a/lib/db/query-builder.ts b/lib/db/query-builder.ts
+new file mode 100644
+index 0000000..6492843
+--- /dev/null
++++ b/lib/db/query-builder.ts
+@@ -0,0 +1,850 @@
++// lib/db/query-builder.ts
++// Adapter bergaya supabase-js (PostgREST) di atas MariaDB (lib/db/client.ts).
++//
++// Tujuan: kode lama `const { data, error } = await supabase.from('t').select(...).eq(...).order(...)`
++// tetap jalan tanpa ditulis ulang, tetapi membaca/menulis MariaDB.
++//
++// YANG DIDUKUNG
++//   from(t).select(cols, {count, head}) | insert | update | upsert | delete, lalu .select() untuk RETURNING
++//   filter  : eq neq gt gte lt lte like ilike is in not or match filter
++//   hasil   : order (NULL diperlakukan seperti Postgres: ASC = NULL terakhir) range limit single maybeSingle
++//             throwOnError returns abortSignal(no-op)
++//   select  : '*', kolom, alias:kolom, relasi sebagai embed 1 tingkat: rel(kolom...), alias:rel(...), rel!inner(...)
++//             (to-one lewat FK anak->induk, to-many lewat FK induk<-anak; disambung di JS, bukan JOIN)
++//   rpc(nama, args): prosedur tersimpan (CALL), hasil = result set pertama
++//   Bentuk hasil sama dengan supabase-js: { data, error, count, status, statusText }; error.code berbentuk
++//   kode Postgres (23505 duplikat, 23503 FK, 23502 NOT NULL, 23514 CHECK, PGRST116 single).
++//
++// PERBEDAAN DISENGAJA TERHADAP SUPABASE
++//   * TIDAK ADA RLS. Adapter ini membaca/menulis sebagai pengguna database. Pemeriksaan role harus ada di
++//     kode server (lihat Tahap 5). Jangan memberi akses adapter ini ke browser.
++//   * Hasil dikonversi ke bentuk yang diharapkan kode lama: DATETIME -> ISO UTC ('...T..:..:..+00:00'),
++//     TINYINT(1) -> boolean, kolom JSON (LONGTEXT + CHECK JSON_VALID) -> objek/array.
++//   * Perbandingan teks mengikuti kolasi kolom (kolom kunci memakai utf8mb4_bin = peka huruf besar/kecil
++//     seperti Postgres; kolom teks biasa utf8mb4_unicode_ci = tidak peka). `like` dipaksa peka, `ilike` tidak.
++//   * Embed relasi hanya 1 tingkat. Filter pada kolom relasi (rel.kolom) belum didukung.
++import { getDbClient, getDbPool } from './client';
++import type { DbValue } from './client';
++import type { Penjaga } from './rls';
++
++// eslint-disable-next-line @typescript-eslint/no-explicit-any
++type Row = Record<string, any>;
++
++export interface DbError {
++  message: string;
++  code: string;
++  details: string | null;
++  hint: string | null;
++}
++
++export interface DbResponse {
++  // eslint-disable-next-line @typescript-eslint/no-explicit-any
++  data: any;
++  error: DbError | null;
++  count: number | null;
++  status: number;
++  statusText: string;
++}
++
++// ---------------------------------------------------------------------
++// Metadata skema (kolom, PK, FK), dimuat sekali per proses
++// ---------------------------------------------------------------------
++
++interface InfoKolom {
++  tipe: string; // DATA_TYPE huruf kecil
++  kolomTipe: string; // COLUMN_TYPE huruf kecil, mis. 'tinyint(1)'
++  json: boolean;
++}
++interface InfoFk {
++  anak: string;
++  kolomAnak: string[];
++  induk: string;
++  kolomInduk: string[];
++  nama: string;
++}
++interface Meta {
++  kolom: Map<string, Map<string, InfoKolom>>;
++  pk: Map<string, string[]>;
++  fk: InfoFk[];
++  parameter: Map<string, string[]>; // prosedur -> nama parameter berurutan
++  views: Set<string>;
++}
++
++type GlobalMeta = typeof globalThis & { __epicDbMeta?: Promise<Meta> };
++const gm = globalThis as GlobalMeta;
++
++async function muatMeta(): Promise<Meta> {
++  const db = getDbClient();
++  const [kol, pk, fk, chk, prm, vw] = await Promise.all([
++    db.execute(`SELECT TABLE_NAME t, COLUMN_NAME c, DATA_TYPE d, COLUMN_TYPE ct FROM information_schema.COLUMNS
++                 WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION`),
++    db.execute(`SELECT TABLE_NAME t, COLUMN_NAME c FROM information_schema.KEY_COLUMN_USAGE
++                 WHERE TABLE_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'PRIMARY' ORDER BY TABLE_NAME, ORDINAL_POSITION`),
++    db.execute(`SELECT CONSTRAINT_NAME n, TABLE_NAME t, COLUMN_NAME c, REFERENCED_TABLE_NAME rt, REFERENCED_COLUMN_NAME rc
++                  FROM information_schema.KEY_COLUMN_USAGE
++                 WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL ORDER BY CONSTRAINT_NAME, ORDINAL_POSITION`),
++    db.execute(`SELECT TABLE_NAME t, CHECK_CLAUSE cl FROM information_schema.CHECK_CONSTRAINTS
++                 WHERE CONSTRAINT_SCHEMA = DATABASE() AND LOWER(CHECK_CLAUSE) LIKE '%json_valid%'`),
++    db.execute(`SELECT SPECIFIC_NAME n, PARAMETER_NAME p FROM information_schema.PARAMETERS
++                 WHERE SPECIFIC_SCHEMA = DATABASE() AND PARAMETER_NAME IS NOT NULL ORDER BY SPECIFIC_NAME, ORDINAL_POSITION`),
++    db.execute(`SELECT TABLE_NAME t FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE()`),
++  ]);
++
++  const jsonKol = new Set<string>();
++  for (const r of chk.rows) {
++    for (const m of String(r.cl).matchAll(/json_valid\(\s*`?([A-Za-z0-9_]+)`?\s*\)/gi)) jsonKol.add(`${r.t}.${m[1]}`);
++  }
++  const kolom = new Map<string, Map<string, InfoKolom>>();
++  for (const r of kol.rows) {
++    if (!kolom.has(r.t)) kolom.set(r.t, new Map());
++    kolom.get(r.t)!.set(r.c, {
++      tipe: String(r.d).toLowerCase(),
++      kolomTipe: String(r.ct).toLowerCase(),
++      json: jsonKol.has(`${r.t}.${r.c}`) || String(r.d).toLowerCase() === 'json',
++    });
++  }
++  const pkMap = new Map<string, string[]>();
++  for (const r of pk.rows) pkMap.set(r.t, [...(pkMap.get(r.t) ?? []), r.c]);
++
++  const perFk = new Map<string, InfoFk>();
++  for (const r of fk.rows) {
++    const kunci = `${r.t}|${r.n}`;
++    const f: InfoFk = perFk.get(kunci) ?? { anak: r.t, kolomAnak: [] as string[], induk: r.rt, kolomInduk: [] as string[], nama: r.n };
++    f.kolomAnak.push(r.c);
++    f.kolomInduk.push(r.rc);
++    perFk.set(kunci, f);
++  }
++  const parameter = new Map<string, string[]>();
++  for (const r of prm.rows) parameter.set(r.n, [...(parameter.get(r.n) ?? []), r.p]);
++
++  return { kolom, pk: pkMap, fk: [...perFk.values()], parameter, views: new Set(vw.rows.map((r) => String(r.t))) };
++}
++
++function getMeta(): Promise<Meta> {
++  if (!gm.__epicDbMeta) {
++    gm.__epicDbMeta = muatMeta().catch((e) => {
++      gm.__epicDbMeta = undefined; // coba lagi pada panggilan berikutnya
++      throw e;
++    });
++  }
++  return gm.__epicDbMeta;
++}
++
++/** Hanya untuk uji: buang cache metadata. */
++export function resetMetaDb(): void {
++  gm.__epicDbMeta = undefined;
++}
++
++// ---------------------------------------------------------------------
++// Utilitas
++// ---------------------------------------------------------------------
++
++const RE_ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
++function id(nama: string): string {
++  if (!RE_ID.test(nama)) throw new Error(`Nama kolom/tabel tidak valid atau belum didukung: "${nama}"`);
++  return '`' + nama + '`';
++}
++
++function petakanGalat(e: unknown): DbError {
++  const x = e as { code?: string; errno?: number; sqlMessage?: string; message?: string };
++  const no = x?.errno;
++  let code = x?.code ?? 'XX000';
++  if (no === 1062) code = '23505';
++  else if (no === 1451 || no === 1452) code = '23503';
++  else if (no === 1048 || no === 1364) code = '23502';
++  else if (no === 4025 || no === 3819) code = '23514';
++  else if (no === 1406 || no === 1264) code = '22001';
++  else if (no === 1054) code = '42703';
++  else if (no === 1146) code = '42P01';
++  else if (no === 1292 || no === 1366) code = '22007';
++  return { message: x?.sqlMessage ?? x?.message ?? String(e), code, details: null, hint: null };
++}
++
++const dua = (n: number) => String(n).padStart(2, '0');
++function utcDatetime(d: Date): string {
++  return `${d.getUTCFullYear()}-${dua(d.getUTCMonth() + 1)}-${dua(d.getUTCDate())} ${dua(d.getUTCHours())}:${dua(d.getUTCMinutes())}:${dua(d.getUTCSeconds())}`;
++}
++
++/** Nilai JS -> parameter SQL, dengan memperhatikan tipe kolom tujuan. */
++function keParam(v: unknown, info?: InfoKolom): DbValue {
++  if (v === undefined || v === null) return null;
++  if (v instanceof Date) return info?.tipe === 'date' ? utcDatetime(v).slice(0, 10) : utcDatetime(v);
++  if (typeof v === 'boolean') return v ? 1 : 0;
++  if (typeof v === 'bigint') return v.toString();
++  if (Buffer.isBuffer(v) || v instanceof Uint8Array || v instanceof ArrayBuffer) return v as DbValue;
++  if (typeof v === 'object') return JSON.stringify(v); // objek/array -> kolom JSON
++  if (typeof v === 'string' && info) {
++    if ((info.tipe === 'datetime' || info.tipe === 'timestamp') && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(v)) {
++      // ISO dengan 'T', 'Z' atau offset -> UTC 'YYYY-MM-DD HH:MM:SS'
++      if (/(Z|[+-]\d{2}(:?\d{2})?)$/.test(v) || v.includes('T')) {
++        const d = new Date(/(Z|[+-]\d{2}(:?\d{2})?)$/.test(v) ? v : v.replace(' ', 'T') + 'Z');
++        if (!Number.isNaN(d.getTime())) return utcDatetime(d);
++      }
++    }
++    if (info.tipe === 'date' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return v.slice(0, 10);
++  }
++  return v as DbValue;
++}
++
++/** Baris hasil MariaDB -> bentuk PostgREST. */
++function keBentukPostgrest(row: Row, kolom: Map<string, InfoKolom> | undefined, aliasKe?: Map<string, string>): Row {
++  if (!kolom) return row;
++  const out: Row = {};
++  for (const [k, v] of Object.entries(row)) {
++    const asal = aliasKe?.get(k) ?? k;
++    const info = kolom.get(asal);
++    out[k] = info ? konversiNilai(v, info) : v;
++  }
++  return out;
++}
++
++function konversiNilai(v: unknown, info: InfoKolom): unknown {
++  if (v === null || v === undefined) return v ?? null;
++  if (info.json && typeof v === 'string') {
++    try {
++      return JSON.parse(v);
++    } catch {
++      return v;
++    }
++  }
++  if (info.tipe === 'datetime' || info.tipe === 'timestamp') {
++    const s = String(v);
++    const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/.exec(s);
++    return m ? `${m[1]}T${m[2]}+00:00` : s;
++  }
++  if (info.kolomTipe === 'tinyint(1)' && (typeof v === 'number' || typeof v === 'string')) return Number(v) !== 0;
++  return v;
++}
++
++// ---------------------------------------------------------------------
++// Kondisi WHERE
++// ---------------------------------------------------------------------
++
++type Kond =
++  | { t: 'cmp'; kol: string; op: string; val: unknown }
++  | { t: 'and'; items: Kond[] }
++  | { t: 'or'; items: Kond[] }
++  | { t: 'not'; item: Kond };
++
++function nilaiPola(v: unknown): string {
++  return String(v).replace(/\*/g, '%'); // PostgREST memakai * sebagai wildcard di dalam or()
++}
++
++function kompilKond(k: Kond, info: Map<string, InfoKolom> | undefined, p: DbValue[]): string {
++  if (k.t === 'and' || k.t === 'or') {
++    if (!k.items.length) return k.t === 'and' ? '1=1' : '1=0';
++    return '(' + k.items.map((x) => kompilKond(x, info, p)).join(k.t === 'and' ? ' AND ' : ' OR ') + ')';
++  }
++  if (k.t === 'not') return `(NOT ${kompilKond(k.item, info, p)})`;
++  const c = id(k.kol);
++  const kolInfo = info?.get(k.kol);
++  const push = (v: unknown) => {
++    p.push(keParam(v, kolInfo));
++    return '?';
++  };
++  switch (k.op) {
++    case 'eq':
++      return k.val === null ? `${c} IS NULL` : `${c} = ${push(k.val)}`;
++    case 'neq':
++      return k.val === null ? `${c} IS NOT NULL` : `${c} <> ${push(k.val)}`; // NULL tidak ikut, sama dengan Postgres
++    case 'gt':
++      return `${c} > ${push(k.val)}`;
++    case 'gte':
++      return `${c} >= ${push(k.val)}`;
++    case 'lt':
++      return `${c} < ${push(k.val)}`;
++    case 'lte':
++      return `${c} <= ${push(k.val)}`;
++    case 'like':
++      return `${c} COLLATE utf8mb4_bin LIKE ${push(nilaiPola(k.val))}`;
++    case 'ilike':
++      return `${c} COLLATE utf8mb4_unicode_ci LIKE ${push(nilaiPola(k.val))}`;
++    case 'is': {
++      const v = k.val;
++      if (v === null || v === 'null') return `${c} IS NULL`;
++      if (v === true || v === 'true') return `${c} IS TRUE`;
++      if (v === false || v === 'false') return `${c} IS FALSE`;
++      throw new Error(`Operator is hanya mendukung null/true/false, bukan: ${String(v)}`);
++    }
++    case 'in': {
++      const arr = Array.isArray(k.val) ? k.val : [];
++      if (!arr.length) return '1=0';
++      return `${c} IN (${arr.map((x) => push(x)).join(',')})`;
++    }
++    default:
++      throw new Error(`Operator filter belum didukung: ${k.op}`);
++  }
++}
++
++// Parser string filter PostgREST untuk .or(...) dan .filter()
++function pecahTingkatAtas(s: string): string[] {
++  const hasil: string[] = [];
++  let dalam = 0;
++  let kutip = false;
++  let cur = '';
++  for (const ch of s) {
++    if (ch === '"') kutip = !kutip;
++    if (!kutip) {
++      if (ch === '(') dalam++;
++      else if (ch === ')') dalam--;
++      else if (ch === ',' && dalam === 0) {
++        hasil.push(cur);
++        cur = '';
++        continue;
++      }
++    }
++    cur += ch;
++  }
++  if (cur.trim()) hasil.push(cur);
++  return hasil.map((x) => x.trim()).filter(Boolean);
++}
++
++function bukaKutip(v: string): string {
++  return v.length >= 2 && v.startsWith('"') && v.endsWith('"') ? v.slice(1, -1) : v;
++}
++
++function parseKondisi(s: string): Kond[] {
++  return pecahTingkatAtas(s).map((item): Kond => {
++    const grup = /^(not\.)?(and|or)\(([\s\S]*)\)$/.exec(item);
++    if (grup) {
++      const k: Kond = { t: grup[2] as 'and' | 'or', items: parseKondisi(grup[3]) };
++      return grup[1] ? { t: 'not', item: k } : k;
++    }
++    const m = /^([A-Za-z_][A-Za-z0-9_]*)\.(not\.)?([a-z]+)\.([\s\S]*)$/.exec(item);
++    if (!m) throw new Error(`Filter or() tidak dikenal: ${item}`);
++    const [, kol, neg, op, mentah] = m;
++    let val: unknown = bukaKutip(mentah);
++    let opAkhir = op;
++    if (op === 'in') {
++      const d = /^\(([\s\S]*)\)$/.exec(mentah);
++      val = d ? pecahTingkatAtas(d[1]).map(bukaKutip) : [];
++    } else if (op === 'is') {
++      val = mentah === 'null' ? null : mentah === 'true' ? true : mentah === 'false' ? false : mentah;
++    }
++    if (op === 'eq' && mentah === 'null') opAkhir = 'eq';
++    const kond: Kond = { t: 'cmp', kol, op: opAkhir, val };
++    return neg ? { t: 'not', item: kond } : kond;
++  });
++}
++
++// ---------------------------------------------------------------------
++// Parser daftar kolom select (alias, relasi)
++// ---------------------------------------------------------------------
++
++interface ItemKolom {
++  kol: string; // '*' atau nama kolom
++  alias?: string;
++}
++interface ItemRelasi {
++  nama: string; // nama tabel yang di-embed
++  alias?: string;
++  inner: boolean;
++  fkHint?: string;
++  isi: string; // daftar kolom di dalam kurung
++}
++interface Pilihan {
++  semua: boolean;
++  kolom: ItemKolom[];
++  relasi: ItemRelasi[];
++}
++
++function parsePilihan(s: string | undefined): Pilihan {
++  const teks = (s ?? '*').trim() || '*';
++  const p: Pilihan = { semua: false, kolom: [], relasi: [] };
++  for (const item0 of pecahTingkatAtas(teks.replace(/\s+/g, ' '))) {
++    const item = item0.replace(/::\w+$/, '').trim();
++    if (item === '*') {
++      p.semua = true;
++      continue;
++    }
++    const rel = /^(?:([A-Za-z_]\w*):)?([A-Za-z_]\w*)(?:!(inner|left|[A-Za-z_]\w*))?(?:!(inner|left))?\(([\s\S]*)\)$/.exec(item);
++    if (rel) {
++      const tanda = [rel[3], rel[4]].filter(Boolean) as string[];
++      p.relasi.push({
++        nama: rel[2],
++        alias: rel[1],
++        inner: tanda.includes('inner'),
++        fkHint: tanda.find((x) => x !== 'inner' && x !== 'left'),
++        isi: rel[5],
++      });
++      continue;
++    }
++    const al = /^(?:([A-Za-z_]\w*):)?([A-Za-z_]\w*)$/.exec(item);
++    if (!al) throw new Error(`Daftar kolom select belum didukung: "${item0}"`);
++    p.kolom.push({ kol: al[2], alias: al[1] });
++  }
++  return p;
++}
++
++// ---------------------------------------------------------------------
++// Query builder
++// ---------------------------------------------------------------------
++
++type Op = 'select' | 'insert' | 'update' | 'upsert' | 'delete';
++interface OpsiHitung {
++  count?: 'exact' | 'planned' | 'estimated';
++  head?: boolean;
++}
++
++export class QueryBuilder implements PromiseLike<DbResponse> {
++  private op: Op = 'select';
++  private pilihan: string | undefined = '*';
++  private opsiHitung: OpsiHitung = {};
++  private kond: Kond[] = [];
++  private urutan: { kol: string; asc: boolean; nullsFirst: boolean }[] = [];
++  private batas: number | null = null;
++  private mulai = 0;
++  private mode: 'banyak' | 'single' | 'maybe' = 'banyak';
++  private payload: Row[] = [];
++  private onConflict: string[] | null = null;
++  private abaikanDuplikat = false;
++  private kembalikan = false; // mutasi + .select()
++  private lempar = false;
++
++  constructor(private readonly tabel: string, private penjaga?: Penjaga) {
++    id(tabel);
++  }
++
++  // --- operasi ---
++  select(kolom = '*', opsi: OpsiHitung = {}): this {
++    if (this.op === 'select') {
++      this.pilihan = kolom;
++      this.opsiHitung = opsi;
++    } else {
++      this.pilihan = kolom;
++      this.kembalikan = true;
++    }
++    return this;
++  }
++  insert(nilai: Row | Row[], opsi: { count?: 'exact' } = {}): this {
++    this.op = 'insert';
++    this.payload = Array.isArray(nilai) ? nilai : [nilai];
++    this.pilihan = undefined;
++    void opsi;
++    return this;
++  }
++  upsert(nilai: Row | Row[], opsi: { onConflict?: string; ignoreDuplicates?: boolean } = {}): this {
++    this.op = 'upsert';
++    this.payload = Array.isArray(nilai) ? nilai : [nilai];
++    this.onConflict = opsi.onConflict ? opsi.onConflict.split(',').map((x) => x.trim()) : null;
++    this.abaikanDuplikat = !!opsi.ignoreDuplicates;
++    this.pilihan = undefined;
++    return this;
++  }
++  update(nilai: Row): this {
++    this.op = 'update';
++    this.payload = [nilai];
++    this.pilihan = undefined;
++    return this;
++  }
++  delete(): this {
++    this.op = 'delete';
++    this.pilihan = undefined;
++    return this;
++  }
++
++  // --- filter ---
++  private tambah(kol: string, op: string, val: unknown): this {
++    this.kond.push({ t: 'cmp', kol, op, val });
++    return this;
++  }
++  eq(kol: string, v: unknown): this { return this.tambah(kol, 'eq', v); }
++  neq(kol: string, v: unknown): this { return this.tambah(kol, 'neq', v); }
++  gt(kol: string, v: unknown): this { return this.tambah(kol, 'gt', v); }
++  gte(kol: string, v: unknown): this { return this.tambah(kol, 'gte', v); }
++  lt(kol: string, v: unknown): this { return this.tambah(kol, 'lt', v); }
++  lte(kol: string, v: unknown): this { return this.tambah(kol, 'lte', v); }
++  like(kol: string, v: string): this { return this.tambah(kol, 'like', v); }
++  ilike(kol: string, v: string): this { return this.tambah(kol, 'ilike', v); }
++  is(kol: string, v: null | boolean): this { return this.tambah(kol, 'is', v); }
++  in(kol: string, v: unknown[]): this { return this.tambah(kol, 'in', v); }
++  contains(): this {
++    throw new Error('Filter contains() (kolom JSON/array) belum didukung oleh adapter MariaDB.');
++  }
++  match(obj: Row): this {
++    for (const [k, v] of Object.entries(obj)) this.eq(k, v);
++    return this;
++  }
++  not(kol: string, op: string, v: unknown): this {
++    this.kond.push({ t: 'not', item: { t: 'cmp', kol, op, val: v } });
++    return this;
++  }
++  or(filter: string): this {
++    this.kond.push({ t: 'or', items: parseKondisi(filter) });
++    return this;
++  }
++  filter(kol: string, op: string, v: unknown): this {
++    return this.tambah(kol, op, v);
++  }
++
++  // --- bentuk hasil ---
++  order(kol: string, opsi: { ascending?: boolean; nullsFirst?: boolean } = {}): this {
++    const asc = opsi.ascending !== false;
++    // Default Postgres: ASC -> NULL terakhir, DESC -> NULL pertama.
++    this.urutan.push({ kol, asc, nullsFirst: opsi.nullsFirst ?? !asc });
++    return this;
++  }
++  limit(n: number): this {
++    this.batas = n;
++    return this;
++  }
++  range(dari: number, sampai: number): this {
++    this.mulai = dari;
++    this.batas = Math.max(0, sampai - dari + 1);
++    return this;
++  }
++  single(): this {
++    this.mode = 'single';
++    return this;
++  }
++  maybeSingle(): this {
++    this.mode = 'maybe';
++    return this;
++  }
++  throwOnError(): this {
++    this.lempar = true;
++    return this;
++  }
++  returns(): this { return this; }
++  abortSignal(): this { return this; }
++
++  // --- eksekusi ---
++  then<A = DbResponse, B = never>(
++    ok?: ((v: DbResponse) => A | PromiseLike<A>) | null,
++    gagal?: ((e: unknown) => B | PromiseLike<B>) | null,
++  ): PromiseLike<A | B> {
++    return this.jalankan().then(ok, gagal);
++  }
++
++  private async jalankan(): Promise<DbResponse> {
++    let hasil: DbResponse;
++    try {
++      hasil = await this.eksekusi();
++    } catch (e) {
++      hasil = { data: null, error: petakanGalat(e), count: null, status: 400, statusText: 'Bad Request' };
++    }
++    if (this.lempar && hasil.error) {
++      const err = new Error(hasil.error.message) as Error & { code?: string };
++      err.code = hasil.error.code;
++      throw err;
++    }
++    return hasil;
++  }
++
++  /** Keputusan RLS untuk tabel ini (view dan klien tanpa penjaga = bebas). */
++  private async periksa(meta: Meta, cmd: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE') {
++    if (!this.penjaga || meta.views.has(this.tabel)) return { izin: 'bebas' } as const;
++    return this.penjaga(this.tabel, cmd);
++  }
++
++  private static galatRls(tabel: string): DbResponse {
++    return {
++      data: null,
++      error: { code: '42501', message: `new row violates row-level security policy for table "${tabel}"`, details: null, hint: null },
++      count: null,
++      status: 403,
++      statusText: 'Forbidden',
++    };
++  }
++
++  private whereSql(meta: Meta, p: DbValue[]): string {
++    if (!this.kond.length) return '';
++    const info = meta.kolom.get(this.tabel);
++    return ' WHERE ' + this.kond.map((k) => kompilKond(k, info, p)).join(' AND ');
++  }
++
++  private orderSql(): string {
++    if (!this.urutan.length) return '';
++    const bagian = this.urutan.map((o) => {
++      const c = id(o.kol);
++      // NULL: Postgres menganggap NULL "terbesar"; MariaDB "terkecil". Samakan secara eksplisit.
++      const n = `(${c} IS NULL) ${o.nullsFirst ? 'DESC' : 'ASC'}`;
++      return `${n}, ${c} ${o.asc ? 'ASC' : 'DESC'}`;
++    });
++    return ' ORDER BY ' + bagian.join(', ');
++  }
++
++  private limitSql(): string {
++    if (this.batas === null && this.mulai === 0) return '';
++    // MariaDB: OFFSET butuh LIMIT; angka besar = "tanpa batas".
++    return ` LIMIT ${this.batas === null ? '18446744073709551615' : Math.trunc(this.batas)} OFFSET ${Math.trunc(this.mulai)}`;
++  }
++
++  /** Daftar kolom SQL untuk SELECT/RETURNING + peta alias + relasi yang perlu disambung. */
++  private rakitKolom(meta: Meta): { sql: string; alias: Map<string, string>; relasi: ItemRelasi[]; perluKolom: string[] } {
++    const pil = parsePilihan(this.pilihan);
++    const info = meta.kolom.get(this.tabel);
++    const alias = new Map<string, string>();
++    const bagian: string[] = [];
++    if (pil.semua || (!pil.kolom.length && pil.relasi.length)) bagian.push('*');
++    for (const k of pil.kolom) {
++      if (info && !info.has(k.kol)) throw Object.assign(new Error(`Unknown column ${k.kol}`), { errno: 1054, sqlMessage: `column ${this.tabel}.${k.kol} does not exist` });
++      bagian.push(k.alias ? `${id(k.kol)} AS ${id(k.alias)}` : id(k.kol));
++      if (k.alias) alias.set(k.alias, k.kol);
++    }
++    // kolom yang dibutuhkan untuk menyambung relasi harus ikut terambil
++    const perluKolom: string[] = [];
++    if (pil.relasi.length && !pil.semua) {
++      for (const r of pil.relasi) {
++        const f = this.cariFk(meta, r);
++        const kunciLokal = f.arah === 'ke-induk' ? f.fk.kolomAnak : f.fk.kolomInduk;
++        for (const kc of kunciLokal) {
++          if (!pil.kolom.some((x) => (x.alias ?? x.kol) === kc)) {
++            bagian.push(id(kc));
++            perluKolom.push(kc);
++          }
++        }
++      }
++    }
++    return { sql: bagian.length ? bagian.join(', ') : '*', alias, relasi: pil.relasi, perluKolom };
++  }
++
++  private cariFk(meta: Meta, r: ItemRelasi): { fk: InfoFk; arah: 'ke-induk' | 'ke-anak' } {
++    const cocok = (f: InfoFk) => !r.fkHint || f.nama === r.fkHint || f.kolomAnak.includes(r.fkHint);
++    const keInduk = meta.fk.filter((f) => f.anak === this.tabel && f.induk === r.nama && cocok(f));
++    if (keInduk.length === 1) return { fk: keInduk[0], arah: 'ke-induk' };
++    const keAnak = meta.fk.filter((f) => f.induk === this.tabel && f.anak === r.nama && cocok(f));
++    if (keInduk.length + keAnak.length === 1) return keInduk.length ? { fk: keInduk[0], arah: 'ke-induk' } : { fk: keAnak[0], arah: 'ke-anak' };
++    throw new Error(
++      keInduk.length + keAnak.length === 0
++        ? `Tidak ada foreign key antara ${this.tabel} dan ${r.nama}`
++        : `Relasi ${this.tabel} -> ${r.nama} ambigu (beberapa FK); tambahkan petunjuk !nama_fk`,
++    );
++  }
++
++  private async sambungRelasi(meta: Meta, rows: Row[], relasi: ItemRelasi[]): Promise<Row[]> {
++    let hasil = rows;
++    for (const r of relasi) {
++      const { fk, arah } = this.cariFk(meta, r);
++      const kunciLokal = arah === 'ke-induk' ? fk.kolomAnak : fk.kolomInduk;
++      const kunciJauh = arah === 'ke-induk' ? fk.kolomInduk : fk.kolomAnak;
++      if (kunciLokal.length !== 1) throw new Error('Embed relasi dengan FK komposit belum didukung.');
++      const nilai = [...new Set(hasil.map((x) => x[kunciLokal[0]]).filter((v) => v !== null && v !== undefined))];
++      const kolomJauh = meta.kolom.get(r.nama);
++      const sub = new QueryBuilder(r.nama, this.penjaga);
++      const isi = r.isi.trim() === '' ? '*' : r.isi;
++      const subPil = parsePilihan(isi);
++      if (subPil.relasi.length) throw new Error('Embed relasi bersarang (lebih dari 1 tingkat) belum didukung.');
++      // pastikan kolom penyambung ikut dibaca, lalu dibuang lagi jika tidak diminta
++      const sambungSudahAda = subPil.semua || subPil.kolom.some((x) => (x.alias ?? x.kol) === kunciJauh[0]);
++      sub.pilihan = sambungSudahAda ? isi : `${isi},${kunciJauh[0]}`;
++      const peta = new Map<unknown, Row[]>();
++      if (nilai.length) {
++        sub.kond.push({ t: 'cmp', kol: kunciJauh[0], op: 'in', val: nilai });
++        const jawab = await sub.eksekusiSelect(meta);
++        for (const j of jawab.rows) {
++          const kunci = j[kunciJauh[0]];
++          if (!peta.has(kunci)) peta.set(kunci, []);
++          peta.get(kunci)!.push(sambungSudahAda ? j : Object.fromEntries(Object.entries(j).filter(([k]) => k !== kunciJauh[0])));
++        }
++      }
++      void kolomJauh;
++      const nama = r.alias ?? r.nama;
++      hasil = hasil
++        .map((x) => {
++          const l = peta.get(x[kunciLokal[0]]) ?? [];
++          return { ...x, [nama]: arah === 'ke-induk' ? (l[0] ?? null) : l };
++        })
++        .filter((x) => !(r.inner && (arah === 'ke-induk' ? x[nama] === null : (x[nama] as Row[]).length === 0)));
++    }
++    return hasil;
++  }
++
++  /** SELECT lengkap (tanpa pembungkus respons); dipakai juga oleh embed. */
++  private async eksekusiSelect(meta: Meta): Promise<{ rows: Row[]; total: number | null }> {
++    const izin = await this.periksa(meta, 'SELECT');
++    if (izin.izin === 'tolak') return { rows: [], total: this.opsiHitung.count ? 0 : null };
++    if (izin.izin === 'baris') this.kond.push({ t: 'cmp', kol: izin.kolom, op: 'eq', val: izin.nilai });
++    const { sql: kolSql, alias, relasi, perluKolom } = this.rakitKolom(meta);
++    const p: DbValue[] = [];
++    const where = this.whereSql(meta, p);
++    const db = getDbClient();
++    let total: number | null = null;
++    if (this.opsiHitung.count) {
++      const pc: DbValue[] = [];
++      const wc = this.whereSql(meta, pc);
++      const r = await db.execute({ sql: `SELECT COUNT(*) AS n FROM ${id(this.tabel)}${wc}`, args: pc });
++      total = Number(r.rows[0]?.n ?? 0);
++    }
++    if (this.opsiHitung.head) return { rows: [], total };
++    const r = await db.execute({
++      sql: `SELECT ${kolSql} FROM ${id(this.tabel)}${where}${this.orderSql()}${this.limitSql()}`,
++      args: p,
++    });
++    let rows = r.rows.map((x) => keBentukPostgrest(x, meta.kolom.get(this.tabel), alias));
++    if (relasi.length) {
++      rows = await this.sambungRelasi(meta, rows, relasi);
++      if (perluKolom.length) rows = rows.map((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !perluKolom.includes(k))));
++    }
++    return { rows, total };
++  }
++
++  private bentukRespons(rows: Row[], total: number | null, status = 200): DbResponse {
++    const ok = (data: unknown, st = status): DbResponse =>
++      ({ data, error: null, count: total, status: st, statusText: st === 200 ? 'OK' : 'Created' }) as DbResponse;
++    if (this.mode === 'single') {
++      if (rows.length !== 1) {
++        return {
++          data: null,
++          error: {
++            code: 'PGRST116',
++            message: 'JSON object requested, multiple (or no) rows returned',
++            details: `The result contains ${rows.length} rows`,
++            hint: null,
++          },
++          count: total,
++          status: 406,
++          statusText: 'Not Acceptable',
++        };
++      }
++      return ok(rows[0]);
++    }
++    if (this.mode === 'maybe') {
++      if (rows.length > 1) {
++        return {
++          data: null,
++          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${rows.length} rows`, hint: null },
++          count: total,
++          status: 406,
++          statusText: 'Not Acceptable',
++        };
++      }
++      return ok(rows[0] ?? null);
++    }
++    return ok(rows);
++  }
++
++  private async eksekusi(): Promise<DbResponse> {
++    const meta = await getMeta();
++    const db = getDbClient();
++
++    if (this.op === 'select') {
++      const { rows, total } = await this.eksekusiSelect(meta);
++      if (this.opsiHitung.head) return { data: null, error: null, count: total, status: 200, statusText: 'OK' };
++      return this.bentukRespons(rows, total);
++    }
++
++    const info = meta.kolom.get(this.tabel);
++    if (!info) throw Object.assign(new Error(`Table ${this.tabel} doesn't exist`), { errno: 1146, sqlMessage: `Tabel ${this.tabel} tidak ada` });
++
++    if (this.op === 'insert' || this.op === 'upsert') {
++      if (!this.payload.length) return this.bentukRespons([], null, 201);
++      const izinIns = await this.periksa(meta, 'INSERT');
++      const izinUpd = this.op === 'upsert' ? await this.periksa(meta, 'UPDATE') : izinIns;
++      for (const iz of [izinIns, izinUpd]) {
++        if (iz.izin === 'tolak') return QueryBuilder.galatRls(this.tabel);
++        if (iz.izin === 'baris' && this.payload.some((r) => String(r[iz.kolom] ?? '') !== iz.nilai)) return QueryBuilder.galatRls(this.tabel);
++      }
++      if (this.kembalikan && (await this.periksa(meta, 'SELECT')).izin === 'tolak') return QueryBuilder.galatRls(this.tabel);
++      const kolom = [...new Set(this.payload.flatMap((r) => Object.keys(r).filter((k) => r[k] !== undefined)))];
++      for (const k of kolom) if (!info.has(k)) throw Object.assign(new Error(`Unknown column ${k}`), { errno: 1054, sqlMessage: `Kolom ${k} tidak ada di tabel ${this.tabel}` });
++      const p: DbValue[] = [];
++      const barisSql = this.payload.map(
++        (r) => '(' + kolom.map((k) => (r[k] === undefined ? 'DEFAULT' : (p.push(keParam(r[k], info.get(k))), '?'))).join(',') + ')',
++      );
++      let sql = `INSERT INTO ${id(this.tabel)} (${kolom.map(id).join(',')}) VALUES ${barisSql.join(',')}`;
++      if (this.op === 'upsert') {
++        const kunci = this.onConflict ?? meta.pk.get(this.tabel) ?? [];
++        const ubah = kolom.filter((k) => !kunci.includes(k));
++        const set = this.abaikanDuplikat || !ubah.length
++          ? [`${id(kunci[0] ?? kolom[0])} = ${id(kunci[0] ?? kolom[0])}`]
++          : ubah.map((k) => `${id(k)} = VALUES(${id(k)})`);
++        sql += ' ON DUPLICATE KEY UPDATE ' + set.join(', ');
++      }
++      const rak = this.kembalikan ? this.rakitKolom(meta) : null;
++      if (rak) sql += ` RETURNING ${rak.sql}`;
++      const r = await db.execute({ sql, args: p });
++      if (!rak) return { data: null, error: null, count: null, status: 201, statusText: 'Created' };
++      let rows = r.rows.map((x) => keBentukPostgrest(x, info, rak.alias));
++      if (rak.relasi.length) rows = await this.sambungRelasi(meta, rows, rak.relasi);
++      return this.bentukRespons(rows, null, 201);
++    }
++
++    if (this.op === 'update') {
++      const izinUp = await this.periksa(meta, 'UPDATE');
++      if (izinUp.izin === 'tolak') return this.bentukRespons([], null);
++      if (izinUp.izin === 'baris') this.kond.push({ t: 'cmp', kol: izinUp.kolom, op: 'eq', val: izinUp.nilai });
++      const nilai = this.payload[0];
++      const kolom = Object.keys(nilai).filter((k) => nilai[k] !== undefined);
++      if (!kolom.length) return { data: null, error: null, count: null, status: 204, statusText: 'No Content' };
++      for (const k of kolom) if (!info.has(k)) throw Object.assign(new Error(`Unknown column ${k}`), { errno: 1054, sqlMessage: `Kolom ${k} tidak ada di tabel ${this.tabel}` });
++      const pw: DbValue[] = [];
++      const where = this.whereSql(meta, pw);
++      const set = kolom.map((k) => `${id(k)} = ?`).join(', ');
++      const ps = kolom.map((k) => keParam(nilai[k], info.get(k)));
++      if (!this.kembalikan) {
++        await db.execute({ sql: `UPDATE ${id(this.tabel)} SET ${set}${where}`, args: [...ps, ...pw] });
++        return { data: null, error: null, count: null, status: 204, statusText: 'No Content' };
++      }
++      // MariaDB tidak punya UPDATE ... RETURNING: kunci baris, ubah, lalu baca ulang lewat PK.
++      const pk = meta.pk.get(this.tabel);
++      if (!pk?.length) throw new Error(`update().select() butuh PRIMARY KEY pada tabel ${this.tabel}`);
++      const tx = await db.transaction();
++      try {
++        const pk0: DbValue[] = [];
++        const w0 = this.whereSql(meta, pk0);
++        const ids = (await tx.execute({ sql: `SELECT ${pk.map(id).join(',')} FROM ${id(this.tabel)}${w0} FOR UPDATE`, args: pk0 })).rows;
++        await tx.execute({ sql: `UPDATE ${id(this.tabel)} SET ${set}${where}`, args: [...ps, ...pw] });
++        let rows: Row[] = [];
++        if (ids.length) {
++          const rak = this.rakitKolom(meta);
++          const pb: DbValue[] = [];
++          const cond = ids.map((r) => '(' + pk.map((c) => { pb.push(r[c] as DbValue); return `${id(c)} = ?`; }).join(' AND ') + ')').join(' OR ');
++          const ambil = await tx.execute({ sql: `SELECT ${rak.sql} FROM ${id(this.tabel)} WHERE ${cond}${this.orderSql()}`, args: pb });
++          rows = ambil.rows.map((x) => keBentukPostgrest(x, info, rak.alias));
++          if (rak.relasi.length) rows = await this.sambungRelasi(meta, rows, rak.relasi);
++        }
++        await tx.commit();
++        return this.bentukRespons(rows, null);
++      } catch (e) {
++        await tx.rollback();
++        throw e;
++      }
++    }
++
++    // delete
++    const izinDel = await this.periksa(meta, 'DELETE');
++    if (izinDel.izin === 'tolak') return this.kembalikan ? this.bentukRespons([], null) : { data: null, error: null, count: null, status: 204, statusText: 'No Content' };
++    if (izinDel.izin === 'baris') this.kond.push({ t: 'cmp', kol: izinDel.kolom, op: 'eq', val: izinDel.nilai });
++    const pw: DbValue[] = [];
++    const where = this.whereSql(meta, pw);
++    const rak = this.kembalikan ? this.rakitKolom(meta) : null;
++    const r = await db.execute({ sql: `DELETE FROM ${id(this.tabel)}${where}${rak ? ` RETURNING ${rak.sql}` : ''}`, args: pw });
++    if (!rak) return { data: null, error: null, count: null, status: 204, statusText: 'No Content' };
++    let rows = r.rows.map((x) => keBentukPostgrest(x, info, rak.alias));
++    if (rak.relasi.length) rows = await this.sambungRelasi(meta, rows, rak.relasi);
++    return this.bentukRespons(rows, null);
++  }
++}
++
++// ---------------------------------------------------------------------
++// RPC (prosedur tersimpan) dan klien
++// ---------------------------------------------------------------------
++
++export function dbRpc(nama: string, args: Row = {}): PromiseLike<DbResponse> {
++  const jalan = async (): Promise<DbResponse> => {
++    try {
++      id(nama);
++      const meta = await getMeta();
++      const parameter = meta.parameter.get(nama);
++      if (!parameter) throw Object.assign(new Error(`Prosedur ${nama} tidak ada`), { errno: 1305, sqlMessage: `Prosedur ${nama} tidak ada` });
++      const nilai = parameter.map((p) => keParam(args[p] ?? args[p.replace(/^p_/, '')] ?? null));
++      // CALL mengembalikan [result sets..., OkPacket]; ambil result set pertama.
++      const [hasil] = await getDbPool().query(`CALL ${id(nama)}(${parameter.map(() => '?').join(',')})`, nilai);
++      const rs = Array.isArray(hasil) && Array.isArray(hasil[0]) ? (hasil[0] as Row[]) : [];
++      return { data: rs.map((x) => ({ ...x })), error: null, count: null, status: 200, statusText: 'OK' } as DbResponse;
++    } catch (e) {
++      return { data: null, error: petakanGalat(e), count: null, status: 400, statusText: 'Bad Request' };
++    }
++  };
++  return { then: (ok, gagal) => jalan().then(ok, gagal) };
++}
++
++export function dbFrom(tabel: string, penjaga?: Penjaga): QueryBuilder {
++  return new QueryBuilder(tabel, penjaga);
++}
++
++/** Klien bentuk supabase-js yang hanya punya .from() dan .rpc(), di atas MariaDB. */
++export function buatKlienDb(penjaga?: Penjaga) {
++  return { from: (t: string) => dbFrom(t, penjaga), rpc: dbRpc };
++}
+diff --git a/lib/db/rls-policy.generated.ts b/lib/db/rls-policy.generated.ts
+new file mode 100644
+index 0000000..3abde17
+--- /dev/null
++++ b/lib/db/rls-policy.generated.ts
+@@ -0,0 +1,416 @@
++// DIBANGKITKAN oleh scripts/migrate/buat-rls.mjs dari schema-dump/supabase_schema.json. JANGAN diedit manual.
++// Setiap entri = policy RLS Supabase (permissive, digabung dengan OR). 'untuk' = role Postgres yang dikenai policy:
++// 'anon' (belum login), 'authenticated' (sudah login) atau 'public' (keduanya).
++export type AturanRls =
++  | { untuk: string[]; t: 'semua' | 'login' | 'admin' | 'diri' | 'diri_atau_admin' | 'tolak' }
++  | { untuk: string[]; t: 'role'; roles: string[] };
++export type PerintahRls = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
++export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>>> =
++{
++  buletin: {
++    SELECT: [
++      { untuk: [ 'authenticated' ], t: 'semua' },
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    DELETE: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ]
++  },
++  fasilitas_foto: {
++    SELECT: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] },
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] }
++    ],
++    DELETE: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] }
++    ]
++  },
++  fasilitas_pelabuhan: {
++    SELECT: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] },
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] }
++    ],
++    DELETE: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin' ] }
++    ]
++  },
++  foto_kegiatan: {
++    DELETE: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  hiv_data: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  hotspot_nasa_kaltim: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  ispa_harian: {
++    INSERT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    DELETE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ]
++  },
++  ispu_stasiun_harian: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' },
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  jenis_kegiatan_foto: {
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'public' ], t: 'login' }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  kegiatan_cop: {
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'anon' ], t: 'semua' },
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ]
++  },
++  kegiatan_pesawat: {
++    INSERT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  kegiatan_phqc: {
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  klinik_binaan: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  kualitas_udara_harian: {
++    INSERT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    DELETE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ]
++  },
++  kunjungan_tamu: {
++    INSERT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  laporan_penyakit_emerging: {
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'petugas', 'admin' ] }
++    ],
++    UPDATE: [
++      { untuk: [ 'anon' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'petugas', 'admin' ] }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  laporan_penyakit_nasional: {
++    INSERT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  lokasi_kualitas_udara: {
++    DELETE: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  malaria_migrasi: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  pab: {
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  pengawasan_klinik: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ]
++  },
++  pengawasan_klinik_dokumen: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' },
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ]
++  },
++  peraturan: {
++    SELECT: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin', 'petugas' ] },
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    DELETE: [
++      { untuk: [ 'public' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ]
++  },
++  profiles: {
++    INSERT: [
++      { untuk: [ 'public' ], t: 'diri' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'diri_atau_admin' },
++      { untuk: [ 'authenticated' ], t: 'diri' }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'admin' },
++      { untuk: [ 'public' ], t: 'diri' }
++    ]
++  },
++  rat_guard: {
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  referensi_parameter_penyakit: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  referensi_populasi_wilker: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    DELETE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ]
++  },
++  riwayat_analisis_ai: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' },
++      { untuk: [ 'authenticated' ], t: 'semua' },
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ]
++  },
++  simulasi_wabah_kapal: {
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ]
++  },
++  simulasi_wabah_pesawat: {
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'role', roles: [ 'admin', 'petugas' ] }
++    ]
++  },
++  skdr_jenis_penyakit: {
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  skdr_mingguan: {
++    INSERT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  statistik_kunjungan: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' },
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' },
++      { untuk: [ 'public' ], t: 'admin' }
++    ],
++    INSERT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  tb_data: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  tpp: {
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  ttu: {
++    INSERT: [
++      { untuk: [ 'anon' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'public' ], t: 'semua' }
++    ]
++  },
++  vektor_anopheles: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  vektor_dbd: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  vektor_diare: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  vektor_tikus: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  wilayah_ispa: {
++    DELETE: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    INSERT: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    UPDATE: [
++      { untuk: [ 'authenticated' ], t: 'semua' }
++    ],
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  wilker_nama_alias: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  },
++  wilker_ref: {
++    SELECT: [
++      { untuk: [ 'anon', 'authenticated' ], t: 'semua' }
++    ]
++  }
++};
+diff --git a/lib/db/rls.ts b/lib/db/rls.ts
+new file mode 100644
+index 0000000..6c48dfc
+--- /dev/null
++++ b/lib/db/rls.ts
+@@ -0,0 +1,74 @@
++// lib/db/rls.ts
++// Pengganti RLS Supabase pada masa peralihan (Supabase Auth masih dipakai untuk login, data di MariaDB).
++// Aturan dibangkitkan dari 103 policy RLS asli (lib/db/rls-policy.generated.ts, hasil scripts/migrate/buat-rls.mjs).
++//
++// Cara kerja (meniru Postgres):
++//   * Pengguna belum login = role 'anon'; sudah login = 'authenticated'. Policy hanya berlaku untuk role yang
++//     disebut ('public' = keduanya). Policy bersifat permissive: salah satu yang lolos sudah cukup (OR).
++//   * Tabel BASE tanpa policy sama sekali = RLS aktif tanpa policy = DITOLAK (mis. pengaturan_ai berisi api_key).
++//     View tidak diperiksa (di Supabase view berjalan dengan hak pemilik).
++//   * SELECT ditolak -> hasil kosong; UPDATE/DELETE ditolak -> tidak ada baris terpengaruh (tanpa galat);
++//     INSERT ditolak -> galat 42501, sama seperti PostgREST.
++// Klien service-role melewati semua aturan ini (sama seperti Supabase).
++import { POLICY_RLS } from './rls-policy.generated';
++import type { PerintahRls } from './rls-policy.generated';
++
++export type { PerintahRls };
++
++export interface KonteksAuth {
++  uid: string | null; // auth.uid()
++  role: string | null; // profiles.role: 'admin' | 'petugas' | 'petugas_klinik' | ...
++}
++
++export type Keputusan = { izin: 'bebas' } | { izin: 'tolak' } | { izin: 'baris'; kolom: string; nilai: string };
++
++export type Penjaga = (tabel: string, cmd: PerintahRls) => Promise<Keputusan>;
++
++/** Keputusan murni (tanpa I/O); mudah diuji. `adalahView` = tidak diperiksa. */
++export function putuskan(tabel: string, cmd: PerintahRls, ctx: KonteksAuth, adalahView = false): Keputusan {
++  if (adalahView) return { izin: 'bebas' };
++  const roleDb = ctx.uid ? 'authenticated' : 'anon';
++  const daftar = (POLICY_RLS[tabel]?.[cmd] ?? []).filter((a) => a.untuk.includes('public') || a.untuk.includes(roleDb));
++  let skopDiri = false;
++  for (const a of daftar) {
++    switch (a.t) {
++      case 'semua':
++        return { izin: 'bebas' };
++      case 'login':
++        if (ctx.uid) return { izin: 'bebas' };
++        break;
++      case 'admin':
++        if (ctx.uid && ctx.role === 'admin') return { izin: 'bebas' };
++        break;
++      case 'role':
++        if (ctx.uid && ctx.role && a.roles.includes(ctx.role)) return { izin: 'bebas' };
++        break;
++      case 'diri_atau_admin':
++        if (ctx.uid && ctx.role === 'admin') return { izin: 'bebas' };
++        if (ctx.uid) skopDiri = true;
++        break;
++      case 'diri':
++        if (ctx.uid) skopDiri = true;
++        break;
++      default:
++        break; // 'tolak'
++    }
++  }
++  if (skopDiri && ctx.uid) return { izin: 'baris', kolom: 'id', nilai: ctx.uid };
++  return { izin: 'tolak' };
++}
++
++/** Penjaga untuk satu permintaan: konteks (uid + role) diambil sekali, keputusan di-cache per tabel+perintah. */
++export function buatPenjaga(ambilKonteks: () => Promise<KonteksAuth>): Penjaga {
++  let konteks: Promise<KonteksAuth> | null = null;
++  const cache = new Map<string, Keputusan>();
++  return async (tabel, cmd) => {
++    const kunci = `${tabel}|${cmd}`;
++    const ada = cache.get(kunci);
++    if (ada) return ada;
++    konteks ??= ambilKonteks();
++    const k = putuskan(tabel, cmd, await konteks);
++    cache.set(kunci, k);
++    return k;
++  };
++}
+diff --git a/lib/supabase/server.ts b/lib/supabase/server.ts
+index a709d6a..b65bf43 100644
+--- a/lib/supabase/server.ts
++++ b/lib/supabase/server.ts
+@@ -1,11 +1,12 @@
+ import { createServerClient } from "@supabase/ssr";
+ import { cookies } from "next/headers";
+ import type { Database } from "@/types/database.types";
++import { pakaiMariaDbUntukPengguna } from "@/lib/db/hybrid";
+ 
+ export async function createClient() {
+   const cookieStore = await cookies();
+ 
+-  return createServerClient<Database>(  // 👈 tambahkan <Database> di sini
++  const klien = createServerClient<Database>(  // 👈 tambahkan <Database> di sini
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+     {
+@@ -25,4 +26,6 @@ export async function createClient() {
+       },
+     }
+   );
+-}
+\ No newline at end of file
++  // DATA_BACKEND=mariadb: .from()/.rpc() ke MariaDB (RLS ditiru di server); .auth tetap Supabase.
++  return pakaiMariaDbUntukPengguna(klien);
++}
+diff --git a/lib/supabase/serviceRole.ts b/lib/supabase/serviceRole.ts
+index 7d1fd8b..a4300ba 100644
+--- a/lib/supabase/serviceRole.ts
++++ b/lib/supabase/serviceRole.ts
+@@ -21,6 +21,7 @@ import 'server-only';
+ 
+ import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+ import type { Database } from '@/types/database.types';
++import { pakaiMariaDbTanpaRls } from '@/lib/db/hybrid';
+ 
+ export function createServiceRoleClient() {
+   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+@@ -32,11 +33,12 @@ export function createServiceRoleClient() {
+     );
+   }
+ 
+-  return createSupabaseClient<Database>(url, serviceRoleKey, {
++  const klien = createSupabaseClient<Database>(url, serviceRoleKey, {
+     auth: {
+       // Client ini tidak mewakili user mana pun -- jangan simpan/refresh sesi.
+       autoRefreshToken: false,
+       persistSession: false,
+     },
+   });
++  return pakaiMariaDbTanpaRls(klien);
+ }
+diff --git a/scripts/migrate/buat-rls.mjs b/scripts/migrate/buat-rls.mjs
+new file mode 100644
+index 0000000..bea7e3f
+--- /dev/null
++++ b/scripts/migrate/buat-rls.mjs
+@@ -0,0 +1,57 @@
++// Bangkitkan lib/db/rls-policy.generated.ts dari 103 policy RLS di schema-dump/supabase_schema.json.
++// Jalankan: node scripts/migrate/buat-rls.mjs
++// Setiap policy diterjemahkan ke salah satu aturan: semua | login | role[...] | admin | diri | tolak.
++// Policy yang tidak dikenali menjadi 'tolak' (gagal tertutup) dan DICETAK supaya ditinjau manual.
++import { readFileSync, writeFileSync } from 'node:fs';
++
++const dump = JSON.parse(readFileSync('schema-dump/supabase_schema.json', 'utf8'));
++const rapikan = (s) => (s ?? '').replace(/\s+/g, ' ').trim();
++const daftarRole = (s) => String(s).replace(/[{}]/g, '').split(',').map((x) => x.trim()).filter(Boolean);
++
++function terjemah(teks, tabel) {
++  const q = rapikan(teks);
++  if (q === '' || q === 'true') return { t: 'semua' };
++  if (/^\(?auth\.role\(\) = 'authenticated'(::text)?\)?$/.test(q)) return { t: 'login' };
++  if (/^is_admin\(\)$/.test(q)) return { t: 'admin' };
++  if (/^\(+id = \(* ?(SELECT )?auth\.uid\(\)( AS uid)?\)+$/i.test(q)) return { t: 'diri' };
++  if (/^\(?\(id = auth\.uid\(\)\) OR is_admin\(\)\)?$/.test(q)) return { t: 'diri_atau_admin' };
++  let m = /^\(EXISTS \( SELECT 1 FROM profiles( p)? WHERE \(\(\w+\.id = auth\.uid\(\)\) AND \(\w+\.role = '([a-z_]+)'(::text)?\)\)\)\)$/.exec(q);
++  if (m) return { t: 'role', roles: [m[2]] };
++  m = /^\(EXISTS \( SELECT 1 FROM profiles( p)? WHERE \(\(\w+\.id = auth\.uid\(\)\) AND \(\w+\.role = ANY \(ARRAY\[([^\]]+)\]\)\)\)\)\)$/.exec(q);
++  if (m) return { t: 'role', roles: [...m[2].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) };
++  return { t: 'tolak', asal: `${tabel}: ${q}` };
++}
++
++const hasil = {};
++const tak = [];
++for (const p of dump.policy_rls) {
++  const roles = daftarRole(p.roles);
++  const cmds = p.cmd === 'ALL' ? ['SELECT', 'INSERT', 'UPDATE', 'DELETE'] : [p.cmd];
++  for (const cmd of cmds) {
++    // SELECT/DELETE memakai USING (qual); INSERT memakai WITH CHECK; UPDATE memakai keduanya (USING menentukan baris).
++    const sumber = cmd === 'INSERT' ? p.with_check : p.qual;
++    const aturan = terjemah(sumber, p.tablename);
++    if (aturan.t === 'tolak') tak.push(`${p.tablename} ${cmd} "${p.policyname}": ${aturan.asal}`);
++    delete aturan.asal;
++    ((hasil[p.tablename] ??= {})[cmd] ??= []).push({ untuk: roles, ...aturan });
++  }
++}
++const tabelDump = new Set((dump.kolom ?? []).map((k) => k.table_name ?? k.tabel).filter(Boolean));
++const badan = `// DIBANGKITKAN oleh scripts/migrate/buat-rls.mjs dari schema-dump/supabase_schema.json. JANGAN diedit manual.
++// Setiap entri = policy RLS Supabase (permissive, digabung dengan OR). 'untuk' = role Postgres yang dikenai policy:
++// 'anon' (belum login), 'authenticated' (sudah login) atau 'public' (keduanya).
++export type AturanRls =
++  | { untuk: string[]; t: 'semua' | 'login' | 'admin' | 'diri' | 'diri_atau_admin' | 'tolak' }
++  | { untuk: string[]; t: 'role'; roles: string[] };
++export type PerintahRls = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
++export const POLICY_RLS: Record<string, Partial<Record<PerintahRls, AturanRls[]>>> =
++${JSON.stringify(hasil, null, 2)};
++`;
++const ringkas = badan
++  .replace(/\{\s+"untuk": (\[[^\]]*\]),\s+"t": "(\w+)"\s+\}/g, (_, u, t) => `{ untuk: ${u.replace(/\s+/g, ' ')}, t: '${t}' }`)
++  .replace(/\{\s+"untuk": (\[[^\]]*\]),\s+"t": "role",\s+"roles": (\[[^\]]*\])\s+\}/g, (_, u, r) => `{ untuk: ${u.replace(/\s+/g, ' ')}, t: 'role', roles: ${r.replace(/\s+/g, ' ')} }`)
++  .replace(/"([A-Za-z_]+)":/g, '$1:')
++  .replace(/"/g, "'");
++writeFileSync('lib/db/rls-policy.generated.ts', ringkas);
++console.log(`Tabel dengan policy: ${Object.keys(hasil).length}`);
++console.log(tak.length ? 'TIDAK DIKENALI (jadi tolak):\n' + tak.join('\n') : 'Semua policy dikenali.');
+diff --git a/scripts/migrate/uji-query-builder.ts b/scripts/migrate/uji-query-builder.ts
+new file mode 100644
+index 0000000..dfa2db4
+--- /dev/null
++++ b/scripts/migrate/uji-query-builder.ts
+@@ -0,0 +1,158 @@
++// Uji adapter lib/db/query-builder.ts terhadap MariaDB NYATA (skema 01-04 sudah dimuat).
++// Jalankan (database uji kosong, JANGAN ke database yang berisi data asli):
++//   DB_USER=epic DB_PASSWORD=epic DB_NAME=epic DB_SOCKET=/run/mysqld/mysqld.sock \
++//     npx tsx --test scripts/migrate/uji-query-builder.ts
++// Uji membuat dan membersihkan barisnya sendiri (awalan "uji-"), tetapi tetap pakai database terpisah.
++import test, { before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import { dbFrom, dbRpc, resetMetaDb } from '../../lib/db/query-builder';
++import { getDbClient, tutupDb } from '../../lib/db/client';
++
++const db = () => getDbClient();
++
++before(async () => {
++  resetMetaDb();
++  if (process.env.DB_NAME === 'epic_produksi') throw new Error('Jangan jalankan uji ini di database data asli.');
++  await db().execute("DELETE FROM pengawasan_klinik WHERE 1=1");
++  await db().execute("DELETE FROM klinik_binaan WHERE nama_klinik LIKE 'uji-%'");
++  await db().execute("DELETE FROM wilker_ref WHERE kode LIKE 'UJI%'");
++});
++after(async () => {
++  await db().execute("DELETE FROM pengawasan_klinik WHERE 1=1");
++  await db().execute("DELETE FROM klinik_binaan WHERE nama_klinik LIKE 'uji-%'");
++  await db().execute("DELETE FROM wilker_ref WHERE kode LIKE 'UJI%'");
++  await tutupDb();
++});
++
++test('insert + RETURNING + single; JSON dan angka kembali sebagai objek/number', async () => {
++  const r = await dbFrom('wilker_ref')
++    .insert({ kode: 'UJI1', nama: 'Uji Satu', jenis: 'Pelabuhan', lat: -0.5, lng: 117.15, sub_lokasi: ['A', 'B c'] })
++    .select()
++    .single();
++  assert.equal(r.error, null);
++  assert.equal(r.data.kode, 'UJI1');
++  assert.deepEqual(r.data.sub_lokasi, ['A', 'B c']);
++  assert.equal(typeof r.data.lat, 'number');
++  assert.equal(r.data.lat, -0.5);
++});
++
++test('select: eq, in, order (NULL terakhir saat ASC), limit, range, count+head', async () => {
++  await dbFrom('wilker_ref').insert([
++    { kode: 'UJI2', nama: 'Uji Dua', jenis: 'Bandara', lat: 1, lng: 2, catatan: null },
++    { kode: 'UJI3', nama: 'Uji Tiga', jenis: 'Kantor', lat: 3, lng: 4, catatan: 'ada' },
++  ]);
++  const a = await dbFrom('wilker_ref').select('kode, catatan').in('kode', ['UJI1', 'UJI2', 'UJI3']).order('catatan', { ascending: true });
++  // ASC: 'ada' dulu, lalu NULL (UJI1 dan UJI2 punya catatan NULL)
++  assert.equal(a.data[0].kode, 'UJI3');
++  const d = await dbFrom('wilker_ref').select('kode, catatan').in('kode', ['UJI1', 'UJI2', 'UJI3']).order('catatan', { ascending: false });
++  assert.equal(d.data[0].kode === 'UJI3', false); // DESC: NULL dulu (seperti Postgres)
++  const l = await dbFrom('wilker_ref').select('kode').like('kode', 'UJI%').order('kode').limit(2);
++  assert.equal(l.data.length, 2);
++  const g = await dbFrom('wilker_ref').select('kode').like('kode', 'UJI%').order('kode').range(1, 1);
++  assert.deepEqual(g.data, [{ kode: 'UJI2' }]);
++  const c = await dbFrom('wilker_ref').select('*', { count: 'exact', head: true }).like('kode', 'UJI%');
++  assert.equal(c.count, 3);
++  assert.equal(c.data, null);
++});
++
++test('like peka huruf besar/kecil, ilike tidak; wildcard * di or()', async () => {
++  const k = await dbFrom('klinik_binaan').insert([
++    { nama_klinik: 'uji-Klinik Sehat', kategori: 'klinik' },
++    { nama_klinik: 'uji-BKK Pusat', kategori: 'bkk' },
++  ]).select();
++  assert.equal(k.data.length, 2);
++  assert.equal((await dbFrom('klinik_binaan').select('nama_klinik').like('nama_klinik', 'uji-klinik%')).data.length, 0);
++  assert.equal((await dbFrom('klinik_binaan').select('nama_klinik').ilike('nama_klinik', 'uji-klinik%')).data.length, 1);
++  const o = await dbFrom('klinik_binaan').select('nama_klinik').or('nama_klinik.ilike.*KLINIK*,kategori.eq.bkk').like('nama_klinik', 'uji-%');
++  assert.equal(o.data.length, 2);
++  const o2 = await dbFrom('klinik_binaan').select('nama_klinik').or('and(kategori.eq.bkk,nama_klinik.ilike.*pusat*),nama_klinik.eq.tidak-ada').like('nama_klinik', 'uji-%');
++  assert.equal(o2.data.length, 1);
++});
++
++test('is null, not is null, neq, in kosong', async () => {
++  assert.equal((await dbFrom('wilker_ref').select('kode').like('kode', 'UJI%').is('catatan', null)).data.length, 2);
++  assert.equal((await dbFrom('wilker_ref').select('kode').like('kode', 'UJI%').not('catatan', 'is', null)).data.length, 1);
++  assert.equal((await dbFrom('wilker_ref').select('kode').like('kode', 'UJI%').neq('jenis', 'Kantor')).data.length, 2);
++  assert.equal((await dbFrom('wilker_ref').select('kode').in('kode', [])).data.length, 0);
++});
++
++test('upsert (PK), ignoreDuplicates, update().select(), delete().select()', async () => {
++  const u = await dbFrom('wilker_ref').upsert({ kode: 'UJI1', nama: 'Uji Satu (baru)', jenis: 'Pelabuhan', lat: 9, lng: 9 }).select().single();
++  assert.equal(u.data.nama, 'Uji Satu (baru)');
++  await dbFrom('wilker_ref').upsert({ kode: 'UJI1', nama: 'TIDAK BOLEH', jenis: 'Pelabuhan', lat: 9, lng: 9 }, { ignoreDuplicates: true });
++  assert.equal((await dbFrom('wilker_ref').select('nama').eq('kode', 'UJI1').single()).data.nama, 'Uji Satu (baru)');
++  const up = await dbFrom('wilker_ref').update({ catatan: 'diubah', sub_lokasi: { x: 1 } }).eq('kode', 'UJI3').select();
++  assert.equal(up.data.length, 1);
++  assert.equal(up.data[0].catatan, 'diubah');
++  assert.deepEqual(up.data[0].sub_lokasi, { x: 1 });
++  const del = await dbFrom('wilker_ref').delete().eq('kode', 'UJI3').select();
++  assert.equal(del.data.length, 1);
++  assert.equal((await dbFrom('wilker_ref').select('kode').eq('kode', 'UJI3')).data.length, 0);
++});
++
++test('galat dipetakan ke kode Postgres', async () => {
++  const dup = await dbFrom('klinik_binaan').insert({ nama_klinik: 'uji-BKK Pusat', kategori: 'bkk' });
++  assert.equal(dup.error?.code, '23505');
++  const chk = await dbFrom('klinik_binaan').insert({ nama_klinik: 'uji-x', kategori: 'salah' });
++  assert.equal(chk.error?.code, '23514');
++  const nn = await dbFrom('wilker_ref').insert({ kode: 'UJIN', jenis: 'Kantor', lat: 1, lng: 1 });
++  assert.equal(nn.error?.code, '23502');
++  const s0 = await dbFrom('wilker_ref').select('*').eq('kode', 'TIDAK-ADA').single();
++  assert.equal(s0.error?.code, 'PGRST116');
++  const mb = await dbFrom('wilker_ref').select('*').eq('kode', 'TIDAK-ADA').maybeSingle();
++  assert.equal(mb.error, null);
++  assert.equal(mb.data, null);
++  const kol = await dbFrom('wilker_ref').select('kolom_tidak_ada');
++  assert.equal(kol.error?.code, '42703');
++  await assert.rejects(async () => { await dbFrom('klinik_binaan').insert({ nama_klinik: 'uji-BKK Pusat' }).throwOnError(); });
++});
++
++test('embed relasi: to-one, to-many, alias, inner; tinyint(1) -> boolean; DATETIME -> ISO UTC; date tetap', async () => {
++  const kl = (await dbFrom('klinik_binaan').select('id').eq('nama_klinik', 'uji-Klinik Sehat').single()).data.id;
++  const p = await dbFrom('pengawasan_klinik')
++    .insert({ klinik_id: kl, tanggal_kegiatan: '2026-10-20T08:00:00Z', papan_nama_vaksinasi: true, ruang_vaksinasi: false, item_bermasalah: ['a'], created_at: '2026-10-21T06:15:01.226Z' })
++    .select('*, klinik_binaan(nama_klinik)')
++    .single();
++  assert.equal(p.error, null, JSON.stringify(p.error));
++  assert.equal(p.data.klinik_binaan.nama_klinik, 'uji-Klinik Sehat');
++  assert.equal(p.data.tanggal_kegiatan, '2026-10-20');
++  assert.equal(p.data.papan_nama_vaksinasi, true);
++  assert.equal(p.data.ruang_vaksinasi, false);
++  assert.equal(p.data.sio_ada, null);
++  assert.deepEqual(p.data.item_bermasalah, ['a']);
++  if ('created_at' in p.data) assert.match(String(p.data.created_at), /^2026-10-21T06:15:01\+00:00$/);
++
++  const anak = await dbFrom('klinik_binaan').select('nama_klinik, pengawasan_klinik(id, tanggal_kegiatan)').eq('id', kl).single();
++  assert.equal(anak.data.pengawasan_klinik.length, 1);
++  assert.equal(anak.data.pengawasan_klinik[0].tanggal_kegiatan, '2026-10-20');
++  assert.equal('id' in anak.data, false); // kolom penyambung tidak bocor
++
++  const inner = await dbFrom('klinik_binaan').select('nama_klinik, pengawasan_klinik!inner(id)').like('nama_klinik', 'uji-%');
++  assert.equal(inner.data.length, 1);
++  const alias = await dbFrom('pengawasan_klinik').select('tanggal_kegiatan, kl:klinik_binaan(nama_klinik)').eq('klinik_id', kl).single();
++  assert.equal(alias.data.kl.nama_klinik, 'uji-Klinik Sehat');
++});
++
++test('alias kolom (minggu:minggu_epid) pada view', async () => {
++  const r = await dbFrom('view_pab_mingguan').select('tahun, m:minggu, wilayah_kerja').limit(1);
++  assert.equal(r.error, null, JSON.stringify(r.error));
++  await db().execute("INSERT INTO pab (wilayah_kerja, nama_ttu, tanggal, jumlah_pab_diperiksa, fisik, kimia, bakteriologis) VALUES ('WK01','uji-ttu','2026-10-05',1,'Memenuhi Syarat','Memenuhi Syarat','Memenuhi Syarat')");
++  const v = await dbFrom('view_pab_mingguan').select('tahun, m:minggu, wilayah_kerja').eq('wilayah_kerja', 'WK01');
++  assert.equal(v.error, null, JSON.stringify(v.error));
++  assert.ok(v.data.length >= 1 && 'm' in v.data[0] && !('minggu' in v.data[0]));
++  await db().execute("DELETE FROM pab WHERE nama_ttu = 'uji-ttu'");
++});
++
++test('rpc: prosedur status_lapor_mingguan mengembalikan array baris', async () => {
++  const r = await dbRpc('status_lapor_mingguan', { p_tahun: 2026, p_minggu: 40 });
++  assert.equal(r.error, null, JSON.stringify(r.error));
++  assert.ok(Array.isArray(r.data));
++  const t = await dbRpc('tidak_ada', {});
++  assert.ok(t.error);
++});
++
++test('nama kolom berbahaya ditolak (injeksi)', async () => {
++  const r = await dbFrom('wilker_ref').select('*').eq('kode`; DROP TABLE wilker_ref; --', 'x');
++  assert.ok(r.error);
++  assert.equal((await dbFrom('wilker_ref').select('kode').limit(1)).error, null);
++});
+diff --git a/scripts/migrate/uji-rls.ts b/scripts/migrate/uji-rls.ts
+new file mode 100644
+index 0000000..82536d7
+--- /dev/null
++++ b/scripts/migrate/uji-rls.ts
+@@ -0,0 +1,94 @@
++// Uji pengganti RLS (lib/db/rls.ts) + integrasinya di query builder, terhadap MariaDB nyata.
++//   DB_USER=epic DB_PASSWORD=epic DB_NAME=epic DB_SOCKET=/run/mysqld/mysqld.sock npx tsx --test scripts/migrate/uji-rls.ts
++import test, { before, after } from 'node:test';
++import assert from 'node:assert/strict';
++import { putuskan, buatPenjaga } from '../../lib/db/rls';
++import type { KonteksAuth } from '../../lib/db/rls';
++import { dbFrom, resetMetaDb } from '../../lib/db/query-builder';
++import { getDbClient, tutupDb } from '../../lib/db/client';
++
++const ANON: KonteksAuth = { uid: null, role: null };
++const PETUGAS: KonteksAuth = { uid: '11111111-1111-1111-1111-111111111111', role: 'petugas' };
++const ADMIN: KonteksAuth = { uid: '22222222-2222-2222-2222-222222222222', role: 'admin' };
++const db = () => getDbClient();
++const jaga = (k: KonteksAuth) => buatPenjaga(async () => k);
++
++test('keputusan murni: anon/login/admin/diri/tanpa policy', () => {
++  assert.deepEqual(putuskan('buletin', 'SELECT', ANON), { izin: 'bebas' });
++  assert.deepEqual(putuskan('buletin', 'INSERT', ANON), { izin: 'tolak' });
++  assert.deepEqual(putuskan('buletin', 'INSERT', PETUGAS), { izin: 'bebas' });
++  assert.deepEqual(putuskan('pengaturan_ai', 'SELECT', PETUGAS), { izin: 'tolak' }); // RLS aktif tanpa policy
++  assert.deepEqual(putuskan('pengaturan_ai', 'SELECT', ADMIN), { izin: 'tolak' });
++  assert.deepEqual(putuskan('profiles', 'SELECT', ANON), { izin: 'tolak' });
++  assert.deepEqual(putuskan('profiles', 'SELECT', PETUGAS), { izin: 'baris', kolom: 'id', nilai: PETUGAS.uid });
++  assert.deepEqual(putuskan('profiles', 'SELECT', ADMIN), { izin: 'bebas' });
++  assert.deepEqual(putuskan('profiles', 'UPDATE', ADMIN), { izin: 'bebas' });
++  assert.deepEqual(putuskan('profiles', 'UPDATE', PETUGAS), { izin: 'baris', kolom: 'id', nilai: PETUGAS.uid });
++  assert.deepEqual(putuskan('profiles', 'DELETE', ADMIN), { izin: 'tolak' }); // tidak ada policy DELETE
++  // policy hanya untuk role anon tidak berlaku bagi pengguna yang sudah login (perilaku Postgres)
++  assert.deepEqual(putuskan('rat_guard', 'INSERT', ANON), { izin: 'bebas' });
++  assert.deepEqual(putuskan('rat_guard', 'INSERT', PETUGAS), { izin: 'tolak' });
++  assert.deepEqual(putuskan('view_apa_saja', 'SELECT', ANON, true), { izin: 'bebas' });
++});
++
++before(async () => {
++  resetMetaDb();
++  await db().execute("DELETE FROM buletin WHERE nama_kegiatan LIKE 'uji-%'");
++  await db().execute({ sql: "DELETE FROM profiles WHERE id IN (?, ?)", args: [PETUGAS.uid, ADMIN.uid] });
++  await db().execute({ sql: "INSERT INTO profiles (id, role, nama_lengkap) VALUES (?, 'petugas', 'Uji P'), (?, 'admin', 'Uji A')", args: [PETUGAS.uid, ADMIN.uid] });
++});
++after(async () => {
++  await db().execute("DELETE FROM buletin WHERE nama_kegiatan LIKE 'uji-%'");
++  await db().execute({ sql: "DELETE FROM profiles WHERE id IN (?, ?)", args: [PETUGAS.uid, ADMIN.uid] });
++  await tutupDb();
++});
++
++test('INSERT: anon ditolak (42501), login lolos; SELECT anon boleh', async () => {
++  const baris = { tahun: 2026, nama_kegiatan: 'uji-buletin', tipe_link: 'canva', link_url: 'http://x' };
++  const a = await dbFrom('buletin', jaga(ANON)).insert(baris);
++  assert.equal(a.error?.code, '42501');
++  const p = await dbFrom('buletin', jaga(PETUGAS)).insert(baris).select().single();
++  assert.equal(p.error, null, JSON.stringify(p.error));
++  const s = await dbFrom('buletin', jaga(ANON)).select('nama_kegiatan').like('nama_kegiatan', 'uji-%');
++  assert.equal(s.data.length, 1);
++});
++
++test('UPDATE/DELETE ditolak diam-diam (0 baris), bukan galat; admin lolos', async () => {
++  const u = await dbFrom('buletin', jaga(ANON)).update({ tahun: 1999 }).like('nama_kegiatan', 'uji-%').select();
++  assert.equal(u.error, null);
++  assert.deepEqual(u.data, []);
++  assert.equal((await dbFrom('buletin').select('tahun').like('nama_kegiatan', 'uji-%').single()).data.tahun, 2026);
++  const d = await dbFrom('buletin', jaga(ANON)).delete().like('nama_kegiatan', 'uji-%');
++  assert.equal(d.error, null);
++  assert.equal((await dbFrom('buletin').select('id').like('nama_kegiatan', 'uji-%')).data.length, 1);
++  const ok = await dbFrom('buletin', jaga(ADMIN)).update({ tahun: 2027 }).like('nama_kegiatan', 'uji-%').select();
++  assert.equal(ok.data[0].tahun, 2027);
++});
++
++test('profiles: petugas hanya melihat dirinya, admin melihat semua, anon tidak melihat apa pun', async () => {
++  const sendiri = await dbFrom('profiles', jaga(PETUGAS)).select('id, role').in('id', [PETUGAS.uid, ADMIN.uid]);
++  assert.deepEqual(sendiri.data.map((r: { id: string }) => r.id), [PETUGAS.uid]);
++  const semua = await dbFrom('profiles', jaga(ADMIN)).select('id').in('id', [PETUGAS.uid, ADMIN.uid]);
++  assert.equal(semua.data.length, 2);
++  assert.equal((await dbFrom('profiles', jaga(ANON)).select('id')).data.length, 0);
++  // petugas tidak boleh mengubah profil orang lain, tetapi boleh mengubah profilnya sendiri
++  const lain = await dbFrom('profiles', jaga(PETUGAS)).update({ role: 'admin' }).eq('id', ADMIN.uid).select();
++  assert.deepEqual(lain.data, []);
++  const diri = await dbFrom('profiles', jaga(PETUGAS)).update({ nama_lengkap: 'Uji Diri' }).eq('id', PETUGAS.uid).select();
++  assert.equal(diri.data.length, 1);
++  // INSERT profil milik orang lain ditolak
++  const ins = await dbFrom('profiles', jaga(PETUGAS)).insert({ id: '33333333-3333-3333-3333-333333333333', role: 'admin' });
++  assert.equal(ins.error?.code, '42501');
++});
++
++test('tabel tanpa policy (pengaturan_ai) tertutup untuk klien pengguna, terbuka untuk klien tanpa penjaga', async () => {
++  const t = await dbFrom('pengaturan_ai', jaga(ADMIN)).select('*');
++  assert.deepEqual(t.data, []);
++  const s = await dbFrom('pengaturan_ai').select('*'); // service-role
++  assert.equal(s.error, null);
++});
++
++test('embed relasi ikut dijaga (tabel relasi tanpa SELECT ditolak -> null/kosong)', async () => {
++  const r = await dbFrom('klinik_binaan', jaga(ANON)).select('nama_klinik, pengawasan_klinik(id)').limit(1);
++  assert.equal(r.error, null);
++});
+-- 
+2.43.0
+

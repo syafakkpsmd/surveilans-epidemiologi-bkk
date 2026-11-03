@@ -1,0 +1,155 @@
+"use client";
+
+import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
+import { useState } from "react";
+import { createDbBrowserClient } from "@/lib/db/browser-client";
+import { uploadFotoFasilitas } from "@/lib/upload-fasilitas-foto";
+
+interface Props {
+  kodeWilkerAktif: string | null;
+  fasilitasEdit?: { id: string; kode_wilker: string; nama: string; tipe: string; lat: number; lng: number; deskripsi: string | null } | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose, onSaved }: Props) {
+  const [kodeWilker, setKodeWilker] = useState(
+    fasilitasEdit ? fasilitasEdit.kode_wilker : kodeWilkerAktif ?? "WK01"
+  );
+  const [nama, setNama] = useState(fasilitasEdit?.nama ?? "");
+  const [tipe, setTipe] = useState(fasilitasEdit?.tipe ?? "pelabuhan");
+  const [lat, setLat] = useState(fasilitasEdit?.lat?.toString() ?? "");
+  const [lng, setLng] = useState(fasilitasEdit?.lng?.toString() ?? "");
+  const [deskripsi, setDeskripsi] = useState(fasilitasEdit?.deskripsi ?? "");
+  const [fotoUtama, setFotoUtama] = useState<FileList | null>(null);
+  const [fotoKegiatan, setFotoKegiatan] = useState<FileList | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const kategoriUtama = tipe === "kantor" ? "kantor" : "pelabuhan";
+  const labelFotoUtama = tipe === "kantor" ? "Foto Kantor" : "Foto Pelabuhan";
+
+  async function uploadFotos(fasilitasId: string, files: FileList | null, kategori: "pelabuhan" | "kegiatan" | "kantor") {
+    if (!files || files.length === 0) return;
+    const supabase = createDbBrowserClient();
+
+    for (const file of Array.from(files)) {
+      const url = await uploadFotoFasilitas(file);
+      await supabase.from("fasilitas_foto").insert({
+        fasilitas_id: fasilitasId,
+        kategori,
+        url,
+      });
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const supabase = createDbBrowserClient();
+      const payload = {
+        kode_wilker: kodeWilker,
+        nama, tipe,
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        deskripsi,
+      };
+
+      let fasilitasId = fasilitasEdit?.id;
+
+      if (fasilitasEdit) {
+        const { error } = await supabase.from("fasilitas_pelabuhan").update(payload).eq("id", fasilitasEdit.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from("fasilitas_pelabuhan").insert(payload).select("id").single();
+        if (error) throw error;
+        fasilitasId = data.id;
+      }
+
+      if (fasilitasId) {
+        await uploadFotos(fasilitasId, fotoUtama, kategoriUtama);
+        await uploadFotos(fasilitasId, fotoKegiatan, "kegiatan");
+      }
+
+      onSaved();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menyimpan. Cek console untuk detail.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-2000 bg-black/40 flex items-center justify-center p-4">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-semibold">{fasilitasEdit ? "Edit Fasilitas" : "Tambah Fasilitas Baru"}</h2>
+
+        {!kodeWilkerAktif && (
+          <div>
+            <label className="text-xs font-medium text-gray-500">Wilayah Kerja</label>
+            <select value={kodeWilker} onChange={(e) => setKodeWilker(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm">
+              <option value="INDUK">INDUK - Kantor BKK Kelas I Samarinda</option>
+              {OPSI_WILKER_PETA.map((w) => (
+                <option key={w.kode} value={w.kode}>{w.kode} - {w.nama}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Nama Pelabuhan/Bandara/Kantor</label>
+          <input value={nama} onChange={(e) => setNama(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm" />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Tipe</label>
+          <select value={tipe} onChange={(e) => setTipe(e.target.value as any)} className="w-full border rounded-md px-3 py-2 text-sm">
+            <option value="pelabuhan">Pelabuhan</option>
+            <option value="bandara">Bandara</option>
+            <option value="kantor">Kantor</option>
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-medium text-gray-500">Latitude</label>
+            <input value={lat} onChange={(e) => setLat(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm" placeholder="-0.5022" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500">Longitude</label>
+            <input value={lng} onChange={(e) => setLng(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm" placeholder="117.1536" />
+          </div>
+        </div>
+        <p className="text-[11px] text-gray-400">
+          Tips: buka Google Maps, klik kanan lokasinya, koordinat otomatis muncul untuk di-copy.
+        </p>
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Deskripsi</label>
+          <textarea value={deskripsi} onChange={(e) => setDeskripsi(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm" rows={3} />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">{labelFotoUtama}</label>
+          <input type="file" accept="image/*" multiple onChange={(e) => setFotoUtama(e.target.files)} className="w-full text-sm" />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Foto Kegiatan</label>
+          <input type="file" accept="image/*" multiple onChange={(e) => setFotoKegiatan(e.target.files)} className="w-full text-sm" />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-md border">
+            Batal
+          </button>
+          <button type="submit" disabled={saving} className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white disabled:opacity-50">
+            {saving ? "Menyimpan..." : "Simpan"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

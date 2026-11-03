@@ -1,0 +1,394 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import type { PeranAkses } from "@/lib/auth/get-user-role";
+import {
+  Compass,
+  Ship,
+  PlaneTakeoff,
+  Bug,
+  Rat,
+  Zap,
+  Droplets,
+  Plane,
+  Wind,
+  CircleDot,
+  Building2,
+  ShieldAlert,
+  Siren,
+  Newspaper,
+  ChevronRight,
+  Globe,
+  TrendingUp,
+  Database,
+  Microscope,
+  Users,
+  BarChart3,
+  MapPin,
+  ClipboardCheck,
+  BuildingIcon,
+  Table2,
+  Pipette,
+  ExternalLink,
+  Book,
+  Activity,
+  AlertTriangle,
+  Flame,
+  Droplet,
+  BellRing,
+  Package,
+  FileText,
+  Home,
+  PersonStanding,
+} from "lucide-react";
+import { useSidebar } from "@/components/SidebarContext";
+
+type NavChild = {
+  label: string;
+  href: string;
+  prefetch?: boolean;
+};
+
+type NavItem = {
+  label: string;
+  href?: string;
+  icon: React.ElementType;
+  children?: NavChild[];
+  prefetch?: boolean;
+};
+
+type NavGroup = {
+  title: string;
+  items: NavItem[];
+};
+
+const menuBeranda = { label: "Beranda", href: "/dashboard", icon: Home, prefetch: false };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    title: "Surveilans Alat Angkut",
+    items: [
+      { label: "Alat Angkut Kapal", href: "/dashboard/alat-angkut", icon: Ship, prefetch: false },
+      { label: "Alat Angkut Pesawat", href: "/dashboard/alat-angkut/pesawat", icon: PlaneTakeoff, prefetch: false },
+    ],
+  },
+  {
+    title: "Surveilans Penyakit",
+    items: [
+      { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
+      { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
+      { label: "Surveilans HIV", href: "/dashboard/hiv", icon: CircleDot, prefetch: false },
+      { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
+      { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
+      { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
+      { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
+      { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
+    ],
+  },
+  {
+    title: "Pelaku Perjalanan",
+    items: [
+      { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang/", icon: Users, prefetch: false },
+      { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
+      { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
+      { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },
+      { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
+    ],
+  },
+  {
+    title: "Surveilans Vektor",
+    items: [
+      { label: "Vektor Aedes", href: "/dashboard/vektor/aedes", icon: Bug, prefetch: false },
+      { label: "Vektor Tikus", href: "/dashboard/vektor/tikus", icon: Rat, prefetch: false },
+      {
+        label: "Vektor Anopheles",
+        icon: Zap,
+        children: [
+          { label: "Nyamuk Dewasa", href: "/dashboard/vektor/anopheles?tipe=dewasa", prefetch: false },
+          { label: "Larva", href: "/dashboard/vektor/anopheles/larva?tipe=larva", prefetch: false },
+        ],
+      },
+      {
+        label: "Vektor Diare",
+        icon: Droplets,
+        children: [
+          { label: "Diare Lalat", href: "/dashboard/vektor/diare-lalat", prefetch: false },
+          { label: "Diare Kecoa", href: "/dashboard/vektor/diare-kecoa", prefetch: false },
+        ],
+      },
+      { label: "Master Tabel", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
+    ],
+  },
+  {
+    title: "Surveilans Lingkungan",
+    items: [
+      { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2, prefetch: false },
+      { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon, prefetch: false },
+      { label: "Surveilans PAB", href: "/dashboard/pab", icon: Droplet, prefetch: false },
+      { label: "ISPA KARHUTLA", href: "/dashboard/karhutla", icon: Flame, prefetch: false },
+    ],
+  },
+  {
+    title: "Klinik Binaan BKK",
+    items: [
+      { label: "Klinik Binaan", href: "/dashboard/klinik", icon: Building2, prefetch: false },
+      { label: "Pengawasan Klinik", href: "/dashboard/pengawasan-klinik", icon: ClipboardCheck, prefetch: false },
+      { label: "Stok Vaksin", href: "/dashboard/stok-vaksin", icon: Package, prefetch: false },
+    ],
+  },
+   {
+    title: "Media Informasi",
+    items: [
+      { label: "BULETIN SURVEILANS", href: "/dashboard/buletin", icon: Newspaper, prefetch: false },
+      { label: "Peta Wilayah Kerja", href: "/dashboard/peta", icon: MapPin, prefetch: false },
+      {
+        label: "Monitoring Laporan",
+        icon: ClipboardCheck,
+        children: [
+          { label: "Alat Angkut & Vektor", href: "/dashboard/status-laporan", prefetch: false },
+          { label: "Lalu Lintas Orang", href: "/dashboard/status-laporan/lalu-lintas-orang", prefetch: false },
+          { label: "Ketepatan Laporan", href: "/dashboard/ketepatan-laporan", prefetch: false },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Tautan",
+    items: [
+      { label: "Bank Data BKK", href: "https://bankdata.bkksamarinda.com/", icon: Database },
+      { label: "Download Peraturan", href: "/peraturan", icon: Book, prefetch: false },
+      { label: "LMS Kemenkes", href: "https://lms.kemkes.go.id/", icon: Building2 },
+      { label: "e-Office Kemenkes", href: "https://auth-eoffice.kemkes.go.id/", icon: Building2 },
+      { label: "e-Kinerja Kemenkes", href: "https://ekinerja-portal-eoffice.kemkes.go.id/", icon: TrendingUp },
+      { label: "SRIKANDI", href: "https://srikandi.arsip.go.id/auth/login/", icon: Database },
+      { label: "SINKARKES", href: "https://sinkarkes.kemkes.go.id/", icon: Database },
+      { label: "Penyakit Infeksi Emerging", href: "https://infeksiemerging.kemkes.go.id/", icon: Microscope },
+      { label: "SKDR", href: "https://skdr.kemkes.go.id/auth/", icon: Database },
+      { label: "Kementerian Kesehatan", href: "https://www.kemkes.go.id/", icon: Building2 },
+      { label: "TEPHINET", href: "https://www.tephinet.org/", icon: Globe },
+      { label: "CDC", href: "https://www.cdc.gov", icon: ShieldAlert },
+      { label: "WHO", href: "https://www.who.int/", icon: Globe },
+    ],
+  },
+  {
+    title: "Simulasi Wabah",
+    items: [
+      { label: "Kapal", href: "/dashboard/simulasi-wabah/kapal", icon: Ship },
+      { label: "Pesawat", href: "/dashboard/simulasi-wabah/pesawat", icon: PlaneTakeoff },
+    ],
+  },
+];
+
+const ADMIN_GROUP: NavGroup = {
+  title: "Admin",
+  items: [
+    { label: "Verifikasi User", href: "/admin/users", icon: Users, prefetch: false },
+    { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3, prefetch: false },
+  ],
+};
+
+interface SidebarNavProps {
+  role: PeranAkses;
+};
+
+function kumpulkanSemuaHref(groups: NavGroup[]): string[] {
+  const hasil: string[] = [menuBeranda.href];
+  for (const grup of groups) {
+    for (const item of grup.items) {
+      if (item.href && item.href.startsWith("/")) {
+        hasil.push(item.href.split("?")[0]);
+      }
+      if (item.children) {
+        for (const child of item.children) {
+          if (child.href.startsWith("/")) {
+            hasil.push(child.href.split("?")[0]);
+          }
+        }
+      }
+    }
+  }
+  return hasil;
+}
+
+function cariHrefPalingCocok(pathname: string, semuaHref: string[]): string | null {
+  let terbaik: string | null = null;
+  for (const href of semuaHref) {
+    let cocok = false;
+    if (href === "/dashboard") {
+      cocok = pathname === "/dashboard";
+    } else {
+      cocok = pathname === href || pathname.startsWith(href + "/");
+    }
+    if (cocok && (!terbaik || href.length > terbaik.length)) {
+      terbaik = href;
+    }
+  }
+  return terbaik;
+}
+
+export default function SidebarNav({ role }: SidebarNavProps) {
+  const pathname = usePathname();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const { isOpen, close } = useSidebar();
+
+  const toggleExpand = (label: string) => {
+    setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const groupsToRender = role === "admin" ? [...NAV_GROUPS, ADMIN_GROUP] : NAV_GROUPS;
+
+  const hrefAktifTerbaik = useMemo(() => {
+    const semuaHref = kumpulkanSemuaHref(groupsToRender);
+    return cariHrefPalingCocok(pathname, semuaHref);
+  }, [pathname, groupsToRender]);
+
+  const isActive = (href?: string) => {
+    if (!href || !href.startsWith("/")) return false;
+    const basePath = href.split("?")[0];
+    return basePath === hrefAktifTerbaik;
+  };
+
+  const isParentActive = (item: NavItem) => {
+    if (!item.children) return isActive(item.href);
+    return item.children.some((c) => isActive(c.href));
+  };
+
+  const HomeIcon = menuBeranda.icon;
+  const isHomeActive = isActive(menuBeranda.href);
+  const homeClasses = [
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+    isHomeActive
+      ? "bg-white/10 text-white ring-1 ring-inset ring-cyan-400/40"
+      : "text-slate-300 hover:bg-white/5 hover:text-white",
+  ].join(" ");
+
+  return (
+    <>
+      {isOpen && (
+        <div
+          onClick={close}
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          aria-hidden="true"
+        />
+      )}
+
+      <nav
+        className={[
+          "z-50 flex w-64 shrink-0 flex-col gap-6 self-stretch overflow-y-auto bg-linear-to-b from-slate-900 to-indigo-950 px-3 py-6 text-slate-300",
+          "fixed left-0 top-22 bottom-0 transition-transform duration-200",
+          "md:relative md:inset-auto md:top-auto md:h-auto md:translate-x-0",
+          isOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
+        {/* RENDER MENU BERANDA DI ATAS SENDIRI */}
+        <div className="flex flex-col gap-1">
+          <Link
+            href={menuBeranda.href}
+            onClick={close}
+            prefetch={menuBeranda.prefetch}
+            className={homeClasses}
+          >
+            <HomeIcon size={18} className="shrink-0 opacity-90" />
+            <span className="flex-1 truncate">{menuBeranda.label}</span>
+          </Link>
+        </div>
+
+        {/* RENDER KELOMPOK NAVIGASI LAINNYA */}
+        {groupsToRender.map((group) => (
+          <div key={group.title} className="flex flex-col gap-1">
+            <span className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {group.title}
+            </span>
+
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const active = isParentActive(item);
+              const hasChildren = !!item.children?.length;
+              const open = expanded[item.label];
+
+              const isExternal = !!item.href && item.href.startsWith("http");
+
+              const rowClasses = [
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                active
+                  ? "bg-white/10 text-white ring-1 ring-inset ring-cyan-400/40"
+                  : "text-slate-300 hover:bg-white/5 hover:text-white",
+              ].join(" ");
+
+              const rowContent = (
+                <>
+                  <Icon size={18} className="shrink-0 opacity-90" />
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {hasChildren && (
+                    <ChevronRight
+                      size={16}
+                      className={`opacity-60 transition-transform ${open ? "rotate-90" : ""}`}
+                    />
+                  )}
+                  {isExternal && (
+                    <ExternalLink size={14} className="shrink-0 opacity-50" />
+                  )}
+                </>
+              );
+
+              if (hasChildren) {
+                return (
+                  <div key={item.label}>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(item.label)}
+                      className={rowClasses + " w-full appearance-none border-0 bg-transparent p-0 px-3 py-2.5 text-left"}
+                    >
+                      {rowContent}
+                    </button>
+                    {open && (
+                      <div className="ml-8 mt-1 flex flex-col gap-1 border-l border-white/10 pl-3">
+                        {item.children!.map((child) => {
+                          const isChildExternal = child.href.startsWith("http");
+                          return (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              onClick={isChildExternal ? undefined : close}
+                              target={isChildExternal ? "_blank" : undefined}
+                              rel={isChildExternal ? "noopener noreferrer" : undefined}
+                              prefetch={isChildExternal ? undefined : (child.prefetch ?? false)}
+                              className={[
+                                "rounded-md px-2 py-1.5 text-sm transition-colors",
+                                isActive(child.href)
+                                  ? "text-cyan-300"
+                                  : "text-slate-400 hover:text-white",
+                              ].join(" ")}
+                            >
+                              {child.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={item.label}
+                  href={item.href!}
+                  onClick={isExternal ? undefined : close}
+                  target={isExternal ? "_blank" : undefined}
+                  rel={isExternal ? "noopener noreferrer" : undefined}
+                  prefetch={isExternal ? undefined : (item.prefetch ?? false)}
+                  className={rowClasses}
+                >
+                  {rowContent}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+    </>
+  );
+}

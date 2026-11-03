@@ -1,0 +1,99 @@
+// lib/posko/perintahInput.ts
+// Validasi + perintah SQL untuk input data harian posko (fungsi murni, tanpa Next/Turso -> mudah diuji).
+import {
+  DAFTAR_PENYAKIT,
+  DAFTAR_PTM,
+  WILAYAH_POSKO,
+  type JenisPosko,
+  type WilayahPosko,
+} from './konstanta';
+
+export type InputHarianPayload = {
+  posko: JenisPosko;
+  tanggal: string;
+  wilayah: WilayahPosko;
+  /** jenis penyakit -> 8 angka: kasus L<5, L>=5, P<5, P>=5, lalu meninggal L<5, L>=5, P<5, P>=5 */
+  penyakit: Record<string, number[]>;
+  klbJumlah: number;
+  klbKeterangan: string;
+  /** jenis PTM -> jumlah kasus laki-laki & perempuan */
+  ptm: Record<string, { lk: number; pr: number }>;
+};
+
+export const BATAS_ANGKA = 1_000_000;
+
+/**
+ * Kolom belum ada di tabel Turso. SQLite memakai kalimat berbeda: "no such column: x" (SELECT/UPDATE)
+ * dan "table t has no column named x" (INSERT) -> keduanya harus dikenali.
+ */
+export function adalahGalatKolomBelumAda(pesan: string): boolean {
+  return /no such column|has no column named/i.test(pesan);
+}
+
+export function tanggalSah(s: unknown): s is string {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
+export function angkaSah(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= BATAS_ANGKA;
+}
+
+/** null = lolos; selain itu pesan kesalahan. Semua angka diperiksa SEBELUM menulis apa pun. */
+export function validasiInputHarian(input: InputHarianPayload, hariIni: string): string | null {
+  if (input.posko !== 'nataru' && input.posko !== 'idul_fitri') return 'Jenis posko tidak dikenal.';
+  if (!tanggalSah(input.tanggal)) return 'Tanggal tidak valid.';
+  if (!(WILAYAH_POSKO as readonly string[]).includes(input.wilayah)) return 'Wilayah kerja tidak valid.';
+  if (input.tanggal > hariIni) return 'Tanggal belum tiba, data belum bisa diinput.';
+  if (!angkaSah(input.klbJumlah)) return 'Jumlah kejadian KLB harus bilangan bulat 0 atau lebih.';
+  for (const jenis of DAFTAR_PENYAKIT) {
+    const nilai = input.penyakit?.[jenis];
+    if (!Array.isArray(nilai) || nilai.length !== 8 || !nilai.every(angkaSah)) {
+      return `Angka penyakit "${jenis}" harus bilangan bulat 0 atau lebih.`;
+    }
+  }
+  for (const jenis of DAFTAR_PTM) {
+    const nilai = input.ptm?.[jenis];
+    if (!nilai || !angkaSah(nilai.lk) || !angkaSah(nilai.pr)) {
+      return `Jumlah "${jenis}" (laki-laki & perempuan) harus bilangan bulat 0 atau lebih.`;
+    }
+  }
+  return null;
+}
+
+export const SQL_PENYAKIT =
+  `INSERT INTO posko_penyakit_harian (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit,
+     kasus_lk_lt5, kasus_lk_ge5, kasus_pr_lt5, kasus_pr_ge5, mati_lk_lt5, mati_lk_ge5, mati_pr_lt5, mati_pr_ge5)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_penyakit) DO UPDATE SET
+     kasus_lk_lt5 = EXCLUDED.kasus_lk_lt5, kasus_lk_ge5 = EXCLUDED.kasus_lk_ge5,
+     kasus_pr_lt5 = EXCLUDED.kasus_pr_lt5, kasus_pr_ge5 = EXCLUDED.kasus_pr_ge5,
+     mati_lk_lt5 = EXCLUDED.mati_lk_lt5, mati_lk_ge5 = EXCLUDED.mati_lk_ge5,
+     mati_pr_lt5 = EXCLUDED.mati_pr_lt5, mati_pr_ge5 = EXCLUDED.mati_pr_ge5, diperbarui = now()`;
+
+export const SQL_KLB =
+  `INSERT INTO posko_klb_harian (posko, tahun, tanggal, wilayah_kerja, jumlah_klb, keterangan) VALUES (?, ?, ?, ?, ?, ?)
+   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja) DO UPDATE SET
+     jumlah_klb = EXCLUDED.jumlah_klb, keterangan = EXCLUDED.keterangan, diperbarui = now()`;
+
+export const SQL_PTM =
+  `INSERT INTO posko_ptm_harian (posko, tahun, tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus, jumlah_lk, jumlah_pr)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+   ON CONFLICT (posko, tahun, tanggal, wilayah_kerja, jenis_ptm) DO UPDATE SET
+     jumlah_kasus = EXCLUDED.jumlah_kasus, jumlah_lk = EXCLUDED.jumlah_lk, jumlah_pr = EXCLUDED.jumlah_pr,
+     diperbarui = now()`;
+
+/** 25 baris penyakit + 1 baris KLB + 7 baris PTM = 33 perintah (dijalankan sebagai satu transaksi). */
+export function bangunPerintahInputHarian(input: InputHarianPayload, tahun: number) {
+  const dasar = [input.posko, tahun, input.tanggal, input.wilayah];
+  const ket = String(input.klbKeterangan ?? '').trim().slice(0, 300);
+  return [
+    ...DAFTAR_PENYAKIT.map((jenis) => ({ sql: SQL_PENYAKIT, args: [...dasar, jenis, ...input.penyakit[jenis]] })),
+    { sql: SQL_KLB, args: [...dasar, input.klbJumlah, ket === '' ? null : ket] },
+    ...DAFTAR_PTM.map((jenis) => {
+      const { lk, pr } = input.ptm[jenis];
+      return { sql: SQL_PTM, args: [...dasar, jenis, lk + pr, lk, pr] };
+    }),
+  ];
+}

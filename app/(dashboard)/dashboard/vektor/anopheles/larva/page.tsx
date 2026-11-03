@@ -1,0 +1,120 @@
+// ================================================================
+// app/(dashboard)/dashboard/vektor/anopheles/larva/page.tsx (VERSI BARU)
+// ================================================================
+
+import { getWilkerRef } from '@/lib/db/queries/umum';
+import {
+  getTrenLarva,
+  getMacamTempatPerindukan,
+  getKeadaanTempatPerindukan,
+} from '@/lib/db/queries/umum'; // sudah digabung ke queries.ts
+import { getUserRole } from '@/lib/auth/get-user-role';
+import FilterWilker from '@/components/vektor/FilterWilker';
+import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
+import PanelTrenPeriode from '@/components/vektor/PanelTrenPeriode';
+import DonutChart from '@/components/vektor/DonutChart';
+import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
+import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
+import { getMingguEpidSaatIni } from '@/lib/epi-week';
+import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
+import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
+
+export default async function LarvaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ wilker?: string; tahun?: string; mgDari?: string; mgSampai?: string }>;
+}) {
+  const { wilker, tahun: tahunParam, mgDari, mgSampai } = await searchParams;
+  const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
+  const { tahunEpid: tahunBerjalan, mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
+
+  const konteksAI = 'anopheles-larva-mingguan';
+  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
+  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
+  const periodeKey = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
+
+  // ============================================================
+  // BATCH-FETCH HASIL AI -- hanya 1 pasang (analisis + prediksi) di
+  // halaman ini, tapi tetap dipanggil sedini mungkin & di-await
+  // belakangan bareng query chart, supaya jalan PARALEL -- pola
+  // sama persis dengan PHQC/Vektor Aedes.
+  // ============================================================
+  const permintaanAI: PermintaanHasilAI[] = [
+    { konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'analisis' },
+    { konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'prediksi' },
+  ];
+  const hasilAIPromise = getBanyakHasilAI(permintaanAI);
+
+  const [role, daftarWilker, dataMingguan, dataBulanan, macamTempat, keadaanTempat] = await Promise.all([
+    getUserRole(),
+    getWilkerRef(),
+    getTrenLarva(tahun, wilker, 'mingguan'),
+    getTrenLarva(tahun, wilker, 'bulanan'),
+    getMacamTempatPerindukan(tahun, wilker),
+    getKeadaanTempatPerindukan(tahun, wilker),
+  ]);
+
+  // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
+  const hasilAI = await hasilAIPromise;
+  const hasilAnalisis = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'analisis' })];
+  const hasilPrediksi = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'prediksi' })];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Anopheles — Larva</h1>
+          <p className="text-sm text-gray-500">
+            Kepadatan larva, cidukan positif, dan kondisi tempat perindukan.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterWilker daftarWilker={daftarWilker} />
+          <FilterZonaSubLokasi />
+          <FilterRentangMinggu />
+        </div>
+      </div>
+
+      <PanelTrenPeriode
+        judulBulanan="Disrtibusi Hasil Survei Larva Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
+        judulMingguan="Tren Mingguan Hasil Survei Larva Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
+        dataMingguan={dataMingguan}
+        dataBulanan={dataBulanan}
+        seriesListMingguan={[
+          { key: 'cidukan', label: 'Cidukan Positif', warna: '#558B2F' },
+          { key: 'larva', label: 'Jumlah Larva', warna: '#2E7D32' },
+          { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100', axis: 'kanan' },
+        ]}
+        seriesListBulanan={[
+          { key: 'cidukan', label: 'Cidukan Positif', warna: '#558B2F' },
+          { key: 'larva', label: 'Jumlah Larva', warna: '#2E7D32' },
+          { key: 'suhu', label: 'Suhu (°C)', warna: '#E65100', axis: 'kanan' },
+        ]}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <BoxAnalisisAI
+          konteks={konteksAI}
+          periodeKey={periodeKey}
+          wilayahKerja={wilker}
+          sudahLogin={!!role}
+          role={role === 'tamu' ? null : role}
+          hasilAwal={hasilAnalisis}
+        />
+        <BoxPrediksiAI
+          konteks={konteksAI}
+          periodeKey={periodeKey}
+          wilayahKerja={wilker}
+          sudahLogin={!!role}
+          role={role === 'tamu' ? null : role}
+          hasilAwal={hasilPrediksi}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <DonutChart judul="Macam Tempat Perindukan" data={macamTempat} />
+        <DonutChart judul="Keadaan Tempat Perindukan" data={keadaanTempat} />
+      </div>
+    </div>
+  );
+}

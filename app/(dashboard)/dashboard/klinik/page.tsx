@@ -1,0 +1,65 @@
+import KlinikDashboardClient from './KlinikDashboardClient';
+import { getRingkasanKlinikMingguan, getRingkasanKlinikBulanan } from '@/lib/klinik/ringkasanPeriode';
+import { getDatasetKlinik } from '@/lib/klinik/dataset';
+import { ringkasanKartuIcv, donutJenisKelamin, donutUmur, donutJenisDokumenIcv, donutWus } from '@/lib/klinik/agregasiIcv';
+import { getStandarHariVaksin } from '@/lib/klinik/pengaturan';
+import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
+import { getDbClient } from '@/lib/db/client';
+import { periodeMingguanDariTanggal, periodeBulananDariTanggal } from '@/lib/ai/periode';
+
+const kategoriEfektif = (k: any) => k.kategori ?? 'klinik';
+
+export default async function KlinikPage() {
+  const akses = await getAksesKlinik();
+  const user = akses.pengguna;
+  const opsi = opsiDariAkses(akses); // petugas_klinik: hanya klinik yang ditautkan ke akunnya
+
+  const [dataMingguanAll, dataBulananAll, { rows: daftarKlinikRow }, dataset, standarHariVaksin] = await Promise.all([
+    getRingkasanKlinikMingguan(opsi),
+    getRingkasanKlinikBulanan(opsi),
+    getDbClient().execute('SELECT id, nama_klinik, kategori FROM klinik_binaan ORDER BY nama_klinik'),
+    getDatasetKlinik(opsi),
+    getStandarHariVaksin(),
+  ]);
+
+  const semuaIcv = dataset.flatMap((d) => d.icv);
+  const rekapGabungan = {
+    kartu: ringkasanKartuIcv(semuaIcv),
+    donutJenisKelamin: donutJenisKelamin(semuaIcv),
+    donutUmur: donutUmur(semuaIcv),
+    donutJenisDokumenIcv: donutJenisDokumenIcv(semuaIcv),
+    donutWus: donutWus(semuaIcv),
+  };
+
+  // Klinik yang gagal dimuat (mis. kena rate limit Google Sheets saat fetch) —
+  // ditampilkan sebagai peringatan di dashboard supaya user tahu angka rekap
+  // sementara belum termasuk klinik-klinik ini, bukan berarti datanya nol.
+  const klinikGagalDimuat = dataset
+    .filter((d) => d.gagalDimuat)
+    .map((d) => d.klinik.nama_klinik as string);
+
+  const baris = (daftarKlinikRow ?? []).filter((k) => akses.semua || akses.klinikIds.includes(k.id as string));
+  const daftarKlinikNama = baris.filter((k) => kategoriEfektif(k) === 'klinik').map((k) => k.nama_klinik);
+  const daftarBkkNama = baris.filter((k) => kategoriEfektif(k) === 'bkk').map((k) => k.nama_klinik);
+
+  const sekarang = new Date();
+  const periodeMingguSekarang = periodeMingguanDariTanggal(sekarang);
+  const periodeBulanSekarang = periodeBulananDariTanggal(sekarang);
+
+  return (
+    <KlinikDashboardClient
+      dataMingguanAll={dataMingguanAll}
+      dataBulananAll={dataBulananAll}
+      daftarKlinikNama={daftarKlinikNama}
+      daftarBkkNama={daftarBkkNama}
+      rekapGabungan={rekapGabungan}
+      klinikGagalDimuat={klinikGagalDimuat}
+      role={user?.role ?? 'publik'}
+      tahunBerjalan={periodeBulanSekarang.tahun}
+      bulanBerjalan={periodeBulanSekarang.bulan}
+      tahunEpidBerjalan={periodeMingguSekarang.tahun}
+      mingguEpidBerjalan={periodeMingguSekarang.minggu}
+      standarHariVaksin={standarHariVaksin}
+    />
+  );
+}

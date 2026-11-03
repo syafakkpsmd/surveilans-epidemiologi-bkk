@@ -1,0 +1,955 @@
+diff --git a/app/(dashboard)/dashboard/pengawasan-klinik/page.tsx b/app/(dashboard)/dashboard/pengawasan-klinik/page.tsx
+index 18e3494..ed868e2 100644
+--- a/app/(dashboard)/dashboard/pengawasan-klinik/page.tsx
++++ b/app/(dashboard)/dashboard/pengawasan-klinik/page.tsx
+@@ -2,6 +2,7 @@
+ import { createClient } from '@/lib/supabase/server';
+ import { hitungBreakdownKategori, hitungStatusKepatuhan } from '@/lib/pengawasan-klinik/hitungKepatuhan';
+ import PengawasanKlinikClient from './PengawasanKlinikClient';
++import BannerAntrianOffline from '@/components/pengawasan-klinik/BannerAntrianOffline';
+ 
+ export default async function PengawasanKlinikPage() {
+   const supabase = await createClient();
+@@ -124,14 +125,19 @@ export default async function PengawasanKlinikPage() {
+   }));
+ 
+   return (
+-    <PengawasanKlinikClient
+-      ringkasanStatus={ringkasanStatus}
+-      rataRataKategori={rataRataKategori}
+-      tabelKlinik={tabelKlinik}
+-      totalKlinikDiawasi={dataTerbaru.length}
+-      titikPeta={titikPeta}
+-      riwayatPengawasan={riwayatPengawasan}
+-      dataLengkapUntukExport={dataLengkapUntukExport}
+-    />
++    <>
++      <div className="mx-auto max-w-6xl px-4 pt-4 empty:hidden">
++        <BannerAntrianOffline />
++      </div>
++      <PengawasanKlinikClient
++        ringkasanStatus={ringkasanStatus}
++        rataRataKategori={rataRataKategori}
++        tabelKlinik={tabelKlinik}
++        totalKlinikDiawasi={dataTerbaru.length}
++        titikPeta={titikPeta}
++        riwayatPengawasan={riwayatPengawasan}
++        dataLengkapUntukExport={dataLengkapUntukExport}
++      />
++    </>
+   );
+ }
+\ No newline at end of file
+diff --git a/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PadTandaTangan.tsx b/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PadTandaTangan.tsx
+index 7621fcc..575416a 100644
+--- a/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PadTandaTangan.tsx
++++ b/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PadTandaTangan.tsx
+@@ -5,6 +5,8 @@ import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref
+ export type PadTandaTanganHandle = {
+   /** PNG tanda tangan (latar putih) atau null kalau pad masih kosong. */
+   ambilBerkas: (namaFile: string) => Promise<File | null>;
++  /** Hapus goresan (dipakai setelah data tersimpan ke antrian offline). */
++  kosongkan: () => void;
+ };
+ 
+ type Props = {
+@@ -88,6 +90,7 @@ export default function PadTandaTangan({ label, ref }: Props) {
+   useImperativeHandle(
+     ref,
+     () => ({
++      kosongkan: hapus,
+       ambilBerkas: (namaFile: string) =>
+         new Promise<File | null>((resolve) => {
+           const canvas = canvasRef.current;
+diff --git a/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PengawasanKlinikFormClient.tsx b/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PengawasanKlinikFormClient.tsx
+index 023c817..f809c9c 100644
+--- a/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PengawasanKlinikFormClient.tsx
++++ b/app/(dashboard)/dashboard/pengawasan-klinik/tambah/PengawasanKlinikFormClient.tsx
+@@ -1,9 +1,17 @@
+ // app/(dashboard)/dashboard/pengawasan-klinik/tambah/PengawasanKlinikFormClient.tsx
+ 'use client';
+ 
+-import { useRef, useState } from 'react';
++import { useEffect, useRef, useState } from 'react';
+ import { simpanPengawasanKlinik } from '../actions';
+-import { uploadFotoKlinik } from '@/lib/pengawasan-klinik/uploadFoto';
++import { unggahFotoAman } from '@/lib/pengawasan-klinik/unggahAman';
++import {
++  adalahGalatJaringan,
++  berkasKeMedia,
++  EVENT_ANTRIAN,
++  idBaru,
++  kompresGambar,
++  simpanRekam,
++} from '@/lib/pengawasan-klinik/antrianOffline';
+ import { ITEM_CHECKLIST } from '@/lib/pengawasan-klinik/itemChecklist';
+ import PadTandaTangan, { type PadTandaTanganHandle } from './PadTandaTangan';
+ 
+@@ -20,16 +28,48 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
+   const [status, setStatus] = useState<string | null>(null);
+   const [loading, setLoading] = useState(false);
+   const [namaKlinikTerpilih, setNamaKlinikTerpilih] = useState('klinik');
++  const [fotoLokal, setFotoLokal] = useState<Record<string, File>>({}); // foto belum terunggah (offline)
++  const [online, setOnline] = useState(true);
++  const [pesanAntrian, setPesanAntrian] = useState<string | null>(null);
+   const refTtdBkk = useRef<PadTandaTanganHandle>(null);
+   const refTtdKlinik = useRef<PadTandaTanganHandle>(null);
+ 
+-  async function handleUploadFoto(jenisDokumen: string, file: File) {
++  useEffect(() => {
++    setOnline(navigator.onLine);
++    const hidup = () => setOnline(true);
++    const mati = () => setOnline(false);
++    window.addEventListener('online', hidup);
++    window.addEventListener('offline', mati);
++    return () => {
++      window.removeEventListener('online', hidup);
++      window.removeEventListener('offline', mati);
++    };
++  }, []);
++
++  const tanpaKunci = <T,>(obj: Record<string, T>, key: string): Record<string, T> =>
++    Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key));
++
++  function simpanFotoLokal(jenisDokumen: string, file: File) {
++    setFotoLokal((prev) => ({ ...prev, [jenisDokumen]: file }));
++    setFotoUploaded((prev) => tanpaKunci(prev, jenisDokumen));
++  }
++
++  async function handleUploadFoto(jenisDokumen: string, fileAsli: File) {
+     setSedangUpload((prev) => ({ ...prev, [jenisDokumen]: true }));
+     try {
+-      const hasil = await uploadFotoKlinik(file, jenisDokumen, namaKlinikTerpilih);
+-      setFotoUploaded((prev) => ({ ...prev, [jenisDokumen]: { url: hasil.url, publicId: hasil.publicId } }));
+-    } catch (err) {
+-      alert(`Gagal upload foto: ${(err as Error).message}`);
++      const file = await kompresGambar(fileAsli);
++      if (!navigator.onLine) {
++        simpanFotoLokal(jenisDokumen, file);
++        return;
++      }
++      try {
++        const hasil = await unggahFotoAman(file, jenisDokumen, namaKlinikTerpilih);
++        setFotoUploaded((prev) => ({ ...prev, [jenisDokumen]: { url: hasil.url, publicId: hasil.publicId } }));
++        setFotoLokal((prev) => tanpaKunci(prev, jenisDokumen));
++      } catch (err) {
++        if (adalahGalatJaringan(err)) simpanFotoLokal(jenisDokumen, file);
++        else alert(`Gagal upload foto: ${(err as Error).message}`);
++      }
+     } finally {
+       setSedangUpload((prev) => ({ ...prev, [jenisDokumen]: false }));
+     }
+@@ -42,47 +82,105 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
+     // supaya kalau user re-check tidak perlu upload ulang.
+   }
+ 
++  function kosongkanForm() {
++    setChecklist({});
++    setFotoUploaded({});
++    setFotoLokal({});
++    setStatus(null);
++    setNamaKlinikTerpilih('klinik');
++    refTtdBkk.current?.kosongkan();
++    refTtdKlinik.current?.kosongkan();
++  }
++
+   async function handleSubmit(formData: FormData) {
+     setLoading(true);
++    setPesanAntrian(null);
+     Object.entries(checklist).forEach(([key, val]) => formData.set(key, String(val)));
+ 
+-    // tanda tangan: diunggah otomatis saat simpan (kalau pad tidak kosong)
+-    try {
+-      const daftarTtd = [
+-        { key: 'ttd_petugas_bkk', ref: refTtdBkk },
+-        { key: 'ttd_petugas_klinik', ref: refTtdKlinik },
+-      ];
+-      for (const { key, ref } of daftarTtd) {
+-        const berkas = await ref.current?.ambilBerkas(key);
+-        if (!berkas) continue;
+-        const hasilTtd = await uploadFotoKlinik(berkas, key, namaKlinikTerpilih);
+-        formData.set(`foto_url_${key}`, hasilTtd.url);
+-        formData.set(`foto_public_id_${key}`, hasilTtd.publicId);
+-      }
+-    } catch (err) {
+-      setLoading(false);
+-      alert(`Gagal mengunggah tanda tangan: ${(err as Error).message}`);
+-      return;
++    // media yang BELUM terunggah: foto yang diambil saat offline + tanda tangan
++    const sisaMedia: { key: string; file: File }[] = Object.entries(fotoLokal)
++      .filter(([key]) => key === 'cold_chain' || checklist[key] === true)
++      .map(([key, file]) => ({ key, file }));
++    for (const { key, ref } of [
++      { key: 'ttd_petugas_bkk', ref: refTtdBkk },
++      { key: 'ttd_petugas_klinik', ref: refTtdKlinik },
++    ]) {
++      const berkas = await ref.current?.ambilBerkas(key);
++      if (berkas) sisaMedia.push({ key, file: berkas });
+     }
+ 
+-    // sertakan url & public_id foto per item checklist yang sudah terupload
++    // url foto yang sudah terunggah
+     Object.entries(fotoUploaded).forEach(([key, info]) => {
+       formData.set(`foto_url_${key}`, info.url);
+       formData.set(`foto_public_id_${key}`, info.publicId);
+     });
+ 
+-    const hasil = await simpanPengawasanKlinik(formData);
+-    setLoading(false);
+-    if (hasil.error) {
+-      alert(hasil.error);
+-      return;
++    // ---- JALUR ONLINE ----
++    if (navigator.onLine) {
++      try {
++        while (sisaMedia.length > 0) {
++          const { key, file } = sisaMedia[0];
++          const hasilUp = await unggahFotoAman(file, key, namaKlinikTerpilih);
++          formData.set(`foto_url_${key}`, hasilUp.url);
++          formData.set(`foto_public_id_${key}`, hasilUp.publicId);
++          sisaMedia.shift();
++        }
++        const hasil = await simpanPengawasanKlinik(formData);
++        setLoading(false);
++        if (hasil.error) {
++          alert(hasil.error);
++          return;
++        }
++        if (hasil.peringatan) alert(hasil.peringatan);
++        setStatus(hasil.status ?? null);
++        return;
++      } catch (err) {
++        if (!adalahGalatJaringan(err)) {
++          setLoading(false);
++          alert(`Gagal menyimpan: ${err instanceof Error ? err.message : 'kesalahan tidak diketahui'}`);
++          return;
++        }
++        // sinyal putus di tengah jalan -> simpan di perangkat (di bawah)
++      }
++    }
++
++    // ---- OFFLINE / SINYAL PUTUS: simpan di perangkat, kirim otomatis nanti ----
++    try {
++      const fields: Record<string, string> = {};
++      formData.forEach((nilai, kunci) => {
++        if (typeof nilai === 'string') fields[kunci] = nilai;
++      });
++      const media = await Promise.all(sisaMedia.map((m) => berkasKeMedia(m.key, m.file)));
++      await simpanRekam({
++        id: idBaru(),
++        dibuat: new Date().toISOString(),
++        namaKlinik: namaKlinikTerpilih,
++        fields,
++        media,
++        status: 'menunggu',
++      });
++      window.dispatchEvent(new Event(EVENT_ANTRIAN));
++      setPesanAntrian(
++        'Tersimpan di perangkat. Data akan dikirim otomatis saat ada sinyal (buka halaman ini lagi bila perlu).'
++      );
++      kosongkanForm();
++    } catch (err) {
++      alert(
++        `Gagal menyimpan di perangkat: ${err instanceof Error ? err.message : 'penyimpanan tidak tersedia'}. ` +
++          'Data belum tersimpan — jangan tutup halaman ini.'
++      );
++    } finally {
++      setLoading(false);
+     }
+-    if (hasil.peringatan) alert(hasil.peringatan);
+-    setStatus(hasil.status ?? null);
+   }
+ 
+   return (
+     <form action={handleSubmit} className="max-w-2xl mx-auto p-4 space-y-6">
++      {!online && (
++        <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
++          Mode offline: isian, foto, dan tanda tangan disimpan di perangkat ini dan dikirim otomatis saat ada sinyal.
++        </p>
++      )}
+       <div>
+         <label className="block font-medium">Klinik/RS</label>
+         <select
+@@ -171,6 +269,9 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
+                   {uploadBerjalan && (
+                     <p className="text-xs text-gray-500 mt-1">Mengupload…</p>
+                   )}
++                  {fotoLokal[item.key] && !uploadBerjalan && (
++                    <p className="text-xs text-amber-700 mt-1">Foto tersimpan di perangkat (diunggah saat ada sinyal) ✓</p>
++                  )}
+                   {foto && !uploadBerjalan && (
+                     <p className="text-xs text-green-600 mt-1">Foto terupload ✓</p>
+                   )}
+@@ -222,6 +323,9 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
+           }}
+         />
+         {fotoUploaded.cold_chain && <p className="text-sm text-green-600">Terupload ✓</p>}
++        {fotoLokal.cold_chain && (
++          <p className="text-sm text-amber-700">Tersimpan di perangkat (diunggah saat ada sinyal) ✓</p>
++        )}
+       </div>
+ 
+       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+@@ -229,6 +333,10 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
+         <PadTandaTangan ref={refTtdKlinik} label="Tanda Tangan Petugas Klinik" />
+       </div>
+ 
++      {pesanAntrian && (
++        <p className="rounded border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">{pesanAntrian}</p>
++      )}
++
+       <button type="submit" disabled={loading} className="bg-blue-600 text-white px-4 py-2 rounded">
+         {loading ? 'Menyimpan...' : 'Simpan Pengawasan'}
+       </button>
+diff --git a/app/(dashboard)/dashboard/pengawasan-klinik/tambah/page.tsx b/app/(dashboard)/dashboard/pengawasan-klinik/tambah/page.tsx
+index 15e48f6..f20ff68 100644
+--- a/app/(dashboard)/dashboard/pengawasan-klinik/tambah/page.tsx
++++ b/app/(dashboard)/dashboard/pengawasan-klinik/tambah/page.tsx
+@@ -1,6 +1,8 @@
+ // app/(dashboard)/dashboard/pengawasan-klinik/tambah/page.tsx
+ import { createClient } from '@/lib/supabase/server';
+ import PengawasanKlinikFormClient from './PengawasanKlinikFormClient';
++import RegistrasiOffline from '@/components/pengawasan-klinik/RegistrasiOffline';
++import BannerAntrianOffline from '@/components/pengawasan-klinik/BannerAntrianOffline';
+ 
+ export default async function TambahPengawasanKlinikPage() {
+   const supabase = await createClient();
+@@ -9,5 +11,13 @@ export default async function TambahPengawasanKlinikPage() {
+     .select('id, nama_klinik')
+     .order('nama_klinik');
+ 
+-  return <PengawasanKlinikFormClient daftarKlinik={daftarKlinik ?? []} />;
++  return (
++    <>
++      <RegistrasiOffline />
++      <div className="mx-auto max-w-2xl px-4 pt-4">
++        <BannerAntrianOffline />
++      </div>
++      <PengawasanKlinikFormClient daftarKlinik={daftarKlinik ?? []} />
++    </>
++  );
+ }
+\ No newline at end of file
+diff --git a/components/pengawasan-klinik/BannerAntrianOffline.tsx b/components/pengawasan-klinik/BannerAntrianOffline.tsx
+new file mode 100644
+index 0000000..947f460
+--- /dev/null
++++ b/components/pengawasan-klinik/BannerAntrianOffline.tsx
+@@ -0,0 +1,168 @@
++'use client';
++
++import { useCallback, useEffect, useState } from 'react';
++import { useRouter } from 'next/navigation';
++import { simpanPengawasanKlinik } from '@/app/(dashboard)/dashboard/pengawasan-klinik/actions';
++import { daftarRekam, hapusRekam, EVENT_ANTRIAN, type RekamAntrian } from '@/lib/pengawasan-klinik/antrianOffline';
++import { sinkronkanAntrian } from '@/lib/pengawasan-klinik/sinkronAntrian';
++
++function formatTanggal(tgl?: string): string {
++  if (!tgl) return '-';
++  return new Date(`${tgl.slice(0, 10)}T00:00:00Z`).toLocaleDateString('id-ID', {
++    day: 'numeric',
++    month: 'short',
++    year: 'numeric',
++    timeZone: 'UTC',
++  });
++}
++
++/**
++ * Menampilkan pengawasan yang tersimpan di perangkat dan belum terkirim, serta
++ * mengirimnya otomatis saat halaman dibuka / sinyal kembali.
++ */
++export default function BannerAntrianOffline() {
++  const router = useRouter();
++  const [antrian, setAntrian] = useState<RekamAntrian[]>([]);
++  const [mengirim, setMengirim] = useState(false);
++  const [online, setOnline] = useState(true);
++  const [pesan, setPesan] = useState<string | null>(null);
++
++  const muat = useCallback(async () => {
++    try {
++      setAntrian(await daftarRekam());
++    } catch {
++      /* IndexedDB tidak tersedia (mis. mode privat) */
++    }
++  }, []);
++
++  const kirim = useCallback(
++    async (termasukGagal: boolean) => {
++      if (!navigator.onLine) return;
++      setMengirim(true);
++      try {
++        const hasil = await sinkronkanAntrian(simpanPengawasanKlinik, { termasukGagal });
++        const bagian: string[] = [];
++        if (hasil.terkirim > 0) bagian.push(`${hasil.terkirim} pengawasan berhasil dikirim.`);
++        if (hasil.gagal > 0) bagian.push(`${hasil.gagal} gagal (lihat keterangan di bawah).`);
++        if (hasil.terputus) bagian.push('Sinyal terputus, akan dicoba lagi otomatis.');
++        bagian.push(...hasil.peringatan);
++        setPesan(bagian.length > 0 ? bagian.join(' ') : null);
++        if (hasil.terkirim > 0) router.refresh();
++      } catch (err) {
++        setPesan(`Gagal mengirim: ${err instanceof Error ? err.message : 'kesalahan tidak diketahui'}`);
++      } finally {
++        setMengirim(false);
++        await muat();
++      }
++    },
++    [muat, router]
++  );
++
++  useEffect(() => {
++    setOnline(navigator.onLine);
++
++    (async () => {
++      let data: RekamAntrian[] = [];
++      try {
++        data = await daftarRekam();
++        setAntrian(data);
++      } catch {
++        return;
++      }
++      if (navigator.onLine && data.some((r) => r.status !== 'gagal')) kirim(false);
++    })();
++
++    const saatOnline = () => {
++      setOnline(true);
++      kirim(false);
++    };
++    const saatOffline = () => setOnline(false);
++    const saatBerubah = () => {
++      muat().then(() => {
++        if (navigator.onLine) kirim(false);
++      });
++    };
++
++    window.addEventListener('online', saatOnline);
++    window.addEventListener('offline', saatOffline);
++    window.addEventListener(EVENT_ANTRIAN, saatBerubah);
++    return () => {
++      window.removeEventListener('online', saatOnline);
++      window.removeEventListener('offline', saatOffline);
++      window.removeEventListener(EVENT_ANTRIAN, saatBerubah);
++    };
++  }, [kirim, muat]);
++
++  async function hapus(id: string) {
++    if (!confirm('Hapus data ini dari perangkat? Data yang belum terkirim akan hilang.')) return;
++    await hapusRekam(id);
++    await muat();
++  }
++
++  if (antrian.length === 0 && !pesan) return null;
++  const adaGagal = antrian.some((r) => r.status === 'gagal');
++
++  return (
++    <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
++      {antrian.length > 0 && (
++        <>
++          <p className="font-semibold">
++            {antrian.length} pengawasan tersimpan di perangkat dan belum terkirim
++            {!online && ' — sedang offline, akan dikirim otomatis saat ada sinyal'}
++            {mengirim && ' — mengirim…'}
++          </p>
++          <ul className="mt-2 space-y-2">
++            {antrian.map((r) => (
++              <li key={r.id} className="rounded border border-amber-200 bg-white px-3 py-2">
++                <div className="flex flex-wrap items-center justify-between gap-2">
++                  <span>
++                    <strong>{r.namaKlinik === 'klinik' ? 'Klinik' : r.namaKlinik}</strong> ·{' '}
++                    {formatTanggal(r.fields.tanggal_kegiatan)} · {r.media.length} foto/ttd menunggu unggah
++                  </span>
++                  <span className="flex items-center gap-2">
++                    <span
++                      className={`rounded px-2 py-0.5 text-xs font-medium ${
++                        r.status === 'gagal'
++                          ? 'bg-red-100 text-red-700'
++                          : r.status === 'mengirim'
++                            ? 'bg-blue-100 text-blue-700'
++                            : 'bg-amber-100 text-amber-800'
++                      }`}
++                    >
++                      {r.status === 'gagal' ? 'Gagal' : r.status === 'mengirim' ? 'Mengirim' : 'Menunggu'}
++                    </span>
++                    <button type="button" onClick={() => hapus(r.id)} className="text-xs text-red-700 underline">
++                      Hapus
++                    </button>
++                  </span>
++                </div>
++                {r.status === 'gagal' && r.pesan && <p className="mt-1 text-xs text-red-700">{r.pesan}</p>}
++              </li>
++            ))}
++          </ul>
++          <div className="mt-3 flex flex-wrap gap-2">
++            <button
++              type="button"
++              disabled={!online || mengirim}
++              onClick={() => kirim(false)}
++              className="rounded bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
++            >
++              Kirim sekarang
++            </button>
++            {adaGagal && (
++              <button
++                type="button"
++                disabled={!online || mengirim}
++                onClick={() => kirim(true)}
++                className="rounded border border-amber-600 px-3 py-1.5 text-xs font-semibold text-amber-800 disabled:opacity-50"
++              >
++                Coba lagi yang gagal
++              </button>
++            )}
++          </div>
++        </>
++      )}
++      {pesan && <p className="mt-2 text-xs">{pesan}</p>}
++    </div>
++  );
++}
+diff --git a/components/pengawasan-klinik/RegistrasiOffline.tsx b/components/pengawasan-klinik/RegistrasiOffline.tsx
+new file mode 100644
+index 0000000..704cd6d
+--- /dev/null
++++ b/components/pengawasan-klinik/RegistrasiOffline.tsx
+@@ -0,0 +1,26 @@
++'use client';
++
++import { useEffect } from 'react';
++
++/**
++ * Mendaftarkan service worker (hanya di production) dan meminta SW menyimpan
++ * halaman form + aset-nya selagi online. Juga meminta penyimpanan "persisten"
++ * supaya data antrian offline tidak mudah dihapus browser.
++ */
++export default function RegistrasiOffline() {
++  useEffect(() => {
++    navigator.storage?.persist?.().catch(() => {});
++
++    if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
++
++    navigator.serviceWorker
++      .register('/sw.js')
++      .then(() => navigator.serviceWorker.ready)
++      .then((reg) => {
++        if (navigator.onLine) reg.active?.postMessage({ tipe: 'simpan-halaman-form' });
++      })
++      .catch(() => {});
++  }, []);
++
++  return null;
++}
+diff --git a/lib/pengawasan-klinik/antrianOffline.ts b/lib/pengawasan-klinik/antrianOffline.ts
+new file mode 100644
+index 0000000..113e1f5
+--- /dev/null
++++ b/lib/pengawasan-klinik/antrianOffline.ts
+@@ -0,0 +1,126 @@
++// lib/pengawasan-klinik/antrianOffline.ts
++// Antrian pengawasan klinik yang diinput saat OFFLINE, disimpan di IndexedDB perangkat
++// (isian form + foto + tanda tangan), lalu dikirim otomatis saat ada sinyal.
++
++export const EVENT_ANTRIAN = 'antrian-pengawasan-berubah';
++
++export type MediaAntrian = { key: string; mime: string; data: ArrayBuffer };
++export type StatusAntrian = 'menunggu' | 'mengirim' | 'gagal';
++
++export type RekamAntrian = {
++  id: string;
++  dibuat: string; // ISO
++  namaKlinik: string;
++  fields: Record<string, string>; // isian form (termasuk foto_url_* yang sudah terunggah)
++  media: MediaAntrian[]; // foto/tanda tangan yang BELUM terunggah
++  status: StatusAntrian;
++  pesan?: string;
++};
++
++/** Galat yang layak dicoba ulang nanti (sinyal putus / timeout / server sibuk). */
++export class GalatJaringan extends Error {
++  constructor(pesan: string) {
++    super(pesan);
++    this.name = 'GalatJaringan';
++  }
++}
++
++export function adalahGalatJaringan(err: unknown): boolean {
++  if (err instanceof GalatJaringan) return true;
++  if (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError')) return true;
++  if (err instanceof Error) {
++    return /failed to fetch|networkerror|network request failed|load failed|fetch failed|unexpected response was received/i.test(
++      err.message
++    );
++  }
++  return false;
++}
++
++export function idBaru(): string {
++  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
++  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
++}
++
++// ---------------- IndexedDB ----------------
++const NAMA_DB = 'epic-ai-offline';
++const NAMA_STORE = 'antrian_pengawasan_klinik';
++
++function bukaDb(): Promise<IDBDatabase> {
++  return new Promise((resolve, reject) => {
++    const req = indexedDB.open(NAMA_DB, 1);
++    req.onupgradeneeded = () => {
++      req.result.createObjectStore(NAMA_STORE, { keyPath: 'id' });
++    };
++    req.onsuccess = () => resolve(req.result);
++    req.onerror = () => reject(req.error);
++  });
++}
++
++async function jalankan<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
++  const db = await bukaDb();
++  return new Promise<T>((resolve, reject) => {
++    const tx = db.transaction(NAMA_STORE, mode);
++    const req = fn(tx.objectStore(NAMA_STORE));
++    tx.oncomplete = () => {
++      db.close();
++      resolve(req.result);
++    };
++    tx.onerror = () => {
++      db.close();
++      reject(tx.error);
++    };
++    tx.onabort = () => {
++      db.close();
++      reject(tx.error ?? new Error('Transaksi penyimpanan dibatalkan'));
++    };
++  });
++}
++
++export async function simpanRekam(rekam: RekamAntrian): Promise<void> {
++  await jalankan('readwrite', (s) => s.put(rekam));
++}
++
++export async function daftarRekam(): Promise<RekamAntrian[]> {
++  const semua = await jalankan<RekamAntrian[]>('readonly', (s) => s.getAll());
++  return semua.sort((a, b) => a.dibuat.localeCompare(b.dibuat));
++}
++
++export async function hapusRekam(id: string): Promise<void> {
++  await jalankan('readwrite', (s) => s.delete(id));
++}
++
++// ---------------- media ----------------
++export async function berkasKeMedia(key: string, file: File): Promise<MediaAntrian> {
++  return { key, mime: file.type || 'image/jpeg', data: await file.arrayBuffer() };
++}
++
++export function mediaKeBerkas(media: MediaAntrian): File {
++  const ekstensi = media.mime.includes('png') ? 'png' : 'jpg';
++  return new File([media.data], `${media.key}.${ekstensi}`, { type: media.mime });
++}
++
++/**
++ * Perkecil foto kamera HP (3–8 MB) jadi ±300–600 KB supaya muat di penyimpanan
++ * offline dan cepat terunggah di sinyal lemah. Gagal/tidak didukung → file asli.
++ */
++export async function kompresGambar(file: File, sisiMaks = 1600, kualitas = 0.8): Promise<File> {
++  if (!file.type.startsWith('image/') || file.size < 400 * 1024) return file;
++  try {
++    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
++    const skala = Math.min(1, sisiMaks / Math.max(bitmap.width, bitmap.height));
++    const lebar = Math.round(bitmap.width * skala);
++    const tinggi = Math.round(bitmap.height * skala);
++    const canvas = document.createElement('canvas');
++    canvas.width = lebar;
++    canvas.height = tinggi;
++    const ctx = canvas.getContext('2d');
++    if (!ctx) return file;
++    ctx.drawImage(bitmap, 0, 0, lebar, tinggi);
++    bitmap.close?.();
++    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', kualitas));
++    if (!blob || blob.size >= file.size) return file;
++    return new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.jpg`, { type: 'image/jpeg' });
++  } catch {
++    return file;
++  }
++}
+diff --git a/lib/pengawasan-klinik/sinkronAntrian.ts b/lib/pengawasan-klinik/sinkronAntrian.ts
+new file mode 100644
+index 0000000..e31d9f0
+--- /dev/null
++++ b/lib/pengawasan-klinik/sinkronAntrian.ts
+@@ -0,0 +1,79 @@
++// lib/pengawasan-klinik/sinkronAntrian.ts
++// Kirim antrian offline: unggah foto/tanda tangan dulu, lalu simpan data lewat server action.
++import {
++  adalahGalatJaringan,
++  daftarRekam,
++  hapusRekam,
++  mediaKeBerkas,
++  simpanRekam,
++} from './antrianOffline';
++import { unggahFotoAman } from './unggahAman';
++
++type FungsiSimpan = (formData: FormData) => Promise<{ error?: string; peringatan?: string }>;
++
++export type HasilSinkron = {
++  terkirim: number;
++  gagal: number;
++  terputus: boolean; // berhenti karena sinyal putus
++  peringatan: string[];
++};
++
++let sedangSinkron = false;
++
++export async function sinkronkanAntrian(
++  simpan: FungsiSimpan,
++  opsi: { termasukGagal?: boolean } = {}
++): Promise<HasilSinkron> {
++  const hasilAkhir: HasilSinkron = { terkirim: 0, gagal: 0, terputus: false, peringatan: [] };
++  if (sedangSinkron) return hasilAkhir;
++  sedangSinkron = true;
++
++  try {
++    const semua = await daftarRekam();
++    const dikirim = semua.filter((r) => opsi.termasukGagal || r.status !== 'gagal');
++
++    for (const rekam of dikirim) {
++      const fields = { ...rekam.fields };
++      let media = [...rekam.media];
++      await simpanRekam({ ...rekam, status: 'mengirim', pesan: undefined });
++
++      try {
++        // 1) unggah media satu per satu; kemajuan disimpan supaya tidak unggah ulang kalau terputus
++        while (media.length > 0) {
++          const m = media[0];
++          const hasil = await unggahFotoAman(mediaKeBerkas(m), m.key, rekam.namaKlinik);
++          fields[`foto_url_${m.key}`] = hasil.url;
++          fields[`foto_public_id_${m.key}`] = hasil.publicId;
++          media = media.slice(1);
++          await simpanRekam({ ...rekam, fields, media, status: 'mengirim', pesan: undefined });
++        }
++
++        // 2) simpan data pengawasan
++        const formData = new FormData();
++        Object.entries(fields).forEach(([k, v]) => formData.set(k, v));
++        const hasil = await simpan(formData);
++
++        if (hasil.error) {
++          await simpanRekam({ ...rekam, fields, media, status: 'gagal', pesan: hasil.error });
++          hasilAkhir.gagal += 1;
++          continue;
++        }
++        await hapusRekam(rekam.id);
++        hasilAkhir.terkirim += 1;
++        if (hasil.peringatan) hasilAkhir.peringatan.push(hasil.peringatan);
++      } catch (err) {
++        const pesan = err instanceof Error ? err.message : 'Gagal mengirim';
++        if (adalahGalatJaringan(err)) {
++          await simpanRekam({ ...rekam, fields, media, status: 'menunggu', pesan });
++          hasilAkhir.terputus = true;
++          break; // sinyal putus: jangan lanjut ke data berikutnya
++        }
++        await simpanRekam({ ...rekam, fields, media, status: 'gagal', pesan });
++        hasilAkhir.gagal += 1;
++      }
++    }
++    return hasilAkhir;
++  } finally {
++    sedangSinkron = false;
++  }
++}
+diff --git a/lib/pengawasan-klinik/unggahAman.ts b/lib/pengawasan-klinik/unggahAman.ts
+new file mode 100644
+index 0000000..5ecca87
+--- /dev/null
++++ b/lib/pengawasan-klinik/unggahAman.ts
+@@ -0,0 +1,42 @@
++// lib/pengawasan-klinik/unggahAman.ts
++// Unggah foto/tanda tangan ke Cloudinary (signed upload) dengan: batas waktu (sinyal lemah tidak
++// menggantung selamanya), pengecekan hasil, dan galat jaringan yang bisa dicoba ulang.
++import { GalatJaringan } from './antrianOffline';
++
++function sinyalBatas(ms: number): AbortSignal | undefined {
++  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
++    ? AbortSignal.timeout(ms)
++    : undefined;
++}
++
++export async function unggahFotoAman(file: File, jenisDokumen: string, namaKlinik: string) {
++  const folder = `pengawasan-klinik/${namaKlinik.replace(/\s+/g, '-').toLowerCase()}`;
++
++  const signRes = await fetch('/api/cloudinary-sign', {
++    method: 'POST',
++    body: JSON.stringify({ folder }),
++    signal: sinyalBatas(20000),
++  });
++  if (signRes.status >= 500) throw new GalatJaringan(`Server sibuk (${signRes.status})`);
++  if (!signRes.ok) throw new Error(`Gagal meminta izin unggah (${signRes.status})`);
++  const { timestamp, signature, apiKey, cloudName } = await signRes.json();
++
++  const formData = new FormData();
++  formData.append('file', file);
++  formData.append('api_key', apiKey);
++  formData.append('timestamp', String(timestamp));
++  formData.append('signature', signature);
++  formData.append('folder', folder);
++
++  const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
++    method: 'POST',
++    body: formData,
++    signal: sinyalBatas(90000),
++  });
++  const result = await uploadRes.json().catch(() => null);
++  if (uploadRes.status >= 500) throw new GalatJaringan(`Cloudinary sibuk (${uploadRes.status})`);
++  if (!uploadRes.ok || !result?.secure_url) {
++    throw new Error(result?.error?.message ?? 'Upload ke Cloudinary gagal');
++  }
++  return { url: result.secure_url as string, publicId: result.public_id as string, jenisDokumen };
++}
+diff --git a/proxy.ts b/proxy.ts
+index 779b80d..7152d1e 100644
+--- a/proxy.ts
++++ b/proxy.ts
+@@ -16,6 +16,6 @@ export async function proxy(request: NextRequest) {
+ 
+ export const config = {
+   matcher: [
+-    '/((?!_next/static|_next/image|favicon.ico|api/analisis-ai|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
++    '/((?!_next/static|_next/image|favicon.ico|sw\\.js|api/analisis-ai|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+   ],
+ };
+\ No newline at end of file
+diff --git a/public/sw.js b/public/sw.js
+new file mode 100644
+index 0000000..32de9aa
+--- /dev/null
++++ b/public/sw.js
+@@ -0,0 +1,133 @@
++/* Service worker EPIC-AI — hanya untuk form pengawasan klinik agar bisa dibuka OFFLINE.
++ * - /_next/static/* : cache-first (file ber-hash, aman disimpan)
++ * - halaman form    : jaringan-dulu (maks 6 detik, sinyal lemah) lalu salinan tersimpan
++ * Data yang diinput offline TIDAK lewat sini: disimpan di IndexedDB oleh aplikasi. */
++const VERSI = 'v1';
++const CACHE_HALAMAN = 'epic-halaman-' + VERSI;
++const CACHE_ASET = 'epic-aset-' + VERSI;
++const HALAMAN_FORM = '/dashboard/pengawasan-klinik/tambah';
++const BATAS_JARINGAN_MS = 6000;
++
++const HTML_BELUM_TERSIMPAN =
++  '<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
++  '<title>Offline</title></head><body style="font-family:sans-serif;max-width:32rem;margin:3rem auto;padding:0 1rem">' +
++  '<h2>Form belum tersimpan di perangkat ini</h2>' +
++  '<p>Buka halaman form pengawasan klinik <b>sekali saat ada sinyal</b> agar bisa dipakai offline di lokasi.</p>' +
++  '</body></html>';
++
++self.addEventListener('install', () => self.skipWaiting());
++
++self.addEventListener('activate', (event) => {
++  event.waitUntil(
++    (async () => {
++      const nama = await caches.keys();
++      await Promise.all(
++        nama
++          .filter((n) => n.startsWith('epic-') && n !== CACHE_HALAMAN && n !== CACHE_ASET)
++          .map((n) => caches.delete(n))
++      );
++      await self.clients.claim();
++    })()
++  );
++});
++
++function adalahHalamanForm(url) {
++  return url.pathname === HALAMAN_FORM || url.pathname === HALAMAN_FORM + '/';
++}
++
++function fetchDenganBatas(req, ms) {
++  return new Promise((resolve, reject) => {
++    const timer = setTimeout(() => reject(new Error('timeout')), ms);
++    fetch(req).then(
++      (res) => {
++        clearTimeout(timer);
++        resolve(res);
++      },
++      (err) => {
++        clearTimeout(timer);
++        reject(err);
++      }
++    );
++  });
++}
++
++async function cacheFirst(req) {
++  const cache = await caches.open(CACHE_ASET);
++  const ada = await cache.match(req);
++  if (ada) return ada;
++  const res = await fetch(req);
++  if (res.ok) cache.put(req, res.clone());
++  return res;
++}
++
++async function halamanJaringanDulu(req) {
++  const cache = await caches.open(CACHE_HALAMAN);
++  try {
++    const res = await fetchDenganBatas(req, BATAS_JARINGAN_MS);
++    // jangan simpan hasil redirect (mis. ke halaman login) sebagai halaman form
++    if (res.ok && !res.redirected) cache.put(HALAMAN_FORM, res.clone());
++    return res;
++  } catch (e) {
++    const tersimpan = await cache.match(HALAMAN_FORM);
++    if (tersimpan) return tersimpan;
++    return new Response(HTML_BELUM_TERSIMPAN, {
++      status: 503,
++      headers: { 'Content-Type': 'text/html; charset=utf-8' },
++    });
++  }
++}
++
++self.addEventListener('fetch', (event) => {
++  const req = event.request;
++  if (req.method !== 'GET') return;
++  const url = new URL(req.url);
++  if (url.origin !== self.location.origin) return;
++
++  if (url.pathname.startsWith('/_next/static/')) {
++    event.respondWith(cacheFirst(req));
++    return;
++  }
++  if (req.mode === 'navigate' && adalahHalamanForm(url)) {
++    event.respondWith(halamanJaringanDulu(req));
++  }
++});
++
++// ---- simpan halaman + semua aset JS/CSS/font yang dirujuk (dipicu dari aplikasi saat online) ----
++async function simpanAset(daftarUrl) {
++  const cache = await caches.open(CACHE_ASET);
++  for (const u of daftarUrl) {
++    try {
++      if (await cache.match(u)) continue;
++      const res = await fetch(u);
++      if (!res.ok) continue;
++      if (u.endsWith('.css')) {
++        const teks = await res.clone().text();
++        const font = teks.match(/\/_next\/static\/media\/[^)"'\s]+/g) || [];
++        await simpanAset(Array.from(new Set(font)));
++      }
++      await cache.put(u, res);
++    } catch (e) {
++      /* aset gagal diunduh: lewati */
++    }
++  }
++}
++
++async function simpanHalamanForm() {
++  try {
++    const res = await fetch(HALAMAN_FORM, { credentials: 'same-origin', headers: { Accept: 'text/html' } });
++    if (!res.ok || res.redirected) return;
++    const html = await res.clone().text();
++    const cache = await caches.open(CACHE_HALAMAN);
++    await cache.put(HALAMAN_FORM, res);
++    const aset = html.match(/\/_next\/static\/[^"'\\\s)<>]+/g) || [];
++    await simpanAset(Array.from(new Set(aset)));
++  } catch (e) {
++    /* abaikan */
++  }
++}
++
++self.addEventListener('message', (event) => {
++  if (event.data && event.data.tipe === 'simpan-halaman-form') {
++    event.waitUntil(simpanHalamanForm());
++  }
++});

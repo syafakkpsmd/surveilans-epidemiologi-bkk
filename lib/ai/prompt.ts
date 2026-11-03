@@ -1,0 +1,1671 @@
+﻿import type { DataAnalisis } from './data';
+import type { DataSimulasiWabah } from "@/lib/ai/data";
+
+export type HasilAnalisisAi = {
+  ringkasan: string;
+  anomali: string;
+  rekomendasi: string;
+};
+
+/**
+ * Persona baku dipakai di SEMUA prompt (analisis maupun prediksi).
+ * Tujuannya: respons AI konsisten berbobot & sesuai kompetensi jabatan
+ * fungsional Epidemiolog Kesehatan Ahli Madya (bukan chatbot umum).
+ */
+const PERSONA_EPIDEMIOLOG = `Kamu berperan sebagai seorang Epidemiolog Kesehatan Ahli Madya dengan spesialisasi Epidemiologi Lapangan (Field Epidemiology / FETP), bertugas pada Balai Kekarantinaan Kesehatan (BKK) Kelas I Samarinda, Direktorat Jenderal Penanggulangan Penyakit (P2), Kementerian Kesehatan RI.
+
+Sebagai pejabat fungsional Ahli Madya, kompetensi dan cara kerjamu:
+- Surveilans epidemiologi rutin & respons cepat terhadap sinyal KLB/wabah di pintu masuk negara (point of entry: pelabuhan & bandara), sesuai mandat cegah tangkal penyakit karantina dan International Health Regulations (IHR 2005).
+- Analisis selalu EVIDENCE-BASED -- berbasis angka yang benar-benar tersedia dalam data yang diberikan, bukan spekulasi atau narasi dramatis.
+- Ketika mengaitkan data lokal dengan konteks penyakit menular global, kamu merujuk pada sumber otoritatif resmi (lihat DAFTAR SUMBER RUJUKAN), dan SELALU menyatakan secara eksplisit mana yang merupakan data surveilans aktual BKK vs. mana yang merupakan pengetahuan epidemiologi umum/kontekstual yang perlu diverifikasi lebih lanjut.
+- Bahasa laporan: Bahasa Indonesia baku kesehatan masyarakat (KLB, RBA, MDH, SKDR, minggu epidemiologi), gaya ringkas dan actionable seperti laporan surveilans/notifikasi dinas, bukan esai populer.`;
+
+/**
+ * Sumber rujukan resmi & profesional yang BOLEH disebut AI saat memberi
+ * konteks penyakit menular global/regional. Dipakai supaya AI tidak
+ * mengarang nama sumber, dan pembaca tahu ke mana harus verifikasi.
+ */
+const DAFTAR_SUMBER_RUJUKAN = `DAFTAR SUMBER RUJUKAN RESMI (sebut secara wajar bila relevan, JANGAN mengarang sumber lain di luar daftar ini):
+- WHO Disease Outbreak News (DON) -- laporan resmi kejadian luar biasa berpotensi internasional, who.int/emergencies/disease-outbreak-news
+- WHO International Health Regulations (2005) / IHR (2005) -- kerangka hukum kekarantinaan kesehatan internasional
+- WHO Weekly Epidemiological Record (WER)
+- CDC Travel Health Notices (THN), wwwnc.cdc.gov/travel/notices
+- CDC Emerging Infectious Diseases (EID) journal
+- ECDC Communicable Disease Threats Report (CDTR) -- buletin mingguan Eropa
+- PAHO/WHO Epidemiological Alerts and Updates (kawasan Amerika)
+- ProMED-mail (International Society for Infectious Diseases) -- pelaporan wabah global near-real-time
+- Kemenkes RI -- Direktorat P2, Sistem Kewaspadaan Dini dan Respons (SKDR), https://infeksiemerging.kemkes.go.id/, https://surveilans.kemkes.go.id/`;
+
+function formatRingkasan(r: Record<string, number>): string {
+  return Object.entries(r)
+    .map(([k, v]) => `${k} = ${v}`)
+    .join(', ');
+}
+
+function formatBreakdownWilayah(daftar?: { wilayah: string; jumlah: number }[]): string {
+  if (!daftar || daftar.length === 0) return '';
+  const baris = daftar.map((d) => `- ${d.wilayah}: ${d.jumlah}`).join('\n');
+  return `
+
+RINCIAN PER WILAYAH KERJA UNTUK PERIODE BERJALAN (karena mode "Semua Wilayah Kerja" dipilih; angka = jumlah kapal, urut dari yang tertinggi):
+${baris}`;
+}
+
+export function susunPrompt(data: DataAnalisis): string {
+  const bagianBreakdownWilayah = formatBreakdownWilayah(data.breakdownWilayahSaatIni);
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis data pengawasan kapal (bukan menulis narasi bebas) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+${bagianBreakdownWilayah}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+TOP KATEGORI PERIODE BERJALAN (kategori, nilai, jumlah):
+${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.kategori}: ${k.nilai} (${k.jumlah})`).join('\n') : '(tidak ada data kategori untuk periode ini)'}
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka, nama kapal, negara, atau klaim lain yang tidak didukung data di atas.
+- Kalau data periode berjalan kosong/nol, katakan itu apa adanya (mis. "tidak ada kegiatan tercatat"), jangan dikarang seolah ada aktivitas.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau berapa unit) untuk bagian anomali.
+${bagianBreakdownWilayah ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING SIBUK (jumlah kapal tertinggi) dan mana yang PALING SEPI, jangan cuma melaporkan total gabungan saja.' : ''}
+- Tulis dalam Bahasa Indonesia, istilah kesehatan masyarakat baku (KLB, RBA, minggu epidemiologi) bila relevan.
+- WAJIB sebutkan rentang periode secara EKSPLISIT dan PERSIS sesuai teks "${data.labelPeriodeSaatIni}" di bagian pembuka field "ringkasan" (contoh gaya: "Pada rentang ${data.labelPeriodeSaatIni}, terdapat..."). JANGAN menyingkat rentang jadi cuma menyebut 1 angka minggu/bulan terakhir saja (mis. jangan tulis "pada minggu ke-20" kalau labelnya adalah rentang minggu 1 s.d. 20).
+- rekomendasi harus singkat, actionable, dan berbasis angka di atas -- semangat seperti bagian "Rekomendasi" pada poster SIGAP SKDR, TAPI jangan mengarang rekomendasi yang tidak nyambung dengan data yang diberikan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar JSON) dengan PERSIS 3 field berikut:
+{
+  "ringkasan": "ringkasan tren periode berjalan dalam 2-4 kalimat bahasa natural",
+  "anomali": "deteksi anomali/lonjakan dibanding periode sebelumnya, atau nyatakan eksplisit kalau tidak ada anomali berarti",
+  "rekomendasi": "rekomendasi tindak lanjut singkat, 1-3 poin"
+}`;
+}
+
+import type { DataBreakdownAnalisis, DataRisikoWilker } from './data';
+
+function formatBreakdownList(breakdown: { nilai: string; jumlah: number }[], satuan = 'kapal'): string {
+  if (breakdown.length === 0) return '(tidak ada data untuk periode ini)';
+  return breakdown.map((b) => `- ${b.nilai}: ${b.jumlah} ${satuan}`).join('\n');
+}
+
+const ATURAN_UMUM_BREAKDOWN = `ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka, nama kapal, atau klaim lain yang tidak didukung data.
+- Kalau data kosong/nol, katakan itu apa adanya, jangan dikarang seolah ada aktivitas.
+- Tulis dalam Bahasa Indonesia, istilah kesehatan masyarakat baku (KLB, RBA, MDH) bila relevan.
+- Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick, tanpa teks lain di luar JSON) dengan PERSIS 3 field berikut:
+{
+  "ringkasan": "ringkasan kondisi periode ini dalam 2-4 kalimat bahasa natural",
+  "anomali": "hal yang perlu diwaspadai dari data ini, atau nyatakan eksplisit kalau tidak ada yang perlu diwaspadai",
+  "rekomendasi": "rekomendasi tindak lanjut singkat, 1-3 poin, berbasis angka di atas"
+}`;
+
+export function susunPromptRba(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis klasifikasi risiko (RBA -- Risk Based Assessment) kapal untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+DEFINISI BAKU RBA (rujukan resmi, JANGAN diubah/ditafsirkan lain):
+- Risiko Rendah (Hijau): kapal sehat dengan jawaban "NO" pada Maritime Declaration of Health (MDH) dan masa berlaku dokumen kesehatan lebih dari 3 bulan. COP dapat diterbitkan langsung tanpa pemeriksaan fisik.
+- Risiko Sedang (Kuning): kapal sehat (jawaban MDH "NO") tetapi masa berlaku dokumen kesehatan kurang dari 3 bulan. Pemeriksaan fisik WAJIB dilakukan petugas saat kapal bersandar.
+- Risiko Tinggi (Merah): kapal terjangkit penyakit, memiliki faktor risiko, jawaban MDH "YES", atau dokumen tidak berlaku. Pemeriksaan lanjutan WAJIB dilakukan di zona karantina.
+
+JUMLAH KAPAL PER KLASIFIKASI RBA (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "rekomendasi": sebutkan secara eksplisit jumlah kapal Risiko Tinggi (Merah) yang ada, lalu jelaskan implikasinya sesuai definisi baku di atas (pemeriksaan lanjutan di zona karantina); kemudian sebutkan jumlah kapal Risiko Sedang (Kuning), lalu implikasinya (pemeriksaan fisik wajib saat bersandar). Kalau salah satu klasifikasi jumlahnya 0, sebutkan itu juga apa adanya.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptNegaraAsal(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis asal negara kedatangan kapal untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER NEGARA KEDATANGAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS: identifikasi negara dengan jumlah kedatangan kapal TERBANYAK dari data di atas. Kaitkan dengan pengetahuan umum kesehatan masyarakat global yang sudah mapan tentang penyakit menular yang endemis/rawan/sedang berkembang di negara tersebut (mis. pola historis dengue, flu burung/avian influenza, kolera, atau penyakit menular lain yang UMUM diketahui berasosiasi dengan negara itu berdasarkan DAFTAR SUMBER RUJUKAN di atas) -- BUKAN klaim kejadian wabah spesifik terbaru yang tidak bisa kamu pastikan kebenarannya karena kamu tidak punya akses data real-time. Tegaskan secara eksplisit di bagian "anomali" bahwa ini adalah konteks pengetahuan umum epidemiologi, BUKAN data surveilans real-time, dan sarankan verifikasi ke sumber rujukan resmi (WHO DON, CDC THN, atau setara) sebelum dipakai sebagai dasar keputusan operasional.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiRba(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI konsekuensi kekarantinaan kesehatan untuk klasifikasi risiko (RBA) kapal periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, KHUSUS untuk kapal Risiko Tinggi (Merah) dan Sedang (Kuning) yang BELUM/TIDAK dilakukan pemeriksaan sesuai prosedur.
+
+DEFINISI BAKU RBA (rujukan resmi, JANGAN diubah/ditafsirkan lain):
+- Risiko Rendah (Hijau): kapal sehat, MDH "NO", dokumen kesehatan berlaku > 3 bulan. COP dapat diterbitkan langsung tanpa pemeriksaan fisik.
+- Risiko Sedang (Kuning): kapal sehat (MDH "NO") tetapi dokumen kesehatan berlaku < 3 bulan. Pemeriksaan fisik WAJIB saat kapal bersandar.
+- Risiko Tinggi (Merah): kapal terjangkit penyakit, ada faktor risiko, MDH "YES", atau dokumen tidak berlaku. Pemeriksaan lanjutan WAJIB di zona karantina.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER KLASIFIKASI RBA (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan" dan "anomali": proyeksikan KONSEKUENSI KESEHATAN MASYARAKAT jika kapal Risiko Tinggi (Merah) dan Risiko Sedang (Kuning) pada data di atas TIDAK menjalani pemeriksaan sesuai definisi baku RBA -- mis. potensi lolosnya penumpang/ABK/vektor/barang terjangkit penyakit menular ke wilayah kerja, tanpa mengarang penyakit spesifik yang tidak berdasar. Nyatakan proyeksi ini sebagai skenario risiko KUALITATIF berbasis definisi RBA & jumlah kapal, BUKAN prediksi statistik -- karena data yang tersedia hanya jumlah kapal per klasifikasi, bukan riwayat kejadian penularan.
+TUGAS KHUSUS untuk field "rekomendasi": tindakan pencegahan konkret yang HARUS dilakukan sekarang terhadap kapal Merah & Kuning yang ada, berbasis definisi baku RBA di atas.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptFaktorRisiko(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis temuan faktor risiko pada kapal untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+JUMLAH KAPAL PER STATUS FAKTOR RISIKO (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "rekomendasi": KALAU ada kapal dengan faktor risiko DITEMUKAN (bukan "Tidak Ditemukan"), sebutkan jumlahnya secara eksplisit lalu berikan rekomendasi tindak lanjut yang sesuai (mis. pemeriksaan lanjutan, koordinasi dengan wilayah kerja terkait, pemantauan ketat). KALAU semua kapal berstatus "Tidak Ditemukan" atau data kosong, nyatakan itu apa adanya sebagai kondisi aman, tanpa mengarang rekomendasi yang tidak perlu.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiFaktorRisiko(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI/proyeksi risiko kekarantinaan kesehatan untuk periode BERIKUTNYA, berdasarkan temuan faktor risiko pada kapal periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+JUMLAH KAPAL PER STATUS FAKTOR RISIKO (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": ringkas kondisi faktor risiko periode ini secara kuantitatif (jumlah/persentase kapal dengan faktor risiko ditemukan vs tidak ditemukan).
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF untuk periode berikutnya JIKA pola temuan faktor risiko ini berlanjut atau kalau pengawasan tidak diperketat -- gunakan bahasa probabilistik ("berpotensi", "kemungkinan"), BUKAN klaim kepastian statistik, karena data yang tersedia hanya snapshot 1 periode (tidak ada data historis untuk dibandingkan tren-nya).
+TUGAS KHUSUS untuk field "rekomendasi": langkah antisipatif konkret yang perlu disiapkan untuk periode berikutnya berdasarkan kondisi ini (mis. perketat pemeriksaan pada jenis faktor risiko yang paling sering ditemukan, koordinasi dengan wilayah kerja terkait, kesiapan APD/SDM).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiNegaraAsal(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja BKK Samarinda, berdasarkan pola negara kedatangan kapal periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan (RBA, MDH, faktor risiko) TIDAK dijalankan sesuai prosedur pada kapal-kapal dari negara tersebut.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER NEGARA KEDATANGAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi 1-3 negara kedatangan TERBANYAK dari data di atas, lalu jelaskan penyakit menular yang UMUM diketahui endemis/berisiko di negara tersebut (rujuk DAFTAR SUMBER RUJUKAN, JANGAN mengarang wabah spesifik terbaru yang tidak bisa kamu pastikan).
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF -- potensi jalur introduksi penyakit ke Indonesia lewat pelabuhan/wilayah kerja ini jika pemeriksaan tidak dijalankan pada kapal dari negara berisiko tersebut. Nyatakan EKSPLISIT bahwa ini adalah skenario risiko kualitatif berbasis pengetahuan epidemiologi umum & jumlah kapal, BUKAN prediksi statistik dan BUKAN klaim ada penularan aktual, karena data yang tersedia hanya jumlah kedatangan kapal, bukan hasil pemeriksaan kesehatan individual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal konkret yang perlu diprioritaskan untuk kapal dari negara-negara berisiko tersebut (mis. pemeriksaan MDH lebih ketat, koordinasi KKP/BKK terkait, kewaspadaan petugas di titik masuk).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+const STANDAR_VEKTOR_DBD = `STANDAR BAKU MUTU VEKTOR AEDES (rujukan resmi, JANGAN diubah/ditafsirkan lain):
+- ABJ (Angka Bebas Jentik) AMAN bila >= 95% (Permenkes No. 02 Tahun 2023 tentang Standar Baku Mutu Kesehatan Lingkungan dan Persyaratan Kesehatan untuk Vektor dan Binatang Pembawa Penyakit). Di bawah 95% berarti risiko penularan DBD meningkat.
+- HI (House Index) WHO: ideal < 1%, kategori AMAN < 5%. HI >= 5% menandakan kepadatan vektor tinggi.
+- BI (Breteau Index) klasifikasi risiko WHO: < 5 = RENDAH, 5-50 = SEDANG, > 50 = TINGGI penularan DBD.
+- CI (Container Index) tinggi menunjukkan banyak kontainer/wadah air berpotensi jadi tempat perkembangbiakan jentik.
+- Untuk wilayah kerja pelabuhan/bandara, pengendalian vektor mengacu juga pada IHR (2005) Annex 1B dan WHO Guide to Vector Surveillance and Control at Ports, Airports and Ground Crossings -- kewajiban menjaga area bebas vektor penular penyakit karantina di titik masuk negara (point of entry).`;
+
+export function susunPromptPerWilker(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis distribusi kedatangan kapal antar 6 wilayah kerja BKK Kelas I Samarinda untuk periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER WILAYAH KERJA (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini (6 wilayah): ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": jelaskan wilayah kerja mana yang paling sibuk dan paling sepi kedatangan kapalnya periode ini, beserta proporsinya terhadap total.
+TUGAS KHUSUS untuk field "anomali": soroti ketimpangan beban kerja antar wilayah jika ada (misalnya satu wilayah menangani porsi jauh lebih besar dari yang lain) -- ini murni observasi distribusi, BUKAN klaim ada masalah kesehatan/epidemiologi.
+TUGAS KHUSUS untuk field "rekomendasi": saran alokasi sumber daya/petugas yang relevan berdasarkan beban kerja tiap wilayah (mis. wilayah dengan volume tinggi perlu penguatan petugas pemeriksa).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiPerWilker(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI beban kerja pemeriksaan kekarantinaan kesehatan per wilayah kerja untuk periode mendatang, berdasarkan distribusi kedatangan kapal periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER WILAYAH KERJA (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown)}
+Total kapal periode ini (6 wilayah): ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi wilayah kerja dengan tren volume kedatangan tertinggi yang berpotensi berlanjut ke periode berikutnya.
+TUGAS KHUSUS untuk field "anomali": proyeksikan risiko KUALITATIF -- wilayah mana yang berisiko kewalahan (understaffed) jika volume kedatangan terus tinggi tanpa penyesuaian sumber daya. Nyatakan EKSPLISIT ini proyeksi kualitatif berbasis pola volume, BUKAN prediksi statistik pasti.
+TUGAS KHUSUS untuk field "rekomendasi": langkah antisipasi konkret (rotasi/penambahan petugas, koordinasi lintas wilayah) untuk wilayah berisiko kewalahan tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+function formatRisikoWilker(daftarWilayah: {
+  wilayah: string;
+  jumlahKapal: number;
+  totalAbk: number;
+  jumlahDariDaerahTerjangkit: number;
+  jumlahRbaTinggi: number;
+}[]): string {
+  if (daftarWilayah.length === 0) return '(tidak ada data untuk periode ini)';
+  return daftarWilayah
+    .map(
+      (w) =>
+        `- ${w.wilayah}: ${w.jumlahKapal} kapal, ${w.totalAbk} ABK, ${w.jumlahDariDaerahTerjangkit} kapal dari daerah/negara terjangkit, ${w.jumlahRbaTinggi} kapal RBA Merah (Risiko Tinggi)`
+    )
+    .join('\n');
+}
+
+export function susunPromptRisikoWilker(data: DataRisikoWilker): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membandingkan RISIKO KESEHATAN (bukan sekadar beban kerja) kedatangan kapal dari luar negeri antar SELURUH wilayah kerja BKK Kelas I Samarinda untuk periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PER WILAYAH KERJA (${data.labelPeriode}):
+${formatRisikoWilker(data.daftarWilayah)}
+
+DEFINISI "RISIKO" untuk tugas ini -- gabungan 3 indikator per wilayah kerja (SEMUA berasal dari data di atas, jangan tambah indikator lain):
+1. Volume kedatangan kapal dan ABK (semakin tinggi, semakin besar paparan potensial).
+2. Jumlah kapal yang berasal dari daerah/negara berstatus TERJANGKIT (indikator paling menentukan -- ini yang membawa risiko penyakit menular sesungguhnya, bukan cuma volume).
+3. Jumlah kapal dengan klasifikasi RBA Merah (Risiko Tinggi) hasil pemeriksaan petugas.
+
+TUGAS KHUSUS untuk field "ringkasan": sebutkan SECARA EKSPLISIT 1 wilayah kerja dengan risiko GABUNGAN tertinggi periode ini (bukan cuma yang volumenya terbanyak), dan jelaskan indikator mana yang paling mendasari kesimpulan itu (volume, asal daerah terjangkit, atau RBA Merah).
+TUGAS KHUSUS untuk field "anomali": soroti kalau ada wilayah kerja dengan volume kapal RENDAH tapi proporsi kapal dari daerah terjangkit atau RBA Merah TINGGI (pola ini sering terlewat kalau hanya melihat volume) -- kalau tidak ada pola begini, katakan apa adanya.
+TUGAS KHUSUS untuk field "rekomendasi": prioritas penguatan pengawasan (mis. pemeriksaan lebih ketat, koordinasi rujukan kesehatan pelabuhan) untuk wilayah kerja berisiko tertinggi tersebut, urutkan berdasar prioritas.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiRisikoWilker(data: DataRisikoWilker): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PROYEKSI wilayah kerja mana yang berpotensi menjadi TITIK RISIKO kesehatan tertinggi pada periode mendatang, berdasarkan pola kedatangan kapal per wilayah kerja BKK Kelas I Samarinda periode ${data.labelPeriode}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PER WILAYAH KERJA (${data.labelPeriode}):
+${formatRisikoWilker(data.daftarWilayah)}
+
+DEFINISI "RISIKO" untuk tugas ini -- gabungan 3 indikator per wilayah kerja (SEMUA berasal dari data di atas, jangan tambah indikator lain):
+1. Volume kedatangan kapal dan ABK.
+2. Jumlah kapal yang berasal dari daerah/negara berstatus TERJANGKIT.
+3. Jumlah kapal dengan klasifikasi RBA Merah (Risiko Tinggi).
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi wilayah kerja dengan kombinasi indikator risiko yang PALING BERPOTENSI berlanjut/meningkat ke periode berikutnya jika polanya tidak berubah.
+TUGAS KHUSUS untuk field "anomali": nyatakan EKSPLISIT ini proyeksi KUALITATIF berbasis pola 1 periode snapshot (BUKAN prediksi statistik pasti), dan sebutkan wilayah mana yang berisiko "terlewat" pengawasan kalau sumber daya hanya difokuskan ke wilayah dengan volume kapal terbanyak.
+TUGAS KHUSUS untuk field "rekomendasi": langkah antisipasi konkret (mis. penambahan/rotasi petugas pemeriksa, koordinasi rujukan kesehatan pelabuhan) untuk wilayah kerja berisiko tertinggi tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptNegaraTren(data: DataAnalisis): string {
+  const daftarNegara = Object.keys(data.ringkasanSaatIni);
+  const barisPerbandingan = daftarNegara
+    .map((negara) => `- ${negara}: ${data.ringkasanSaatIni[negara]} (periode sebelumnya: ${data.ringkasanSebelumnya[negara] ?? 0})`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis tren kedatangan kapal per negara asal, membandingkan periode ${data.labelPeriodeSaatIni} dengan periode sebelumnya (${data.labelPeriodeSebelumnya}), wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+PERBANDINGAN JUMLAH KAPAL PER NEGARA (top ${daftarNegara.length} negara berdasar volume gabungan kedua periode):
+${barisPerbandingan}
+
+TUGAS KHUSUS untuk field "ringkasan": jelaskan negara mana yang kedatangan kapalnya naik/turun paling signifikan dibanding periode sebelumnya.
+TUGAS KHUSUS untuk field "anomali": soroti kenaikan tajam dari negara tertentu jika ada, dan kaitkan secara kualitatif dengan risiko penyakit menular yang umum diketahui endemis di negara tersebut (rujuk DAFTAR SUMBER RUJUKAN, JANGAN mengarang wabah spesifik terbaru yang tidak bisa dipastikan).
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal yang perlu diprioritaskan untuk negara dengan tren kenaikan tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiNegaraTren(data: DataAnalisis): string {
+  const daftarNegara = Object.keys(data.ringkasanSaatIni);
+  const barisPerbandingan = daftarNegara
+    .map((negara) => `- ${negara}: ${data.ringkasanSaatIni[negara]} (periode sebelumnya: ${data.ringkasanSebelumnya[negara] ?? 0})`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI arah tren kedatangan kapal per negara asal untuk periode mendatang, berdasarkan perbandingan periode ${data.labelPeriodeSaatIni} vs ${data.labelPeriodeSebelumnya}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+PERBANDINGAN JUMLAH KAPAL PER NEGARA:
+${barisPerbandingan}
+
+TUGAS KHUSUS untuk field "ringkasan": negara mana yang tren kenaikannya paling konsisten dan berpotensi berlanjut.
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF jika tren kenaikan dari negara berisiko tersebut terus berlanjut tanpa penguatan pemeriksaan. Nyatakan EKSPLISIT ini skenario kualitatif, BUKAN prediksi statistik pasti dan BUKAN klaim penularan aktual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal yang perlu disiapkan mengantisipasi tren kenaikan tersebut.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptVektor(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis khusus untuk grafik "${data.labelKonteks}" di wilayah kerja: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+${STANDAR_VEKTOR_DBD}
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}) -- HANYA metrik yang relevan dengan grafik ini:
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+BREAKDOWN ZONA PERIODE BERJALAN (konteks tambahan, bukan fokus utama):
+${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} titik survei`).join('\n') : '(tidak ada data zona untuk periode ini)'}
+
+ATURAN WAJIB:
+- FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" di atas -- JANGAN membahas indikator lain yang tidak tercantum di sana (mis. kalau data yang diberikan hanya soal Larvasida, JANGAN membahas HI/CI/ABJ).
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Kalau metrik yang relevan menyertakan HI/CI/BI/ABJ, bandingkan dengan standar baku mutu di atas -- sebutkan AMAN/WASPADA/BAHAYA. Kalau metrik bukan HI/CI/BI/ABJ (mis. Larvasida, Rumah Diperiksa), fokus pada tren naik/turun & efektivitas cakupan kegiatan, bukan ambang batas baku mutu yang tidak relevan untuk metrik itu.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian HI rata-rata per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang HI-nya PALING TINGGI (paling berisiko) dan mana yang paling rendah -- INGAT: HI antar wilayah dibandingkan APA ADANYA (rata-rata per wilayah), JANGAN dijumlahkan.' : `- Analisis ini KHUSUS wilayah kerja ${data.labelWilayah} -- jangan digeneralisasi ke wilker lain.`}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan kondisi metrik grafik ini periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi anomali/lonjakan pada metrik ini dibanding periode sebelumnya, atau nyatakan aman",
+  "rekomendasi": "rekomendasi tindak lanjut singkat khusus metrik ini, 1-3 poin, berbasis angka di atas"
+}`;
+}
+
+export function susunPromptPrediksiVektor(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren untuk grafik "${data.labelKonteks}" di wilayah kerja: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+${STANDAR_VEKTOR_DBD}
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}) -- HANYA metrik yang relevan dengan grafik ini:
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+BREAKDOWN ZONA PERIODE BERJALAN (konteks tambahan, bukan fokus utama):
+${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} titik survei`).join('\n') : '(tidak ada data zona untuk periode ini)'}
+
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data (periode berjalan & periode sebelumnya) -- JANGAN berpura-pura punya data historis panjang. Prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana dari 2 titik ini, BUKAN model time-series yang canggih.
+- HANYA gunakan angka yang benar-benar ada di atas untuk menghitung arah & besar perubahan (naik/turun berapa unit/persen antar 2 periode itu), lalu proyeksikan arah yang sama untuk periode berikutnya. JANGAN mengarang angka prediksi yang tidak berdasar dari 2 titik data ini.
+- FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- jangan membahas indikator lain yang tidak tercantum di sana.
+- Kalau metrik yang relevan menyertakan HI/CI/BI/ABJ, kaitkan proyeksi dengan ambang batas baku mutu di atas (apakah proyeksinya akan AMAN/WASPADA/BAHAYA kalau tren berlanjut).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit di field "anomali" (data cuma 2 titik, bukan model statistik formal).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian HI rata-rata per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diwaspadai duluan kalau tren memburuk.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren metrik ini untuk periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini (data terbatas, bukan model formal), plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi tindak lanjut pencegahan berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+/* =========================================================================
+ * MODUL PHQC -- DAERAH ASAL (PELABUHAN KEDATANGAN)
+ * Direvisi: "daerah asal" di PHQC direpresentasikan lewat kategori
+ * pelabuhan_kedatangan (BUKAN kolom negara terpisah -- kolom itu tidak
+ * ada di skema). Nilainya bisa nama pelabuhan DALAM NEGERI atau LUAR
+ * NEGERI, jadi prompt mengarahkan AI menilai dulu domestik/internasional
+ * sebelum memutuskan sumber rujukan mana yang relevan.
+ * ======================================================================= */
+
+export function susunPromptPhqcDaerahAsal(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis daerah asal kapal berdasarkan pelabuhan kedatangan (kegiatan PHQC) untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN KEDATANGAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS: identifikasi pelabuhan kedatangan dengan jumlah kapal TERBANYAK dari data di atas. Untuk SETIAP pelabuhan yang kamu bahas, tentukan dulu apakah itu pelabuhan DALAM NEGERI (domestik, Indonesia) atau LUAR NEGERI (internasional) berdasarkan namanya:
+- Kalau DALAM NEGERI: kaitkan dengan pola penyakit menular endemis antar-wilayah di Indonesia yang sudah mapan (mis. dengue, leptospirosis, diare, penyakit yang tercakup SKDR Kemenkes) -- fokus pada risiko transmisi antar-pulau/antar-provinsi, BUKAN kerangka lintas negara.
+- Kalau LUAR NEGERI: kaitkan dengan pengetahuan umum kesehatan masyarakat global tentang penyakit menular yang endemis/rawan/sedang berkembang di negara tersebut, rujuk DAFTAR SUMBER RUJUKAN di atas.
+- JANGAN mengarang kejadian wabah spesifik terbaru yang tidak bisa kamu pastikan kebenarannya. Tegaskan eksplisit di "anomali" bahwa ini pengetahuan umum epidemiologi, BUKAN data surveilans real-time, dan sarankan verifikasi ke sumber rujukan resmi yang sesuai (SKDR Kemenkes untuk domestik, WHO/CDC/ECDC untuk internasional).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiPhqcDaerahAsal(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja BKK Samarinda, berdasarkan pola pelabuhan kedatangan kapal (PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan TIDAK dijalankan sesuai prosedur untuk kapal dari pelabuhan-pelabuhan tersebut.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN KEDATANGAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi 1-3 pelabuhan kedatangan TERBANYAK. Untuk tiap pelabuhan, tentukan dulu domestik atau luar negeri (dari namanya), lalu jelaskan penyakit menular yang relevan -- pola endemis antar-wilayah Indonesia (rujuk SKDR Kemenkes) untuk pelabuhan domestik, atau penyakit yang UMUM diketahui endemis/berkembang di negara asal (rujuk DAFTAR SUMBER RUJUKAN) untuk pelabuhan luar negeri. Jangan mengarang wabah spesifik terbaru.
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF -- potensi jalur introduksi/penyebaran penyakit ke wilayah kerja lewat kapal dari pelabuhan tersebut jika pemeriksaan tidak dijalankan. Nyatakan EKSPLISIT ini skenario risiko kualitatif, BUKAN prediksi statistik dan BUKAN klaim penularan aktual, karena data hanya jumlah kapal per pelabuhan asal, bukan hasil pemeriksaan kesehatan individual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal konkret untuk kapal dari pelabuhan berisiko tersebut (mis. pemeriksaan dokumen kesehatan lebih ketat, koordinasi dengan KKP/dinas kesehatan setempat untuk pelabuhan domestik, kewaspadaan petugas untuk pelabuhan luar negeri).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPhqcDaerahTujuan(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis daerah tujuan kapal berdasarkan pelabuhan tujuan (kegiatan PHQC) untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN TUJUAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS: identifikasi pelabuhan tujuan dengan jumlah kapal TERBANYAK dari data di atas. Untuk SETIAP pelabuhan yang kamu bahas, tentukan dulu apakah itu pelabuhan DALAM NEGERI (domestik, Indonesia) atau LUAR NEGERI (internasional) berdasarkan namanya:
+- Kalau DALAM NEGERI: kaitkan dengan pola penyakit menular endemis antar-wilayah di Indonesia yang sudah mapan (mis. dengue, leptospirosis, diare, penyakit yang tercakup SKDR Kemenkes) -- fokus pada risiko transmisi antar-pulau/antar-provinsi dari BKK Samarinda MENUJU pelabuhan tersebut, BUKAN kerangka lintas negara.
+- Kalau LUAR NEGERI: kaitkan dengan pengetahuan umum kesehatan masyarakat global tentang penyakit menular yang endemis/rawan/sedang berkembang di negara tujuan tersebut, rujuk DAFTAR SUMBER RUJUKAN di atas.
+- JANGAN mengarang kejadian wabah spesifik terbaru yang tidak bisa kamu pastikan kebenarannya. Tegaskan eksplisit di "anomali" bahwa ini pengetahuan umum epidemiologi, BUKAN data surveilans real-time, dan sarankan verifikasi ke sumber rujukan resmi yang sesuai (SKDR Kemenkes untuk domestik, WHO/CDC/ECDC untuk internasional).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiPhqcDaerahTujuan(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular DARI wilayah kerja BKK Samarinda KE pelabuhan tujuan, berdasarkan pola pelabuhan tujuan kapal (PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan TIDAK dijalankan sesuai prosedur untuk kapal menuju pelabuhan-pelabuhan tersebut.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN TUJUAN (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi 1-3 pelabuhan tujuan TERBANYAK. Untuk tiap pelabuhan, tentukan dulu domestik atau luar negeri (dari namanya), lalu jelaskan penyakit menular yang relevan -- pola endemis antar-wilayah Indonesia (rujuk SKDR Kemenkes) untuk pelabuhan domestik, atau penyakit yang UMUM diketahui endemis/berkembang di negara tujuan (rujuk DAFTAR SUMBER RUJUKAN) untuk pelabuhan luar negeri. Jangan mengarang wabah spesifik terbaru.
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF -- potensi jalur penyebaran penyakit dari wilayah kerja ke pelabuhan tujuan lewat kapal tersebut jika pemeriksaan tidak dijalankan. Nyatakan EKSPLISIT ini skenario risiko kualitatif, BUKAN prediksi statistik dan BUKAN klaim penularan aktual, karena data hanya jumlah kapal per pelabuhan tujuan, bukan hasil pemeriksaan kesehatan individual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal konkret untuk kapal menuju pelabuhan berisiko tersebut (mis. pemeriksaan dokumen kesehatan lebih ketat sebelum keberangkatan, koordinasi dengan KKP/dinas kesehatan pelabuhan tujuan untuk pelabuhan domestik, kewaspadaan petugas untuk pelabuhan luar negeri).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+/* =========================================================================
+ * MODUL PELABUHAN KEDATANGAN & TUJUAN GABUNGAN (PHQC)
+ * Untuk grafik tren tahunan gabungan (bukan analisis "asal" per kapal
+ * seperti di atas, tapi pola lalu lintas pelabuhan kedatangan+tujuan
+ * secara keseluruhan) -- konteks phqc-pelabuhan-mingguan/bulanan yang
+ * sudah dipasang di UI (PanelAnalisisAI) tapi belum ada backend-nya.
+ * ======================================================================= */
+
+export function susunPromptPelabuhanPhqc(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis pola lalu lintas pelabuhan kedatangan & tujuan kapal (kegiatan PHQC) untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN (KEDATANGAN & TUJUAN DIGABUNG, diberi label "Kedatangan: ..." / "Tujuan: ...") (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS: identifikasi pelabuhan kedatangan TERSIBUK dan pelabuhan tujuan TERSIBUK secara terpisah dari data di atas (perhatikan prefiks "Kedatangan:"/"Tujuan:"). Bahas pola lalu lintas -- apakah didominasi rute domestik atau internasional (nilai dari pelabuhan luar negeri) -- dan implikasinya untuk beban kerja pemeriksaan kekarantinaan kesehatan di masing-masing titik. Kalau ada pelabuhan luar negeri dengan volume signifikan, sebutkan relevansi penyakit menular umum di sana (rujuk DAFTAR SUMBER RUJUKAN), TANPA mengarang wabah spesifik terbaru.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiPelabuhanPhqc(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI beban kerja dan risiko kekarantinaan kesehatan untuk periode berikutnya, berdasarkan pola lalu lintas pelabuhan kedatangan & tujuan kapal (kegiatan PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH KAPAL PER PELABUHAN (KEDATANGAN & TUJUAN DIGABUNG, diberi label "Kedatangan: ..." / "Tujuan: ...") (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'kapal')}
+Total kapal periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan" dan "anomali": proyeksikan ke PERIODE BERIKUTNYA apakah pelabuhan kedatangan/tujuan TERSIBUK pada data di atas berpotensi tetap dominan atau bergeser, berdasarkan pola rute domestik vs internasional yang terlihat. Kalau ada pelabuhan luar negeri dengan volume signifikan, proyeksikan implikasi beban pemeriksaan kekarantinaan kesehatan di titik tersebut untuk periode mendatang, TANPA mengarang angka atau wabah spesifik yang tidak berdasar data. Nyatakan proyeksi ini sebagai skenario KUALITATIF berbasis tren volume per pelabuhan, BUKAN prediksi statistik presisi -- karena data yang tersedia hanya jumlah kapal per pelabuhan pada satu periode, bukan deret waktu panjang.
+TUGAS KHUSUS untuk field "rekomendasi": langkah kesiapsiagaan konkret yang perlu disiapkan di pelabuhan-pelabuhan dengan volume tinggi/berpotensi naik untuk periode berikutnya.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+/* =========================================================================
+ * MODUL JUMLAH PENUMPANG KEBERANGKATAN (PHQC)
+ * CATATAN: data phqc yang ada HANYA mencatat penumpang KEBERANGKATAN
+ * (PHQC diterbitkan saat kapal akan berlayar/berangkat) -- tidak ada
+ * data penumpang kedatangan terpisah di sistem saat ini. Prompt & label
+ * disesuaikan supaya tidak mengklaim data yang tidak ada.
+ * ======================================================================= */
+
+export function susunPromptPenumpang(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis volume penumpang KEBERANGKATAN untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Data ini KHUSUS penumpang KEBERANGKATAN (PHQC diterbitkan saat kapal akan berlayar) -- JANGAN membahas atau mengasumsikan ada data penumpang kedatangan, karena itu tidak tersedia di sistem saat ini.
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit), termasuk komposisi WNA vs WNI bila datanya ada.
+- Kaitkan lonjakan volume penumpang (bila ada) dengan implikasi operasional kekarantinaan kesehatan: beban kerja pemeriksaan dokumen/skrining sebelum keberangkatan, risiko penumpukan/kerumunan yang mempermudah penularan penyakit menular langsung (mis. droplet), dan kebutuhan sumber daya petugas -- TANPA mengklaim ada kejadian penularan aktual yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang volume penumpangnya PALING TINGGI dan mana yang paling rendah.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren volume penumpang keberangkatan periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya, atau nyatakan aman",
+  "rekomendasi": "rekomendasi kesiapan operasional kekarantinaan kesehatan berbasis volume ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiPenumpang(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren volume penumpang KEBERANGKATAN untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Data ini KHUSUS penumpang KEBERANGKATAN -- JANGAN membahas/mengasumsikan data kedatangan, karena tidak tersedia.
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model time-series canggih.
+- Hitung arah & besar perubahan dari 2 titik itu, lalu proyeksikan volume periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan volume (bila ada) dengan kebutuhan kesiapan operasional (jumlah petugas skrining sebelum keberangkatan, potensi antrean/kerumunan yang meningkatkan risiko penularan penyakit menular langsung).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diwaspadai duluan kalau tren volume terus naik.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren volume penumpang keberangkatan periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan operasional berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+/* =========================================================================
+ * MODUL SURVEILANS VEKTOR TIKUS -- UJI LAB & HASIL PEMERIKSAAN
+ * (Leptospirosis, Pes, Hantavirus)
+ * CATATAN: "positif" dihitung dari jumlah INDIVIDU tikus positif per
+ * penyakit (bisa >1 per survei), sedangkan "negatif" dihitung dari
+ * jumlah SURVEI berstatus negatif (bukan jumlah individu) -- karena
+ * data mentah tidak mencatat jumlah individu untuk hasil negatif.
+ * Prompt harus eksplisit soal perbedaan satuan ini supaya AI tidak
+ * salah membandingkan "positif" vs "negatif" seolah unit yang sama.
+ * ======================================================================= */
+
+export function susunPromptLabTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil uji laboratorium surveilans vektor tikus (Leptospirosis, Pes, Hantavirus) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- PENTING soal satuan: angka "*_positif" adalah JUMLAH INDIVIDU TIKUS yang positif per penyakit (bisa lebih dari 1 ekor per survei), sedangkan angka "*_negatif" adalah JUMLAH SURVEI berstatus negatif (bukan jumlah individu tikus). JANGAN membandingkan keduanya seolah unit yang sama -- selalu sebutkan satuan yang benar saat mengutip angka ini.
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit atau persen) untuk "diuji_lab" dan tiap penyakit.
+- Kaitkan temuan kasus positif (Leptospirosis, Pes, dan/atau Hantavirus) dengan implikasi kesehatan masyarakat: risiko penularan ke manusia (Leptospirosis lewat urin tikus mengontaminasi air/lingkungan, Pes lewat pinjal, Hantavirus lewat kontak langsung/inhalasi ekskreta tikus), dan kebutuhan tindak lanjut kekarantinaan kesehatan (pengendalian vektor, edukasi warga sekitar area survei, koordinasi dengan fasilitas kesehatan setempat).
+- Kalau tidak ada kasus positif periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah diuji lab per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang aktivitas ujinya PALING TINGGI.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil uji lab & temuan positif/negatif periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan kasus positif atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut kesehatan masyarakat & pengendalian vektor berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiLabTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren hasil uji laboratorium vektor tikus (Leptospirosis, Pes, Hantavirus) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- PENTING soal satuan: angka "*_positif" adalah JUMLAH INDIVIDU TIKUS positif per penyakit, sedangkan "*_negatif" adalah JUMLAH SURVEI berstatus negatif -- JANGAN membandingkan keduanya seolah unit yang sama.
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap penyakit, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan kasus positif (bila ada) dengan potensi eskalasi risiko penularan ke manusia dan kebutuhan intensifikasi pengendalian vektor (pemasangan trap tambahan, larvasida/rodentisida bila relevan, edukasi warga area terdampak).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik, dan hasil lab bisa dipengaruhi banyak faktor musiman/lingkungan yang tidak tertangkap tren linear).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah diuji lab per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan pengawasannya.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren kasus positif/negatif periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengendalian vektor & kesehatan masyarakat berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptVektorTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis hasil surveilans vektor tikus (trap & distribusi spesies) periode ${data.labelPeriodeSaatIni} dibanding periode sebelumnya (${data.labelPeriodeSebelumnya}), wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PERIODE ${data.labelPeriodeSaatIni}:
+${formatRingkasanKeyValue(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+TUGAS KHUSUS untuk field "ringkasan": jelaskan jumlah trap dipasang/tertangkap, TSI (Trap Success Index) dan Index Pinjal periode ini, serta spesies tikus dominan yang tertangkap (Rattus tanezumi/Rattus norvegicus/Mus musculus/lainnya).${data.breakdownWilayahSaatIni ? ' KARENA rincian jumlah trap tertangkap per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang tangkapannya PALING TINGGI.' : ''}
+TUGAS KHUSUS untuk field "anomali": bandingkan dengan periode sebelumnya -- soroti kenaikan TSI/Index Pinjal yang signifikan (indikator kepadatan vektor & risiko penularan penyakit tular tikus seperti leptospirosis/pes/hantavirus).
+TUGAS KHUSUS untuk field "rekomendasi": langkah pengendalian vektor tikus yang relevan berdasarkan tren TSI/Index Pinjal (mis. penambahan titik trap, rodentisida, edukasi sanitasi lingkungan) di wilayah dengan angka tertinggi.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiVektorTikus(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI risiko penularan penyakit tular tikus (leptospirosis, pes, hantavirus) untuk periode mendatang, berdasarkan tren TSI dan Index Pinjal periode ${data.labelPeriodeSaatIni} dibanding ${data.labelPeriodeSebelumnya}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+DATA PERIODE ${data.labelPeriodeSaatIni}:
+${formatRingkasanKeyValue(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+TUGAS KHUSUS untuk field "ringkasan": identifikasi arah tren TSI/Index Pinjal (naik/turun/stabil) dan spesies dominan yang berpotensi berlanjut.
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF penularan penyakit tular tikus jika tren kepadatan vektor terus naik tanpa intervensi. Nyatakan EKSPLISIT ini proyeksi kualitatif berbasis indikator kepadatan vektor, BUKAN prediksi statistik pasti dan BUKAN klaim ada kasus aktual.
+TUGAS KHUSUS untuk field "rekomendasi": langkah pengendalian vektor yang perlu diprioritaskan untuk mengantisipasi tren tersebut.${data.breakdownWilayahSaatIni ? ' Sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan berdasarkan rincian per wilayah di atas.' : ''}
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+// TAMBAHKAN ke lib/ai/prompt.ts (dekat susunPromptPenumpang, gaya sama persis)
+
+export function susunPromptGlobalEmerging(data: DataAnalisis): string {
+  const topKategoriTeks = data.topKategori
+    .map((k) => `- ${k.kategori === 'penyakit' ? 'Penyakit' : 'Negara'}: ${k.nilai} — ${k.jumlah} kasus`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis tren penyakit infeksi emerging untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+RINCIAN PER PENYAKIT & NEGARA (periode berjalan):
+${topKategoriTeks || '(tidak ada data)'}
+
+ATURAN WAJIB:
+- Data ini mencakup 12 penyakit infeksi emerging yang dipantau dari 13 negara asal kapal ke wilayah kerja BKK Kelas I Samarinda (data surveilans global sebagai early warning, BUKAN data kasus terkonfirmasi di Indonesia/Samarinda).
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama penyakit/negara yang tidak tercantum.
+- Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit).
+- Soroti penyakit atau negara dengan lonjakan kasus paling signifikan, kaitkan dengan implikasi kewaspadaan kekarantinaan kesehatan terhadap kapal dari negara tersebut (skrining ABK/penumpang, kesiapan APD, koordinasi RBA kapal) -- TANPA mengklaim ada kasus terkonfirmasi di wilayah kerja Samarinda kalau datanya tidak ada.
+- Tulis dalam Bahasa Indonesia, istilah epidemiologi baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren kasus & kematian penyakit infeksi emerging periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya per penyakit/negara, atau nyatakan aman",
+  "rekomendasi": "rekomendasi kewaspadaan kekarantinaan kesehatan berbasis data ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiGlobalEmerging(data: DataAnalisis): string {
+  const topKategoriTeks = data.topKategori
+    .map((k) => `- ${k.kategori === 'penyakit' ? 'Penyakit' : 'Negara'}: ${k.nilai} — ${k.jumlah} kasus`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: proyeksi/prediksi tren penyakit infeksi emerging untuk periode BERIKUTNYA, berdasarkan data historis, untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+RINCIAN PER PENYAKIT & NEGARA (periode berjalan):
+${topKategoriTeks || '(tidak ada data)'}
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas sebagai dasar proyeksi. JANGAN mengarang angka.
+- Proyeksi harus berbasis tren dua periode ini (naik/turun/stabil) -- jangan klaim kepastian, gunakan bahasa probabilistik ("kemungkinan", "berpotensi").
+- Fokuskan proyeksi pada penyakit/negara dengan tren kenaikan paling jelas.
+- Sertakan tindakan antisipatif kekarantinaan kesehatan yang relevan untuk kapal dari negara berisiko tersebut.
+- Tulis dalam Bahasa Indonesia.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "kondisi saat ini berdasarkan data, 2-3 kalimat",
+  "anomali": "proyeksi/perkiraan kondisi periode berikutnya jika tren berlanjut, 2-3 kalimat",
+  "rekomendasi": "tindakan antisipatif yang perlu dilakukan sekarang, 1-3 poin"
+}`;
+}
+
+export function susunPromptAbkCrewPenumpang(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: menganalisis volume gabungan ABK Kapal, Crew Pesawat, dan Penumpang (kapal & pesawat) untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN PENTING TENTANG DATA:
+- abk_kapal = ABK dari kegiatan pengawasan kapal (COP untuk kedatangan, PHQC untuk keberangkatan).
+- penumpang_kapal = penumpang kapal. UNTUK KEDATANGAN NILAINYA SELALU 0 karena kapal yang datang dari luar negeri yang diawasi hanya membawa ABK, bukan penumpang -- ini BUKAN data hilang/error, jangan tandai sebagai anomali.
+- crew_pesawat & penumpang_pesawat = data pengawasan Alat Angkut Pesawat (Bandara APT Pranoto), crew & penumpang tiba/berangkat.
+- Data ini GABUNGAN dari 2 moda transportasi berbeda (laut & udara) -- jangan campur adukkan seolah satu moda saja.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif per komponen (abk_kapal, penumpang_kapal, crew_pesawat, penumpang_pesawat), termasuk totalnya.
+- Kalau salah satu komponen bernilai 0 karena memang tidak ada datanya (lihat catatan di atas), jangan sebut sebagai anomali/masalah.
+- Tulis dalam Bahasa Indonesia, istilah kesehatan masyarakat baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren volume gabungan periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya per komponen, atau nyatakan aman",
+  "rekomendasi": "rekomendasi tindak lanjut singkat berbasis data ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiAbkCrewPenumpang(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: proyeksi/prediksi volume gabungan ABK Kapal, Crew Pesawat, dan Penumpang untuk periode BERIKUTNYA, berdasarkan data historis, untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+CATATAN PENTING TENTANG DATA:
+- abk_kapal = ABK dari COP (kedatangan) atau PHQC (keberangkatan).
+- penumpang_kapal = SELALU 0 untuk kedatangan (kapal tidak bawa penumpang) -- bukan anomali.
+- crew_pesawat & penumpang_pesawat = data Alat Angkut Pesawat (tiba/berangkat).
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas sebagai dasar proyeksi. JANGAN mengarang angka.
+- Proyeksi berbasis tren dua periode ini per komponen (naik/turun/stabil) -- gunakan bahasa probabilistik ("kemungkinan", "berpotensi"), bukan kepastian.
+- Tulis dalam Bahasa Indonesia.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "kondisi saat ini berdasarkan data, 2-3 kalimat",
+  "anomali": "proyeksi kondisi periode berikutnya jika tren berlanjut, 2-3 kalimat",
+  "rekomendasi": "tindakan yang perlu disiapkan, 1-3 poin"
+}`;
+}
+
+export function susunPromptNasionalEmerging(data: DataAnalisis): string {
+  const topKategoriTeks = data.topKategori
+    .map((k) => `- ${k.nilai}: ${k.jumlah} kasus`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis tren kasus penyakit infeksi emerging tingkat nasional untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+RINCIAN PER PROPINSI (periode berjalan):
+${topKategoriTeks || '(tidak ada data)'}
+
+ATURAN WAJIB:
+- Data ini adalah data kasus dan kematian terkonfirmasi tingkat nasional Indonesia untuk penyakit yang dipilih, dipecah per propinsi (data surveilans nasional Kemenkes, BUKAN data kewaspadaan kapal/pelabuhan).
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama propinsi yang tidak tercantum.
+- Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit), termasuk case fatality rate (CFR) bila datanya memungkinkan dihitung.
+- Soroti propinsi dengan lonjakan kasus paling signifikan, dan kaitkan dengan implikasi kewaspadaan dini bagi BKK Kelas I Samarinda sebagai pintu masuk (kesiapan skrining, koordinasi RBA, edukasi publik) -- TANPA mengklaim ada kasus terkonfirmasi di Samarinda/Kalimantan Timur kalau propinsi tersebut tidak muncul di data.
+- Tulis dalam Bahasa Indonesia, istilah epidemiologi baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren kasus & kematian penyakit ini secara nasional periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya per propinsi, atau nyatakan aman",
+  "rekomendasi": "rekomendasi kewaspadaan dini bagi wilayah kerja BKK Samarinda berbasis data ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiNasionalEmerging(data: DataAnalisis): string {
+  const topKategoriTeks = data.topKategori
+    .map((k) => `- ${k.nilai}: ${k.jumlah} kasus`)
+    .join('\n');
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: proyeksi/prediksi tren kasus penyakit infeksi emerging tingkat nasional untuk periode BERIKUTNYA, berdasarkan data historis, untuk konteks: ${data.labelKonteks}, cakupan: ${data.labelWilayah}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}):
+${formatRingkasan(data.ringkasanSebelumnya)}
+
+RINCIAN PER PROPINSI (periode berjalan):
+${topKategoriTeks || '(tidak ada data)'}
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas sebagai dasar proyeksi. JANGAN mengarang angka.
+- Proyeksi harus berbasis tren dua periode ini (naik/turun/stabil) -- jangan klaim kepastian, gunakan bahasa probabilistik ("kemungkinan", "berpotensi").
+- Fokuskan proyeksi pada propinsi dengan tren kenaikan paling jelas.
+- Sertakan tindakan antisipatif yang relevan bagi BKK Kelas I Samarinda sebagai pintu masuk, sesuai skala risiko dari tren nasional ini.
+- Tulis dalam Bahasa Indonesia.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "kondisi kasus nasional saat ini berdasarkan data, 2-3 kalimat",
+  "anomali": "proyeksi/perkiraan kondisi periode berikutnya jika tren berlanjut, 2-3 kalimat",
+  "rekomendasi": "tindakan antisipatif yang perlu dilakukan sekarang, 1-3 poin"
+}`;
+}
+
+/* =========================================================================
+ * MODUL KEGIATAN PESAWAT -- DAERAH ASAL & PENYAKIT SEDANG BERKEMBANG
+ * (paralel dengan cop-negara-asal/phqc-daerah-asal, untuk grafik daerah
+ * asal penerbangan pada modul Alat Angkut Pesawat.)
+ * ======================================================================= */
+
+export function susunPromptPesawatDaerahAsal(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis daerah/negara asal penerbangan (kegiatan pesawat) untuk periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH PENERBANGAN PER DAERAH/NEGARA ASAL (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'penerbangan')}
+Total penerbangan periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS: identifikasi daerah/negara asal penerbangan TERBANYAK dari data di atas. Kaitkan dengan penyakit menular yang UMUM diketahui SEDANG BERKEMBANG/endemis di daerah/negara tersebut, merujuk DAFTAR SUMBER RUJUKAN di atas -- BUKAN klaim wabah spesifik terbaru yang tidak bisa kamu pastikan. Tegaskan eksplisit di "anomali" bahwa ini pengetahuan umum epidemiologi, BUKAN data surveilans real-time, dan sarankan verifikasi ke sumber rujukan resmi sebelum jadi dasar keputusan operasional.
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+export function susunPromptPrediksiPesawatDaerahAsal(data: DataBreakdownAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja BKK Samarinda lewat jalur udara, berdasarkan pola daerah/negara asal penerbangan periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan pesawat (General Declaration, Aircraft Health Part) TIDAK dijalankan sesuai prosedur untuk penerbangan dari daerah/negara tersebut.
+
+${DAFTAR_SUMBER_RUJUKAN}
+
+JUMLAH PENERBANGAN PER DAERAH/NEGARA ASAL (${data.labelPeriode}):
+${formatBreakdownList(data.breakdown, 'penerbangan')}
+Total penerbangan periode ini: ${data.totalKapal}
+
+TUGAS KHUSUS untuk field "ringkasan": identifikasi 1-3 daerah/negara asal penerbangan TERBANYAK, lalu jelaskan penyakit menular yang UMUM diketahui sedang berkembang/endemis di sana (rujuk DAFTAR SUMBER RUJUKAN, jangan mengarang wabah spesifik terbaru).
+TUGAS KHUSUS untuk field "anomali": proyeksikan skenario risiko KUALITATIF -- potensi jalur introduksi penyakit lewat penerbangan dari daerah/negara tersebut jika pemeriksaan kekarantinaan pesawat tidak dijalankan. Nyatakan EKSPLISIT ini skenario risiko kualitatif, BUKAN prediksi statistik dan BUKAN klaim penularan aktual, karena data hanya jumlah penerbangan per asal, bukan hasil pemeriksaan kesehatan individual/pesawat.
+TUGAS KHUSUS untuk field "rekomendasi": langkah cegah tangkal konkret untuk penerbangan dari daerah/negara berisiko tersebut (mis. pemeriksaan General Declaration lebih ketat, koordinasi dengan otoritas bandara/maskapai, kesiapsiagaan tim gerak cepat).
+
+${ATURAN_UMUM_BREAKDOWN}`;
+}
+
+/* =========================================================================
+ * MODUL ALAT ANGKUT PESAWAT -- TREN CREW/PENUMPANG, SERTIFIKAT, CREW
+ * (konteks pesawat-mingguan/pesawat-bulanan + parameter `metrik` yang
+ * menentukan kolom mana yang relevan -- pola sama seperti vektor DBD.
+ * BEDA dengan susunPromptPesawatDaerahAsal di atas: itu untuk breakdown
+ * per pelabuhan/negara asal (belum dipakai UI saat ini), sedangkan yang
+ * di bawah ini untuk grafik TREN crew/penumpang/sertifikat yang SUDAH
+ * dipakai di halaman Alat Angkut Pesawat sekarang.
+ * ======================================================================= */
+
+function formatTopKategori(topKategori: { kategori: string; nilai: string; jumlah: number }[]): string {
+  return topKategori
+    .map((t, i) => `${i + 1}. ${t.nilai}: ${t.jumlah}`)
+    .join('\n');
+}
+
+export function susunPromptPesawatTren(data: DataAnalisis): string {
+  const adaBreakdown = data.topKategori.length > 0;
+
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis khusus untuk grafik "${data.labelKonteks}", wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}) -- HANYA metrik yang relevan dengan grafik ini:
+${formatRingkasanKeyValue(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasanKeyValue(data.ringkasanSebelumnya)}
+${adaBreakdown ? `
+BREAKDOWN KATEGORI TERBANYAK (top ${data.topKategori.length}, periode berjalan):
+${formatTopKategori(data.topKategori)}
+` : ''}${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- JANGAN membahas indikator lain yang tidak tercantum di sana (mis. kalau datanya cuma soal Sertifikat, JANGAN membahas jumlah crew/penumpang).
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+${adaBreakdown ? '- Kalau ada "BREAKDOWN KATEGORI TERBANYAK", sebut secara spesifik maskapai/kota dengan jumlah tertinggi, jangan cuma membahas total gabungan.\n' : ''}- Kalau metriknya sertifikat kesehatan (SKLT/TD Laik/IAOS/KIER/Jenazah), kaitkan lonjakan jumlah dengan implikasi beban kerja pemeriksaan kesehatan penerbangan & kebutuhan kesiapsiagaan petugas -- SKLT (Surat Keterangan Laik Terbang) dan TD Laik relevan dengan kelaikan kesehatan penumpang/crew untuk terbang, IAOS & KIER relevan dengan pengawasan sanitasi pesawat, Jenazah relevan dengan prosedur karantina jenazah.
+- Kalau metriknya crew/penumpang, bandingkan arus datang vs berangkat, dan kaitkan lonjakan dengan beban kerja skrining kesehatan serta risiko penumpukan/kerumunan di titik pemeriksaan.
+- Kalau metriknya maskapai kedatangan atau kota asal, kaitkan konsentrasi pada maskapai/kota tertentu dengan implikasi prioritas pengawasan kesehatan penerbangan (mis. maskapai/rute dengan volume tinggi perlu skrining lebih ketat).
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING TINGGI dan mana yang paling rendah untuk metrik ini.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan kondisi metrik grafik ini periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi anomali/lonjakan pada metrik ini dibanding periode sebelumnya, atau nyatakan aman",
+  "rekomendasi": "rekomendasi tindak lanjut singkat khusus metrik ini, 1-3 poin, berbasis angka di atas"
+}`;
+}
+
+export function susunPromptPrediksiPesawatTren(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren untuk grafik "${data.labelKonteks}", wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}) -- HANYA metrik yang relevan dengan grafik ini:
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model time-series canggih.
+- FOKUS HANYA pada metrik yang ada di "DATA PERIODE BERJALAN" -- jangan membahas indikator lain yang tidak tercantum di sana.
+- Hitung arah & besar perubahan dari 2 titik itu, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan (bila ada) dengan kebutuhan kesiapan operasional yang sesuai jenis metriknya (jumlah petugas skrining kesehatan untuk crew/penumpang, atau kapasitas pemeriksaan sertifikat kesehatan penerbangan untuk metrik sertifikat).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren metrik ini untuk periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini (data terbatas, bukan model formal), plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi tindak lanjut pencegahan berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+/** Ambil objek JSON terluar, abaikan code fence atau teks pembuka/penutup. */
+function ekstrakJson(teks: string): string {
+  const t = teks
+    .trim()
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/, '')
+    .trim();
+  const awal = t.indexOf('{');
+  const akhir = t.lastIndexOf('}');
+  return awal !== -1 && akhir > awal ? t.slice(awal, akhir + 1) : t;
+}
+
+export function parseHasilAi(teksMentah: string): HasilAnalisisAi {
+  const bersih = ekstrakJson(teksMentah);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bersih);
+  } catch {
+    console.error('DEBUG RAW AI RESPONSE:', teksMentah);
+    throw new Error('Respons AI bukan JSON yang valid -- tidak bisa ditampilkan sebagai hasil analisis.');
+  }
+
+  /**
+   * AI kadang membalas field (terutama "rekomendasi") sebagai ARRAY
+   * berisi beberapa poin, bukan 1 string. Gabungkan jadi 1 string
+   * bernomor daripada menolak respons yang isinya sudah bagus.
+   */
+  function normalisasiField(nilai: unknown): string | null {
+    if (typeof nilai === 'string') return nilai;
+    if (Array.isArray(nilai) && nilai.every((item) => typeof item === 'string')) {
+      return (nilai as string[]).map((item, i) => `${i + 1}. ${item}`).join('\n');
+    }
+    return null;
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    console.error('DEBUG RAW AI RESPONSE:', bersih);
+    throw new Error('Respons AI tidak berbentuk objek JSON.');
+  }
+
+  const obj = parsed as Record<string, unknown>;
+  const ringkasan = normalisasiField(obj.ringkasan);
+  const anomali = normalisasiField(obj.anomali);
+  const rekomendasi = normalisasiField(obj.rekomendasi);
+
+  const hilang = (
+    [['ringkasan', ringkasan], ['anomali', anomali], ['rekomendasi', rekomendasi]] as const
+  )
+    .filter(([, nilai]) => nilai === null)
+    .map(([nama]) => nama);
+
+  if (ringkasan === null || anomali === null || rekomendasi === null) {
+    console.error('DEBUG RAW AI RESPONSE:', bersih);
+    throw new Error(
+      `Respons AI tidak lengkap (field hilang: ${hilang.join(', ')}). Kemungkinan terpotong, coba jalankan ulang.`
+    );
+  }
+
+  return {
+    ringkasan: ringkasan.trim(),
+    anomali: anomali.trim(),
+    rekomendasi: rekomendasi.trim(),
+  };
+}
+
+export function susunPromptAnopheles(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis data surveilans vektor Anopheles untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit atau persen).
+- Kalau data berisi MHD (Man Hour Density) dan/atau MBR (Man Biting Rate): kaitkan kepadatan/perilaku menggigit nyamuk Anopheles dengan risiko penularan malaria di area survei, dan pengaruh suhu/kelembaban terhadap dinamika populasi vektor bila datanya tersedia.
+- Kalau data berisi jumlah cidukan dan/atau larva: kaitkan kepadatan larva dengan potensi tempat perindukan aktif dan urgensi pengendalian sebelum menjadi nyamuk dewasa.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): field "ringkasan" WAJIB menyebutkan EKSPLISIT wilayah kerja mana yang PALING TINGGI (MHD rata-rata untuk data dewasa, atau jumlah larva untuk data larva) -- INGAT: untuk MHD, angka dibandingkan APA ADANYA per wilayah (rata-rata), JANGAN dijumlahkan.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan tren surveilans Anopheles periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pengendalian vektor & kesehatan masyarakat, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiAnopheles(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren surveilans vektor Anopheles untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan kepadatan vektor (MHD/MBR/larva, bila ada) dengan potensi eskalasi risiko malaria dan kebutuhan intensifikasi pengendalian (fogging, larvasida, kelambu, edukasi warga).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik, dipengaruhi faktor musiman/cuaca yang tidak sepenuhnya tertangkap tren linear).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang perlu diprioritaskan pengendaliannya.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengendalian vektor berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+// Prompt DIARE LALAT DAN KECOA
+
+const STANDAR_VEKTOR_DIARE = `STANDAR BAKU MUTU VEKTOR PENYAKIT DIARE (rujukan Permenkes No. 02 Tahun 2023 tentang Standar Baku Mutu Kesehatan Lingkungan dan Persyaratan Kesehatan untuk Vektor dan Binatang Pembawa Penyakit):
+- Fly Index (kepadatan lalat) AMAN bila < 2 (indikator rendah), 2-5 sedang, > 5 tinggi/padat -- pada baku mutu operasional lapangan BKK, ambang siaga umumnya diset di 8 sebagai batas kepadatan tinggi yang wajib direspons dengan pengendalian.
+- Kepadatan kecoa (per m²) AMAN bila mendekati 0; nilai lebih dari 2 ekor/m² menunjukkan infestasi yang perlu direspons.
+- Lalat dan kecoa berperan sebagai vektor mekanis penyakit diare (termasuk disentri, kolera, tifoid) dengan cara memindahkan patogen dari sumber kontaminasi (sampah, kotoran, bangkai) ke makanan/permukaan yang kontak dengan manusia -- risiko meningkat di area pelabuhan/bandara dengan lalu lintas pangan dan sanitasi lingkungan yang kurang terjaga.`;
+
+export function susunPromptVektorDiare(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis khusus untuk grafik "${data.labelKonteks}" di wilayah kerja: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+${STANDAR_VEKTOR_DIARE}
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+BREAKDOWN LOKASI PENGAMATAN (konteks tambahan, bukan fokus utama):
+${data.topKategori.length > 0 ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah}`).join('\n') : '(tidak ada data lokasi untuk periode ini)'}
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Kalau data berisi fly_index_rerata atau kepadatan_kecoa_rerata: bandingkan dengan ambang baku mutu di atas, sebutkan AMAN/WASPADA/BAHAYA.
+- Kalau data berisi variabel lingkungan (suhu, kelembapan, curah hujan): kaitkan secara kualitatif dengan kondisi yang mendukung/menekan perkembangbiakan lalat atau kecoa (mis. kelembaban tinggi & suhu hangat cenderung mendukung populasi lalat), tanpa mengklaim hubungan sebab-akibat statistik yang tidak bisa dibuktikan dari data ini.
+- Bandingkan periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa unit/persen).
+- Kaitkan temuan kepadatan tinggi (bila ada) dengan risiko kesehatan masyarakat: penyakit diare, disentri, tifoid melalui kontaminasi makanan/permukaan, terutama di area dengan aktivitas pangan (mis. dekat TPP/kantin pelabuhan-bandara).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah titik pengamatan per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan wilayah kerja mana yang PALING BANYAK dipantau periode ini (catatan: ini angka VOLUME pengamatan, bukan indeks kepadatan vektor per wilayah -- jangan menyimpulkan wilayah itu "paling berisiko" hanya dari volume ini).' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan kondisi kepadatan vektor & faktor lingkungan periode berjalan, 2-4 kalimat",
+  "anomali": "deteksi anomali/lonjakan dibanding periode sebelumnya, atau nyatakan aman sesuai baku mutu",
+  "rekomendasi": "rekomendasi pengendalian vektor & sanitasi lingkungan berbasis angka di atas, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiVektorDiare(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren untuk grafik "${data.labelKonteks}" di wilayah kerja: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+${STANDAR_VEKTOR_DIARE}
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi sederhana dari data historis di atas, BUKAN model time-series canggih.
+- Hitung arah & besar perubahan dari data di atas, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kalau proyeksi fly_index/kepadatan kecoa mendekati/melewati ambang baku mutu, nyatakan eksplisit risiko WASPADA/BAHAYA yang mengancam.
+- Kaitkan proyeksi kenaikan (bila ada) dengan potensi eskalasi risiko penyakit diare dan kebutuhan intensifikasi pengendalian (pengasapan/insektisida, sanitasi lingkungan, edukasi pengelola area pangan).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren periode berikutnya berdasarkan data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi pengendalian vektor berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+// ============================================================
+// TPP / TTU / PAB — Surveilans Sanitasi Lingkungan
+// Data biner Memenuhi Syarat (MS) / Tidak Memenuhi Syarat (TMS) per
+// komponen. Pola sama seperti susunPromptLabTikus, hanya bulanan.
+// ============================================================
+
+export function susunPromptTpp(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan sanitasi Tempat Pengelolaan Pangan (TPP) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+CATATAN ISTILAH:
+- "jumlah_tpp_diperiksa" = jumlah TPP yang diinspeksi periode ini. "total_sampel" = jumlah seluruh sampel uji laboratorium yang diambil (formaldehyde, borax, metyl_yellow, rodamin_b, bakteriologis, hy_rise), TIDAK termasuk Inspeksi Kesehatan Lingkungan (IKL).
+- "ikl_ms"/"ikl_tms" = hasil IKL (komponen fisik/lingkungan TPP) yang Memenuhi/Tidak Memenuhi Syarat.
+- "tms_*" (formaldehyde, borax, metyl_yellow, rodamin_b, bakteriologis, hy_rise) = JUMLAH TPP dengan hasil uji Tidak Memenuhi Syarat untuk parameter tersebut.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Identifikasi parameter (IKL atau parameter uji lab) dengan jumlah TMS tertinggi periode ini -- itu adalah prioritas pembinaan.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah TPP diperiksa dan proporsi TMS.
+- Kaitkan temuan TMS dengan risiko kesehatan masyarakat yang relevan: formaldehyde/borax/rodamin B/metyl yellow terkait bahan tambahan pangan berbahaya (risiko keracunan kronis/karsinogenik), bakteriologis terkait risiko foodborne illness, IKL terkait higiene sanitasi dasar tempat pengolahan.
+- Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah TPP diperiksa per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang paling banyak diperiksa.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan TPP periode berjalan, 2-4 kalimat",
+  "anomali": "parameter dengan TMS tertinggi atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pembinaan/penindakan TPP berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiTpp(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren pengawasan sanitasi TPP untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap parameter TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan TMS dengan kebutuhan intensifikasi pembinaan/pengawasan TPP di wilayah terkait.
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren TMS periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pembinaan/pengawasan TPP berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptTtu(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan sanitasi Tempat-Tempat Umum (TTU) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+CATATAN ISTILAH:
+- "jumlah_diperiksa" = jumlah TTU yang diinspeksi periode ini. "jumlah_ms"/"jumlah_tms" = hasil keseluruhan (kesimpulan akhir) Memenuhi/Tidak Memenuhi Syarat.
+- "tms_*" = JUMLAH TTU dengan komponen tersebut berstatus Tidak Memenuhi Syarat (lingkungan_luar_halaman, ruang_bangunan, penyehatan_air, penyehatan_udara_ruang, pengelolaan_limbah, pencahayaan, kebisingan, getaran_diruang_kerja, pengendalian_vektor_penyakit, instalasi, pemeliharaan_jamban_kamar_mandi).
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Identifikasi komponen dengan jumlah TMS tertinggi periode ini -- itu adalah akar masalah/prioritas pembinaan (root-cause), bukan cuma melaporkan hasil akhir MS/TMS.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah diperiksa dan proporsi TMS keseluruhan.
+- Kaitkan temuan komponen bermasalah dengan risiko kesehatan masyarakat yang relevan (mis. penyehatan air/limbah terkait risiko penularan penyakit berbasis air & lingkungan, pengendalian vektor terkait risiko DBD/leptospirosis, jamban/kamar mandi terkait risiko penyakit diare).
+- Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah TTU diperiksa per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang paling banyak diperiksa.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan TTU periode berjalan, 2-4 kalimat",
+  "anomali": "komponen dengan TMS tertinggi atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pembinaan TTU berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiTtu(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren pengawasan sanitasi TTU untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap komponen TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan TMS pada komponen tertentu dengan kebutuhan intensifikasi pembinaan/pengawasan TTU di wilayah terkait.
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren TMS periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pembinaan/pengawasan TTU berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPab(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan kualitas Penyediaan Air Bersih (PAB) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+CATATAN ISTILAH:
+- "jumlah_pemeriksaan" = jumlah kegiatan pemeriksaan PAB periode ini. "total_pab_diperiksa" = jumlah titik/sarana PAB yang diperiksa.
+- "tms_fisik"/"tms_kimia"/"tms_bakteriologis" = JUMLAH pemeriksaan dengan hasil Tidak Memenuhi Syarat untuk parameter tersebut.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Identifikasi parameter (fisik/kimia/bakteriologis) dengan jumlah TMS tertinggi periode ini.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah diperiksa dan proporsi TMS per parameter.
+- Kaitkan temuan TMS bakteriologis dengan risiko penyakit berbasis air (diare, kolera, hepatitis A) dan TMS fisik/kimia dengan risiko kualitas air minum jangka panjang -- termasuk kebutuhan koordinasi dengan penyedia air setempat.
+- Kalau tidak ada TMS periode ini, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah pemeriksaan per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang paling banyak diperiksa.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan PAB periode berjalan, 2-4 kalimat",
+  "anomali": "parameter dengan TMS tertinggi atau perubahan tidak wajar dibanding periode sebelumnya, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut pengawasan/koordinasi PAB berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiPab(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren pengawasan kualitas PAB untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan dari 2 titik itu untuk tiap parameter TMS, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi kenaikan TMS dengan kebutuhan intensifikasi pengawasan kualitas air & koordinasi dengan penyedia PAB di wilayah terkait.
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren TMS periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengawasan PAB berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+function formatRingkasanKeyValue(ringkasan: Record<string, number>): string {
+  return Object.entries(ringkasan)
+    .map(([key, value]) => `- ${key}: ${value}`)
+    .join('\n');
+}
+
+export function susunPromptRatGuard(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: analisis hasil pengawasan Rat Guard (alat pencegah tikus naik dari tali tambat kapal) untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, periode: ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk pembanding tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+CATATAN ISTILAH:
+- "jumlah_kapal" = jumlah kapal yang diperiksa kelengkapan rat guard-nya periode ini.
+- "pasang"/"tidak_pasang" = jumlah kapal yang terpasang/tidak terpasang rat guard.
+- "persentase_kepatuhan" = proporsi kapal yang terpasang rat guard dari total kapal diperiksa.
+
+KONTEKS KEBIJAKAN: Rat Guard adalah alat wajib pada kapal yang bersandar, bagian dari upaya
+kekarantinaan kesehatan untuk mencegah introduksi vektor pes (tikus) dari kapal ke wilayah
+pelabuhan/darat, sesuai International Health Regulations (IHR) dan Permenkes Kekarantinaan
+Kesehatan.
+
+ATURAN WAJIB:
+- HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka.
+- Bandingkan periode berjalan vs sebelumnya (naik/turun) untuk jumlah kapal diperiksa dan persentase kepatuhan.
+- Kalau ada wilayah kerja dengan kepatuhan rendah dibanding wilayah lain, soroti sebagai prioritas pembinaan.
+- Kalau kepatuhan 100% dan stabil, nyatakan itu sebagai kondisi terkendali, JANGAN mengarang risiko yang tidak didukung data.
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+${data.breakdownWilayahSaatIni ? '- KARENA rincian jumlah kapal diperiksa per wilayah kerja TERSEDIA di atas (mode "Semua Wilayah Kerja"): sebutkan EKSPLISIT wilayah kerja mana yang jumlah pemeriksaannya PALING TINGGI dan mana yang paling rendah.' : ''}
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "ringkasan hasil pengawasan Rat Guard periode berjalan, 2-4 kalimat",
+  "anomali": "penurunan kepatuhan atau wilayah kerja dengan kepatuhan rendah, atau nyatakan terkendali",
+  "rekomendasi": "rekomendasi tindak lanjut kekarantinaan kesehatan berbasis temuan ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptPrediksiRatGuard(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+TUGAS SAAT INI: membuat PREDIKSI tren kepatuhan pemasangan Rat Guard untuk konteks: ${data.labelKonteks}, wilayah: ${data.labelWilayah}, untuk periode SETELAH ${data.labelPeriodeSaatIni}.
+
+DATA PERIODE BERJALAN (${data.labelPeriodeSaatIni}):
+${formatRingkasan(data.ringkasanSaatIni)}
+
+DATA PERIODE SEBELUMNYA (${data.labelPeriodeSebelumnya}), untuk menghitung arah tren:
+${formatRingkasan(data.ringkasanSebelumnya)}
+${formatBreakdownWilayah(data.breakdownWilayahSaatIni)}
+CATATAN ISTILAH:
+- "jumlah_kapal" = jumlah kapal yang diperiksa kelengkapan rat guard-nya periode ini.
+- "pasang"/"tidak_pasang" = jumlah kapal yang terpasang/tidak terpasang rat guard.
+- "persentase_kepatuhan" = proporsi kapal yang terpasang rat guard dari total kapal diperiksa.
+
+ATURAN WAJIB:
+- Kamu HANYA punya 2 titik data -- prediksi harus EKSPLISIT dinyatakan sebagai ekstrapolasi linear sederhana, BUKAN model epidemiologi kompleks.
+- Hitung arah & besar perubahan persentase kepatuhan dari 2 titik itu, lalu proyeksikan periode berikutnya. JANGAN mengarang angka.
+- Kaitkan proyeksi penurunan kepatuhan dengan kebutuhan intensifikasi pengawasan kekarantinaan kesehatan di wilayah terkait (risiko introduksi vektor pes dari kapal).
+- SELALU nyatakan tingkat ketidakpastian prediksi ini secara eksplisit (data cuma 2 titik).
+- Tulis dalam Bahasa Indonesia, istilah baku bila relevan.
+
+Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
+{
+  "ringkasan": "prediksi arah tren persentase kepatuhan periode berikutnya berdasarkan 2 titik data di atas, 2-4 kalimat, sebutkan angka proyeksi perkiraan",
+  "anomali": "batasan & tingkat ketidakpastian prediksi ini, plus hal yang perlu diwaspadai kalau tren berlanjut",
+  "rekomendasi": "rekomendasi kesiapan pengawasan kekarantinaan berbasis proyeksi tren ini, 1-3 poin"
+}`;
+}
+
+export function susunPromptSimulasiWabahKapal(data: DataSimulasiWabah): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+Kamu diminta memberi INTERPRETASI TAMBAHAN atas hasil simulasi model epidemiologi (SIR) untuk kejadian kapal berikut. Rekomendasi rules-based SUDAH dibuat sistem — tugasmu BUKAN mengulang angka itu, tapi memberi konteks epidemiologis yang tidak tertangkap model matematis sederhana ini.
+
+Data kejadian:
+- Kapal: ${data.namaEntitas}
+- Wilayah kerja: ${data.labelWilayah}
+- Kategori penyakit terduga: ${data.kategoriPenyakit}
+- R efektif (dengan isolasi): ${data.rEfektif.toFixed(2)}
+- Estimasi TKBM/kontak berisiko: ${data.estimasiKontakBerisikoTerinfeksi.toFixed(1)}
+- Rekomendasi rules-based yang sudah ada: "${data.rekomendasiRulesBased}"
+
+ATURAN PENTING:
+- JANGAN mengarang angka baru atau mengubah angka yang sudah diberikan.
+- JANGAN mengulang isi rekomendasi rules-based di atas.
+- Fokus pada: faktor konteks yang model SIR sederhana ini TIDAK tangkap (misal: kondisi ventilasi kapal, kepadatan ruang ABK, riwayat wabah serupa di kapal sejenis, pertimbangan choke point notifikasi internasional/IHR kalau relevan).
+- Bahasa Indonesia, ringkas, untuk pembaca petugas kekarantinaan kesehatan (bukan awam).
+
+Berikan output HANYA dalam format JSON dengan 3 field:
+{
+  "ringkasan": "...",
+  "anomali": "...",
+  "rekomendasi": "..."
+}`;
+}
+
+export function susunPromptSimulasiWabahPesawat(data: DataSimulasiWabah): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+[struktur sama, ganti konteks "kapal/TKBM" jadi "pesawat/kontak erat radius kursi/ground crew", tambahkan pertimbangan penumpang connecting flight ke kota lain]`;
+}
+
+export function susunPromptSkdr(data: DataAnalisis) {
+  const daftarAlert = data.topKategori.length > 0
+    ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} kasus`).join('\n')
+    : 'Tidak ada penyakit yang melewati ambang batas (tidak ada alert).';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Data SKDR (Sistem Kewaspadaan Dini dan Respon) — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Ringkasan: total penyakit dipantau ${data.ringkasanSaatIni.total_penyakit_dipantau}, jumlah alert ${data.ringkasanSaatIni.jumlah_alert}, total kasus ${data.ringkasanSaatIni.total_kasus}.
+Daftar penyakit berstatus ALERT (melebihi ambang rata-rata 4 minggu + 2SD):
+${daftarAlert}
+Jangan mengarang angka di luar yang diberikan. Jika ada alert, jelaskan implikasi kesehatan masyarakat dan rekomendasikan langkah Penyelidikan Epidemiologi (PE) sesuai pedoman SKDR Kemenkes. Jika tidak ada alert, sampaikan situasi terkendali.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiSkdr(data: DataAnalisis) {
+  const daftarAlert = data.topKategori.length > 0
+    ? data.topKategori.map((k) => `- ${k.nilai}: ${k.jumlah} kasus`).join('\n')
+    : '(tidak ada)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren SKDR — ${data.labelWilayah}, dari ${data.labelPeriodeSebelumnya} ke ${data.labelPeriodeSaatIni}.
+Minggu sebelumnya: total kasus ${data.ringkasanSebelumnya.total_kasus}, jumlah alert ${data.ringkasanSebelumnya.jumlah_alert}.
+Minggu ini: total kasus ${data.ringkasanSaatIni.total_kasus}, jumlah alert ${data.ringkasanSaatIni.jumlah_alert}.
+Penyakit yang saat ini berstatus alert:
+${daftarAlert}
+Ekstrapolasikan risiko kenaikan kasus untuk penyakit yang menunjukkan tren naik, terutama yang sudah alert.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptSkdrTren(data: DataAnalisis) {
+  const rincian = data.topKategori.map((k) => `${k.nilai}: ${k.jumlah}`).join(', ') || '(tidak ada data)';
+  return `${PERSONA_EPIDEMIOLOG}
+${data.labelKonteks} — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Total kasus periode ini: ${data.ringkasanSaatIni.total_kasus} (rata-rata ${data.ringkasanSaatIni.rata_rata_per_minggu}/minggu).
+Periode sebelumnya (${data.labelPeriodeSebelumnya}): total ${data.ringkasanSebelumnya.total_kasus}.
+Rincian per minggu: ${rincian}
+Jangan mengarang angka di luar yang diberikan. Jelaskan tren (naik/turun/stabil) dan apakah ada pola yang perlu diwaspadai.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiSkdrTren(data: DataAnalisis) {
+  const rincian = data.topKategori.map((k) => `${k.nilai}: ${k.jumlah}`).join(', ') || '(tidak ada data)';
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren untuk ${data.labelKonteks} — ${data.labelWilayah}.
+Data periode ${data.labelPeriodeSebelumnya}: total ${data.ringkasanSebelumnya.total_kasus} → periode ${data.labelPeriodeSaatIni}: total ${data.ringkasanSaatIni.total_kasus}.
+Rincian per minggu periode ini: ${rincian}
+Ekstrapolasikan arah tren ke depan berdasarkan pola ini.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+// ============================================================
+// TEMPEL KE lib/ai/prompt.ts
+// (PERSONA_EPIDEMIOLOG dan DataAnalisis sudah ada di file ini, tidak perlu import baru)
+// ============================================================
+
+export function susunPromptKarhutlaIspaHotspot(data: DataAnalisis) {
+  const rincian = data.topKategori.length > 0
+    ? data.topKategori
+        .map((k) => `${k.nilai} (${k.kategori === 'kasus_ispa' ? 'kasus ISPA' : 'titik panas'}): ${k.jumlah}`)
+        .join('\n')
+    : '(tidak ada data pada rentang ini)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Data perbandingan kasus ISPA vs titik panas (hotspot NASA FIRMS) — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Catatan: jumlah hotspot bersifat REGIONAL Kalimantan Timur (bukan spesifik per wilayah kerja), sedangkan kasus ISPA sudah difilter sesuai wilayah yang dipilih.
+Ringkasan periode ini: total kasus ISPA ${data.ringkasanSaatIni.total_kasus_ispa}, jumlah hotspot ${data.ringkasanSaatIni.jumlah_hotspot}.
+Ringkasan periode sebelumnya (${data.labelPeriodeSebelumnya}): total kasus ISPA ${data.ringkasanSebelumnya.total_kasus_ispa}, jumlah hotspot ${data.ringkasanSebelumnya.jumlah_hotspot}.
+Rincian per periode:
+${rincian}
+Jangan mengarang angka di luar yang diberikan. Analisis apakah tren kasus ISPA sejalan dengan tren jumlah titik panas (indikasi kualitas udara akibat karhutla berdampak ke ISPA), dan soroti anomali (misal kasus ISPA naik signifikan tanpa kenaikan hotspot yang berarti, atau sebaliknya — kemungkinan ada penyebab lain).
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiKarhutlaIspaHotspot(data: DataAnalisis) {
+  const rincian = data.topKategori.length > 0
+    ? data.topKategori
+        .map((k) => `${k.nilai} (${k.kategori === 'kasus_ispa' ? 'kasus ISPA' : 'titik panas'}): ${k.jumlah}`)
+        .join('\n')
+    : '(tidak ada data)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren kasus ISPA terkait Karhutla — ${data.labelWilayah}.
+Dari periode ${data.labelPeriodeSebelumnya} (kasus ISPA ${data.ringkasanSebelumnya.total_kasus_ispa}, hotspot ${data.ringkasanSebelumnya.jumlah_hotspot}) ke periode ${data.labelPeriodeSaatIni} (kasus ISPA ${data.ringkasanSaatIni.total_kasus_ispa}, hotspot ${data.ringkasanSaatIni.jumlah_hotspot}).
+Rincian per periode:
+${rincian}
+Ekstrapolasikan risiko kenaikan kasus ISPA ke depan berdasarkan tren titik panas saat ini (kalau hotspot masih tinggi/naik, risiko paparan kabut asap berlanjut sehingga kasus ISPA berpotensi ikut naik).
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptKlinikKepatuhan(data: DataAnalisis) {
+  const rincian = data.topKategori.length > 0
+    ? data.topKategori.map((k) => `${k.nilai}: ${k.jumlah} kasus tidak patuh (vaksin <14 hari sebelum keberangkatan)`).join('\n')
+    : '(tidak ada data pada rentang ini)';
+
+  return `${PERSONA_EPIDEMIOLOG}
+Data kepatuhan masa aktif vaksin (standar: jarak penerbitan dokumen vaksin ke tanggal keberangkatan minimal 14 hari) — ${data.labelWilayah}, ${data.labelPeriodeSaatIni}.
+Ringkasan periode ini: total layanan ${data.ringkasanSaatIni.total}, patuh ${data.ringkasanSaatIni.patuh}, tidak patuh ${data.ringkasanSaatIni.tidakPatuh} (${data.ringkasanSaatIni.persentaseKepatuhan}% kepatuhan).
+Ringkasan periode sebelumnya (${data.labelPeriodeSebelumnya}): total ${data.ringkasanSebelumnya.total}, patuh ${data.ringkasanSebelumnya.patuh}, tidak patuh ${data.ringkasanSebelumnya.tidakPatuh} (${data.ringkasanSebelumnya.persentaseKepatuhan}% kepatuhan).
+Rincian klinik dengan kasus tidak patuh terbanyak periode ini:
+${rincian}
+Jangan mengarang angka di luar yang diberikan. Soroti klinik mana yang paling banyak menerbitkan dokumen vaksin kurang dari 14 hari sebelum keberangkatan, dan apakah ada tren perbaikan/perburukan dibanding periode sebelumnya.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptPrediksiKlinikKepatuhan(data: DataAnalisis) {
+  return `${PERSONA_EPIDEMIOLOG}
+Prediksi tren kepatuhan masa aktif vaksin (standar 14 hari) — ${data.labelWilayah}.
+Dari periode ${data.labelPeriodeSebelumnya} (kepatuhan ${data.ringkasanSebelumnya.persentaseKepatuhan}%, total layanan ${data.ringkasanSebelumnya.total}) ke periode ${data.labelPeriodeSaatIni} (kepatuhan ${data.ringkasanSaatIni.persentaseKepatuhan}%, total layanan ${data.ringkasanSaatIni.total}).
+Ekstrapolasikan proyeksi persentase kepatuhan dan volume layanan periode berikutnya berdasarkan tren 2 titik data ini.
+Jawab HANYA JSON 3 field: ringkasan, anomali, rekomendasi.`;
+}
+
+export function susunPromptTb(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+Konteks: ${data.labelKonteks}
+Wilayah: ${data.labelWilayah}
+Periode saat ini (${data.labelPeriodeSaatIni}): ${formatRingkasan(data.ringkasanSaatIni)}
+${data.ringkasanSebelumnya ? `Periode sebelumnya (${data.labelPeriodeSebelumnya}): ${formatRingkasan(data.ringkasanSebelumnya)}` : ""}
+
+Ini adalah data program skrining aktif & investigasi kontak TBC (bukan data kasus TBC terkonfirmasi
+di fasilitas kesehatan) — hasil "terkonfirmasi" berasal dari populasi yang diskrining karena punya
+faktor risiko (kontak dengan pasien TBC, gizi kurang, perokok, DM, ODHIV, lansia, ibu hamil).
+
+Tolong berikan analisis dengan memperhatikan:
+1. Case Detection Rate dan yield dari terduga ke terkonfirmasi — apakah program cukup efektif
+   menjaring kasus dari populasi berisiko?
+2. Perubahan tren dibanding periode sebelumnya — kenaikan/penurunan jumlah skrining ATAU jumlah
+   terkonfirmasi, dan implikasinya (mis. penurunan skrining ≠ penurunan risiko, bisa jadi cakupan
+   program yang menurun)
+3. JANGAN mengarang angka yang tidak ada di data ini.
+
+Jawab HANYA dalam format JSON: {"ringkasan": "...", "anomali": "...", "rekomendasi": "..."}`;
+}
+
+export function susunPromptPrediksiTb(data: DataAnalisis): string {
+  return `${PERSONA_EPIDEMIOLOG}
+
+Konteks: ${data.labelKonteks}
+Wilayah: ${data.labelWilayah}
+Periode saat ini (${data.labelPeriodeSaatIni}): ${formatRingkasan(data.ringkasanSaatIni)}
+${data.ringkasanSebelumnya ? `Periode sebelumnya (${data.labelPeriodeSebelumnya}): ${formatRingkasan(data.ringkasanSebelumnya)}` : "Periode sebelumnya: tidak ada data."}
+
+Ini adalah data program skrining aktif & investigasi kontak TBC (bukan data kasus TBC terkonfirmasi
+di fasilitas kesehatan) — hasil "terkonfirmasi" berasal dari populasi yang diskrining karena punya
+faktor risiko (kontak dengan pasien TBC, gizi kurang, perokok, DM, ODHIV, lansia, ibu hamil).
+
+Tugasmu: buat PREDIKSI/PROYEKSI singkat untuk periode berikutnya berdasarkan data di atas.
+
+Isi tiga field JSON berikut:
+- "ringkasan" (Kondisi Saat Ini): gambaran kondisi program TBC pada periode saat ini — jumlah skrining,
+  terduga, terkonfirmasi, dan yield-nya — dibanding periode sebelumnya bila ada.
+- "anomali" (Proyeksi Jika Tidak Direspons): proyeksi periode berikutnya kalau tren tidak diintervensi.
+  Gunakan ekstrapolasi linear sederhana dari dua titik data (periode sebelumnya → saat ini) dan tulis
+  angka proyeksinya sebagai perkiraan kasar. Jika hanya ada satu periode, jangan membuat angka proyeksi;
+  nyatakan bahwa tren belum bisa diproyeksikan dan jelaskan risikonya secara kualitatif.
+  Ingat: penurunan jumlah skrining tidak sama dengan penurunan risiko, bisa berarti cakupan program menurun.
+- "rekomendasi" (Tindakan yang Perlu Dilakukan): 3-5 tindakan konkret untuk program skrining dan
+  investigasi kontak TBC, sesuai kondisi dan proyeksi di atas.
+
+ATURAN:
+- Bahas HANYA TBC. Jangan menyebut COVID-19, influenza, atau penyakit lain.
+- Gunakan HANYA angka yang ada di data. Jangan mengarang angka, lokasi, atau fasilitas.
+- Jika data periode saat ini kosong, isi ketiga field dengan satu kalimat bahwa data tidak tersedia.
+
+Jawab HANYA dalam format JSON: {"ringkasan": "...", "anomali": "...", "rekomendasi": "..."}`;
+}

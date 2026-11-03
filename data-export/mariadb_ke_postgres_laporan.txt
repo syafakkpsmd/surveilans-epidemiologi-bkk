@@ -1,0 +1,78 @@
+Migrasi MariaDB (surveilans-bkksamarinda) -> PostgreSQL   2026-10-31T13:40:39.573Z
+Tabel: 68
+  OK     auth_kredensial                            sumber      14  masuk      14
+  OK     auth_percobaan                             sumber       1  masuk       1
+  OK     auth_sesi                                  sumber      11  masuk      11
+  OK     buletin                                    sumber      41  masuk      41
+  OK     data_hiv_vct                               sumber       0  masuk       0
+  OK     data_icv                                   sumber   13895  masuk   13895
+  OK     data_penumpang_kapal                       sumber     224  masuk     224
+  OK     wilker_ref                                 sumber      10  masuk      10
+  OK     fasilitas_pelabuhan                        sumber      25  masuk      25
+  OK     fasilitas_foto                             sumber      18  masuk      18
+  OK     jenis_kegiatan_foto                        sumber      15  masuk      15
+  OK     foto_kegiatan                              sumber      25  masuk      25
+  OK     hiv_data                                   sumber     188  masuk     188
+  OK     hotspot_nasa_kaltim                        sumber   10968  masuk   10968
+  OK     ispa_harian                                sumber     140  masuk     140
+  OK     ispu_stasiun_harian                        sumber       0  masuk       0
+  OK     kegiatan_cop                               sumber       0  masuk       0
+  OK     kegiatan_pesawat                           sumber    3061  masuk    3061
+  OK     kegiatan_pesawat_backup_juli_agustus       sumber     498  masuk     498
+  OK     kegiatan_phqc                              sumber       0  masuk       0
+  OK     kier_kesehatan                             sumber     190  masuk     190
+  OK     klinik_binaan                              sumber      22  masuk      22
+  OK     kualitas_udara_harian                      sumber     402  masuk     402
+  OK     kunjungan_poliklinik                       sumber     422  masuk     422
+  OK     kunjungan_tamu                             sumber    4849  masuk    4849
+  OK     laporan_penyakit_emerging                  sumber    7751  masuk    7751
+  OK     laporan_penyakit_nasional                  sumber    1983  masuk    1983
+  OK     lokasi_kualitas_udara                      sumber       9  masuk       9
+  OK     malaria_migrasi                            sumber       0  masuk       0
+  OK     master_pelabuhan_negara                    sumber       2  masuk       2
+  OK     migrasi_malaria                            sumber     485  masuk     485
+  OK     pab                                        sumber     245  masuk     245
+  OK     pengaturan_ai                              sumber       2  masuk       2
+  OK     pengaturan_klinik                          sumber       1  masuk       1
+  OK     pengawasan_klinik                          sumber      25  masuk      25
+  OK     pengawasan_klinik_dokumen                  sumber     231  masuk     231
+  OK     pengawasan_klinik_link_perbaikan           sumber       1  masuk       1
+  OK     pengawasan_klinik_perbaikan                sumber       0  masuk       0
+  OK     pengawasan_klinik_perbaikan_foto           sumber       0  masuk       0
+  OK     pengawasan_klinik_rekomendasi              sumber       0  masuk       0
+  OK     peraturan                                  sumber       1  masuk       1
+  OK     posko_klb_harian                           sumber       0  masuk       0
+  OK     posko_penyakit_harian                      sumber       0  masuk       0
+  OK     posko_periode                              sumber       1  masuk       1
+  OK     posko_ptm_harian                           sumber       0  masuk       0
+  OK     profiles                                   sumber      14  masuk      14
+  OK     rat_guard                                  sumber     303  masuk     303
+  OK     referensi_parameter_penyakit               sumber      14  masuk      14
+  OK     referensi_populasi_wilker                  sumber       7  masuk       7
+  OK     riwayat_analisis_ai                        sumber     596  masuk     596
+  OK     siaos                                      sumber     298  masuk     298
+  OK     simulasi_wabah_kapal                       sumber       5  masuk       5
+  OK     simulasi_wabah_pesawat                     sumber       1  masuk       1
+  OK     skdr_jenis_penyakit                        sumber      25  masuk      25
+  OK     skdr_mingguan                              sumber    8225  masuk    8225
+  OK     sklt_penumpang                             sumber    1252  masuk    1252
+  OK     statistik_kunjungan                        sumber    5375  masuk    5375
+  OK     stok_vaksin                                sumber   36599  masuk   36599
+  OK     tb_data                                    sumber     671  masuk     671
+  OK     tpp                                        sumber     323  masuk     323
+  OK     ttu                                        sumber     230  masuk     230
+  OK     upload_riwayat                             sumber       3  masuk       3
+  OK     vektor_anopheles                           sumber      73  masuk      73
+  OK     vektor_dbd                                 sumber     150  masuk     150
+  OK     vektor_diare                               sumber     463  masuk     463
+  OK     vektor_tikus                               sumber     178  masuk     178
+  OK     wilayah_ispa                               sumber      13  masuk      13
+  OK     wilker_nama_alias                          sumber      12  masuk      12
+Identity disetel ulang: 30 kolom.
+Dipasang: schema/postgres/03_indeks_fk.sql
+Dipasang: schema/postgres/04_view.sql
+
+Verifikasi (jumlah baris dan jumlah/min/maks per kolom angka dan tanggal):
+Verifikasi: tidak ada perbedaan.
+
+Ringkasan: 68 tabel OK, 0 gagal/beda, 100586 baris dipindah.

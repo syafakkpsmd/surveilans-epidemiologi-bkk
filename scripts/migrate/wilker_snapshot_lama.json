@@ -1,0 +1,160 @@
+{
+ "karhutla_NAMA_WILKER": {
+  "WK01": "Samarinda",
+  "WK02": "Tanjung Santan",
+  "WK03": "Tanjung Laut",
+  "WK04": "Lhoktuan",
+  "WK05": "Sangatta",
+  "WK06": "Sangkulirang",
+  "WK07": "APT Pranoto"
+ },
+ "ai_NAMA_WILKER": {
+  "WK01": "Pelabuhan Samarinda",
+  "WK02": "Pelabuhan Tanjung Santan",
+  "WK03": "Pelabuhan Tanjung Laut",
+  "WK04": "Pelabuhan Lhoktuan",
+  "WK05": "Pelabuhan Sangatta",
+  "WK06": "Pelabuhan Sangkulirang",
+  "WK07": "Bandara APT Pranoto"
+ },
+ "malaria_KATA_KUNCI": {
+  "WK01": "Samarinda",
+  "WK02": "Tanjung Santan",
+  "WK03": "Tanjung Laut",
+  "WK04": "Lhoktuan",
+  "WK05": "Sangatta",
+  "WK06": "Sangkulirang",
+  "WK07": "APT Pranoto"
+ },
+ "core_DAFTAR_WILKER": [
+  {
+   "kode": "WK01",
+   "nama": "Pelabuhan Samarinda",
+   "jenis": "Pelabuhan"
+  },
+  {
+   "kode": "WK02",
+   "nama": "Pelabuhan Tanjung Santan",
+   "jenis": "Pelabuhan"
+  },
+  {
+   "kode": "WK03",
+   "nama": "Pelabuhan Tanjung Laut",
+   "jenis": "Pelabuhan"
+  },
+  {
+   "kode": "WK04",
+   "nama": "Pelabuhan Lhoktuan",
+   "jenis": "Pelabuhan"
+  },
+  {
+   "kode": "WK05",
+   "nama": "Pelabuhan Sangatta",
+   "jenis": "Pelabuhan"
+  },
+  {
+   "kode": "WK06",
+   "nama": "Pelabuhan Sangkulirang",
+   "jenis": "Pelabuhan"
+  },
+  {
+   "kode": "WK07",
+   "nama": "Bandara APT Pranoto",
+   "jenis": "Bandara"
+  }
+ ],
+ "peta_KelolaFasilitas": [
+  {
+   "kode": "WK01",
+   "nama": "Samarinda"
+  },
+  {
+   "kode": "WK02",
+   "nama": "Tanjung Santan"
+  },
+  {
+   "kode": "WK03",
+   "nama": "Tanjung Laut"
+  },
+  {
+   "kode": "WK04",
+   "nama": "Lhoktuan"
+  },
+  {
+   "kode": "WK05",
+   "nama": "Sangatta"
+  },
+  {
+   "kode": "WK06",
+   "nama": "Sangkulirang"
+  },
+  {
+   "kode": "WK07",
+   "nama": "Bandara APT Pranoto"
+  }
+ ],
+ "peta_WilkerSelector": [
+  {
+   "kode": "INDUK",
+   "nama": "🏢 Kantor Induk BKK Kelas I Samarinda"
+  },
+  {
+   "kode": "WK01",
+   "nama": "Samarinda"
+  },
+  {
+   "kode": "WK02",
+   "nama": "Tanjung Santan"
+  },
+  {
+   "kode": "WK03",
+   "nama": "Tanjung Laut"
+  },
+  {
+   "kode": "WK04",
+   "nama": "Lhoktuan"
+  },
+  {
+   "kode": "WK05",
+   "nama": "Sangatta"
+  },
+  {
+   "kode": "WK06",
+   "nama": "Sangkulirang"
+  },
+  {
+   "kode": "WK07",
+   "nama": "Bandara APT Pranoto"
+  }
+ ],
+ "peta_FormFasilitas": [
+  {
+   "kode": "WK01",
+   "nama": "Samarinda"
+  },
+  {
+   "kode": "WK02",
+   "nama": "Tanjung Santan"
+  },
+  {
+   "kode": "WK03",
+   "nama": "Tanjung Laut"
+  },
+  {
+   "kode": "WK04",
+   "nama": "Lhoktuan"
+  },
+  {
+   "kode": "WK05",
+   "nama": "Sangatta"
+  },
+  {
+   "kode": "WK06",
+   "nama": "Sangkulirang"
+  },
+  {
+   "kode": "WK07",
+   "nama": "Bandara APT Pranoto"
+  }
+ ]
+}

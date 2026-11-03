@@ -1,0 +1,45 @@
+import { createDbBrowserClient } from "@/lib/db/browser-client";
+
+export interface Fasilitas {
+  id: string;
+  kode_wilker: string;
+  nama: string;
+  tipe: "pelabuhan" | "bandara" | "kantor";
+  lat: number;
+  lng: number;
+  deskripsi: string | null;
+}
+
+export interface FasilitasFoto {
+  id: string;
+  fasilitas_id: string;
+  kategori: "pelabuhan" | "kegiatan" | "kantor";
+  url: string;
+  caption: string | null;
+}
+
+export async function getFasilitas(): Promise<Fasilitas[]> {
+  const supabase = createDbBrowserClient();
+  const { data, error } = await supabase.from("fasilitas_pelabuhan").select("*").order("nama");
+  if (error) {
+    console.error("Gagal memuat fasilitas:", JSON.stringify(error, null, 2));
+    throw error;
+  }
+  return (data ?? []) as Fasilitas[];
+}
+
+export async function getFotoByFasilitas(fasilitasId: string): Promise<FasilitasFoto[]> {
+  const supabase = createDbBrowserClient();
+  const { data, error } = await supabase
+    .from("fasilitas_foto")
+    .select("*")
+    .eq("fasilitas_id", fasilitasId);
+  if (error) throw error;
+  return (data ?? []) as FasilitasFoto[];
+}
+
+export async function hapusFasilitas(id: string): Promise<void> {
+  const supabase = createDbBrowserClient();
+  const { error } = await supabase.from("fasilitas_pelabuhan").delete().eq("id", id);
+  if (error) throw error;
+}

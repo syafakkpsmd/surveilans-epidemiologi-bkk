@@ -1,0 +1,25 @@
+#!/bin/bash -l
+# Deploy otomatis saat `git push kantor main`. Versi PostgreSQL (tanpa mysqldump/migrate MariaDB).
+set -e
+set -o pipefail
+
+APP=/home/bkksamarinda/surveilans
+GITDIR=/home/bkksamarinda/repo-surveilans.git
+
+while read oldrev newrev ref; do
+  case "$ref" in
+    refs/heads/main|refs/heads/master)
+      BRANCH=${ref#refs/heads/}
+      echo ">> Deploy cabang $BRANCH"
+      git --work-tree="$APP" --git-dir="$GITDIR" checkout -f "$BRANCH"
+      cd "$APP"
+      npm ci
+      rm -rf .next
+      npm run build
+      pm2 delete surveilans || true
+      pm2 start ecosystem.config.js
+      pm2 save
+      echo ">> Selesai"
+      ;;
+  esac
+done

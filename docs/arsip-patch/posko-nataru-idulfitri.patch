@@ -1,0 +1,1665 @@
+diff --git a/app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx b/app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx
+new file mode 100644
+index 0000000..94a2e04
+--- /dev/null
++++ b/app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx
+@@ -0,0 +1,16 @@
++// app/(dashboard)/dashboard/posko/[jenis]/infografis/page.tsx
++import { notFound } from 'next/navigation';
++import { SLUG_KE_JENIS } from '@/lib/posko/konstanta';
++import { ambilDataPosko } from '@/lib/posko/queries';
++import PoskoInfografisClient from '@/components/posko/PoskoInfografisClient';
++
++export const dynamic = 'force-dynamic';
++
++export default async function PoskoInfografisPage({ params }: { params: Promise<{ jenis: string }> }) {
++  const { jenis } = await params;
++  const posko = SLUG_KE_JENIS[jenis];
++  if (!posko) notFound();
++
++  const data = await ambilDataPosko(posko);
++  return <PoskoInfografisClient slug={jenis} data={data} />;
++}
+diff --git a/app/(dashboard)/dashboard/posko/[jenis]/page.tsx b/app/(dashboard)/dashboard/posko/[jenis]/page.tsx
+new file mode 100644
+index 0000000..5ae3dad
+--- /dev/null
++++ b/app/(dashboard)/dashboard/posko/[jenis]/page.tsx
+@@ -0,0 +1,17 @@
++// app/(dashboard)/dashboard/posko/[jenis]/page.tsx
++// /dashboard/posko/nataru  dan  /dashboard/posko/idul-fitri
++import { notFound } from 'next/navigation';
++import { SLUG_KE_JENIS } from '@/lib/posko/konstanta';
++import { ambilDataPosko } from '@/lib/posko/queries';
++import PoskoDashboardClient from '@/components/posko/PoskoDashboardClient';
++
++export const dynamic = 'force-dynamic';
++
++export default async function PoskoPage({ params }: { params: Promise<{ jenis: string }> }) {
++  const { jenis } = await params;
++  const posko = SLUG_KE_JENIS[jenis];
++  if (!posko) notFound();
++
++  const data = await ambilDataPosko(posko);
++  return <PoskoDashboardClient slug={jenis} data={data} />;
++}
+diff --git a/components/nav/menu-data.ts b/components/nav/menu-data.ts
+index 578a9c8..182e392 100644
+--- a/components/nav/menu-data.ts
++++ b/components/nav/menu-data.ts
+@@ -12,7 +12,7 @@ import {
+   Ship, PlaneTakeoff, Bug, Rat, Zap, Droplets, Plane, Wind, CircleDot, Building2,
+   ShieldAlert, Siren, Newspaper, Globe, TrendingUp, Database, Microscope, Users,
+   BarChart3, MapPin, ClipboardCheck, BuildingIcon, Table2, Book, Flame, Droplet,
+-  BellRing, Package, PersonStanding,
++  BellRing, Package, PersonStanding, CalendarDays,
+ } from "lucide-react";
+ 
+ export type NavChild = { label: string; href: string; prefetch?: boolean };
+@@ -104,6 +104,26 @@ export const NAV_GROUPS: NavGroup[] = [
+       { label: "ISPA KARHUTLA", href: "/dashboard/karhutla", icon: Flame, prefetch: false },
+     ],
+   },
++  {
++    title: "Posko Matra",
++    singkat: "Posko",
++    items: [
++      {
++        label: "Posko Nataru",
++        href: "/dashboard/posko/nataru",
++        icon: CalendarDays,
++        prefetch: false,
++        children: [{ label: "Info Grafis Harian", href: "/dashboard/posko/nataru/infografis", prefetch: false }],
++      },
++      {
++        label: "Posko Idul Fitri",
++        href: "/dashboard/posko/idul-fitri",
++        icon: CalendarDays,
++        prefetch: false,
++        children: [{ label: "Info Grafis Harian", href: "/dashboard/posko/idul-fitri/infografis", prefetch: false }],
++      },
++    ],
++  },
+   {
+     title: "Klinik Binaan BKK",
+     singkat: "Klinik Binaan",
+diff --git a/components/posko/InfografisPoskoPoster.tsx b/components/posko/InfografisPoskoPoster.tsx
+new file mode 100644
+index 0000000..530f062
+--- /dev/null
++++ b/components/posko/InfografisPoskoPoster.tsx
+@@ -0,0 +1,328 @@
++/**
++ * Poster info grafis HARIAN Posko Nataru / Idul Fitri (lebar tetap 1080px).
++ * Sengaja memakai inline style, <img> biasa, dan TANPA backdrop-filter/blur supaya
++ * html-to-image bisa menangkapnya jadi JPEG/PNG/PDF dengan benar (sama seperti poster Karhutla).
++ */
++import type { CSSProperties, ReactNode, Ref } from 'react';
++import { LABEL_POSKO, WILAYAH_POSKO, type DataPosko } from '@/lib/posko/konstanta';
++import { hariKe, jumlahkanHarian, ringkasPenyakit, ringkasPtm, tanggalPanjang } from '@/lib/posko/hitung';
++
++export const LEBAR_POSTER = 1080;
++
++const W = {
++  navy: '#0b2447',
++  teal: '#0F4C5C',
++  cyan: '#3ee8ff',
++  oranye: '#EA580C',
++  merah: '#B71C1C',
++  teks: '#0F2A38',
++  redup: '#5b6b78',
++  garis: '#dbe3ea',
++  latar: '#f4f8fb',
++  putih: '#ffffff',
++};
++
++const fmt = (n: number) => n.toLocaleString('id-ID');
++
++const sel: CSSProperties = { padding: '7px 10px', fontSize: 14, borderTop: `1px solid ${W.garis}` };
++const selKanan: CSSProperties = { ...sel, textAlign: 'right' };
++const kepala: CSSProperties = {
++  padding: '8px 10px', fontSize: 12, fontWeight: 700, color: W.redup, background: W.latar,
++  textTransform: 'uppercase', letterSpacing: 0.4,
++};
++
++function Seksi({ judul, warna = W.teal, children }: { judul: string; warna?: string; children: ReactNode }) {
++  return (
++    <section style={{ marginBottom: 26 }}>
++      <h2
++        style={{
++          margin: '0 0 10px', fontSize: 18, fontWeight: 800, color: W.teks,
++          borderLeft: `6px solid ${warna}`, paddingLeft: 10,
++        }}
++      >
++        {judul}
++      </h2>
++      {children}
++    </section>
++  );
++}
++
++function Kotak({ label, nilai, sub, warna = W.teal }: { label: string; nilai: number; sub?: string; warna?: string }) {
++  return (
++    <div style={{ flex: 1, background: W.latar, border: `1px solid ${W.garis}`, borderRadius: 12, padding: '14px 16px' }}>
++      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: W.redup, textTransform: 'uppercase', letterSpacing: 0.4 }}>
++        {label}
++      </p>
++      <p style={{ margin: '4px 0 0', fontSize: 34, fontWeight: 800, color: warna, lineHeight: 1.1 }}>{fmt(nilai)}</p>
++      {sub && <p style={{ margin: '4px 0 0', fontSize: 12, color: W.redup }}>{sub}</p>}
++    </div>
++  );
++}
++
++const tabel: CSSProperties = {
++  width: '100%', borderCollapse: 'collapse', border: `1px solid ${W.garis}`, borderRadius: 10, overflow: 'hidden',
++};
++
++export default function InfografisPoskoPoster({
++  data,
++  tanggal,
++  ref,
++}: {
++  data: DataPosko;
++  tanggal: string;
++  ref?: Ref<HTMLDivElement>;
++}) {
++  const periode = data.periode!;
++  const judul = LABEL_POSKO[data.posko];
++
++  const harianHari = data.harian.filter((r) => r.tanggal === tanggal);
++  const harianKum = data.harian.filter((r) => r.tanggal <= tanggal);
++  const th = jumlahkanHarian(harianHari);
++  const tk = jumlahkanHarian(harianKum);
++
++  const pHari = ringkasPenyakit(data.penyakit.filter((r) => r.tanggal === tanggal));
++  const pKum = ringkasPenyakit(data.penyakit.filter((r) => r.tanggal <= tanggal));
++  const ptmHari = ringkasPtm(data.ptm.filter((r) => r.tanggal === tanggal));
++  const ptmKum = ringkasPtm(data.ptm.filter((r) => r.tanggal <= tanggal));
++
++  const penyakitHariIni = pHari.perJenis.filter((p) => p.kasusTotal > 0 || p.matiTotal > 0);
++  const barisWilayah = WILAYAH_POSKO.map((w) => ({
++    wilayah: w,
++    ...jumlahkanHarian(harianHari.filter((r) => r.wilayah === w)),
++  }));
++
++  const hari = hariKe(periode.tanggalMulai, tanggal);
++  const totalHari = hariKe(periode.tanggalMulai, periode.tanggalSelesai);
++
++  return (
++    <div
++      ref={ref}
++      style={{
++        width: LEBAR_POSTER, background: W.putih, color: W.teks,
++        fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
++      }}
++    >
++      {/* HEADER */}
++      <div
++        style={{
++          background: `linear-gradient(160deg, #050d1a 0%, ${W.navy} 40%, #17678a 82%, #1ba3a0 100%)`,
++          padding: '30px 48px', display: 'flex', alignItems: 'center', gap: 28,
++        }}
++      >
++        {/* eslint-disable-next-line @next/next/no-img-element -- sengaja <img> biasa (bukan next/image) agar html-to-image tidak kosong */}
++        <img
++          src="/logo-header-infografis.png"
++          alt="Kemenkes RI - BKK Kelas I Samarinda"
++          style={{ height: 76, flexShrink: 0, display: 'block', mixBlendMode: 'lighten' }}
++        />
++        <div style={{ flex: 1, minWidth: 0 }}>
++          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: 2, color: W.cyan, textTransform: 'uppercase' }}>
++            Info Grafis Harian
++          </p>
++          <h1 style={{ margin: '4px 0 0', fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1.15 }}>
++            {judul} {periode.tahun}
++          </h1>
++          <p style={{ margin: '6px 0 0', fontSize: 15, color: '#a9c2d1' }}>
++            {tanggalPanjang(tanggal)} &middot; Hari ke-{hari} dari {totalHari} &middot; Samarinda, APT Pranoto &amp; Lhoktuan
++          </p>
++        </div>
++      </div>
++
++      <div style={{ padding: '30px 48px 24px' }}>
++        {/* POLIKLINIK */}
++        <Seksi judul="Kunjungan Poliklinik">
++          <div style={{ display: 'flex', gap: 12 }}>
++            <Kotak label="Total Hari Ini" nilai={th.poliklinik} sub={`Kumulatif ${fmt(tk.poliklinik)}`} />
++            {barisWilayah.map((b) => (
++              <Kotak
++                key={b.wilayah}
++                label={b.wilayah}
++                nilai={b.poliklinik}
++                sub={`Kumulatif ${fmt(harianKum.filter((r) => r.wilayah === b.wilayah).reduce((a, r) => a + r.poliklinik, 0))}`}
++                warna={W.oranye}
++              />
++            ))}
++          </div>
++        </Seksi>
++
++        {/* ALAT ANGKUT */}
++        <Seksi judul="Pergerakan Alat Angkut (Kapal Penumpang & Pesawat)">
++          <table style={tabel}>
++            <thead>
++              <tr>
++                <th style={{ ...kepala, textAlign: 'left' }} rowSpan={2}>Arah</th>
++                <th style={{ ...kepala, textAlign: 'center' }} colSpan={3}>Hari Ini</th>
++                <th style={{ ...kepala, textAlign: 'center', borderLeft: `1px solid ${W.garis}` }} colSpan={3}>Kumulatif</th>
++              </tr>
++              <tr>
++                {['Kapal', 'Pesawat', 'Total', 'Kapal', 'Pesawat', 'Total'].map((h, i) => (
++                  <th key={`${h}${i}`} style={{ ...kepala, textAlign: 'right', ...(i === 3 ? { borderLeft: `1px solid ${W.garis}` } : {}) }}>{h}</th>
++                ))}
++              </tr>
++            </thead>
++            <tbody>
++              {[
++                { arah: 'Datang', a: th.kapalDatang, b: th.pesawatDatang, c: th.alatAngkutDatang, d: tk.kapalDatang, e: tk.pesawatDatang, f: tk.alatAngkutDatang },
++                { arah: 'Berangkat', a: th.kapalBerangkat, b: th.pesawatBerangkat, c: th.alatAngkutBerangkat, d: tk.kapalBerangkat, e: tk.pesawatBerangkat, f: tk.alatAngkutBerangkat },
++                { arah: 'Total', a: th.kapalDatang + th.kapalBerangkat, b: th.pesawatDatang + th.pesawatBerangkat, c: th.alatAngkutTotal, d: tk.kapalDatang + tk.kapalBerangkat, e: tk.pesawatDatang + tk.pesawatBerangkat, f: tk.alatAngkutTotal },
++              ].map((r) => (
++                <tr key={r.arah} style={r.arah === 'Total' ? { fontWeight: 800, background: W.latar } : undefined}>
++                  <td style={sel}>{r.arah}</td>
++                  <td style={selKanan}>{fmt(r.a)}</td>
++                  <td style={selKanan}>{fmt(r.b)}</td>
++                  <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(r.c)}</td>
++                  <td style={{ ...selKanan, borderLeft: `1px solid ${W.garis}` }}>{fmt(r.d)}</td>
++                  <td style={selKanan}>{fmt(r.e)}</td>
++                  <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(r.f)}</td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++        </Seksi>
++
++        {/* ORANG */}
++        <Seksi judul="Pergerakan Orang" warna={W.oranye}>
++          <table style={tabel}>
++            <thead>
++              <tr>
++                <th style={{ ...kepala, textAlign: 'left' }} rowSpan={2}>Kelompok</th>
++                <th style={{ ...kepala, textAlign: 'center' }} colSpan={2}>Hari Ini</th>
++                <th style={{ ...kepala, textAlign: 'center', borderLeft: `1px solid ${W.garis}` }} colSpan={2}>Kumulatif</th>
++              </tr>
++              <tr>
++                {['Datang', 'Berangkat', 'Datang', 'Berangkat'].map((h, i) => (
++                  <th key={`${h}${i}`} style={{ ...kepala, textAlign: 'right', ...(i === 2 ? { borderLeft: `1px solid ${W.garis}` } : {}) }}>{h}</th>
++                ))}
++              </tr>
++            </thead>
++            <tbody>
++              {[
++                { n: 'ABK Kapal Penumpang', a: th.abkDatang, b: th.abkBerangkat, c: tk.abkDatang, d: tk.abkBerangkat },
++                { n: 'Penumpang Kapal', a: th.penumpangKapalDatang, b: th.penumpangKapalBerangkat, c: tk.penumpangKapalDatang, d: tk.penumpangKapalBerangkat },
++                { n: 'Crew Pesawat', a: th.crewDatang, b: th.crewBerangkat, c: tk.crewDatang, d: tk.crewBerangkat },
++                { n: 'Penumpang Pesawat', a: th.penumpangPesawatDatang, b: th.penumpangPesawatBerangkat, c: tk.penumpangPesawatDatang, d: tk.penumpangPesawatBerangkat },
++                { n: 'TOTAL ORANG', a: th.orangDatang, b: th.orangBerangkat, c: tk.orangDatang, d: tk.orangBerangkat },
++              ].map((r) => {
++                const total = r.n === 'TOTAL ORANG';
++                return (
++                  <tr key={r.n} style={total ? { fontWeight: 800, background: W.latar } : undefined}>
++                    <td style={sel}>{r.n}</td>
++                    <td style={selKanan}>{fmt(r.a)}</td>
++                    <td style={selKanan}>{fmt(r.b)}</td>
++                    <td style={{ ...selKanan, borderLeft: `1px solid ${W.garis}` }}>{fmt(r.c)}</td>
++                    <td style={selKanan}>{fmt(r.d)}</td>
++                  </tr>
++                );
++              })}
++            </tbody>
++          </table>
++        </Seksi>
++
++        {/* PENYAKIT POTENSIAL KLB */}
++        <Seksi judul="Penyakit Potensial KLB" warna={W.merah}>
++          <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
++            <Kotak label="Kasus Hari Ini" nilai={pHari.total.kasusTotal} sub={`Kumulatif ${fmt(pKum.total.kasusTotal)}`} warna={W.oranye} />
++            <Kotak label="Meninggal Hari Ini" nilai={pHari.total.matiTotal} sub={`Kumulatif ${fmt(pKum.total.matiTotal)}`} warna={W.merah} />
++            <Kotak label="Kejadian KLB Hari Ini" nilai={th.jumlahKlb} sub={`Kumulatif ${fmt(tk.jumlahKlb)}`} warna={W.merah} />
++          </div>
++          {penyakitHariIni.length === 0 ? (
++            <p style={{ margin: 0, padding: '12px 14px', background: W.latar, borderRadius: 10, fontSize: 14, color: W.redup }}>
++              Tidak ada kasus penyakit potensial KLB yang dilaporkan pada tanggal ini.
++            </p>
++          ) : (
++            <table style={tabel}>
++              <thead>
++                <tr>
++                  <th style={{ ...kepala, textAlign: 'left' }}>Jenis Penyakit</th>
++                  {['L <5', 'L ≥5', 'P <5', 'P ≥5', 'Kasus', 'Meninggal'].map((h) => (
++                    <th key={h} style={{ ...kepala, textAlign: 'right' }}>{h}</th>
++                  ))}
++                </tr>
++              </thead>
++              <tbody>
++                {penyakitHariIni.map((p) => (
++                  <tr key={p.jenis}>
++                    <td style={sel}>{p.jenis}</td>
++                    <td style={selKanan}>{fmt(p.kasusLkLt5)}</td>
++                    <td style={selKanan}>{fmt(p.kasusLkGe5)}</td>
++                    <td style={selKanan}>{fmt(p.kasusPrLt5)}</td>
++                    <td style={selKanan}>{fmt(p.kasusPrGe5)}</td>
++                    <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(p.kasusTotal)}</td>
++                    <td style={{ ...selKanan, fontWeight: 700, color: p.matiTotal > 0 ? W.merah : W.teks }}>{fmt(p.matiTotal)}</td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          )}
++        </Seksi>
++
++        {/* PTM */}
++        <Seksi judul="Penyakit Tidak Menular">
++          <table style={tabel}>
++            <thead>
++              <tr>
++                <th style={{ ...kepala, textAlign: 'left' }}>Jenis</th>
++                <th style={{ ...kepala, textAlign: 'right' }}>Hari Ini</th>
++                <th style={{ ...kepala, textAlign: 'right' }}>Kumulatif</th>
++              </tr>
++            </thead>
++            <tbody>
++              {ptmHari.perJenis.map((p, i) => (
++                <tr key={p.jenis}>
++                  <td style={sel}>{p.jenis}</td>
++                  <td style={{ ...selKanan, fontWeight: 700 }}>{fmt(p.jumlah)}</td>
++                  <td style={selKanan}>{fmt(ptmKum.perJenis[i]?.jumlah ?? 0)}</td>
++                </tr>
++              ))}
++              <tr style={{ fontWeight: 800, background: W.latar }}>
++                <td style={sel}>TOTAL</td>
++                <td style={selKanan}>{fmt(ptmHari.total)}</td>
++                <td style={selKanan}>{fmt(ptmKum.total)}</td>
++              </tr>
++            </tbody>
++          </table>
++        </Seksi>
++
++        {/* PER WILAYAH */}
++        <Seksi judul="Rekap per Wilayah Kerja (Hari Ini)">
++          <table style={tabel}>
++            <thead>
++              <tr>
++                <th style={{ ...kepala, textAlign: 'left' }}>Wilayah Kerja</th>
++                {['Poliklinik', 'Alat Angkut Datang', 'Alat Angkut Berangkat', 'Orang Datang', 'Orang Berangkat', 'KLB'].map((h) => (
++                  <th key={h} style={{ ...kepala, textAlign: 'right' }}>{h}</th>
++                ))}
++              </tr>
++            </thead>
++            <tbody>
++              {barisWilayah.map((b) => (
++                <tr key={b.wilayah}>
++                  <td style={sel}>{b.wilayah}</td>
++                  <td style={selKanan}>{fmt(b.poliklinik)}</td>
++                  <td style={selKanan}>{fmt(b.alatAngkutDatang)}</td>
++                  <td style={selKanan}>{fmt(b.alatAngkutBerangkat)}</td>
++                  <td style={selKanan}>{fmt(b.orangDatang)}</td>
++                  <td style={selKanan}>{fmt(b.orangBerangkat)}</td>
++                  <td style={selKanan}>{fmt(b.jumlahKlb)}</td>
++                </tr>
++              ))}
++              <tr style={{ fontWeight: 800, background: W.latar }}>
++                <td style={sel}>TOTAL</td>
++                <td style={selKanan}>{fmt(th.poliklinik)}</td>
++                <td style={selKanan}>{fmt(th.alatAngkutDatang)}</td>
++                <td style={selKanan}>{fmt(th.alatAngkutBerangkat)}</td>
++                <td style={selKanan}>{fmt(th.orangDatang)}</td>
++                <td style={selKanan}>{fmt(th.orangBerangkat)}</td>
++                <td style={selKanan}>{fmt(th.jumlahKlb)}</td>
++              </tr>
++            </tbody>
++          </table>
++        </Seksi>
++
++        <p style={{ margin: '4px 0 0', fontSize: 12, color: W.redup, textAlign: 'center' }}>
++          Sumber: data posko, kunjungan poliklinik, kapal penumpang &amp; pesawat BKK Kelas I Samarinda &middot; EPIC-AI
++        </p>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/posko/PoskoDashboardClient.tsx b/components/posko/PoskoDashboardClient.tsx
+new file mode 100644
+index 0000000..11ecc41
+--- /dev/null
++++ b/components/posko/PoskoDashboardClient.tsx
+@@ -0,0 +1,487 @@
++'use client';
++
++import { useMemo, useState } from 'react';
++import Link from 'next/link';
++import KpiCard from '@/components/vektor/KpiCard';
++import TrenChartLine from '@/components/vektor/TrenChartLine';
++import { DonutChart } from '@/components/klinik/DonutChart';
++import {
++  LABEL_POSKO,
++  WILAYAH_POSKO,
++  type DataPosko,
++  type WilayahPosko,
++} from '@/lib/posko/konstanta';
++import {
++  donutKelompok,
++  jumlahkanHarian,
++  ringkasPenyakit,
++  ringkasPtm,
++  saringHarian,
++  saringPenyakit,
++  saringPtm,
++  tanggalPanjang,
++  trenHarian,
++  type FilterPosko,
++} from '@/lib/posko/hitung';
++
++const WARNA_WILAYAH: Record<WilayahPosko, string> = {
++  Samarinda: '#0F4C5C',
++  'APT Pranoto': '#EA580C',
++  Lhoktuan: '#2563EB',
++};
++const kunciWilayah = (w: WilayahPosko) => w.toLowerCase().replace(/\s+/g, '_');
++
++const fmt = (n: number) => n.toLocaleString('id-ID');
++
++function KartuGrafik({ judul, children }: { judul: string; children: React.ReactNode }) {
++  return (
++    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
++      <h3 className="mb-3 text-center text-sm font-bold text-gray-800">{judul}</h3>
++      {children}
++    </div>
++  );
++}
++
++function Kosong({ pesan = 'Belum ada data untuk rentang ini.' }: { pesan?: string }) {
++  return <p className="py-10 text-center text-sm text-gray-400">{pesan}</p>;
++}
++
++export default function PoskoDashboardClient({ slug, data }: { slug: string; data: DataPosko }) {
++  const { periode, tanggalAkhirTampil } = data;
++  const judulPosko = LABEL_POSKO[data.posko];
++
++  const [wilayah, setWilayah] = useState<WilayahPosko | ''>('');
++  const [dari, setDari] = useState(periode?.tanggalMulai ?? '');
++  const [sampai, setSampai] = useState(tanggalAkhirTampil ?? '');
++
++  const filter = useMemo<FilterPosko>(() => {
++    const [d, s] = dari && sampai && dari > sampai ? [sampai, dari] : [dari, sampai];
++    return { wilayah: wilayah || null, dari: d || undefined, sampai: s || undefined };
++  }, [wilayah, dari, sampai]);
++
++  const harian = useMemo(() => saringHarian(data.harian, filter), [data.harian, filter]);
++  const penyakit = useMemo(() => saringPenyakit(data.penyakit, filter), [data.penyakit, filter]);
++  const ptm = useMemo(() => saringPtm(data.ptm, filter), [data.ptm, filter]);
++
++  const total = useMemo(() => jumlahkanHarian(harian), [harian]);
++  const rPenyakit = useMemo(() => ringkasPenyakit(penyakit), [penyakit]);
++  const rPtm = useMemo(() => ringkasPtm(ptm), [ptm]);
++
++  const wilayahTampil = WILAYAH_POSKO.filter((w) => !wilayah || w === wilayah);
++
++  // ---- data grafik ----
++  const trenPoliklinik = useMemo(
++    () =>
++      trenHarian(harian, (rows) =>
++        Object.fromEntries(
++          WILAYAH_POSKO.map((w) => [kunciWilayah(w), rows.filter((r) => r.wilayah === w).reduce((a, r) => a + r.poliklinik, 0)])
++        )
++      ),
++    [harian]
++  );
++  const trenAlatAngkut = useMemo(
++    () =>
++      trenHarian(harian, (rows) => {
++        const t = jumlahkanHarian(rows);
++        return {
++          kapal_datang: t.kapalDatang, kapal_berangkat: t.kapalBerangkat,
++          pesawat_datang: t.pesawatDatang, pesawat_berangkat: t.pesawatBerangkat,
++        };
++      }),
++    [harian]
++  );
++  const trenOrang = useMemo(
++    () =>
++      trenHarian(harian, (rows) => {
++        const t = jumlahkanHarian(rows);
++        return { datang: t.orangDatang, berangkat: t.orangBerangkat };
++      }),
++    [harian]
++  );
++  const trenKlb = useMemo(() => trenHarian(harian, (rows) => ({ klb: jumlahkanHarian(rows).jumlahKlb })), [harian]);
++  const trenPenyakit = useMemo(
++    () =>
++      trenHarian(penyakit, (rows) => {
++        const r = ringkasPenyakit(rows).total;
++        return { kasus: r.kasusTotal, meninggal: r.matiTotal };
++      }),
++    [penyakit]
++  );
++
++  // ---- tabel rincian harian ----
++  const rincianHarian = useMemo(() => {
++    const perTanggal = new Map<string, typeof harian>();
++    harian.forEach((r) => perTanggal.set(r.tanggal, [...(perTanggal.get(r.tanggal) ?? []), r]));
++    return Array.from(perTanggal.entries())
++      .sort((a, b) => b[0].localeCompare(a[0]))
++      .map(([tanggal, rows]) => ({ tanggal, ...jumlahkanHarian(rows) }));
++  }, [harian]);
++
++  const donut = (judul: string, d: { kategori: string; jumlah: number }[]) => {
++    const terisi = d.filter((x) => x.jumlah > 0);
++    return terisi.length === 0 ? (
++      <KartuGrafik judul={judul}>
++        <Kosong />
++      </KartuGrafik>
++    ) : (
++      <DonutChart judul={judul} data={terisi} />
++    );
++  };
++
++  return (
++    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
++      {/* HEADER & FILTER */}
++      <div className="space-y-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
++        <div className="flex flex-wrap items-start justify-between gap-3">
++          <div>
++            <h1 className="text-xl font-bold text-[#0F2A38]">
++              {judulPosko}
++              {periode ? ` ${periode.tahun}` : ''}
++            </h1>
++            <p className="mt-1 text-xs text-gray-500">
++              {periode
++                ? `${periode.nama || judulPosko} · ${tanggalPanjang(periode.tanggalMulai)} – ${tanggalPanjang(periode.tanggalSelesai)} · BKK Kelas I Samarinda (Samarinda, APT Pranoto, Lhoktuan)`
++                : 'Periode posko belum diatur'}
++            </p>
++          </div>
++          {periode && (
++            <Link
++              href={`/dashboard/posko/${slug}/infografis`}
++              className="rounded-md border border-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-[#0F4C5C] transition-colors hover:bg-gray-50"
++            >
++              Info Grafis Harian
++            </Link>
++          )}
++        </div>
++
++        {periode && tanggalAkhirTampil && (
++          <div className="flex flex-wrap items-center gap-3 text-xs">
++            <select
++              value={wilayah}
++              onChange={(e) => setWilayah(e.target.value as WilayahPosko | '')}
++              className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-gray-700"
++              aria-label="Wilayah kerja"
++            >
++              <option value="">Semua Wilayah Kerja</option>
++              {WILAYAH_POSKO.map((w) => (
++                <option key={w} value={w}>{w}</option>
++              ))}
++            </select>
++            <label className="flex items-center gap-1.5 text-gray-600">
++              Dari
++              <input
++                type="date"
++                value={dari}
++                min={periode.tanggalMulai}
++                max={tanggalAkhirTampil}
++                onChange={(e) => setDari(e.target.value)}
++                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-gray-700"
++              />
++            </label>
++            <label className="flex items-center gap-1.5 text-gray-600">
++              s/d
++              <input
++                type="date"
++                value={sampai}
++                min={periode.tanggalMulai}
++                max={tanggalAkhirTampil}
++                onChange={(e) => setSampai(e.target.value)}
++                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-gray-700"
++              />
++            </label>
++            <button
++              type="button"
++              onClick={() => {
++                setWilayah('');
++                setDari(periode.tanggalMulai);
++                setSampai(tanggalAkhirTampil);
++              }}
++              className="font-semibold text-[#0F4C5C] hover:underline"
++            >
++              Atur ulang
++            </button>
++          </div>
++        )}
++      </div>
++
++      {data.catatan.length > 0 && (
++        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
++          {data.catatan.map((c) => (
++            <p key={c}>{c}</p>
++          ))}
++        </div>
++      )}
++
++      {!periode || !tanggalAkhirTampil ? null : (
++        <>
++          {/* KARTU RINGKAS */}
++          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
++            <KpiCard label="Kunjungan Poliklinik" value={fmt(total.poliklinik)} keterangan="Semua pasien poliklinik" />
++            <KpiCard
++              label="Alat Angkut Datang"
++              value={fmt(total.alatAngkutDatang)}
++              keterangan={`Kapal ${fmt(total.kapalDatang)} · Pesawat ${fmt(total.pesawatDatang)}`}
++            />
++            <KpiCard
++              label="Alat Angkut Berangkat"
++              value={fmt(total.alatAngkutBerangkat)}
++              keterangan={`Kapal ${fmt(total.kapalBerangkat)} · Pesawat ${fmt(total.pesawatBerangkat)}`}
++            />
++            <KpiCard label="Total Alat Angkut" value={fmt(total.alatAngkutTotal)} keterangan="Datang + Berangkat" />
++            <KpiCard
++              label="Kejadian KLB"
++              value={fmt(total.jumlahKlb)}
++              warna={total.jumlahKlb > 0 ? 'bahaya' : 'default'}
++              keterangan="Jumlah kejadian KLB"
++            />
++            <KpiCard
++              label="Orang Datang"
++              value={fmt(total.orangDatang)}
++              keterangan="ABK + Penumpang Kapal + Crew + Penumpang Pesawat"
++            />
++            <KpiCard
++              label="Orang Berangkat"
++              value={fmt(total.orangBerangkat)}
++              keterangan="ABK + Penumpang Kapal + Crew + Penumpang Pesawat"
++            />
++            <KpiCard label="Kasus Penyakit Potensial KLB" value={fmt(rPenyakit.total.kasusTotal)} keterangan="25 jenis penyakit" />
++            <KpiCard
++              label="Kematian Penyakit Potensial KLB"
++              value={fmt(rPenyakit.total.matiTotal)}
++              warna={rPenyakit.total.matiTotal > 0 ? 'bahaya' : 'default'}
++            />
++            <KpiCard label="Kasus Penyakit Tidak Menular" value={fmt(rPtm.total)} keterangan="7 jenis PTM" />
++          </div>
++
++          {/* GRAFIK HARIAN */}
++          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
++            <KartuGrafik judul="Kunjungan Poliklinik Harian">
++              {trenPoliklinik.length === 0 ? (
++                <Kosong />
++              ) : (
++                <TrenChartLine
++                  data={trenPoliklinik}
++                  tipeChart="line"
++                  seriesList={wilayahTampil.map((w) => ({ key: kunciWilayah(w), label: w, warna: WARNA_WILAYAH[w] }))}
++                />
++              )}
++            </KartuGrafik>
++
++            <KartuGrafik judul="Alat Angkut Harian (Kapal Penumpang & Pesawat)">
++              {trenAlatAngkut.length === 0 ? (
++                <Kosong />
++              ) : (
++                <TrenChartLine
++                  data={trenAlatAngkut}
++                  tipeChart="line"
++                  seriesList={[
++                    { key: 'kapal_datang', label: 'Kapal Datang', warna: '#0F4C5C' },
++                    { key: 'kapal_berangkat', label: 'Kapal Berangkat', warna: '#2563EB' },
++                    { key: 'pesawat_datang', label: 'Pesawat Datang', warna: '#EA580C' },
++                    { key: 'pesawat_berangkat', label: 'Pesawat Berangkat', warna: '#7C3AED' },
++                  ]}
++                />
++              )}
++            </KartuGrafik>
++
++            <KartuGrafik judul="Orang Datang & Berangkat Harian">
++              {trenOrang.length === 0 ? (
++                <Kosong />
++              ) : (
++                <TrenChartLine
++                  data={trenOrang}
++                  tipeChart="line"
++                  seriesList={[
++                    { key: 'datang', label: 'Orang Datang', warna: '#0F4C5C' },
++                    { key: 'berangkat', label: 'Orang Berangkat', warna: '#B71C1C' },
++                  ]}
++                />
++              )}
++            </KartuGrafik>
++
++            <KartuGrafik judul="Kasus & Kematian Penyakit Potensial KLB Harian">
++              {trenPenyakit.length === 0 ? (
++                <Kosong pesan="Belum ada data penyakit potensial KLB yang diinput." />
++              ) : (
++                <TrenChartLine
++                  data={trenPenyakit}
++                  tipeChart="line"
++                  seriesList={[
++                    { key: 'kasus', label: 'Kasus', warna: '#EA580C' },
++                    { key: 'meninggal', label: 'Meninggal', warna: '#B71C1C' },
++                  ]}
++                />
++              )}
++            </KartuGrafik>
++
++            <KartuGrafik judul="Jumlah Kejadian KLB Harian">
++              {trenKlb.length === 0 || total.jumlahKlb === 0 ? (
++                <Kosong pesan="Tidak ada kejadian KLB pada rentang ini." />
++              ) : (
++                <TrenChartLine
++                  data={trenKlb}
++                  tipeChart="bar"
++                  tampilkanNilai
++                  seriesList={[{ key: 'klb', label: 'Kejadian KLB', warna: '#B71C1C' }]}
++                />
++              )}
++            </KartuGrafik>
++          </div>
++
++          {/* DONUT */}
++          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
++            {donut('Kasus Penyakit Potensial KLB: Jenis Kelamin & Umur', donutKelompok(rPenyakit.total, 'kasus'))}
++            {donut('Kematian Penyakit Potensial KLB: Jenis Kelamin & Umur', donutKelompok(rPenyakit.total, 'mati'))}
++            {donut(
++              'Kasus Penyakit Tidak Menular per Jenis',
++              rPtm.perJenis.map((p) => ({ kategori: p.jenis, jumlah: p.jumlah }))
++            )}
++          </div>
++
++          {/* TABEL PENYAKIT POTENSIAL KLB */}
++          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
++            <h3 className="mb-3 text-sm font-bold text-gray-800">Penyakit Potensial KLB (akumulasi rentang terpilih)</h3>
++            <div className="overflow-x-auto">
++              <table className="w-full min-w-[820px] text-xs">
++                <thead>
++                  <tr className="bg-gray-50 text-gray-600">
++                    <th rowSpan={2} className="px-2 py-2 text-left">No</th>
++                    <th rowSpan={2} className="px-2 py-2 text-left">Jenis Penyakit</th>
++                    <th colSpan={5} className="border-l border-gray-200 px-2 py-1 text-center">Kasus</th>
++                    <th colSpan={5} className="border-l border-gray-200 px-2 py-1 text-center">Meninggal</th>
++                  </tr>
++                  <tr className="bg-gray-50 text-gray-600">
++                    {['L <5', 'L ≥5', 'P <5', 'P ≥5', 'Total', 'L <5', 'L ≥5', 'P <5', 'P ≥5', 'Total'].map((h, i) => (
++                      <th key={`${h}-${i}`} className={`px-2 py-1 text-right ${i === 0 || i === 5 ? 'border-l border-gray-200' : ''}`}>{h}</th>
++                    ))}
++                  </tr>
++                </thead>
++                <tbody>
++                  {rPenyakit.perJenis.map((r, i) => (
++                    <tr key={r.jenis} className={`border-t border-gray-100 ${r.kasusTotal > 0 ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
++                      <td className="px-2 py-1.5">{i + 1}</td>
++                      <td className="px-2 py-1.5">{r.jenis}</td>
++                      <td className="border-l border-gray-100 px-2 py-1.5 text-right">{fmt(r.kasusLkLt5)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(r.kasusLkGe5)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(r.kasusPrLt5)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(r.kasusPrGe5)}</td>
++                      <td className="px-2 py-1.5 text-right font-semibold">{fmt(r.kasusTotal)}</td>
++                      <td className="border-l border-gray-100 px-2 py-1.5 text-right">{fmt(r.matiLkLt5)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(r.matiLkGe5)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(r.matiPrLt5)}</td>
++                      <td className="px-2 py-1.5 text-right">{fmt(r.matiPrGe5)}</td>
++                      <td className={`px-2 py-1.5 text-right font-semibold ${r.matiTotal > 0 ? 'text-[#B71C1C]' : ''}`}>{fmt(r.matiTotal)}</td>
++                    </tr>
++                  ))}
++                </tbody>
++                <tfoot>
++                  <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold text-gray-900">
++                    <td className="px-2 py-2" colSpan={2}>TOTAL</td>
++                    <td className="border-l border-gray-200 px-2 py-2 text-right">{fmt(rPenyakit.total.kasusLkLt5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.kasusLkGe5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.kasusPrLt5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.kasusPrGe5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.kasusTotal)}</td>
++                    <td className="border-l border-gray-200 px-2 py-2 text-right">{fmt(rPenyakit.total.matiLkLt5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.matiLkGe5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.matiPrLt5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.matiPrGe5)}</td>
++                    <td className="px-2 py-2 text-right">{fmt(rPenyakit.total.matiTotal)}</td>
++                  </tr>
++                </tfoot>
++              </table>
++            </div>
++            <p className="mt-2 text-[11px] text-gray-400">L = laki-laki, P = perempuan; &lt;5 = kurang dari 5 tahun, ≥5 = 5 tahun ke atas.</p>
++          </div>
++
++          {/* TABEL PTM */}
++          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
++            <h3 className="mb-3 text-sm font-bold text-gray-800">Penyakit Tidak Menular (akumulasi rentang terpilih)</h3>
++            <div className="overflow-x-auto">
++              <table className="w-full min-w-[480px] text-xs">
++                <thead>
++                  <tr className="bg-gray-50 text-gray-600">
++                    <th className="px-2 py-2 text-left">Jenis PTM</th>
++                    {wilayahTampil.map((w) => (
++                      <th key={w} className="px-2 py-2 text-right">{w}</th>
++                    ))}
++                    <th className="px-2 py-2 text-right">Total</th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {rPtm.perJenis.map((p) => (
++                    <tr key={p.jenis} className="border-t border-gray-100 text-gray-700">
++                      <td className="px-2 py-1.5">{p.jenis}</td>
++                      {wilayahTampil.map((w) => (
++                        <td key={w} className="px-2 py-1.5 text-right">
++                          {fmt(ptm.filter((x) => x.jenis === p.jenis && x.wilayah === w).reduce((a, x) => a + x.jumlah, 0))}
++                        </td>
++                      ))}
++                      <td className="px-2 py-1.5 text-right font-semibold">{fmt(p.jumlah)}</td>
++                    </tr>
++                  ))}
++                </tbody>
++                <tfoot>
++                  <tr className="border-t-2 border-gray-300 bg-gray-50 font-bold text-gray-900">
++                    <td className="px-2 py-2">TOTAL</td>
++                    {wilayahTampil.map((w) => (
++                      <td key={w} className="px-2 py-2 text-right">
++                        {fmt(ptm.filter((x) => x.wilayah === w).reduce((a, x) => a + x.jumlah, 0))}
++                      </td>
++                    ))}
++                    <td className="px-2 py-2 text-right">{fmt(rPtm.total)}</td>
++                  </tr>
++                </tfoot>
++              </table>
++            </div>
++          </div>
++
++          {/* RINCIAN HARIAN */}
++          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-xs">
++            <h3 className="mb-3 text-sm font-bold text-gray-800">
++              Rincian Harian {wilayah ? `· ${wilayah}` : '· Semua Wilayah Kerja'}
++            </h3>
++            <div className="overflow-x-auto">
++              <table className="w-full min-w-[760px] text-xs">
++                <thead>
++                  <tr className="bg-gray-50 text-gray-600">
++                    <th className="px-2 py-2 text-left">Tanggal</th>
++                    <th className="px-2 py-2 text-right">Poliklinik</th>
++                    <th className="px-2 py-2 text-right">Kapal Datang</th>
++                    <th className="px-2 py-2 text-right">Kapal Berangkat</th>
++                    <th className="px-2 py-2 text-right">Pesawat Datang</th>
++                    <th className="px-2 py-2 text-right">Pesawat Berangkat</th>
++                    <th className="px-2 py-2 text-right">Orang Datang</th>
++                    <th className="px-2 py-2 text-right">Orang Berangkat</th>
++                    <th className="px-2 py-2 text-right">KLB</th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {rincianHarian.length === 0 ? (
++                    <tr>
++                      <td colSpan={9}><Kosong /></td>
++                    </tr>
++                  ) : (
++                    rincianHarian.map((h) => (
++                      <tr key={h.tanggal} className="border-t border-gray-100 text-gray-700">
++                        <td className="px-2 py-1.5">{tanggalPanjang(h.tanggal)}</td>
++                        <td className="px-2 py-1.5 text-right">{fmt(h.poliklinik)}</td>
++                        <td className="px-2 py-1.5 text-right">{fmt(h.kapalDatang)}</td>
++                        <td className="px-2 py-1.5 text-right">{fmt(h.kapalBerangkat)}</td>
++                        <td className="px-2 py-1.5 text-right">{fmt(h.pesawatDatang)}</td>
++                        <td className="px-2 py-1.5 text-right">{fmt(h.pesawatBerangkat)}</td>
++                        <td className="px-2 py-1.5 text-right">{fmt(h.orangDatang)}</td>
++                        <td className="px-2 py-1.5 text-right">{fmt(h.orangBerangkat)}</td>
++                        <td className={`px-2 py-1.5 text-right ${h.jumlahKlb > 0 ? 'font-semibold text-[#B71C1C]' : ''}`}>{fmt(h.jumlahKlb)}</td>
++                      </tr>
++                    ))
++                  )}
++                </tbody>
++              </table>
++            </div>
++          </div>
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/components/posko/PoskoInfografisClient.tsx b/components/posko/PoskoInfografisClient.tsx
+new file mode 100644
+index 0000000..3bbd0fc
+--- /dev/null
++++ b/components/posko/PoskoInfografisClient.tsx
+@@ -0,0 +1,150 @@
++'use client';
++
++import { useEffect, useMemo, useRef, useState } from 'react';
++import Link from 'next/link';
++import { LABEL_POSKO, type DataPosko } from '@/lib/posko/konstanta';
++import { tanggalPanjang } from '@/lib/posko/hitung';
++import InfografisPoskoPoster, { LEBAR_POSTER } from './InfografisPoskoPoster';
++
++function geserTanggal(iso: string, hari: number): string {
++  const d = new Date(`${iso}T00:00:00Z`);
++  d.setUTCDate(d.getUTCDate() + hari);
++  return d.toISOString().slice(0, 10);
++}
++
++export default function PoskoInfografisClient({ slug, data }: { slug: string; data: DataPosko }) {
++  const { periode, tanggalAkhirTampil } = data;
++  const [tanggal, setTanggal] = useState(tanggalAkhirTampil ?? '');
++  const [sedangUnduh, setSedangUnduh] = useState<'jpeg' | 'png' | 'pdf' | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  const posterRef = useRef<HTMLDivElement>(null);
++  const wadahRef = useRef<HTMLDivElement>(null);
++  const [skala, setSkala] = useState(1);
++  const [tinggi, setTinggi] = useState(0);
++
++  // pratinjau diperkecil mengikuti lebar layar; file unduhan tetap 1080px penuh
++  useEffect(() => {
++    const hitung = () => {
++      if (wadahRef.current) setSkala(Math.min(1, wadahRef.current.clientWidth / LEBAR_POSTER));
++      if (posterRef.current) setTinggi(posterRef.current.scrollHeight);
++    };
++    hitung();
++    const ro = new ResizeObserver(hitung);
++    if (wadahRef.current) ro.observe(wadahRef.current);
++    if (posterRef.current) ro.observe(posterRef.current);
++    return () => ro.disconnect();
++  }, [tanggal, periode]);
++
++  const adaPoster = useMemo(() => !!periode && !!tanggalAkhirTampil && !!tanggal, [periode, tanggalAkhirTampil, tanggal]);
++
++  const bisaMundur = !!periode && tanggal > periode.tanggalMulai;
++  const bisaMaju = !!tanggalAkhirTampil && tanggal < tanggalAkhirTampil;
++
++  async function unduh(format: 'jpeg' | 'png' | 'pdf') {
++    if (!posterRef.current) return;
++    setSedangUnduh(format);
++    setError(null);
++    try {
++      const { toJpeg, toPng } = await import('html-to-image');
++      const node = posterRef.current;
++      const opsi = { pixelRatio: 3, backgroundColor: '#ffffff', width: LEBAR_POSTER, height: node.scrollHeight };
++      const namaFile = `infografis-${slug}-${tanggal}`;
++
++      if (format === 'jpeg') {
++        const a = document.createElement('a');
++        a.href = await toJpeg(node, { ...opsi, quality: 0.95 });
++        a.download = `${namaFile}.jpg`;
++        a.click();
++      } else if (format === 'png') {
++        const a = document.createElement('a');
++        a.href = await toPng(node, opsi);
++        a.download = `${namaFile}.png`;
++        a.click();
++      } else {
++        const dataUrl = await toPng(node, opsi);
++        const { jsPDF } = await import('jspdf');
++        const lebarMm = 210;
++        const tinggiMm = lebarMm * (node.offsetHeight / node.offsetWidth);
++        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [lebarMm, tinggiMm] });
++        pdf.addImage(dataUrl, 'PNG', 0, 0, lebarMm, tinggiMm);
++        pdf.save(`${namaFile}.pdf`);
++      }
++    } catch (err) {
++      setError(`Gagal membuat file: ${(err as Error).message}`);
++    } finally {
++      setSedangUnduh(null);
++    }
++  }
++
++  const tombol = 'rounded-md border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-40';
++
++  return (
++    <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
++      <div>
++        <Link href={`/dashboard/posko/${slug}`} className="text-sm font-medium text-[#0F4C5C] hover:underline">
++          ← Kembali ke Dashboard {LABEL_POSKO[data.posko]}
++        </Link>
++        <h1 className="mt-1 text-xl font-bold text-[#0F2A38]">Info Grafis Harian {LABEL_POSKO[data.posko]}</h1>
++      </div>
++
++      {data.catatan.length > 0 && (
++        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
++          {data.catatan.map((c) => (
++            <p key={c}>{c}</p>
++          ))}
++        </div>
++      )}
++
++      {!adaPoster || !periode || !tanggalAkhirTampil ? (
++        <p className="rounded-xl border border-gray-100 bg-white p-6 text-center text-sm text-gray-500">
++          Info grafis belum bisa dibuat: periode posko belum diatur atau posko belum dimulai.
++        </p>
++      ) : (
++        <>
++          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 bg-white p-3">
++            <button className={tombol} disabled={!bisaMundur} onClick={() => setTanggal(geserTanggal(tanggal, -1))}>
++              ← Sebelumnya
++            </button>
++            <input
++              type="date"
++              value={tanggal}
++              min={periode.tanggalMulai}
++              max={tanggalAkhirTampil}
++              onChange={(e) => e.target.value && setTanggal(e.target.value)}
++              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
++              aria-label="Tanggal info grafis"
++            />
++            <button className={tombol} disabled={!bisaMaju} onClick={() => setTanggal(geserTanggal(tanggal, 1))}>
++              Berikutnya →
++            </button>
++            <span className="text-xs text-gray-500">{tanggalPanjang(tanggal)}</span>
++
++            <div className="ml-auto flex gap-2">
++              {(['jpeg', 'png', 'pdf'] as const).map((f) => (
++                <button
++                  key={f}
++                  onClick={() => unduh(f)}
++                  disabled={sedangUnduh !== null}
++                  className="rounded-md bg-[#0F4C5C] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0c3e4b] disabled:opacity-50"
++                >
++                  {sedangUnduh === f ? 'Membuat…' : `Unduh ${f.toUpperCase()}`}
++                </button>
++              ))}
++            </div>
++          </div>
++
++          {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
++
++          <div ref={wadahRef} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
++            <div style={{ width: LEBAR_POSTER * skala, height: tinggi * skala }}>
++              <div style={{ width: LEBAR_POSTER, transform: `scale(${skala})`, transformOrigin: 'top left' }}>
++                <InfografisPoskoPoster ref={posterRef} data={data} tanggal={tanggal} />
++              </div>
++            </div>
++          </div>
++        </>
++      )}
++    </div>
++  );
++}
+diff --git a/lib/posko/hitung.ts b/lib/posko/hitung.ts
+new file mode 100644
+index 0000000..9dec33a
+--- /dev/null
++++ b/lib/posko/hitung.ts
+@@ -0,0 +1,193 @@
++// lib/posko/hitung.ts
++// Fungsi hitung murni (tanpa akses database) untuk dashboard & infografis Posko.
++import {
++  DAFTAR_PENYAKIT,
++  DAFTAR_PTM,
++  WILAYAH_POSKO,
++  type BarisHarianPosko,
++  type BarisPenyakitPosko,
++  type BarisPtmPosko,
++  type WilayahPosko,
++} from './konstanta';
++
++export type FilterPosko = {
++  wilayah?: WilayahPosko | null; // null/undefined = semua wilayah
++  dari?: string; // YYYY-MM-DD (inklusif)
++  sampai?: string; // YYYY-MM-DD (inklusif)
++};
++
++function lolos(b: { tanggal: string; wilayah: WilayahPosko }, f: FilterPosko): boolean {
++  if (f.wilayah && b.wilayah !== f.wilayah) return false;
++  if (f.dari && b.tanggal < f.dari) return false;
++  if (f.sampai && b.tanggal > f.sampai) return false;
++  return true;
++}
++
++export const saringHarian = (rows: BarisHarianPosko[], f: FilterPosko) => rows.filter((r) => lolos(r, f));
++export const saringPenyakit = (rows: BarisPenyakitPosko[], f: FilterPosko) => rows.filter((r) => lolos(r, f));
++export const saringPtm = (rows: BarisPtmPosko[], f: FilterPosko) => rows.filter((r) => lolos(r, f));
++
++// ------------------------------------------------------------ ringkasan harian
++export type TotalHarian = {
++  poliklinik: number;
++  kapalDatang: number;
++  kapalBerangkat: number;
++  pesawatDatang: number;
++  pesawatBerangkat: number;
++  alatAngkutDatang: number;
++  alatAngkutBerangkat: number;
++  alatAngkutTotal: number;
++  abkDatang: number;
++  abkBerangkat: number;
++  penumpangKapalDatang: number;
++  penumpangKapalBerangkat: number;
++  crewDatang: number;
++  crewBerangkat: number;
++  penumpangPesawatDatang: number;
++  penumpangPesawatBerangkat: number;
++  orangDatang: number;
++  orangBerangkat: number;
++  jumlahKlb: number;
++};
++
++/** Orang datang = ABK kapal + penumpang kapal + crew pesawat + penumpang pesawat (arah datang). */
++export const orangDatang = (r: BarisHarianPosko) =>
++  r.abkDatang + r.penumpangKapalDatang + r.crewDatang + r.penumpangPesawatDatang;
++
++/** Orang berangkat = ABK kapal + penumpang kapal + crew pesawat + penumpang pesawat (arah berangkat). */
++export const orangBerangkat = (r: BarisHarianPosko) =>
++  r.abkBerangkat + r.penumpangKapalBerangkat + r.crewBerangkat + r.penumpangPesawatBerangkat;
++
++export function jumlahkanHarian(rows: BarisHarianPosko[]): TotalHarian {
++  const t: TotalHarian = {
++    poliklinik: 0, kapalDatang: 0, kapalBerangkat: 0, pesawatDatang: 0, pesawatBerangkat: 0,
++    alatAngkutDatang: 0, alatAngkutBerangkat: 0, alatAngkutTotal: 0,
++    abkDatang: 0, abkBerangkat: 0, penumpangKapalDatang: 0, penumpangKapalBerangkat: 0,
++    crewDatang: 0, crewBerangkat: 0, penumpangPesawatDatang: 0, penumpangPesawatBerangkat: 0,
++    orangDatang: 0, orangBerangkat: 0, jumlahKlb: 0,
++  };
++  for (const r of rows) {
++    t.poliklinik += r.poliklinik;
++    t.kapalDatang += r.kapalDatang;
++    t.kapalBerangkat += r.kapalBerangkat;
++    t.pesawatDatang += r.pesawatDatang;
++    t.pesawatBerangkat += r.pesawatBerangkat;
++    t.abkDatang += r.abkDatang;
++    t.abkBerangkat += r.abkBerangkat;
++    t.penumpangKapalDatang += r.penumpangKapalDatang;
++    t.penumpangKapalBerangkat += r.penumpangKapalBerangkat;
++    t.crewDatang += r.crewDatang;
++    t.crewBerangkat += r.crewBerangkat;
++    t.penumpangPesawatDatang += r.penumpangPesawatDatang;
++    t.penumpangPesawatBerangkat += r.penumpangPesawatBerangkat;
++    t.jumlahKlb += r.jumlahKlb;
++  }
++  t.alatAngkutDatang = t.kapalDatang + t.pesawatDatang;
++  t.alatAngkutBerangkat = t.kapalBerangkat + t.pesawatBerangkat;
++  t.alatAngkutTotal = t.alatAngkutDatang + t.alatAngkutBerangkat;
++  t.orangDatang = t.abkDatang + t.penumpangKapalDatang + t.crewDatang + t.penumpangPesawatDatang;
++  t.orangBerangkat = t.abkBerangkat + t.penumpangKapalBerangkat + t.crewBerangkat + t.penumpangPesawatBerangkat;
++  return t;
++}
++
++// ------------------------------------------------------------ penyakit potensial KLB
++export type TotalPenyakit = {
++  kasusLkLt5: number; kasusLkGe5: number; kasusPrLt5: number; kasusPrGe5: number; kasusTotal: number;
++  matiLkLt5: number; matiLkGe5: number; matiPrLt5: number; matiPrGe5: number; matiTotal: number;
++};
++
++const kosongPenyakit = (): TotalPenyakit => ({
++  kasusLkLt5: 0, kasusLkGe5: 0, kasusPrLt5: 0, kasusPrGe5: 0, kasusTotal: 0,
++  matiLkLt5: 0, matiLkGe5: 0, matiPrLt5: 0, matiPrGe5: 0, matiTotal: 0,
++});
++
++function tambahPenyakit(t: TotalPenyakit, r: BarisPenyakitPosko) {
++  t.kasusLkLt5 += r.kasusLkLt5; t.kasusLkGe5 += r.kasusLkGe5; t.kasusPrLt5 += r.kasusPrLt5; t.kasusPrGe5 += r.kasusPrGe5;
++  t.matiLkLt5 += r.matiLkLt5; t.matiLkGe5 += r.matiLkGe5; t.matiPrLt5 += r.matiPrLt5; t.matiPrGe5 += r.matiPrGe5;
++  t.kasusTotal = t.kasusLkLt5 + t.kasusLkGe5 + t.kasusPrLt5 + t.kasusPrGe5;
++  t.matiTotal = t.matiLkLt5 + t.matiLkGe5 + t.matiPrLt5 + t.matiPrGe5;
++}
++
++/** Total per jenis penyakit (urutan sesuai DAFTAR_PENYAKIT) + total keseluruhan. */
++export function ringkasPenyakit(rows: BarisPenyakitPosko[]) {
++  const perJenis = new Map<string, TotalPenyakit>();
++  DAFTAR_PENYAKIT.forEach((j) => perJenis.set(j, kosongPenyakit()));
++  const total = kosongPenyakit();
++  for (const r of rows) {
++    const t = perJenis.get(r.jenis) ?? kosongPenyakit();
++    perJenis.set(r.jenis, t);
++    tambahPenyakit(t, r);
++    tambahPenyakit(total, r);
++  }
++  return {
++    perJenis: Array.from(perJenis.entries()).map(([jenis, t]) => ({ jenis, ...t })),
++    total,
++  };
++}
++
++/** Irisan donut jenis kelamin x umur. */
++export function donutKelompok(t: TotalPenyakit, tipe: 'kasus' | 'mati') {
++  const k = tipe === 'kasus'
++    ? [t.kasusLkLt5, t.kasusLkGe5, t.kasusPrLt5, t.kasusPrGe5]
++    : [t.matiLkLt5, t.matiLkGe5, t.matiPrLt5, t.matiPrGe5];
++  return [
++    { kategori: 'Laki-laki <5 th', jumlah: k[0] },
++    { kategori: 'Laki-laki ≥5 th', jumlah: k[1] },
++    { kategori: 'Perempuan <5 th', jumlah: k[2] },
++    { kategori: 'Perempuan ≥5 th', jumlah: k[3] },
++  ];
++}
++
++// ------------------------------------------------------------ PTM
++export function ringkasPtm(rows: BarisPtmPosko[]) {
++  const perJenis = new Map<string, number>();
++  DAFTAR_PTM.forEach((j) => perJenis.set(j, 0));
++  let total = 0;
++  for (const r of rows) {
++    perJenis.set(r.jenis, (perJenis.get(r.jenis) ?? 0) + r.jumlah);
++    total += r.jumlah;
++  }
++  return { perJenis: Array.from(perJenis.entries()).map(([jenis, jumlah]) => ({ jenis, jumlah })), total };
++}
++
++// ------------------------------------------------------------ tren harian
++export function daftarTanggal(rows: { tanggal: string }[]): string[] {
++  return Array.from(new Set(rows.map((r) => r.tanggal))).sort();
++}
++
++/** "2026-12-24" -> "24/12" */
++export function tanggalPendek(iso: string): string {
++  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
++}
++
++/** "2026-12-24" -> "24 Desember 2026" */
++export function tanggalPanjang(iso: string): string {
++  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('id-ID', {
++    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
++  });
++}
++
++/** Hari ke-N sejak tanggal mulai (hari pertama = 1). */
++export function hariKe(mulai: string, tanggal: string): number {
++  return Math.round((Date.parse(`${tanggal}T00:00:00Z`) - Date.parse(`${mulai}T00:00:00Z`)) / 86400000) + 1;
++}
++
++export type TitikTren = { name: string; tanggal: string } & Record<string, number | string>;
++
++/** Satu titik per tanggal; `ambil` menghasilkan kolom angka dari baris-baris tanggal itu. */
++export function trenHarian<T extends { tanggal: string }>(
++  rows: T[],
++  ambil: (barisHariItu: T[]) => Record<string, number>
++): TitikTren[] {
++  const perTanggal = new Map<string, T[]>();
++  for (const r of rows) {
++    const arr = perTanggal.get(r.tanggal) ?? [];
++    arr.push(r);
++    perTanggal.set(r.tanggal, arr);
++  }
++  return Array.from(perTanggal.keys())
++    .sort()
++    .map((tanggal) => ({ name: tanggalPendek(tanggal), tanggal, ...ambil(perTanggal.get(tanggal)!) }));
++}
++
++export const SEMUA_WILAYAH = WILAYAH_POSKO;
+diff --git a/lib/posko/konstanta.ts b/lib/posko/konstanta.ts
+new file mode 100644
+index 0000000..6303a0a
+--- /dev/null
++++ b/lib/posko/konstanta.ts
+@@ -0,0 +1,135 @@
++// lib/posko/konstanta.ts
++// Konstanta & tipe modul Posko Nataru / Posko Idul Fitri (aman diimpor client maupun server).
++
++export type JenisPosko = 'nataru' | 'idul_fitri';
++
++/** Slug di URL -> jenis posko di database. */
++export const SLUG_KE_JENIS: Record<string, JenisPosko> = {
++  nataru: 'nataru',
++  'idul-fitri': 'idul_fitri',
++};
++
++export const JENIS_KE_SLUG: Record<JenisPosko, string> = {
++  nataru: 'nataru',
++  idul_fitri: 'idul-fitri',
++};
++
++export const LABEL_POSKO: Record<JenisPosko, string> = {
++  nataru: 'Posko Nataru',
++  idul_fitri: 'Posko Idul Fitri',
++};
++
++export const WILAYAH_POSKO = ['Samarinda', 'APT Pranoto', 'Lhoktuan'] as const;
++export type WilayahPosko = (typeof WILAYAH_POSKO)[number];
++
++export const DAFTAR_PENYAKIT = [
++  'DIARE AKUT',
++  'MALARIA KONFIRMASI',
++  'SUSPEK DENGUE',
++  'PNEUMONIA',
++  'DIARE BERDARAH/DISENTRI',
++  'SUSPEK DEMAM TIFOID',
++  'SINDROM JAUNDICE AKUT',
++  'SUSPEK CHIKUNGUNYA',
++  'SUSPEK FLU BURUNG PADA MANUSIA',
++  'SUSPEK CAMPAK',
++  'SUSPEK DIFTERI',
++  'PERTUSIS',
++  'ACUTE FLACID PARALYSIS (AFP)',
++  'GIGITAN HEWAN PENULAR RABIES (GHPR)',
++  'SUSPEK ANTRAX',
++  'SUSPEK LEPTOSPIROSIS',
++  'SUSPEK KOLERA',
++  'SUSPEK MENINGITIS/ENCEPHALITIS',
++  'SUSPEK TETANUS NEONATORUM',
++  'SUSPEK TETANUS',
++  'ILI (PENYAKIT SERUPA INFLUENZA)',
++  'SUSPEK HFMD',
++  'COVID-19 KONFIRMASI',
++  'ISPA',
++  'KERACUNAN PANGAN',
++] as const;
++
++export const DAFTAR_PTM = [
++  'DIABETES',
++  'HYPERTENSI',
++  'GASTRITIS',
++  'PENYAKIT KULIT (GATAL-GATAL; KUDIS)',
++  'SAKIT MATA',
++  'PENYAKIT JANTUNG',
++  'HEAT STROKE',
++] as const;
++
++/** "Pelabuhan Samarinda" / "SAMARINDA" / "Bandara APT Pranoto" -> nama baku wilayah posko (atau null). */
++export function normalisasiWilayah(nama: string | null | undefined): WilayahPosko | null {
++  const kunci = String(nama ?? '')
++    .replace(/^\s*(pelabuhan|bandara)\s+/i, '')
++    .replace(/\s+/g, '')
++    .toLowerCase();
++  if (kunci === 'samarinda') return 'Samarinda';
++  if (kunci === 'aptpranoto') return 'APT Pranoto';
++  if (kunci === 'lhoktuan') return 'Lhoktuan';
++  return null;
++}
++
++// ---------------------------------------------------------------- tipe data
++export type PeriodePosko = {
++  posko: JenisPosko;
++  tahun: number;
++  nama: string;
++  tanggalMulai: string; // YYYY-MM-DD
++  tanggalSelesai: string; // YYYY-MM-DD
++};
++
++/** 1 baris = 1 tanggal x 1 wilayah, gabungan semua sumber data. */
++export type BarisHarianPosko = {
++  tanggal: string;
++  wilayah: WilayahPosko;
++  poliklinik: number;
++  kapalDatang: number;
++  kapalBerangkat: number;
++  pesawatDatang: number;
++  pesawatBerangkat: number;
++  abkDatang: number;
++  abkBerangkat: number;
++  penumpangKapalDatang: number;
++  penumpangKapalBerangkat: number;
++  crewDatang: number;
++  crewBerangkat: number;
++  penumpangPesawatDatang: number;
++  penumpangPesawatBerangkat: number;
++  jumlahKlb: number;
++};
++
++export type BarisPenyakitPosko = {
++  tanggal: string;
++  wilayah: WilayahPosko;
++  jenis: string;
++  kasusLkLt5: number;
++  kasusLkGe5: number;
++  kasusPrLt5: number;
++  kasusPrGe5: number;
++  matiLkLt5: number;
++  matiLkGe5: number;
++  matiPrLt5: number;
++  matiPrGe5: number;
++};
++
++export type BarisPtmPosko = {
++  tanggal: string;
++  wilayah: WilayahPosko;
++  jenis: string;
++  jumlah: number;
++};
++
++export type DataPosko = {
++  posko: JenisPosko;
++  periode: PeriodePosko | null;
++  /** tanggal terakhir yang ditampilkan = min(selesai, hari ini WITA); null bila posko belum mulai */
++  tanggalAkhirTampil: string | null;
++  harian: BarisHarianPosko[];
++  penyakit: BarisPenyakitPosko[];
++  ptm: BarisPtmPosko[];
++  /** catatan untuk pengguna (mis. tabel belum dibuat, sumber data gagal dimuat) */
++  catatan: string[];
++};
+diff --git a/lib/posko/queries.ts b/lib/posko/queries.ts
+new file mode 100644
+index 0000000..147e956
+--- /dev/null
++++ b/lib/posko/queries.ts
+@@ -0,0 +1,251 @@
++// lib/posko/queries.ts
++// Mengumpulkan data Posko Nataru / Idul Fitri dari semua sumber (SERVER ONLY):
++//  - Turso   : posko_periode, posko_penyakit_harian, posko_klb_harian, posko_ptm_harian
++//  - Turso   : kunjungan_poliklinik, data_penumpang_kapal (kapal penumpang)
++//  - Supabase: v_kegiatan_pesawat_rekap (pesawat)
++import { cache } from 'react';
++import { getTursoClient } from '@/lib/turso/client';
++import { createClient } from '@/lib/supabase/server';
++import {
++  DAFTAR_PENYAKIT,
++  DAFTAR_PTM,
++  WILAYAH_POSKO,
++  normalisasiWilayah,
++  type BarisHarianPosko,
++  type BarisPenyakitPosko,
++  type BarisPtmPosko,
++  type DataPosko,
++  type JenisPosko,
++  type PeriodePosko,
++  type WilayahPosko,
++} from './konstanta';
++
++const BATAS_HARI = 120; // pengaman: periode posko tidak mungkin selebar ini
++
++export function hariIniWita(): string {
++  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
++}
++
++function rentangTanggal(mulai: string, akhir: string): string[] {
++  const hasil: string[] = [];
++  const penunjuk = new Date(`${mulai}T00:00:00Z`);
++  const batas = new Date(`${akhir}T00:00:00Z`);
++  while (penunjuk <= batas && hasil.length < BATAS_HARI) {
++    hasil.push(penunjuk.toISOString().slice(0, 10));
++    penunjuk.setUTCDate(penunjuk.getUTCDate() + 1);
++  }
++  return hasil;
++}
++
++type BarisMentah = Record<string, any>;
++
++async function jalankan(sql: string, args: (string | number)[], label: string, catatan: string[]): Promise<BarisMentah[]> {
++  try {
++    const hasil = await getTursoClient().execute({ sql, args });
++    return hasil.rows as unknown as BarisMentah[];
++  } catch (err) {
++    const pesan = err instanceof Error ? err.message : String(err);
++    catatan.push(
++      pesan.includes('no such table') ? `Tabel ${label} belum dibuat di Turso.` : `${label} gagal dimuat: ${pesan}`
++    );
++    return [];
++  }
++}
++
++const angka = (v: unknown) => Number(v) || 0;
++
++function barisKosong(tanggal: string, wilayah: WilayahPosko): BarisHarianPosko {
++  return {
++    tanggal, wilayah, poliklinik: 0,
++    kapalDatang: 0, kapalBerangkat: 0, pesawatDatang: 0, pesawatBerangkat: 0,
++    abkDatang: 0, abkBerangkat: 0, penumpangKapalDatang: 0, penumpangKapalBerangkat: 0,
++    crewDatang: 0, crewBerangkat: 0, penumpangPesawatDatang: 0, penumpangPesawatBerangkat: 0,
++    jumlahKlb: 0,
++  };
++}
++
++// ---------------------------------------------------------------- SQL (dialek SQLite/Turso)
++export const SQL_POLIKLINIK =
++  `SELECT date(tanggal_pemeriksaan) AS tgl, wilayah_kerja AS wilker, COUNT(*) AS jumlah
++   FROM kunjungan_poliklinik
++   WHERE date(tanggal_pemeriksaan) BETWEEN ? AND ?
++   GROUP BY tgl, wilker`;
++
++export const SQL_KAPAL_DATANG =
++  `SELECT date(tanggal_tiba) AS tgl, wilker, COUNT(*) AS kapal,
++          COALESCE(SUM(abk_datang), 0) AS abk, COALESCE(SUM(penumpang_datang), 0) AS penumpang
++   FROM data_penumpang_kapal
++   WHERE date(tanggal_tiba) BETWEEN ? AND ?
++   GROUP BY tgl, wilker`;
++
++// Keberangkatan dihitung pada tanggal_berangkat. Bila kosong, jatuh ke tanggal_tiba HANYA kalau
++// ada angka ABK/penumpang berangkat (kapal belum berangkat tidak dihitung sebagai berangkat).
++export const SQL_KAPAL_BERANGKAT =
++  `WITH b AS (
++     SELECT wilker, abk_berangkat, penumpang_berangkat,
++            COALESCE(
++              date(NULLIF(tanggal_berangkat, '')),
++              CASE WHEN COALESCE(abk_berangkat, 0) + COALESCE(penumpang_berangkat, 0) > 0
++                   THEN date(tanggal_tiba) END
++            ) AS tgl
++     FROM data_penumpang_kapal
++   )
++   SELECT tgl, wilker, COUNT(*) AS kapal,
++          COALESCE(SUM(abk_berangkat), 0) AS abk, COALESCE(SUM(penumpang_berangkat), 0) AS penumpang
++   FROM b
++   WHERE tgl BETWEEN ? AND ?
++   GROUP BY tgl, wilker`;
++
++async function ambilPesawat(mulai: string, akhir: string, catatan: string[]): Promise<BarisMentah[]> {
++  const semua: BarisMentah[] = [];
++  try {
++    const supabase = await createClient();
++    const UKURAN = 1000;
++    for (let halaman = 0; ; halaman++) {
++      const { data, error } = await supabase
++        .from('v_kegiatan_pesawat_rekap')
++        .select('nama_wilker, tanggal, crew_berangkat, penumpang_berangkat, crew_datang, penumpang_datang')
++        .eq('status_data', 'final')
++        .gte('tanggal', mulai)
++        .lte('tanggal', akhir)
++        .range(halaman * UKURAN, (halaman + 1) * UKURAN - 1);
++      if (error) {
++        catatan.push(`Data pesawat gagal dimuat: ${error.message}`);
++        break;
++      }
++      const baris = (data ?? []) as BarisMentah[];
++      semua.push(...baris);
++      if (baris.length < UKURAN) break;
++    }
++  } catch (err) {
++    catatan.push(`Data pesawat gagal dimuat: ${err instanceof Error ? err.message : String(err)}`);
++  }
++  return semua;
++}
++
++// ---------------------------------------------------------------- fungsi utama
++export const ambilDataPosko = cache(async (posko: JenisPosko): Promise<DataPosko> => {
++  const catatan: string[] = [];
++  const kosong: DataPosko = {
++    posko, periode: null, tanggalAkhirTampil: null, harian: [], penyakit: [], ptm: [], catatan,
++  };
++
++  const barisPeriode = await jalankan(
++    'SELECT posko, tahun, nama, tanggal_mulai, tanggal_selesai FROM posko_periode WHERE posko = ? ORDER BY tahun DESC LIMIT 1',
++    [posko], 'posko_periode', catatan
++  );
++  if (barisPeriode.length === 0) {
++    if (catatan.length === 0) catatan.push('Periode posko belum diisi di tabel posko_periode.');
++    return kosong;
++  }
++  const p = barisPeriode[0];
++  const periode: PeriodePosko = {
++    posko,
++    tahun: angka(p.tahun),
++    nama: String(p.nama ?? ''),
++    tanggalMulai: String(p.tanggal_mulai),
++    tanggalSelesai: String(p.tanggal_selesai),
++  };
++
++  const hariIni = hariIniWita();
++  if (hariIni < periode.tanggalMulai) {
++    catatan.push(`Posko belum dimulai (mulai ${periode.tanggalMulai}).`);
++    return { ...kosong, periode };
++  }
++  const akhir = hariIni < periode.tanggalSelesai ? hariIni : periode.tanggalSelesai;
++  const mulai = periode.tanggalMulai;
++
++  const [rPenyakit, rKlb, rPtm, rPoli, rDatang, rBerangkat, rPesawat] = await Promise.all([
++    jalankan(
++      `SELECT tanggal, wilayah_kerja, jenis_penyakit, kasus_lk_lt5, kasus_lk_ge5, kasus_pr_lt5, kasus_pr_ge5,
++              mati_lk_lt5, mati_lk_ge5, mati_pr_lt5, mati_pr_ge5
++       FROM posko_penyakit_harian WHERE posko = ? AND tahun = ? AND tanggal BETWEEN ? AND ?`,
++      [posko, periode.tahun, mulai, akhir], 'posko_penyakit_harian', catatan
++    ),
++    jalankan(
++      'SELECT tanggal, wilayah_kerja, jumlah_klb FROM posko_klb_harian WHERE posko = ? AND tahun = ? AND tanggal BETWEEN ? AND ?',
++      [posko, periode.tahun, mulai, akhir], 'posko_klb_harian', catatan
++    ),
++    jalankan(
++      'SELECT tanggal, wilayah_kerja, jenis_ptm, jumlah_kasus FROM posko_ptm_harian WHERE posko = ? AND tahun = ? AND tanggal BETWEEN ? AND ?',
++      [posko, periode.tahun, mulai, akhir], 'posko_ptm_harian', catatan
++    ),
++    jalankan(SQL_POLIKLINIK, [mulai, akhir], 'kunjungan_poliklinik', catatan),
++    jalankan(SQL_KAPAL_DATANG, [mulai, akhir], 'data_penumpang_kapal', catatan),
++    jalankan(SQL_KAPAL_BERANGKAT, [mulai, akhir], 'data_penumpang_kapal', catatan),
++    ambilPesawat(mulai, akhir, catatan),
++  ]);
++
++  // kerangka: setiap tanggal x setiap wilayah selalu ada (nol bila tidak ada data)
++  const tanggalTampil = rentangTanggal(mulai, akhir);
++  const peta = new Map<string, BarisHarianPosko>();
++  for (const tgl of tanggalTampil) {
++    for (const w of WILAYAH_POSKO) peta.set(`${tgl}|${w}`, barisKosong(tgl, w));
++  }
++  const cari = (tgl: unknown, wilayahMentah: unknown): BarisHarianPosko | undefined => {
++    const w = normalisasiWilayah(String(wilayahMentah ?? ''));
++    return w ? peta.get(`${String(tgl).slice(0, 10)}|${w}`) : undefined;
++  };
++
++  rPoli.forEach((r) => { const b = cari(r.tgl, r.wilker); if (b) b.poliklinik += angka(r.jumlah); });
++  rDatang.forEach((r) => {
++    const b = cari(r.tgl, r.wilker);
++    if (!b) return;
++    b.kapalDatang += angka(r.kapal);
++    b.abkDatang += angka(r.abk);
++    b.penumpangKapalDatang += angka(r.penumpang);
++  });
++  rBerangkat.forEach((r) => {
++    const b = cari(r.tgl, r.wilker);
++    if (!b) return;
++    b.kapalBerangkat += angka(r.kapal);
++    b.abkBerangkat += angka(r.abk);
++    b.penumpangKapalBerangkat += angka(r.penumpang);
++  });
++  // Pesawat: 1 baris view = 1 pergerakan pesawat (tiba + berangkat), sama dengan hitungan modul Pesawat.
++  rPesawat.forEach((r) => {
++    const b = cari(r.tanggal, r.nama_wilker);
++    if (!b) return;
++    b.pesawatDatang += 1;
++    b.pesawatBerangkat += 1;
++    b.crewDatang += angka(r.crew_datang);
++    b.crewBerangkat += angka(r.crew_berangkat);
++    b.penumpangPesawatDatang += angka(r.penumpang_datang);
++    b.penumpangPesawatBerangkat += angka(r.penumpang_berangkat);
++  });
++  rKlb.forEach((r) => { const b = cari(r.tanggal, r.wilayah_kerja); if (b) b.jumlahKlb += angka(r.jumlah_klb); });
++
++  const penyakit: BarisPenyakitPosko[] = [];
++  const jenisPenyakitSah = new Set<string>(DAFTAR_PENYAKIT);
++  rPenyakit.forEach((r) => {
++    const w = normalisasiWilayah(String(r.wilayah_kerja));
++    const jenis = String(r.jenis_penyakit);
++    if (!w || !jenisPenyakitSah.has(jenis)) return;
++    penyakit.push({
++      tanggal: String(r.tanggal).slice(0, 10), wilayah: w, jenis,
++      kasusLkLt5: angka(r.kasus_lk_lt5), kasusLkGe5: angka(r.kasus_lk_ge5),
++      kasusPrLt5: angka(r.kasus_pr_lt5), kasusPrGe5: angka(r.kasus_pr_ge5),
++      matiLkLt5: angka(r.mati_lk_lt5), matiLkGe5: angka(r.mati_lk_ge5),
++      matiPrLt5: angka(r.mati_pr_lt5), matiPrGe5: angka(r.mati_pr_ge5),
++    });
++  });
++
++  const ptm: BarisPtmPosko[] = [];
++  const jenisPtmSah = new Set<string>(DAFTAR_PTM);
++  rPtm.forEach((r) => {
++    const w = normalisasiWilayah(String(r.wilayah_kerja));
++    const jenis = String(r.jenis_ptm);
++    if (!w || !jenisPtmSah.has(jenis)) return;
++    ptm.push({ tanggal: String(r.tanggal).slice(0, 10), wilayah: w, jenis, jumlah: angka(r.jumlah_kasus) });
++  });
++
++  return {
++    posko,
++    periode,
++    tanggalAkhirTampil: akhir,
++    harian: Array.from(peta.values()),
++    penyakit,
++    ptm,
++    catatan,
++  };
++});

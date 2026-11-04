@@ -6,13 +6,16 @@ import { verifikasiPassword } from "./password";
 
 export const NAMA_COOKIE = "epic_sesi";
 export const STATUS_AKTIF = "approved"; // terkonfirmasi: ke-14 profil berstatus approved
-const PERAN_DIKENAL = ["admin", "petugas", "petugas_klinik"];
+
+/** Satu sumber kebenaran untuk semua role. Tambah role baru cukup di sini. */
+export const PERAN_DIKENAL = ["admin", "petugas", "petugas_klinik", "poliklinik", "klinik_binaan"] as const;
+export type Peran = (typeof PERAN_DIKENAL)[number];
+
 const UMUR_SESI_HARI = 14;
 const BATAS_TIDAK_AKTIF_MENIT = 25; // batas auto-logout; dicek di query getPengguna()
 const MAKS_PERCOBAAN = 5;
 const JENDELA_MENIT = 15;
 
-export type Peran = "admin" | "petugas" | "petugas_klinik";
 export interface Pengguna {
   id: string;
   email: string | null;
@@ -78,10 +81,10 @@ export async function masuk(email: string, password: string, ip = ""): Promise<H
 
   await sql(`DELETE FROM auth_percobaan WHERE kunci = ?`, [kunci]);
 
-  // Sama seperti login lama: password benar, tapi akun harus approved dan role dikenal.
+  // Password benar, tapi akun harus approved dan role dikenal.
   const [pf] = await sql<{ role: string; status: string }>(`SELECT role, status FROM profiles WHERE id = ? LIMIT 1`, [k.user_id]);
   if (!pf || pf.status !== STATUS_AKTIF) return { ok: false, alasan: "belum_disetujui" };
-  if (!PERAN_DIKENAL.includes(pf.role)) return { ok: false, alasan: "role_tidak_dikenal" };
+  if (!(PERAN_DIKENAL as readonly string[]).includes(pf.role)) return { ok: false, alasan: "role_tidak_dikenal" };
 
   const token = randomBytes(32).toString("base64url");
   await sql(

@@ -14,6 +14,7 @@ import {
   ShieldAlert, Siren, Newspaper, Globe, TrendingUp, Database, Microscope, Users,
   BarChart3, MapPin, ClipboardCheck, BuildingIcon, Table2, Book, Flame, Droplet,
   BellRing, Package, PersonStanding, CalendarDays, FilePlus2, FileCheck2, BriefcaseMedical, BookHeart,
+  HeartPulse,
 } from "lucide-react";
 
 export type NavChild = { label: string; href: string; prefetch?: boolean };
@@ -71,6 +72,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
       { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
       { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },
+      { label: "Cek Kesehatan Gratis", href: "/dashboard/klinik/ckg", icon: HeartPulse, prefetch: false },
     ],
   },
   {

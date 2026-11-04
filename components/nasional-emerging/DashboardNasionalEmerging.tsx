@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -26,20 +25,7 @@ const NasionalEmergingPeta = dynamic(
 );
 
 // ==== Konfigurasi ====
-// Dibuat saat pertama dipakai (bukan saat file dimuat) agar build tidak gagal bila env belum tersedia.
-let _supabase: SupabaseClient | null = null;
-function getSupabase(): SupabaseClient {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-  }
-  return _supabase;
-}
-
 const DAFTAR_PENYAKIT = DAFTAR_PENYAKIT_NASIONAL;
-const OPSI_PETA_PENYAKIT = ['Semua Penyakit', ...DAFTAR_PENYAKIT_NASIONAL];
 const DAFTAR_TAHUN = [2026, 2025, 2024];
 
 const RENTANG_BULAN: { label: string; dari: number; sampai: number }[] = [
@@ -88,6 +74,8 @@ interface HasilAwalInisial {
 interface Props {
   sudahLogin: boolean;
   role: PeranUser | null;
+  /** Penyakit tambahan dari petugas (di luar daftar dasar di kode). */
+  penyakitTambahan?: string[];
   /** Opsional: kalau tidak dioper, kedua Box otomatis fetch sendiri seperti biasa. */
   hasilAwalInisial?: HasilAwalInisial | null;
 }
@@ -96,7 +84,12 @@ function bangunComboKeyDasar(konteks: string, periodeKey: string, metrik: string
   return `${konteks}|${periodeKey}|${metrik}`;
 }
 
-export default function DashboardNasionalEmerging({ sudahLogin, role, hasilAwalInisial }: Props) {
+export default function DashboardNasionalEmerging({
+  sudahLogin,
+  role,
+  penyakitTambahan = [],
+  hasilAwalInisial,
+}: Props) {
   const [penyakit, setPenyakit] = useState<string>(DAFTAR_PENYAKIT[0]);
   const [tahun, setTahun] = useState(DAFTAR_TAHUN[0]);
   const [penyakitPeta, setPenyakitPeta] = useState<string>('Semua Penyakit');
@@ -110,6 +103,13 @@ export default function DashboardNasionalEmerging({ sudahLogin, role, hasilAwalI
 
   const [data, setData] = useState<Baris[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Daftar dasar + tambahan dari petugas, tanpa duplikat (tidak peka huruf besar/kecil)
+  const daftarPenyakit = useMemo(() => {
+    const ada = new Set(DAFTAR_PENYAKIT.map((p) => p.toLowerCase()));
+    return [...DAFTAR_PENYAKIT, ...penyakitTambahan.filter((p) => !ada.has(p.toLowerCase()))];
+  }, [penyakitTambahan]);
+  const opsiPetaPenyakit = useMemo(() => ['Semua Penyakit', ...daftarPenyakit], [daftarPenyakit]);
 
   // Rentang minggu efektif
   const rentangEfektif = useMemo(() => {
@@ -128,46 +128,53 @@ export default function DashboardNasionalEmerging({ sudahLogin, role, hasilAwalI
   const konteksAI = `nasional-emerging-${modeRentang}`;
 
   // Kombinasi filter yang SEDANG AKTIF di client, dibangun dengan format
-  // sama seperti comboKeyDasar dari server. Kalau ini cocok dengan
+  // sama seperti comboKeyDasar dari server. Kalau cocok dengan
   // hasilAwalInisial.comboKeyDasar, berarti user belum ganti apa pun
-  // dari kondisi awal -- boleh pakai hasil prefetch server. Begitu user
-  // ganti filter apa pun, ini otomatis tidak cocok lagi.
+  // dari kondisi awal -- boleh pakai hasil prefetch server.
   const comboKeyAktif = bangunComboKeyDasar(konteksAI, periodeKey, penyakit);
   const cocokDenganPrefetch = hasilAwalInisial?.comboKeyDasar === comboKeyAktif;
   const hasilAwalAnalisis = cocokDenganPrefetch ? hasilAwalInisial!.analisis : undefined;
   const hasilAwalPrediksi = cocokDenganPrefetch ? hasilAwalInisial!.prediksi : undefined;
 
-  // 1. INI YANG ASLI — untuk chart tren (WAJIB ADA, jangan sampai hilang)
-useEffect(() => {
-  async function ambilData() {
-    setLoading(true);
-    const { data: rows, error } = await getSupabase()
-      .from('laporan_penyakit_nasional')
-      .select('*')
-      .eq('penyakit', penyakit)
-      .eq('tahun_epid', tahun);
-    if (!error && rows) setData(rows as Baris[]);
-    setLoading(false);
-  }
-  ambilData();
-}, [penyakit, tahun]);
+  // 1. Untuk chart tren (WAJIB ADA)
+  useEffect(() => {
+    let batal = false;
+    async function ambilData() {
+      setLoading(true);
+      try {
+        const res = await fetch(
+          `/api/nasional-emerging/data?tahun=${tahun}&penyakit=${encodeURIComponent(penyakit)}`
+        );
+        if (res.ok && !batal) setData((await res.json()) as Baris[]);
+      } catch {
+        /* biarkan data lama */
+      }
+      if (!batal) setLoading(false);
+    }
+    ambilData();
+    return () => { batal = true; };
+  }, [penyakit, tahun]);
 
-// 2. INI YANG BARU — khusus untuk peta
-useEffect(() => {
-  async function ambilDataPeta() {
-    const { data: rows, error } = await getSupabase()
-      .from('laporan_penyakit_nasional')
-      .select('*')
-      .eq('tahun_epid', tahun);
-    if (!error && rows) setDataPeta(rows as Baris[]);
-  }
-  ambilDataPeta();
-}, [tahun]);
+  // 2. Khusus untuk peta (semua penyakit)
+  useEffect(() => {
+    let batal = false;
+    async function ambilDataPeta() {
+      try {
+        const res = await fetch(`/api/nasional-emerging/data?tahun=${tahun}`);
+        if (res.ok && !batal) setDataPeta((await res.json()) as Baris[]);
+      } catch {
+        /* biarkan data lama */
+      }
+    }
+    ambilDataPeta();
+    return () => { batal = true; };
+  }, [tahun]);
 
-const dataRentang = useMemo(
-  () => data.filter(r => r.minggu_epid >= rentangEfektif.dari && r.minggu_epid <= rentangEfektif.sampai),
-  [data, rentangEfektif]
-);
+  const dataRentang = useMemo(
+    () => data.filter(r => r.minggu_epid >= rentangEfektif.dari && r.minggu_epid <= rentangEfektif.sampai),
+    [data, rentangEfektif]
+  );
+
   const trenMingguan = useMemo(() => {
     const peta = new Map<number, number>();
     for (let m = rentangEfektif.dari; m <= rentangEfektif.sampai; m++) peta.set(m, 0);
@@ -194,23 +201,23 @@ const dataRentang = useMemo(
 
   const perPropinsiPeta = useMemo(() => {
     const dataTerfilter = dataPeta.filter((r) => {
-        const dalamRentang = r.minggu_epid >= rentangEfektif.dari && r.minggu_epid <= rentangEfektif.sampai;
-        const sesuaiPenyakit = penyakitPeta === 'Semua Penyakit' || r.penyakit === penyakitPeta;
-        return dalamRentang && sesuaiPenyakit;
+      const dalamRentang = r.minggu_epid >= rentangEfektif.dari && r.minggu_epid <= rentangEfektif.sampai;
+      const sesuaiPenyakit = penyakitPeta === 'Semua Penyakit' || r.penyakit === penyakitPeta;
+      return dalamRentang && sesuaiPenyakit;
     });
 
     const peta = new Map<string, { total_kasus: number; breakdown: Map<string, number> }>();
     dataTerfilter.forEach((r) => {
-        const existing = peta.get(r.propinsi) ?? { total_kasus: 0, breakdown: new Map<string, number>() };
-        existing.total_kasus += r.jumlah_kasus;
-        existing.breakdown.set(r.penyakit, (existing.breakdown.get(r.penyakit) ?? 0) + r.jumlah_kasus);
-        peta.set(r.propinsi, existing);
+      const existing = peta.get(r.propinsi) ?? { total_kasus: 0, breakdown: new Map<string, number>() };
+      existing.total_kasus += r.jumlah_kasus;
+      existing.breakdown.set(r.penyakit, (existing.breakdown.get(r.penyakit) ?? 0) + r.jumlah_kasus);
+      peta.set(r.propinsi, existing);
     });
 
     return Array.from(peta.entries()).map(([propinsi, v]) => ({
-        propinsi,
-        total_kasus: v.total_kasus,
-        breakdown: Array.from(v.breakdown.entries())
+      propinsi,
+      total_kasus: v.total_kasus,
+      breakdown: Array.from(v.breakdown.entries())
         .map(([penyakit, jumlah_kasus]) => ({ penyakit, jumlah_kasus }))
         .sort((a, b) => b.jumlah_kasus - a.jumlah_kasus),
     }));
@@ -233,7 +240,7 @@ const dataRentang = useMemo(
             <label className="block text-xs font-medium text-slate-500 mb-1">Penyakit</label>
             <select value={penyakit} onChange={e => setPenyakit(e.target.value)}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
-              {DAFTAR_PENYAKIT.map(p => <option key={p} value={p}>{p}</option>)}
+              {daftarPenyakit.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
           <div>
@@ -379,44 +386,44 @@ const dataRentang = useMemo(
       {/* ==== PETA NASIONAL ==== */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 relative">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-            <h2 className="text-sm font-semibold text-slate-700">Peta Sebaran Kasus per Propinsi selama Tahun {tahun}</h2>
-            <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
-                <input
-                    type="checkbox"
-                    checked={tampilkanLabelPeta}
-                    onChange={(e) => setTampilkanLabelPeta(e.target.checked)}
-                    className="h-3.5 w-3.5"
-                />
-                Tampilkan label
-                </label>
-                <select
-                value={penyakitPeta}
-                onChange={(e) => setPenyakitPeta(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-1.5 text-xs"
-                >
-                {OPSI_PETA_PENYAKIT.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-            </div>
+          <h2 className="text-sm font-semibold text-slate-700">Peta Sebaran Kasus per Propinsi selama Tahun {tahun}</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={tampilkanLabelPeta}
+                onChange={(e) => setTampilkanLabelPeta(e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              Tampilkan label
+            </label>
+            <select
+              value={penyakitPeta}
+              onChange={(e) => setPenyakitPeta(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-1.5 text-xs"
+            >
+              {opsiPetaPenyakit.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
         </div>
         <p className="text-xs text-slate-400 mb-2">
-           Scroll untuk Zoom | Klik & Geser untuk Pindah
+          Scroll untuk Zoom | Klik & Geser untuk Pindah
         </p>
         <NasionalEmergingPeta
-            perPropinsi={perPropinsiPeta}
-            tampilkanBreakdown={penyakitPeta === 'Semua Penyakit'}
-            tampilkanLabel={tampilkanLabelPeta}
+          perPropinsi={perPropinsiPeta}
+          tampilkanBreakdown={penyakitPeta === 'Semua Penyakit'}
+          tampilkanLabel={tampilkanLabelPeta}
         />
         <div className="flex items-center gap-2 mt-3 text-xs text-slate-500">
-            <span>Tidak ada kasus</span>
-            <span className="w-4 h-4 rounded border border-slate-300" style={{ background: '#e2e8f0' }} />
-            <span className="ml-2">Rendah</span>
-            <span className="w-4 h-4 rounded" style={{ background: '#fde68a' }} />
-            <span className="w-4 h-4 rounded" style={{ background: '#fbbf24' }} />
-            <span className="w-4 h-4 rounded" style={{ background: '#f97316' }} />
-            <span className="w-4 h-4 rounded" style={{ background: '#dc2626' }} />
-            <span className="w-4 h-4 rounded" style={{ background: '#7f1d1d' }} />
-            <span>Tinggi</span>
+          <span>Tidak ada kasus</span>
+          <span className="w-4 h-4 rounded border border-slate-300" style={{ background: '#e2e8f0' }} />
+          <span className="ml-2">Rendah</span>
+          <span className="w-4 h-4 rounded" style={{ background: '#fde68a' }} />
+          <span className="w-4 h-4 rounded" style={{ background: '#fbbf24' }} />
+          <span className="w-4 h-4 rounded" style={{ background: '#f97316' }} />
+          <span className="w-4 h-4 rounded" style={{ background: '#dc2626' }} />
+          <span className="w-4 h-4 rounded" style={{ background: '#7f1d1d' }} />
+          <span>Tinggi</span>
         </div>
       </div>
 

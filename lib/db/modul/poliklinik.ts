@@ -32,10 +32,16 @@ export interface KunjunganRow {
 // ------------------------------------------------------------
 // Raw data
 // ------------------------------------------------------------
-export async function getKunjunganRawData(tahun?: number, wilayahKerja?: string): Promise<KunjunganRow[]> {
+export async function getKunjunganRawData(
+  tahun?: number,
+  wilayahKerja?: string,
+  sumber: 'bkk' | 'semua' = 'bkk'
+): Promise<KunjunganRow[]> {
   const client = getDbClient();
   const kondisi: string[] = [];
   const args: (string | number)[] = [];
+
+  if (sumber === 'bkk') kondisi.push(`poliklinik_id IS NULL`);
 
   if (tahun) {
     kondisi.push(`to_char(tanggal_pemeriksaan, 'YYYY') = ?`);

@@ -1,4 +1,6 @@
 // app/(dashboard)/dashboard/poliklinik/page.tsx
+import Link from 'next/link';
+import { getUserRole } from '@/lib/auth/get-user-role';
 import {
   getKunjunganRawData,
   hitungRingkasanKunjungan,
@@ -18,58 +20,75 @@ import PoliklinikClient from './PoliklinikClient';
 
 export const dynamic = 'force-dynamic';
 
+const tombol = 'rounded border px-3 py-1.5 text-sm hover:bg-gray-50';
+const tombolUtama = 'rounded bg-teal-700 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90';
+
 export default async function HalamanPoliklinik({
   searchParams,
 }: {
-  searchParams: Promise<{ tahun?: string; wilayah?: string }>;
+  searchParams: Promise<{ tahun?: string; wilayah?: string; sumber?: string }>;
 }) {
   const params = await searchParams;
+    const role = await getUserRole();
+  const admin = role === 'admin';
+  const petugasKlinik = role === 'petugas_klinik';
+  const bolehInputBkk = admin || petugasKlinik;
+  const bolehLihatNonBkk = admin || petugasKlinik || role === 'petugas';
+  const bolehGabungan = bolehLihatNonBkk;
+
   const tahunBerjalan = new Date().getFullYear();
   const tahun = params.tahun ? parseInt(params.tahun, 10) : tahunBerjalan;
   const wilayahKerja = params.wilayah && params.wilayah !== 'semua' ? params.wilayah : undefined;
+  const sumber: 'bkk' | 'semua' = bolehGabungan && params.sumber === 'semua' ? 'semua' : 'bkk';
 
-  // rows: sudah difilter wilker (kalau dipilih) -- dipakai untuk semua
-  // chart yang memang seharusnya ikut berubah sesuai filter wilker.
-  // rowsSemuaWilker: TIDAK difilter wilker (cuma tahun) -- khusus untuk
-  // chart perbandingan antar-wilker, supaya tetap tampil semua wilker
-  // sebagai pembanding walau user sedang memfilter 1 wilker tertentu.
   const [rows, rowsSemuaWilker] = await Promise.all([
-    getKunjunganRawData(tahun, wilayahKerja),
-    wilayahKerja ? getKunjunganRawData(tahun) : Promise.resolve(null),
+    getKunjunganRawData(tahun, wilayahKerja, sumber),
+    wilayahKerja ? getKunjunganRawData(tahun, undefined, sumber) : Promise.resolve(null),
   ]);
   const dataUntukBreakdownWilker = rowsSemuaWilker ?? rows;
-
-  const ringkasan = hitungRingkasanKunjungan(rows);
-  const trenMingguan = hitungTrenMingguanKunjungan(rows);
-  const trenBulanan = hitungTrenBulananKunjungan(rows);
-  // Chart perbandingan antar-wilker cuma dipakai/dirender saat wilayahKerja
-  // tidak difilter ('semua'), tapi tetap dihitung dari dataUntukBreakdownWilker
-  // supaya konsisten dengan breakdownWilker di bawah.
-  const trenPerWilkerMingguan = hitungTrenPerWilkerMingguan(dataUntukBreakdownWilker);
-  const trenPerWilkerBulanan = hitungTrenPerWilkerBulanan(dataUntukBreakdownWilker);
-  const topDiagnosa = hitungTopDiagnosa(rows, 10);
-  const donutJenisKelamin = hitungDonutJenisKelaminKunjungan(rows);
-  const donutKelompokUsia = hitungDonutKelompokUsia(rows);
-  const donutKategoriPasien = hitungDonutKategoriPasien(rows);
-  const breakdownWilker = hitungBreakdownWilker(dataUntukBreakdownWilker);
-  const polaHari = hitungPolaHariKunjungan(rows);
 
   return (
     <PoliklinikClient
       tahunBerjalan={tahun}
       wilayahTerpilih={wilayahKerja ?? 'semua'}
       daftarWilker={DAFTAR_WILKER_POLIKLINIK}
-      ringkasan={ringkasan}
-      trenMingguan={trenMingguan}
-      trenBulanan={trenBulanan}
-      trenPerWilkerMingguan={trenPerWilkerMingguan}
-      trenPerWilkerBulanan={trenPerWilkerBulanan}
-      topDiagnosa={topDiagnosa}
-      donutJenisKelamin={donutJenisKelamin}
-      donutKelompokUsia={donutKelompokUsia}
-      donutKategoriPasien={donutKategoriPasien}
-      breakdownWilker={breakdownWilker}
-      polaHari={polaHari}
+      basePath={sumber === 'semua' ? '/dashboard/poliklinik?sumber=semua' : '/dashboard/poliklinik'}
+            aksiHeader={
+        bolehLihatNonBkk ? (
+          <>
+            {bolehInputBkk && (
+              <Link href="/dashboard/poliklinik/input" className={tombolUtama}>
+                + Input Data
+              </Link>
+            )}
+            <Link href="/dashboard/poliklinik-non-bkk" className={tombol}>
+              {admin ? 'Poliklinik Non-BKK' : 'Lihat Poliklinik Non-BKK'}
+            </Link>
+            {admin && (
+              <Link href="/admin/master" className={tombol}>
+                Pengaturan Poliklinik
+              </Link>
+            )}
+            <Link
+              href={sumber === 'semua' ? '/dashboard/poliklinik' : '/dashboard/poliklinik?sumber=semua'}
+              className={tombol}
+            >
+              {sumber === 'semua' ? 'Hanya data BKK' : 'Lihat semua (termasuk non-BKK)'}
+            </Link>
+          </>
+        ) : null
+      }
+      ringkasan={hitungRingkasanKunjungan(rows)}
+      trenMingguan={hitungTrenMingguanKunjungan(rows)}
+      trenBulanan={hitungTrenBulananKunjungan(rows)}
+      trenPerWilkerMingguan={hitungTrenPerWilkerMingguan(dataUntukBreakdownWilker)}
+      trenPerWilkerBulanan={hitungTrenPerWilkerBulanan(dataUntukBreakdownWilker)}
+      topDiagnosa={hitungTopDiagnosa(rows, 10)}
+      donutJenisKelamin={hitungDonutJenisKelaminKunjungan(rows)}
+      donutKelompokUsia={hitungDonutKelompokUsia(rows)}
+      donutKategoriPasien={hitungDonutKategoriPasien(rows)}
+      breakdownWilker={hitungBreakdownWilker(dataUntukBreakdownWilker)}
+      polaHari={hitungPolaHariKunjungan(rows)}
     />
   );
 }

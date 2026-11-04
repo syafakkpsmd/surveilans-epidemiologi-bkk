@@ -18,9 +18,9 @@ export default function LoginPage({
   const [tampilkanSandi, setTampilkanSandi] = useState(false);
 
   // Tambahkan useEffect untuk menangani navigasi penuh setelah login sukses (agar cookie terbawa)
-  useEffect(() => {
+    useEffect(() => {
     if ((state as any)?.ok) {
-      window.location.assign('/dashboard');
+      window.location.assign((state as any).tujuan ?? '/dashboard');
     }
   }, [state]);
 

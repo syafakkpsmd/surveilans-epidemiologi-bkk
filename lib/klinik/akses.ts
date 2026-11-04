@@ -1,9 +1,9 @@
 // lib/klinik/akses.ts
 // Siapa boleh melihat/mengisi data klinik mana.
 //  * admin dan petugas (BKK): semua klinik.
-//  * petugas_klinik: HANYA klinik yang ditautkan di `klinik_akses`; tanpa tautan = tidak ada klinik (gagal tertutup).
+//  * petugas_klinik dan klinik_binaan: HANYA klinik yang ditautkan di `klinik_akses`; tanpa tautan = tidak ada klinik (gagal tertutup).
 //  * peran lain / belum login: tidak boleh mengisi data klinik. Dashboard agregat tetap terbuka seperti semula
-//    (getAksesKlinik().semua = true), kecuali untuk petugas_klinik yang dipersempit ke kliniknya.
+//    (getAksesKlinik().semua = true), kecuali untuk peran yang dipersempit ke kliniknya (lihat PERAN_TERBATAS_KLINIK).
 // Penyaringan dilakukan di server (dataset), bukan di tampilan.
 import { getPengguna, type Pengguna } from '@/lib/auth/session';
 import { sql } from '@/lib/auth/db';
@@ -14,6 +14,9 @@ export interface KlinikRingkas {
   spreadsheet_id: string | null;
   kategori: string | null;
 }
+
+/** Peran yang dashboard kliniknya dipersempit ke klinik yang ditautkan di `klinik_akses`. */
+const PERAN_TERBATAS_KLINIK = ['petugas_klinik', 'klinik_binaan'];
 
 /** Kunci sumber untuk baris ICV yang diinput lewat aplikasi (terpisah dari spreadsheet_id Google Sheets). */
 export const kunciSumberApp = (klinikId: string) => `app-${klinikId}`;
@@ -29,7 +32,7 @@ export async function daftarKlinikDiizinkan(pengguna: Pengguna | null): Promise<
   if (pengguna.role === 'admin' || pengguna.role === 'petugas') {
     return sql<KlinikRingkas>(`SELECT ${KOLOM} FROM klinik_binaan k ORDER BY k.nama_klinik`);
   }
-  if (pengguna.role === 'petugas_klinik') {
+  if (pengguna.role === 'petugas_klinik' || pengguna.role === 'klinik_binaan') {
     return sql<KlinikRingkas>(
       `SELECT ${KOLOM} FROM klinik_binaan k JOIN klinik_akses a ON a.klinik_id = k.id::text WHERE a.user_id = ? ORDER BY k.nama_klinik`,
       [pengguna.id],
@@ -55,9 +58,9 @@ export interface AksesKlinik {
 
 export async function getAksesKlinik(): Promise<AksesKlinik> {
   const pengguna = await getPengguna();
-  if (pengguna?.role === 'petugas_klinik') {
+  if (pengguna && PERAN_TERBATAS_KLINIK.includes(pengguna.role)) {
     const rows = await sql<{ klinik_id: string }>('SELECT klinik_id FROM klinik_akses WHERE user_id = ?', [pengguna.id]);
-    return { pengguna, semua: false, klinikIds: rows.map((r) => r.klinik_id) };
+    return { pengguna, semua: false, klinikIds: rows.map((r) => String(r.klinik_id)) };
   }
   return { pengguna, semua: true, klinikIds: [] };
 }

@@ -36,6 +36,11 @@ export default function KlinikDashboardClient({
 }: Props) {
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("mingguan");
 
+  // Akun klinik binaan hanya melihat ringkasan dan kegiatan kliniknya sendiri:
+  // grafik total gabungan dan bagian wilayah kerja BKK disembunyikan.
+  // (Datanya sendiri sudah disaring di server lewat getAksesKlinik; ini hanya merapikan tampilan.)
+  const hanyaKlinik = role === 'klinik_binaan';
+
   const dataMingguanKlinik = useMemo(() => dataMingguanAll.filter((r) => kategoriEfektif(r) === 'klinik'), [dataMingguanAll]);
   const dataMingguanBkk = useMemo(() => dataMingguanAll.filter((r) => kategoriEfektif(r) === 'bkk'), [dataMingguanAll]);
   const dataBulananKlinik = useMemo(() => dataBulananAll.filter((r) => kategoriEfektif(r) === 'klinik'), [dataBulananAll]);
@@ -49,12 +54,16 @@ export default function KlinikDashboardClient({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <div>
-        <h1 className="text-xl font-bold text-[#0F2A38]">Surveilans Layanan Vaksinasi Internasional BKK Kelas I Samarinda</h1>
-        <p className="text-xs text-gray-500 mt-1">Layanan Vaksinasi Internasional Tahun {tahunBerjalan} — Wilayah Kerja BKK & Klinik Binaan</p>
+        <h1 className="text-xl font-bold text-[#0F2A38]">
+          {hanyaKlinik ? 'Layanan Vaksinasi Internasional Klinik Binaan' : 'Surveilans Layanan Vaksinasi Internasional BKK Kelas I Samarinda'}
+        </h1>
+        <p className="text-xs text-gray-500 mt-1">
+          Layanan Vaksinasi Internasional Tahun {tahunBerjalan} — {hanyaKlinik ? 'Klinik Binaan' : 'Wilayah Kerja BKK & Klinik Binaan'}
+        </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-        {(role === 'admin' || role === 'petugas' || role === 'petugas_klinik') && (
+        {(role === 'admin' || role === 'petugas' || role === 'petugas_klinik' || role === 'klinik_binaan') && (
           <Link href="/dashboard/klinik/input"
             className="rounded-lg bg-[#0F4C5C] px-3 py-2 text-xs font-medium text-white shadow-xs hover:bg-[#0c3d4a]">
             + Input Data
@@ -102,41 +111,45 @@ export default function KlinikDashboardClient({
         <DonutChart judul="Proporsi Menurut Hasil WUS (Perempuan)" data={rekapGabungan.donutWus} />
       </div>
 
-      {role !== 'publik' && <PencarianIcv />}
+      {role !== 'publik' && !hanyaKlinik && <PencarianIcv />}
 
-      {/* 1. TOTAL GABUNGAN */}
-      <GrafikTotalGabungan
-        granularitas={granularitas}
-        dataMingguanKlinik={dataMingguanKlinik}
-        dataMingguanBkk={dataMingguanBkk}
-        dataBulananKlinik={dataBulananKlinik}
-        dataBulananBkk={dataBulananBkk}
-        standarHariVaksin={standarHariVaksin}
-      />
+      {/* 1. TOTAL GABUNGAN (disembunyikan untuk akun klinik binaan) */}
+      {!hanyaKlinik && (
+        <GrafikTotalGabungan
+          granularitas={granularitas}
+          dataMingguanKlinik={dataMingguanKlinik}
+          dataMingguanBkk={dataMingguanBkk}
+          dataBulananKlinik={dataBulananKlinik}
+          dataBulananBkk={dataBulananBkk}
+          standarHariVaksin={standarHariVaksin}
+        />
+      )}
 
       {role === 'admin' && <PengaturanStandarVaksin nilaiAwal={standarHariVaksin} />}
 
-      {/* 2. LAYANAN DI WILAYAH KERJA BKK */}
+      {/* 2. LAYANAN DI WILAYAH KERJA BKK (disembunyikan untuk akun klinik binaan) */}
+      {!hanyaKlinik && (
         <div className="space-y-6">
-            <KlinikClient {...propsBersama}
+          <KlinikClient {...propsBersama}
             judul="Surveilans Layanan Vaksinasi per Wilayah Kerja BKK"
             kategoriLabel="Wilayah Kerja BKK"
             daftarKlinik={daftarBkkNama}
             dataMingguan={dataMingguanBkk}
             dataBulanan={dataBulananBkk}
-            />
+          />
         </div>
+      )}
 
-        {/* 3. LAYANAN DI KLINIK BINAAN */}
-        <div className="space-y-6">
-            <KlinikClient {...propsBersama}
-            judul="Surveilans Layanan Vaksinasi di Klinik Binaan"
-            kategoriLabel="Klinik Binaan"
-            daftarKlinik={daftarKlinikNama}
-            dataMingguan={dataMingguanKlinik}
-            dataBulanan={dataBulananKlinik}
-            />
-        </div>
+      {/* 3. LAYANAN DI KLINIK BINAAN */}
+      <div className="space-y-6">
+        <KlinikClient {...propsBersama}
+          judul={hanyaKlinik ? "Kegiatan Layanan Vaksinasi Klinik Anda" : "Surveilans Layanan Vaksinasi di Klinik Binaan"}
+          kategoriLabel="Klinik Binaan"
+          daftarKlinik={daftarKlinikNama}
+          dataMingguan={dataMingguanKlinik}
+          dataBulanan={dataBulananKlinik}
+        />
       </div>
+    </div>
   );
 }

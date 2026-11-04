@@ -28,6 +28,11 @@ const WARNA_DONUT = ['#0d9488', '#f59e0b', '#134e4a', '#dc2626', '#94a3b8'];
 const WARNA_WILKER = ['#0d9488', '#f59e0b', '#134e4a', '#dc2626', '#6366f1', '#94a3b8', '#ec4899'];
 
 interface Props {
+  mode?: 'bkk' | 'klinik';
+  judul?: string;
+  subjudul?: string;
+  basePath?: string;
+  aksiHeader?: React.ReactNode;
   tahunBerjalan: number;
   wilayahTerpilih: string;
   daftarWilker: readonly string[];
@@ -52,6 +57,11 @@ interface Props {
 }
 
 export default function PoliklinikClient({
+  mode = 'bkk',
+  judul = 'Kunjungan Poliklinik',
+  subjudul = 'Rekap kunjungan pasien di 5 wilayah kerja BKK Samarinda',
+  basePath = '/dashboard/poliklinik',
+  aksiHeader,
   tahunBerjalan,
   wilayahTerpilih,
   daftarWilker,
@@ -71,10 +81,11 @@ export default function PoliklinikClient({
   const [granularitas, setGranularitas] = useState<'mingguan' | 'bulanan'>('mingguan');
   const dataTren = granularitas === 'mingguan' ? trenMingguan : trenBulanan;
   const dataTrenPerWilker = granularitas === 'mingguan' ? trenPerWilkerMingguan : trenPerWilkerBulanan;
-  const tampilkanGrafikPerWilker = wilayahTerpilih === 'semua';
+  const tampilkanGrafikPerWilker = mode === 'bkk' && wilayahTerpilih === 'semua';
 
   function gantiFilter(tahun: number, wilayah: string) {
-    router.push(`/dashboard/poliklinik?tahun=${tahun}&wilayah=${encodeURIComponent(wilayah)}`);
+    const sambung = basePath.includes('?') ? '&' : '?';
+    router.push(`${basePath}${sambung}tahun=${tahun}&wilayah=${encodeURIComponent(wilayah)}`);
   }
 
   return (
@@ -82,8 +93,8 @@ export default function PoliklinikClient({
       {/* Header + filter */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-teal-900">Kunjungan Poliklinik</h1>
-          <p className="text-sm text-gray-500">Rekap kunjungan pasien di 5 wilayah kerja BKK Samarinda</p>
+          <h1 className="text-xl font-semibold text-teal-900">{judul}</h1>
+          <p className="text-sm text-gray-500">{subjudul}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select
@@ -100,26 +111,29 @@ export default function PoliklinikClient({
               );
             })}
           </select>
-          <select
-            value={wilayahTerpilih}
-            onChange={(e) => gantiFilter(tahunBerjalan, e.target.value)}
-            className="rounded border px-3 py-1.5 text-sm"
-          >
-            <option value="semua">Semua Wilayah Kerja</option>
-            {daftarWilker.map((w) => (
-              <option key={w} value={w}>
-                {w}
-              </option>
-            ))}
-          </select>
+          {mode === 'bkk' && (
+            <select
+              value={wilayahTerpilih}
+              onChange={(e) => gantiFilter(tahunBerjalan, e.target.value)}
+              className="rounded border px-3 py-1.5 text-sm"
+            >
+              <option value="semua">Semua Wilayah Kerja</option>
+              {daftarWilker.map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          )}
+          {aksiHeader}
         </div>
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className={mode === 'bkk' ? 'grid grid-cols-2 gap-3 md:grid-cols-4' : 'grid grid-cols-2 gap-3 md:grid-cols-3'}>
         <KartuKpi label="Total Kunjungan" nilai={ringkasan.totalKunjungan.toLocaleString('id-ID')} warna="teal" />
         <KartuKpi label="Diagnosa Unik Tercatat" nilai={ringkasan.jumlahDiagnosaUnik.toLocaleString('id-ID')} />
-        <KartuKpi label="Wilker Terbanyak" nilai={ringkasan.wilkerTerbanyak ?? '-'} />
+        {mode === 'bkk' && <KartuKpi label="Wilker Terbanyak" nilai={ringkasan.wilkerTerbanyak ?? '-'} />}
         <KartuKpi label="Rata-rata / Hari Aktif" nilai={ringkasan.rataRataPerHari} />
       </div>
 
@@ -286,17 +300,19 @@ export default function PoliklinikClient({
       </div>
 
       {/* Grafik batang perbandingan antar wilayah kerja -- berdiri sendiri */}
-      <Panel judul="Kunjungan per Wilayah Kerja">
-        <ResponsiveContainer width="100%" height={280}>
-          <BarChart data={breakdownWilker}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="wilayahKerja" tick={{ fontSize: 11 }} />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="jumlah" fill="#0f766e" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </Panel>
+      {mode === 'bkk' && (
+        <Panel judul="Kunjungan per Wilayah Kerja">
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={breakdownWilker}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="wilayahKerja" tick={{ fontSize: 11 }} />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="jumlah" fill="#0f766e" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Panel>
+      )}
     </div>
   );
 }

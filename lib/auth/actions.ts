@@ -6,7 +6,10 @@ import { randomUUID } from 'node:crypto';
 import { catatLogin } from '@/lib/analytics/log';
 import { sql } from '@/lib/auth/db';
 import { masuk, keluar, getPengguna } from '@/lib/auth/session';
+import type { Peran } from '@/lib/auth/session';
 import { hashPassword } from '@/lib/auth/password';
+import { kodeKlinikValid } from '@/lib/db/queries/queriesMaster';
+import { tentukanTujuanLogin } from '@/lib/auth/tujuan-login';
 
 const MIN_PASSWORD = 8;
 
@@ -18,7 +21,7 @@ const PESAN_MASUK = {
 } as const;
 
 /** Dipanggil dari <form action={formAction}> di app/login/page.tsx. */
-export async function login(prevState: any, formData: FormData): Promise<{ error?: string; ok?: boolean } | void> {
+export async function login(prevState: any, formData: FormData): Promise<{ error?: string; ok?: boolean; tujuan?: string } | void> {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
 
@@ -35,15 +38,16 @@ export async function login(prevState: any, formData: FormData): Promise<{ error
     console.error('[catatLogin Error]:', err);
   });
 
-  // Halaman login memanggil window.location.assign('/dashboard') saat ok === true
-  return { ok: true };
+  const tujuan = await tentukanTujuanLogin(String(hasil.role), String(hasil.userId)).catch(() => '/dashboard');
+  return { ok: true, tujuan };
 }
 
-type RoleDaftar = 'petugas' | 'petugas_klinik' | 'poliklinik' | 'klinik_binaan';
+/** Role yang boleh dipilih saat registrasi: semua role kecuali admin. */
+type RoleDaftar = Exclude<Peran, 'admin'>;
 
-// ASUMSI: tabel klinik_binaan(kode, ...) dan poliklinik(kode, ...). Sesuaikan dengan database Anda.
+// Pemetaan tabel disesuaikan ke poliklinik_non_bkk
 const TABEL_KLINIK: Record<'poliklinik' | 'klinik_binaan', string> = {
-  poliklinik: 'poliklinik',
+  poliklinik: 'poliklinik_non_bkk',
   klinik_binaan: 'klinik_binaan',
 };
 
@@ -70,8 +74,18 @@ export async function registerPetugas(formData: FormData) {
     role = peranBkk as RoleDaftar;
   } else if (jenisAkun === 'poliklinik' || jenisAkun === 'klinik_binaan') {
     if (!kodeKlinikForm) gagal('Pilih nama klinik terlebih dahulu.');
-    const ada = await sql(`SELECT 1 FROM ${TABEL_KLINIK[jenisAkun]} WHERE kode = ? LIMIT 1`, [kodeKlinikForm]);
+    
+    // Validasi menggunakan fungsi queriesMaster
+    if (!(await kodeKlinikValid(jenisAkun, kodeKlinikForm))) {
+      gagal('Klinik yang dipilih tidak terdaftar.');
+    }
+
+    // Pastikan data benar-benar ada di tabel referensi yang sesuai
+    const namaTabel = TABEL_KLINIK[jenisAkun as 'poliklinik' | 'klinik_binaan'];
+    const ada = await sql(`SELECT 1 FROM ${namaTabel} WHERE id = ? LIMIT 1`, [kodeKlinikForm]);
+
     if (ada.length === 0) gagal('Klinik yang dipilih tidak terdaftar.');
+    
     role = jenisAkun;
     kodeKlinik = kodeKlinikForm;
   } else {
@@ -81,14 +95,14 @@ export async function registerPetugas(formData: FormData) {
   const sudahAda = await sql(`SELECT 1 FROM auth_kredensial WHERE email = ? LIMIT 1`, [email]);
   if (sudahAda.length > 0) gagal('Email sudah terdaftar.');
 
-    const id = randomUUID();
+  const id = randomUUID();
   let galat: string | null = null;
   try {
     await sql(
       `INSERT INTO profiles (id, nama_lengkap, role, status) VALUES (?, ?, ?, 'pending')`,
       [id, nama, role]
     );
-        try {
+    try {
       await sql(`INSERT INTO auth_kredensial (user_id, email, password_hash) VALUES (?, ?, ?)`,
         [id, email, await hashPassword(password)]);
 
@@ -110,7 +124,7 @@ export async function registerPetugas(formData: FormData) {
       throw e;
     }
   } catch (e: any) {
-    console.error('[registerPetugas] gagal:', e?.message);
+    console.error('[registerPetugas] gagal:', e?.message, e?.code, e?.detail, e?.constraint, e?.table);
     galat = 'Gagal mendaftar. Coba lagi.';
   }
   if (galat) gagal(galat);

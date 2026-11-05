@@ -1,6 +1,6 @@
 // POST /api/db : jalur data untuk Client Component (lihat lib/db/browser-client.ts).
 // Tidak ada akses langsung browser -> database. Setiap permintaan: (1) cek asal, (2) validasi bentuk,
-// (3) identitas dari sesi MariaDB (cookie epic_sesi), (4) aturan RLS tiruan, (5) baru dieksekusi.
+// (3) identitas dari sesi aplikasi (cookie epic_sesi), (4) aturan RLS tiruan, (5) baru dieksekusi.
 import { NextResponse } from 'next/server';
 import { buatPenjagaDariSesi } from '@/lib/db/penjaga-sesi';
 import { jalankanRemote, SpecTidakValid } from '@/lib/db/remote';

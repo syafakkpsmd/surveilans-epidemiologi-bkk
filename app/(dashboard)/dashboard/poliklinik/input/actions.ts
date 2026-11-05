@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { ambilIcd } from '@/lib/db/modul/icd';
 import { validasiKunjungan } from '@/lib/db/modul/poliklinikNonBkk';
-import { DAFTAR_WILKER_POLIKLINIK } from '@/lib/db/modul/poliklinik';
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import {
   cekAksesBkk, tambahKunjunganBkk, ubahKunjunganBkk, hapusKunjunganBkkDb,
 } from '@/lib/db/modul/poliklinikBkk';
@@ -17,7 +17,7 @@ export async function simpanKunjunganBkk(formData: FormData): Promise<HasilKunju
   if (!user || !boleh) return { sukses: false, error: 'Tidak diizinkan.' };
 
   const wilker = String(formData.get('wilayah_kerja') ?? '');
-  if (!(DAFTAR_WILKER_POLIKLINIK as readonly string[]).includes(wilker)) return { sukses: false, error: 'Pilih wilayah kerja.' };
+  if (!(await getNamaWilkerModul('poliklinik')).includes(wilker)) return { sukses: false, error: 'Pilih wilayah kerja.' };
 
   const v = validasiKunjungan(formData, hariIni());
   if ('error' in v) return { sukses: false, error: v.error };

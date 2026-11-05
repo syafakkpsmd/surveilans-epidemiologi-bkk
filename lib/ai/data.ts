@@ -53,6 +53,7 @@ import {
   hitungCascadeTb,
   hitungBreakdownFaktorRisikoTb, 
 } from '@/lib/db/modul/tb';
+import { getLabTikusMingguan, getLabTikusBulanan } from '@/lib/vektor/tikus/server';
 
 
 export const KONTEKS_TREN = [
@@ -1254,24 +1255,19 @@ async function ambilTikusLabMingguan(
   p: PeriodeMingguan,
   wilayahKerja: string | undefined
 ): Promise<Record<string, number>> {
-  const [ringkasan, ujiLab] = await Promise.all([
-    getRingkasanVektorTikus(p.tahun, wilayahKerja),
-    getUjiLabVektorTikusMingguan(p.tahun, wilayahKerja),
-  ]);
-
-  const barisMinggu = (ringkasan as any[]).filter((r) => r.minggu_epid === p.minggu);
-  const ujiLabMinggu = ujiLab.filter((u) => u.periode === p.minggu);
+  const lab = await getLabTikusMingguan(p.tahun, wilayahKerja);
+  const barisMinggu = lab.filter((r) => r.minggu_epid === p.minggu);
   const jumlahkan = (rows: any[], kolom: string) =>
     rows.reduce((total, r) => total + (Number(r[kolom]) || 0), 0);
 
   return {
-    leptospira_positif: jumlahkan(barisMinggu, 'total_positif_leptospira'),
-    pes_positif: jumlahkan(barisMinggu, 'total_positif_pes'),
-    hantavirus_positif: jumlahkan(barisMinggu, 'total_positif_hantavirus'),
-    diuji_lab: jumlahkan(ujiLabMinggu, 'diuji_lab'),
-    leptospira_negatif: jumlahkan(ujiLabMinggu, 'leptospira_negatif'),
-    pes_negatif: jumlahkan(ujiLabMinggu, 'pes_negatif'),
-    hantavirus_negatif: jumlahkan(ujiLabMinggu, 'hantavirus_negatif'),
+    leptospira_positif: jumlahkan(barisMinggu, 'leptospira_positif'),
+    pes_positif: jumlahkan(barisMinggu, 'pes_positif'),
+    hantavirus_positif: jumlahkan(barisMinggu, 'hantavirus_positif'),
+    diuji_lab: jumlahkan(barisMinggu, 'diuji_lab'),
+    leptospira_negatif: jumlahkan(barisMinggu, 'leptospira_negatif'),
+    pes_negatif: jumlahkan(barisMinggu, 'pes_negatif'),
+    hantavirus_negatif: jumlahkan(barisMinggu, 'hantavirus_negatif'),
   };
 }
 
@@ -1279,24 +1275,19 @@ async function ambilTikusLabBulanan(
   p: PeriodeBulanan,
   wilayahKerja: string | undefined
 ): Promise<Record<string, number>> {
-  const [ringkasan, ujiLab] = await Promise.all([
-    getRingkasanVektorTikusBulanan(p.tahun, wilayahKerja),
-    getUjiLabVektorTikusBulanan(p.tahun, wilayahKerja),
-  ]);
-
-  const barisBulan = (ringkasan as any[]).filter((r) => r.bulan === p.bulan);
-  const ujiLabBulan = ujiLab.filter((u) => u.periode === p.bulan);
+  const lab = await getLabTikusBulanan(p.tahun, wilayahKerja);
+  const barisBulan = lab.filter((r) => r.bulan === p.bulan);
   const jumlahkan = (rows: any[], kolom: string) =>
     rows.reduce((total, r) => total + (Number(r[kolom]) || 0), 0);
 
   return {
-    leptospira_positif: jumlahkan(barisBulan, 'total_positif_leptospira'),
-    pes_positif: jumlahkan(barisBulan, 'total_positif_pes'),
-    hantavirus_positif: jumlahkan(barisBulan, 'total_positif_hantavirus'),
-    diuji_lab: jumlahkan(ujiLabBulan, 'diuji_lab'),
-    leptospira_negatif: jumlahkan(ujiLabBulan, 'leptospira_negatif'),
-    pes_negatif: jumlahkan(ujiLabBulan, 'pes_negatif'),
-    hantavirus_negatif: jumlahkan(ujiLabBulan, 'hantavirus_negatif'),
+    leptospira_positif: jumlahkan(barisBulan, 'leptospira_positif'),
+    pes_positif: jumlahkan(barisBulan, 'pes_positif'),
+    hantavirus_positif: jumlahkan(barisBulan, 'hantavirus_positif'),
+    diuji_lab: jumlahkan(barisBulan, 'diuji_lab'),
+    leptospira_negatif: jumlahkan(barisBulan, 'leptospira_negatif'),
+    pes_negatif: jumlahkan(barisBulan, 'pes_negatif'),
+    hantavirus_negatif: jumlahkan(barisBulan, 'hantavirus_negatif'),
   };
 }
 

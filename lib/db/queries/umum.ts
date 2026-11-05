@@ -13,7 +13,7 @@
 import { createDbClient } from '@/lib/db/server';
 import { getDbClient } from '@/lib/db/client';
 
-/** Jalankan SELECT ke MariaDB lokal dan kembalikan barisnya. */
+/** Jalankan SELECT ke PostgreSQL dan kembalikan barisnya. */
 async function ambilBaris(sql: string, args: (string | number)[] = []): Promise<Record<string, any>[]> {
   const { rows } = await getDbClient().execute({ sql, args });
   return rows;

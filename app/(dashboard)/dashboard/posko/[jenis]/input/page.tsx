@@ -3,7 +3,8 @@
 import { notFound } from 'next/navigation';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { bolehKelolaPosko } from '@/lib/auth/aksesPosko';
-import { SLUG_KE_JENIS, WILAYAH_POSKO, type WilayahPosko } from '@/lib/posko/konstanta';
+import { SLUG_KE_JENIS, type WilayahPosko } from '@/lib/posko/konstanta';
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import { ambilInputHarianPosko, ambilPeriodePosko, hariIniWita } from '@/lib/posko/queries';
 import { tanggalSah } from '@/lib/posko/perintahInput';
 import PoskoInputClient from '@/components/posko/PoskoInputClient';
@@ -27,9 +28,8 @@ export default async function PoskoInputPage({
   const tahun = sp.tahun && /^\d{4}$/.test(sp.tahun) ? Number(sp.tahun) : undefined;
   const { periode, catatan } = await ambilPeriodePosko(posko, tahun);
 
-  const wilayah: WilayahPosko = (WILAYAH_POSKO as readonly string[]).includes(sp.wilayah ?? '')
-    ? (sp.wilayah as WilayahPosko)
-    : 'Samarinda';
+  const wilayahOpsi = await getNamaWilkerModul('posko');
+  const wilayah: WilayahPosko = wilayahOpsi.includes(sp.wilayah ?? '') ? (sp.wilayah as WilayahPosko) : (wilayahOpsi[0] ?? '');
 
   // tanggal boleh diinput: dari mulai periode sampai min(selesai, hari ini WITA)
   const hariIni = hariIniWita();
@@ -52,6 +52,7 @@ export default async function PoskoInputPage({
       periode={periode}
       tanggal={tanggal}
       wilayah={wilayah}
+      wilayahOpsi={wilayahOpsi}
       tanggalMaks={posokBelumMulai ? '' : tanggalMaks}
       awal={awal}
       bolehKelola={bolehKelola}

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getPoliklinikNonBkkById } from '@/lib/db/queries/queriesMaster';
 import { aksiUbahPoliklinikNonBkk } from '@/app/actions/master';
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +19,9 @@ export default async function EditPoliklinikPage({
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const p = await getPoliklinikNonBkkById(id);
   if (!p) notFound();
+  const wk = await getKamusWilker();
+  // Wilayah nonaktif tetap muncul bila itu wilayah poliklinik ini, supaya pilihan saat ini tidak hilang.
+  const opsiWilker = wk.semua.filter((w) => w.aktif || w.kode === p.kode_wilker);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
@@ -37,7 +40,7 @@ export default async function EditPoliklinikPage({
           <label className={label} htmlFor="kode_wilker">Wilayah kerja BKK *</label>
           <select id="kode_wilker" name="kode_wilker" required defaultValue={p.kode_wilker ?? ''} className={kotak}>
             <option value="" disabled>Pilih wilayah kerja</option>
-            {WILAYAH_KERJA.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {opsiWilker.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </div>
         <div>

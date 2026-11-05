@@ -18,13 +18,11 @@ import {
 } from 'recharts';
 import type { SiaosRow } from '@/lib/db/modul/queriesSiaos';
 
-const DAFTAR_LOKASI = ['Samarinda', 'APT Pranoto', 'Lhoktuan'] as const;
+/** Wilayah yang menjalankan SIAOS (dari pengaturan wilayah kerja, modul "siaos") beserta warna garis/batangnya. */
+export type LokasiSiaos = { nama: string; warna: string };
 
-const WARNA_LOKASI: Record<string, string> = {
-  Samarinda: '#0f766e',
-  'APT Pranoto': '#f59e0b',
-  Lhoktuan: '#6366f1',
-};
+const nolPerLokasi = (daftar: string[]): Record<string, number> => Object.fromEntries(daftar.map((n) => [n, 0]));
+
 const WARNA_TOTAL = '#0ea5e9';
 
 const WARNA_DONUT = ['#0f766e', '#f59e0b', '#6366f1', '#ef4444', '#0ea5e9', '#a855f7', '#94a3b8'];
@@ -120,13 +118,13 @@ function hitungPerMinggu(rows: SiaosRow[]): Record<string, number> {
   return map;
 }
 
-function hitungPerMingguPerWilayah(rows: SiaosRow[]): Record<string, Record<string, number>> {
+function hitungPerMingguPerWilayah(rows: SiaosRow[], daftar: string[]): Record<string, Record<string, number>> {
   const map: Record<string, Record<string, number>> = {};
   rows.forEach((d) => {
     if (!d.tanggal) return;
     const { tahun, minggu } = getMingguTahun(d.tanggal);
     const key = `${tahun}-${minggu}`;
-    if (!map[key]) map[key] = { Samarinda: 0, 'APT Pranoto': 0, Lhoktuan: 0 };
+    if (!map[key]) map[key] = nolPerLokasi(daftar);
     if (map[key][d.wilayah_kerja] !== undefined) map[key][d.wilayah_kerja]++;
   });
   return map;
@@ -171,12 +169,12 @@ function hitungPerBulan(rows: SiaosRow[]): Record<string, number> {
   return map;
 }
 
-function hitungPerBulanPerWilayah(rows: SiaosRow[]): Record<string, Record<string, number>> {
+function hitungPerBulanPerWilayah(rows: SiaosRow[], daftar: string[]): Record<string, Record<string, number>> {
   const map: Record<string, Record<string, number>> = {};
   rows.forEach((d) => {
     if (!d.tanggal) return;
     const bulan = d.tanggal.slice(0, 7);
-    if (!map[bulan]) map[bulan] = { Samarinda: 0, 'APT Pranoto': 0, Lhoktuan: 0 };
+    if (!map[bulan]) map[bulan] = nolPerLokasi(daftar);
     if (map[bulan][d.wilayah_kerja] !== undefined) map[bulan][d.wilayah_kerja]++;
   });
   return map;
@@ -252,7 +250,9 @@ function buatDataKategori(
   return [...utama, ...lainnya];
 }
 
-export default function SiaosClient({ data }: { data: SiaosRow[] }) {
+export default function SiaosClient({ data, lokasi }: { data: SiaosRow[]; lokasi: LokasiSiaos[] }) {
+  const namaLokasi = useMemo(() => lokasi.map((l) => l.nama), [lokasi]);
+  const warnaLokasi = useMemo(() => Object.fromEntries(lokasi.map((l) => [l.nama, l.warna])) as Record<string, string>, [lokasi]);
   const [filterLokasi, setFilterLokasi] = useState<string>('ALL');
   const tampilkanPerWilayah = filterLokasi === 'ALL';
 
@@ -270,12 +270,12 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
   const total = dataTerfilter.length;
 
   const perLokasi = useMemo(() => {
-    const map: Record<string, number> = { Samarinda: 0, 'APT Pranoto': 0, Lhoktuan: 0 };
+    const map = nolPerLokasi(namaLokasi);
     dataTerfilter.forEach((d) => {
       if (map[d.wilayah_kerja] !== undefined) map[d.wilayah_kerja]++;
     });
     return map;
-  }, [dataTerfilter]);
+  }, [dataTerfilter, namaLokasi]);
 
   const totalBulanIni = useMemo(() => {
     const now = new Date();
@@ -305,9 +305,9 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
 
   // ----- Hitungan mentah (tidak bergantung rentang yang dipilih) -----
   const perMingguTotal = useMemo(() => hitungPerMinggu(dataTerfilter), [dataTerfilter]);
-  const perMingguWilayah = useMemo(() => hitungPerMingguPerWilayah(data), [data]);
+  const perMingguWilayah = useMemo(() => hitungPerMingguPerWilayah(data, namaLokasi), [data, namaLokasi]);
   const perBulanTotal = useMemo(() => hitungPerBulan(dataTerfilter), [dataTerfilter]);
-  const perBulanWilayah = useMemo(() => hitungPerBulanPerWilayah(data), [data]);
+  const perBulanWilayah = useMemo(() => hitungPerBulanPerWilayah(data, namaLokasi), [data, namaLokasi]);
 
   // ----- Data siap-pakai untuk tiap grafik, mengikuti rentang yang dipilih -----
   const dataMingguanTotal = useMemo(
@@ -318,9 +318,9 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
     () =>
       mingguTerpilih.map((m) => ({
         minggu: m.label,
-        ...(perMingguWilayah[m.key] || { Samarinda: 0, 'APT Pranoto': 0, Lhoktuan: 0 }),
+        ...(perMingguWilayah[m.key] || nolPerLokasi(namaLokasi)),
       })),
-    [mingguTerpilih, perMingguWilayah]
+    [mingguTerpilih, perMingguWilayah, namaLokasi]
   );
   const dataBulananTotal = useMemo(
     () => bulanTerpilih.map((b) => ({ bulan: b.key, jumlah: perBulanTotal[b.key] || 0 })),
@@ -330,9 +330,9 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
     () =>
       bulanTerpilih.map((b) => ({
         bulan: b.key,
-        ...(perBulanWilayah[b.key] || { Samarinda: 0, 'APT Pranoto': 0, Lhoktuan: 0 }),
+        ...(perBulanWilayah[b.key] || nolPerLokasi(namaLokasi)),
       })),
-    [bulanTerpilih, perBulanWilayah]
+    [bulanTerpilih, perBulanWilayah, namaLokasi]
   );
 
   const dataJenisKelamin = useMemo(
@@ -422,9 +422,9 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
         >
           <option value="ALL">Semua Lokasi</option>
-          {DAFTAR_LOKASI.map((lokasi) => (
-            <option key={lokasi} value={lokasi}>
-              {lokasi}
+          {namaLokasi.map((nama) => (
+            <option key={nama} value={nama}>
+              {nama}
             </option>
           ))}
         </select>
@@ -433,9 +433,9 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <KartuRingkas label="Total SIAOS" value={total} />
         <KartuRingkas label="Bulan Ini" value={totalBulanIni} accent />
-        <KartuRingkas label="Samarinda" value={perLokasi['Samarinda']} />
-        <KartuRingkas label="APT Pranoto" value={perLokasi['APT Pranoto']} />
-        <KartuRingkas label="Lhoktuan" value={perLokasi['Lhoktuan']} />
+        {namaLokasi.map((nama) => (
+          <KartuRingkas key={nama} label={nama} value={perLokasi[nama]} />
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -494,7 +494,7 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
               type="monotone"
               dataKey="jumlah"
               name={tampilkanPerWilayah ? 'Total' : filterLokasi}
-              stroke={tampilkanPerWilayah ? WARNA_TOTAL : WARNA_LOKASI[filterLokasi] || WARNA_TOTAL}
+              stroke={tampilkanPerWilayah ? WARNA_TOTAL : warnaLokasi[filterLokasi] || WARNA_TOTAL}
               strokeWidth={2}
               dot={{ r: 3 }}
             />
@@ -513,13 +513,13 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip />
               <Legend />
-              {DAFTAR_LOKASI.map((lokasi) => (
+              {namaLokasi.map((nama) => (
                 <Line
-                  key={lokasi}
+                  key={nama}
                   type="monotone"
-                  dataKey={lokasi}
-                  name={lokasi}
-                  stroke={WARNA_LOKASI[lokasi]}
+                  dataKey={nama}
+                  name={nama}
+                  stroke={warnaLokasi[nama]}
                   strokeWidth={2}
                   dot={{ r: 2 }}
                 />
@@ -574,7 +574,7 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
             <Bar
               dataKey="jumlah"
               name={tampilkanPerWilayah ? 'Total' : filterLokasi}
-              fill={tampilkanPerWilayah ? WARNA_TOTAL : WARNA_LOKASI[filterLokasi] || WARNA_TOTAL}
+              fill={tampilkanPerWilayah ? WARNA_TOTAL : warnaLokasi[filterLokasi] || WARNA_TOTAL}
               radius={[6, 6, 0, 0]}
             />
           </BarChart>
@@ -592,8 +592,8 @@ export default function SiaosClient({ data }: { data: SiaosRow[] }) {
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip labelFormatter={(label) => formatBulanIndonesia(String(label))} />
               <Legend />
-              {DAFTAR_LOKASI.map((lokasi) => (
-                <Bar key={lokasi} dataKey={lokasi} name={lokasi} fill={WARNA_LOKASI[lokasi]} radius={[6, 6, 0, 0]} />
+              {namaLokasi.map((nama) => (
+                <Bar key={nama} dataKey={nama} name={nama} fill={warnaLokasi[nama]} radius={[6, 6, 0, 0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>

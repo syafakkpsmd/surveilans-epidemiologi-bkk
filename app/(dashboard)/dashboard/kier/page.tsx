@@ -1,4 +1,5 @@
 // app/(dashboard)/dashboard/kier/page.tsx
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import {
   getRingkasanKier,
   getTrenMingguanKier,
@@ -7,7 +8,6 @@ import {
   getTrenBulananPerWilkerKier,
   getDaftarTahunKier,
   getDaftarWilkerAktif,
-  DAFTAR_WILKER_KIER,
 } from '@/lib/db/modul/kier';
 import KierClient from './KierClient';
 
@@ -29,7 +29,8 @@ export default async function HalamanKierKesehatan({
 
   // Daftar wilker AKTIF (sesuai data asli di Turso) diambil dulu, supaya
   // breakdown mingguan/bulanan di bawah pasti cocok dengan ejaan aslinya.
-  const daftarWilkerAktif = await getDaftarWilkerAktif(tahun);
+  const wilkerKier = await getNamaWilkerModul('kier');
+  const daftarWilkerAktif = await getDaftarWilkerAktif(tahun, wilkerKier);
 
   const [ringkasan, trenMingguan, trenBulanan, trenMingguanWilker, trenBulananWilker, daftarTahun] = await Promise.all([
     getRingkasanKier(tahun, wilayahKerja),
@@ -44,7 +45,7 @@ export default async function HalamanKierKesehatan({
     <KierClient
       tahun={tahun}
       wilayahKerja={wilayahKerja}
-      daftarWilker={DAFTAR_WILKER_KIER}
+      daftarWilker={wilkerKier}
       daftarWilkerAktifAwal={daftarWilkerAktif}
       daftarTahun={daftarTahun.length > 0 ? daftarTahun : [sekarang.getFullYear()]}
       ringkasan={ringkasan}

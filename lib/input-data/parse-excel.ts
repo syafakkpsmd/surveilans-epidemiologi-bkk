@@ -8,7 +8,7 @@ import ExcelJS from 'exceljs';
 import { kunciJudul, type ModulInput, type KolomModul } from './modul';
 import { kunciBaris, validasiBaris, type NilaiBaris } from './validasi';
 import { selMentah, teksKosong } from './nilai';
-import { type KodeWilker } from '@/lib/wilayah-kerja';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 export const MAKS_BYTE = 5 * 1024 * 1024;
 export const MAKS_BARIS = 20000;
@@ -155,7 +155,8 @@ export async function bacaExcel(
   buffer: Buffer | ArrayBuffer | Uint8Array,
   modul: ModulInput,
   tahun: number,
-  opsi: { wilayahDefault?: KodeWilker | null } = {},
+  kamus: KamusWilker,
+  opsi: { wilayahDefault?: string | null } = {},
 ): Promise<HasilParse> {
   const kosong: HasilParse = { fatal: null, perluWilayah: false, jumlahBaris: 0, sah: [], galat: [], kolomDiabaikan: [], kolomAda: [] };
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
@@ -190,7 +191,7 @@ export async function bacaExcel(
     if (hasil.jumlahBaris > MAKS_BARIS) return { ...hasil, fatal: `Berkas lebih dari ${MAKS_BARIS} baris data. Pecah menjadi beberapa berkas.` };
 
     const nomor = r + 1;
-    const h = validasiBaris(modul, mentah, tahun);
+    const h = validasiBaris(modul, mentah, kamus, tahun);
     if (!h.nilai) { hasil.galat.push({ baris: nomor, pesan: h.galat }); continue; }
     const kd = kunciBaris(modul, h.nilai);
     if (kd) {

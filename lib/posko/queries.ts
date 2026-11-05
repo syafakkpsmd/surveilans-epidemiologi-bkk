@@ -3,6 +3,8 @@
 //  - Turso   : posko_periode, posko_penyakit_harian, posko_klb_harian, posko_ptm_harian
 //  - Turso   : kunjungan_poliklinik, data_penumpang_kapal (kapal penumpang)
 //  - Supabase: v_kegiatan_pesawat_rekap (pesawat)
+import { getWilkerModul } from '@/lib/wilayah-kerja/server';
+import { WARNA_SERI_WILKER } from '@/lib/wilayah-kerja/warna';
 import { tabelTidakAda } from '@/lib/db/errors';
 import { cache } from 'react';
 import { getDbClient } from '@/lib/db/client';
@@ -11,7 +13,6 @@ import { adalahGalatKolomBelumAda } from './perintahInput';
 import {
   DAFTAR_PENYAKIT,
   DAFTAR_PTM,
-  WILAYAH_POSKO,
   normalisasiWilayah,
   type BarisHarianPosko,
   type BarisPenyakitPosko,
@@ -178,8 +179,13 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
   const hasilPeriode = await ambilPeriodePosko(posko, tahun);
   const catatan: string[] = [...hasilPeriode.catatan];
   const { periode, daftarPeriode } = hasilPeriode;
+  const wilayahInfo = (await getWilkerModul('posko')).map((w, i) => ({
+    nama: w.namaPendek,
+    warna: w.warna ?? WARNA_SERI_WILKER[i % WARNA_SERI_WILKER.length],
+  }));
+  const daftarWilayah = wilayahInfo.map((w) => w.nama);
   const kosong: DataPosko = {
-    posko, hariIni: hariIniWita(), periode: null, daftarPeriode, tanggalAkhirTampil: null,
+    posko, wilayah: wilayahInfo, hariIni: hariIniWita(), periode: null, daftarPeriode, tanggalAkhirTampil: null,
     harian: [], penyakit: [], ptm: [], catatan,
   };
   if (!periode) return kosong;
@@ -214,10 +220,10 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
   const tanggalTampil = rentangTanggal(mulai, akhir);
   const peta = new Map<string, BarisHarianPosko>();
   for (const tgl of tanggalTampil) {
-    for (const w of WILAYAH_POSKO) peta.set(`${tgl}|${w}`, barisKosong(tgl, w));
+    for (const w of daftarWilayah) peta.set(`${tgl}|${w}`, barisKosong(tgl, w));
   }
   const cari = (tgl: unknown, wilayahMentah: unknown): BarisHarianPosko | undefined => {
-    const w = normalisasiWilayah(String(wilayahMentah ?? ''));
+    const w = normalisasiWilayah(String(wilayahMentah ?? ''), daftarWilayah);
     return w ? peta.get(`${String(tgl).slice(0, 10)}|${w}`) : undefined;
   };
 
@@ -252,7 +258,7 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
   const penyakit: BarisPenyakitPosko[] = [];
   const jenisPenyakitSah = new Set<string>(DAFTAR_PENYAKIT);
   rPenyakit.forEach((r) => {
-    const w = normalisasiWilayah(String(r.wilayah_kerja));
+    const w = normalisasiWilayah(String(r.wilayah_kerja), daftarWilayah);
     const jenis = String(r.jenis_penyakit);
     if (!w || !jenisPenyakitSah.has(jenis)) return;
     penyakit.push({
@@ -267,7 +273,7 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
   const ptm: BarisPtmPosko[] = [];
   const jenisPtmSah = new Set<string>(DAFTAR_PTM);
   rPtm.forEach((r) => {
-    const w = normalisasiWilayah(String(r.wilayah_kerja));
+    const w = normalisasiWilayah(String(r.wilayah_kerja), daftarWilayah);
     const jenis = String(r.jenis_ptm);
     if (!w || !jenisPtmSah.has(jenis)) return;
     const lk = angka(r.jumlah_lk);
@@ -280,6 +286,7 @@ export const ambilDataPosko = cache(async (posko: JenisPosko, tahun?: number): P
 
   return {
     posko,
+    wilayah: wilayahInfo,
     hariIni,
     periode,
     daftarPeriode,

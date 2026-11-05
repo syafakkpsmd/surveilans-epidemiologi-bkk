@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
-import { getPenumpangKapalTerbaru, WILKER_PELABUHAN } from '@/lib/db/modul/inputPenumpangKapal';
+import { getPenumpangKapalTerbaru, getWilkerPelabuhan } from '@/lib/db/modul/inputPenumpangKapal';
 import { getDaftarKapal } from '@/lib/db/modul/kapal';
 import FormInputPenumpangKapal from '@/components/lalu-lintas/FormInputPenumpangKapal';
 
@@ -21,7 +21,7 @@ export default async function InputPenumpangKapalPage({
   const jenis: 'datang' | 'berangkat' = jenisParam === 'berangkat' ? 'berangkat' : 'datang';
 
   const hariIni = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Makassar' });
-  const [terbaru, daftarKapal] = await Promise.all([getPenumpangKapalTerbaru(10), getDaftarKapal()]);
+  const [terbaru, daftarKapal, wilkerPelabuhan] = await Promise.all([getPenumpangKapalTerbaru(10), getDaftarKapal(), getWilkerPelabuhan()]);
 
   const tab = (j: 'datang' | 'berangkat', label: string) => (
     <Link
@@ -54,7 +54,7 @@ export default async function InputPenumpangKapalPage({
         <FormInputPenumpangKapal
           key={jenis}
           jenis={jenis}
-          wilker={WILKER_PELABUHAN.map((w) => ({ kode: w.kode, nama: w.nama }))}
+          wilker={wilkerPelabuhan.map((w) => ({ kode: w.kode, nama: w.nama }))}
           daftarKapal={daftarKapal}
           hariIni={hariIni}
         />

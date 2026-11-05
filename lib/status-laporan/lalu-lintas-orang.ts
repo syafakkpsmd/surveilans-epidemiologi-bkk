@@ -9,8 +9,8 @@
  * Sel yang bukan kewajiban wilker = 'na' (tampil "—", tidak dihitung Belum).
  */
 
-import { DAFTAR_WILKER } from './core';
-import type { KodeWilker, SelStatus } from './core';
+import type { KodeWilker, SelStatus, WilkerMatriks } from './core';
+import type { PetaModulWilker } from '@/lib/wilayah-kerja/modul';
 
 /** 'gagal' = sumber data tidak bisa dibaca (BUKAN berarti belum lapor). */
 export type SelStatusLlo = SelStatus | 'gagal';
@@ -40,22 +40,8 @@ export type KunciBulanan = (typeof MODUL_BULANAN)[number]['kunci'];
 /** Modul yang dilaporkan di tingkat BKK (nasional/global), bukan per wilker. */
 const MODUL_TINGKAT_BKK: readonly KunciMingguan[] = ['pie_nasional', 'pie_global'];
 
-/**
- * Wilker yang WAJIB melapor per modul mingguan. Mengikuti daftar sheet/lokasi
- * yang dipakai tiap modul di aplikasi (poliklinik & KIER: 5 wilker; SIAOS: 3;
- * Penumpang Kapal: Samarinda + Lhoktuan; SKDR: semua). Ubah di sini kalau
- * kewajibannya berubah.
- */
-const BERLAKU_MINGGUAN: Record<Exclude<KunciMingguan, 'pie_nasional' | 'pie_global'>, readonly KodeWilker[]> = {
-  poliklinik: ['WK01', 'WK03', 'WK04', 'WK05', 'WK07'],
-  kier: ['WK01', 'WK03', 'WK04', 'WK05', 'WK07'],
-  siaos: ['WK01', 'WK04', 'WK07'],
-  penumpang_kapal: ['WK01', 'WK04'],
-  skdr: ['WK01', 'WK02', 'WK03', 'WK04', 'WK05', 'WK06', 'WK07'],
-};
-
-/** Wilker yang TIDAK wajib per modul bulanan (default: semua wajib). */
-const TIDAK_BERLAKU_BULANAN: Partial<Record<KunciBulanan, readonly KodeWilker[]>> = {};
+// Wilker yang WAJIB melapor per modul = wilayah yang dicentang untuk modul itu di
+// /dashboard/pengaturan-wilayah-kerja (tabel wilker_modul), diteruskan lewat parameter `peta`.
 
 // ------------------------------------------------- Pencocokan nama wilker
 
@@ -140,15 +126,20 @@ function selWilker(sumber: SumberWilker, berlaku: boolean, kode: KodeWilker): Se
   return sumber.kode.has(kode) ? 'sudah' : 'belum';
 }
 
-export function buildMatriksMingguanLlo(src: SumberMingguan): BarisLaluLintas<KunciMingguan>[] {
-  const baris: BarisLaluLintas<KunciMingguan>[] = DAFTAR_WILKER.map((w) => {
+export function buildMatriksMingguanLlo(
+  src: SumberMingguan,
+  daftar: WilkerMatriks[],
+  peta: PetaModulWilker,
+  namaBkk = 'BKK',
+): BarisLaluLintas<KunciMingguan>[] {
+  const baris: BarisLaluLintas<KunciMingguan>[] = daftar.map((w) => {
     const status = {} as Record<KunciMingguan, SelStatusLlo>;
     for (const m of MODUL_MINGGUAN) {
       if (MODUL_TINGKAT_BKK.includes(m.kunci)) {
         status[m.kunci] = 'na';
       } else {
-        const k = m.kunci as keyof typeof BERLAKU_MINGGUAN;
-        status[m.kunci] = selWilker(src[k], BERLAKU_MINGGUAN[k].includes(w.kode), w.kode);
+        const k = m.kunci as Exclude<KunciMingguan, 'pie_nasional' | 'pie_global'>;
+        status[m.kunci] = selWilker(src[k], peta[k].includes(w.kode), w.kode);
       }
     }
     return { kode: w.kode, nama: w.nama, jenis: w.jenis, status, kelengkapanPct: hitungPct(Object.values(status)) };
@@ -166,7 +157,7 @@ export function buildMatriksMingguanLlo(src: SumberMingguan): BarisLaluLintas<Ku
   }
   baris.push({
     kode: 'BKK',
-    nama: 'BKK Kelas I Samarinda (tingkat BKK)',
+    nama: `${namaBkk} (tingkat BKK)`,
     jenis: 'BKK',
     status: statusBkk,
     kelengkapanPct: hitungPct(Object.values(statusBkk)),
@@ -174,11 +165,15 @@ export function buildMatriksMingguanLlo(src: SumberMingguan): BarisLaluLintas<Ku
   return baris;
 }
 
-export function buildMatriksBulananLlo(src: SumberBulanan): BarisLaluLintas<KunciBulanan>[] {
-  return DAFTAR_WILKER.map((w) => {
+export function buildMatriksBulananLlo(
+  src: SumberBulanan,
+  daftar: WilkerMatriks[],
+  peta: PetaModulWilker,
+): BarisLaluLintas<KunciBulanan>[] {
+  return daftar.map((w) => {
     const status = {} as Record<KunciBulanan, SelStatusLlo>;
     for (const m of MODUL_BULANAN) {
-      const berlaku = !(TIDAK_BERLAKU_BULANAN[m.kunci] ?? []).includes(w.kode);
+      const berlaku = peta[m.kunci].includes(w.kode);
       status[m.kunci] = selWilker(src[m.kunci], berlaku, w.kode);
     }
     return { kode: w.kode, nama: w.nama, jenis: w.jenis, status, kelengkapanPct: hitungPct(Object.values(status)) };

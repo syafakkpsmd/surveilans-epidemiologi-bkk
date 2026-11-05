@@ -1,5 +1,5 @@
 // lib/db/rls.ts
-// Pengganti RLS Supabase pada masa peralihan (Supabase Auth masih dipakai untuk login, data di MariaDB).
+// Pengganti RLS Supabase pada masa peralihan (Supabase Auth masih dipakai untuk login, data di PostgreSQL).
 // Aturan dibangkitkan dari 103 policy RLS asli (lib/db/rls-policy.generated.ts, hasil scripts/migrate/buat-rls.mjs).
 //
 // Cara kerja (meniru Postgres):

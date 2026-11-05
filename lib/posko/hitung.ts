@@ -3,7 +3,6 @@
 import {
   DAFTAR_PENYAKIT,
   DAFTAR_PTM,
-  WILAYAH_POSKO,
   type BarisHarianPosko,
   type BarisPenyakitPosko,
   type BarisPtmPosko,
@@ -220,4 +219,3 @@ export function trenHarian<T extends { tanggal: string }>(
     .map((tanggal) => ({ name: tanggalPendek(tanggal), tanggal, ...ambil(perTanggal.get(tanggal)!) }));
 }
 
-export const SEMUA_WILAYAH = WILAYAH_POSKO;

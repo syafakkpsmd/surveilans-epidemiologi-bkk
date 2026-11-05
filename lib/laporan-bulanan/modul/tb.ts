@@ -1,6 +1,6 @@
+import { getNamaWilkerModul } from "@/lib/wilayah-kerja/server";
 import "server-only";
 import {
-  DAFTAR_WILKER_TB,
   getTbRawData,
   hitungBreakdownFaktorRisikoTb,
   hitungBreakdownWilkerTb,
@@ -127,7 +127,8 @@ export const modulTb: ModulLaporan = {
     if (rows.length === 0) return null;
 
     const cascade = hitungCascadeTb(rows);
-    const perWilker = hitungBreakdownWilkerTb(rows).filter((w) => DAFTAR_WILKER_TB.includes(w.wilayahKerja as (typeof DAFTAR_WILKER_TB)[number]));
+    const wilkerTb = await getNamaWilkerModul("tb");
+    const perWilker = hitungBreakdownWilkerTb(rows, wilkerTb).filter((w) => wilkerTb.includes(w.wilayahKerja));
     const faktor = hitungBreakdownFaktorRisikoTb(rows).filter((f) => f.totalDiskrining > 0).slice(0, 5);
     const delay = hitungDelayDiagnosisTb(rows);
 

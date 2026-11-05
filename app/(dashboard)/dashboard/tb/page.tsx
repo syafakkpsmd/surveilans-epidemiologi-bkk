@@ -1,4 +1,5 @@
 // app/(dashboard)/dashboard/tb/page.tsx
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses'; // sesuaikan kalau path aslinya beda
 import {
   getTbRawData,
@@ -14,7 +15,6 @@ import {
   ambilDaftarBelumTindakLanjutTb,
   filterRowsByRentangMinggu,
   filterRowsByRentangBulan,
-  DAFTAR_WILKER_TB,
   type TbRow,
 } from '@/lib/db/modul/tb';
 import TbClient from './TbClient';
@@ -50,6 +50,7 @@ export default async function HalamanTb({
   const rentangBulanMulai = sp.bulan_mulai;
   const rentangBulanAkhir = sp.bulan_akhir;
 
+  const wilkerTb = await getNamaWilkerModul('tb');
   const [{ sudahLogin, role }, rows, rowsSemuaWilker] = await Promise.all([
     getStatusAkses(),
     getTbRawData(tahun, wilayahKerja),
@@ -96,7 +97,7 @@ export default async function HalamanTb({
   const trenMingguanTampil = hitungTrenMingguanTb(rowsTerfilterRentang);
   const trenBulananTampil = hitungTrenBulananTb(rowsTerfilterRentang);
   const breakdownFaktorRisiko = hitungBreakdownFaktorRisikoTb(rowsTerfilterRentang);
-  const breakdownWilker = hitungBreakdownWilkerTb(rowsWilkerTerfilterRentang);
+  const breakdownWilker = hitungBreakdownWilkerTb(rowsWilkerTerfilterRentang, wilkerTb);
   const delayDiagnosis = hitungDelayDiagnosisTb(rowsTerfilterRentang);
   const distribusiKabKota = hitungDistribusiKabKotaTb(rowsTerfilterRentang); // sudah dibatasi Top 15 + "Lainnya"
   const donutJenisKelamin = hitungDonutJenisKelaminTb(rowsTerfilterRentang);
@@ -114,7 +115,7 @@ export default async function HalamanTb({
       sudahLogin={sudahLogin}
       roleAI={roleAI}
       tahunBerjalan={tahun}
-      daftarWilker={DAFTAR_WILKER_TB}
+      daftarWilker={wilkerTb}
       wilayahTerpilih={wilayahKerja ?? 'semua'}
       granularitas={granularitas}
       rentangMingguMulaiTerpasang={rentangMingguMulai ?? ''}

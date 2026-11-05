@@ -3,10 +3,16 @@
 // Satu input = satu baris, jenis 'datang' ATAU 'berangkat'. Kolom sisi lain diisi 0.
 // Validasi murni (tanpa I/O) dipisah dari penulisan agar mudah diuji.
 import { getDbClient } from '@/lib/db/client';
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import { muatDaftarWilayahLangsung } from '@/lib/wilayah-kerja/db';
 
-/** Wilayah kerja yang menerima kapal: hanya pelabuhan (bandara tidak ada data penumpang kapal). */
-export const WILKER_PELABUHAN = WILAYAH_KERJA.filter((w) => w.jenis === 'Pelabuhan');
+export type WilkerPelabuhan = { kode: string; nama: string; namaPendek: string };
+
+/** Wilayah kerja yang menerima kapal: pelabuhan AKTIF di wilker_ref (bandara tidak ada data penumpang kapal). */
+export async function getWilkerPelabuhan(): Promise<WilkerPelabuhan[]> {
+  return (await muatDaftarWilayahLangsung())
+    .filter((w) => w.aktif && w.jenis === 'Pelabuhan')
+    .map((w) => ({ kode: w.kode, nama: w.nama, namaPendek: w.namaPendek }));
+}
 
 export type JenisInput = 'datang' | 'berangkat';
 
@@ -51,11 +57,12 @@ function bilangan(mentah: string, label: string): number | string {
 export function validasiInput(
   f: FormData,
   hariIni: string,
+  wilkerPelabuhan: readonly { kode: string }[],
 ): { data: InputPenumpangKapal } | { error: string } {
   const jenis: JenisInput = teks(f.get('jenis')) === 'berangkat' ? 'berangkat' : 'datang';
 
   const kodeWilker = teks(f.get('kode_wilker'));
-  if (!WILKER_PELABUHAN.some((w) => w.kode === kodeWilker)) return { error: 'Wilayah kerja tidak valid.' };
+  if (!wilkerPelabuhan.some((w) => w.kode === kodeWilker)) return { error: 'Wilayah kerja tidak valid.' };
 
   const kapalId = teks(f.get('kapal_id'));
   if (!kapalId) return { error: 'Pilih kapal terlebih dahulu.' };
@@ -115,7 +122,9 @@ async function namaWilkerTersimpan(kodeWilker: string): Promise<string> {
   });
   const ada = r.rows[0]?.wilker;
   if (typeof ada === 'string' && ada.trim()) return ada;
-  return WILKER_PELABUHAN.find((w) => w.kode === kodeWilker)!.namaPendek;
+  const w = (await getWilkerPelabuhan()).find((x) => x.kode === kodeWilker);
+  if (!w) throw new Error('Wilayah kerja tidak valid.');
+  return w.namaPendek;
 }
 
 /** Nama kapal dari tabel kapal, hanya bila kapal itu aktif dan terdaftar di pelabuhan tersebut. */

@@ -1,14 +1,14 @@
 // lib/db/penjaga-sesi.ts
-// Identitas pengguna untuk tiruan RLS berasal dari sesi MariaDB (cookie epic_sesi, lib/auth/session.ts).
+// Identitas pengguna untuk tiruan RLS berasal dari sesi aplikasi (cookie epic_sesi, lib/auth/session.ts).
 // Dipakai oleh lib/db/server.ts (klien atas nama pengguna) dan app/api/db/route.ts (jalur data browser).
 import { buatPenjaga } from './rls';
 import type { KonteksAuth, Penjaga } from './rls';
 
-/** Pengguna dari sesi MariaDB (bentuk minimal yang dibutuhkan penjaga RLS). */
+/** Pengguna dari sesi aplikasi (bentuk minimal yang dibutuhkan penjaga RLS). */
 export type AmbilPengguna = () => Promise<{ id: string; role: string } | null>;
 
 /**
- * Penjaga RLS untuk satu permintaan: identitas dan role dari sesi MariaDB (`getPengguna`).
+ * Penjaga RLS untuk satu permintaan: identitas dan role dari sesi aplikasi (`getPengguna`).
  * `getPengguna` hanya mengembalikan akun berstatus approved dengan sesi yang belum kedaluwarsa/tidak aktif,
  * jadi akun pending atau sesi mati diperlakukan sebagai anonim (aman: gagal tertutup).
  * `ambilPengguna` bisa disuntik untuk pengujian.

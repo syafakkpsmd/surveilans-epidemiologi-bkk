@@ -14,6 +14,10 @@ import { isiNegara, simpanMaster, terapkanMasterKeData, belumTerdaftar } from '.
 import { ubahDesimal, ubahTanggalWaktu, ubahWaktu } from '../../lib/input-data/nilai';
 import { getDbClient, tutupDb } from '../../lib/db/client';
 
+import { buatKamus, WILAYAH_KERJA } from '../../lib/wilayah-kerja';
+// Kamus uji = daftar bawaan BKK Samarinda (aplikasi sebenarnya membacanya dari wilker_ref).
+const KAMUS = buatKamus(WILAYAH_KERJA);
+
 const cop = MODUL.cop;
 const phqc = MODUL.phqc;
 const semuaKolom = (m: typeof cop) => m.kolom.map((k) => k.nama);
@@ -53,23 +57,23 @@ test('bilangan, RBA, wilayah', () => {
   assert.equal(ubahBilangan(-1).ok, false);
   assert.deepEqual(ubahRba(' merah '), { ok: true, nilai: 'Merah' });
   assert.equal(ubahRba('Biru').ok, false);
-  assert.deepEqual(ubahWilker('Tanjung_Santan'), { ok: true, nilai: 'WK02' });
-  assert.equal(ubahWilker('Tg. Laut').ok, false);
+  assert.deepEqual(ubahWilker('Tanjung_Santan', KAMUS), { ok: true, nilai: 'WK02' });
+  assert.equal(ubahWilker('Tg. Laut', KAMUS).ok, false);
 });
 
 test('validasi baris: wajib, tahun, wilayah yang tidak berlaku', () => {
   const sah = { wilayah_kerja: 'Tanjung Santan', nama_kapal: 'KM A', tgl_kedatangan: '2026-03-01', jml_abk_wni: '5', rba: 'hijau' };
-  const h = validasiBaris(cop, sah, 2026);
+  const h = validasiBaris(cop, sah, KAMUS, 2026);
   assert.equal(h.galat.length, 0);
   assert.equal(h.nilai?.wilayah_kerja, 'TanjungSantan');
   assert.equal(h.nilai?.rba, 'Hijau');
-  assert.ok(validasiBaris(cop, { ...sah, tgl_kedatangan: '2025-03-01' }, 2026).galat[0].includes('di luar tahun 2026'));
-  assert.ok(validasiBaris(cop, { ...sah, nama_kapal: '' }, 2026).galat[0].includes('wajib'));
-  assert.ok(validasiBaris(cop, { ...sah, wilayah_kerja: 'APT Pranoto' }, 2026).galat[0].includes('tidak berlaku'));
+  assert.ok(validasiBaris(cop, { ...sah, tgl_kedatangan: '2025-03-01' }, KAMUS, 2026).galat[0].includes('di luar tahun 2026'));
+  assert.ok(validasiBaris(cop, { ...sah, nama_kapal: '' }, KAMUS, 2026).galat[0].includes('wajib'));
+  assert.ok(validasiBaris(cop, { ...sah, wilayah_kerja: 'APT Pranoto' }, KAMUS, 2026).galat[0].includes('tidak berlaku'));
 });
 
 test('template bisa dibaca kembali sebagai berkas kosong (tanpa kolom hilang)', async () => {
-  const h = await bacaExcel(await buatTemplate(cop), cop, 2026);
+  const h = await bacaExcel(await buatTemplate(cop), cop, 2026, KAMUS);
   assert.equal(h.fatal, null);
   assert.equal(h.jumlahBaris, 0);
 });
@@ -85,7 +89,7 @@ test('baca Excel: judul di baris ke-3, alias, baris kosong, galat, duplikat, kol
     ['Lhoktuan', 'KM Tiga', '2026-06-01', 'banyak', 'Kuning', ''], // bilangan salah
     ['Sangatta', 'KM Empat', '2026-07-01', 0, '', ''],
   ]);
-  const h = await bacaExcel(buf, cop, 2026);
+  const h = await bacaExcel(buf, cop, 2026, KAMUS);
   assert.equal(h.fatal, null);
   assert.equal(h.jumlahBaris, 5);
   assert.deepEqual(h.sah.map((s) => s.baris), [4, 9]);
@@ -95,9 +99,9 @@ test('baca Excel: judul di baris ke-3, alias, baris kosong, galat, duplikat, kol
 });
 
 test('baca Excel: kolom wajib hilang dan berkas rusak -> fatal', async () => {
-  const h1 = await bacaExcel(await buku([['Nama Kapal', 'Wilker'], ['KM A', 'Samarinda']]), cop, 2026);
+  const h1 = await bacaExcel(await buku([['Nama Kapal', 'Wilker'], ['KM A', 'Samarinda']]), cop, 2026, KAMUS);
   assert.match(h1.fatal ?? '', /Tanggal/);
-  const h2 = await bacaExcel(Buffer.from('bukan excel'), cop, 2026);
+  const h2 = await bacaExcel(Buffer.from('bukan excel'), cop, 2026, KAMUS);
   assert.match(h2.fatal ?? '', /tidak dikenal/);
 });
 
@@ -109,7 +113,7 @@ const HTML_COP = `<table><tr><td colspan='17' align='center'><h2>Rekapitulasi Pe
 <tr><td>2</td><td>Samarinda</td><td>Pelabuhan Lhok Tuan</td><td>LPG/C GAS</td><td>PANAMA</td><td>22814.5</td><td>Singapore</td><td>2026-10-23</td><td>11</td><td>12</td><td>11:10</td><td></td><td>'</td><td></td></tr></table>`;
 
 test('HTML Sinkarkes: judul di baris ke-4, sel gabungan, entitas, apostrof, jam, desimal', async () => {
-  const h = await bacaExcel(Buffer.from(HTML_COP), cop, 2026);
+  const h = await bacaExcel(Buffer.from(HTML_COP), cop, 2026, KAMUS);
   assert.equal(h.fatal, null);
   assert.equal(h.sah.length, 2);
   const n = h.sah[0].nilai;
@@ -126,18 +130,18 @@ test('HTML Sinkarkes: judul di baris ke-4, sel gabungan, entitas, apostrof, jam,
 
 test('berkas tanpa kolom wilayah: minta wilayah, lalu terima wilayah bawaan', async () => {
   const html = '<table><tr><td>Nama Kapal</td><td>Tanggal Terbit</td><td>Jml. ABK WNI</td></tr><tr><td>KM A</td><td>2026-02-01</td><td>3</td></tr></table>';
-  const h1 = await bacaExcel(Buffer.from(html), phqc, 2026);
+  const h1 = await bacaExcel(Buffer.from(html), phqc, 2026, KAMUS);
   assert.equal(h1.perluWilayah, true);
-  const h2 = await bacaExcel(Buffer.from(html), phqc, 2026, { wilayahDefault: 'WK05' });
+  const h2 = await bacaExcel(Buffer.from(html), phqc, 2026, KAMUS, { wilayahDefault: 'WK05' });
   assert.equal(h2.fatal, null);
   assert.equal(h2.sah[0].nilai.wilayah_kerja, 'Sangatta');
   assert.equal(h2.sah[0].nilai.tgl_keberangkatan, '2026-02-01');
 });
 
 test('kerangka frameset kosong dan .xls biner ditolak dengan pesan jelas', async () => {
-  const h1 = await bacaExcel(Buffer.from('<html><meta name="Excel Workbook Frameset"><table><tr><td></td></tr></table></html>'), phqc, 2026);
+  const h1 = await bacaExcel(Buffer.from('<html><meta name="Excel Workbook Frameset"><table><tr><td></td></tr></table></html>'), phqc, 2026, KAMUS);
   assert.match(h1.fatal ?? '', /kerangka/);
-  const h2 = await bacaExcel(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0]), phqc, 2026);
+  const h2 = await bacaExcel(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0]), phqc, 2026, KAMUS);
   assert.match(h2.fatal ?? '', /\.xls biner/);
 });
 
@@ -201,7 +205,7 @@ test('unggah: tambah baru + perbarui yang ada, isian manual tidak tertimpa koson
 
   // petugas mengisi RBA
   const id = (await db.execute("SELECT id FROM kegiatan_cop WHERE nama_kapal='KM Satu'")).rows[0].id as string;
-  assert.deepEqual(await ubahManual(cop, id, { rba: 'Merah', faktor_risiko: 'Tidak Ditemukan' }), { ok: true });
+  assert.deepEqual(await ubahManual(cop, id, { rba: 'Merah', faktor_risiko: 'Tidak Ditemukan' }, KAMUS), { ok: true });
 
   // unggah ulang berkas yang SAMA (tanpa kolom manual) dengan jumlah ABK dikoreksi
   const a2 = { ...a, jml_abk_wni: 9, bendera_kapal: null };
@@ -228,12 +232,12 @@ test('ubah manual: hanya kolom manual, RBA divalidasi, kosong -> NULL', async ()
   const db = getDbClient();
   await db.execute({ sql: `INSERT INTO kegiatan_cop (id,wilayah_kerja,nama_kapal,tgl_kedatangan,rba) VALUES (UUID(),?,?,?,?)`, args: ['Lhoktuan', 'M', '2026-05-05', 'Hijau'] });
   const id = (await db.execute("SELECT id FROM kegiatan_cop WHERE nama_kapal='M'")).rows[0].id as string;
-  const g1 = await ubahManual(cop, id, { nama_kapal: 'X' });
+  const g1 = await ubahManual(cop, id, { nama_kapal: 'X' }, KAMUS);
   assert.equal(g1.ok, false);
-  const g2 = await ubahManual(cop, id, { rba: 'Biru' });
+  const g2 = await ubahManual(cop, id, { rba: 'Biru' }, KAMUS);
   assert.equal(g2.ok, false);
-  assert.deepEqual(await ubahManual(cop, id, { rba: 'Sedang', sanitasi: 'Baik' }), { ok: true });
-  assert.deepEqual(await ubahManual(cop, id, { rba: '' }), { ok: true });
+  assert.deepEqual(await ubahManual(cop, id, { rba: 'Sedang', sanitasi: 'Baik' }, KAMUS), { ok: true });
+  assert.deepEqual(await ubahManual(cop, id, { rba: '' }, KAMUS), { ok: true });
   const r = (await db.execute("SELECT rba, sanitasi FROM kegiatan_cop WHERE nama_kapal='M'")).rows[0];
   assert.equal(r.rba, null);
   assert.equal(r.sanitasi, 'Baik');
@@ -293,7 +297,7 @@ test('PHQC (tanpa kunci unik di tabel): tambah lalu perbarui, bukan menggandakan
   const r1 = await simpanUnggahan(opsiSimpan(phqc, [mk('S1', '2026-01-01', 1), mk('S2', '2026-01-01', 2)]));
   assert.deepEqual([r1.baru, r1.diperbarui], [2, 0]);
   const id = (await getDbClient().execute("SELECT id FROM kegiatan_phqc WHERE nama_kapal='S1'")).rows[0].id as number;
-  assert.deepEqual(await ubahManual(phqc, String(id), { tujuan_berlayar: 'Luar Negeri', rba: 'Rendah' }), { ok: true });
+  assert.deepEqual(await ubahManual(phqc, String(id), { tujuan_berlayar: 'Luar Negeri', rba: 'Rendah' }, KAMUS), { ok: true });
   const r2 = await simpanUnggahan(opsiSimpan(phqc, [mk('S1', '2026-01-01', 7)]));
   assert.deepEqual([r2.baru, r2.diperbarui], [0, 1]);
   const x = (await getDbClient().execute("SELECT jml_penumpang_wni, tujuan_berlayar, rba FROM kegiatan_phqc WHERE nama_kapal='S1'")).rows[0];

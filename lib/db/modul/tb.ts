@@ -13,16 +13,6 @@
 import { getDbClient } from '@/lib/db/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 
-export const DAFTAR_WILKER_TB = [
-  'Samarinda',
-  'APT Pranoto',
-  'Tanjung Santan',
-  'Tanjung Laut',
-  'Lhoktuan',
-  'Sangatta',
-  'Sangkulirang',
-] as const;
-
 // ------------------------------------------------------------
 // Tipe data
 // ------------------------------------------------------------
@@ -246,7 +236,7 @@ export interface BreakdownWilkerTb {
   totalTerkonfirmasi: number;
 }
 
-export function hitungBreakdownWilkerTb(rows: TbRow[]): BreakdownWilkerTb[] {
+export function hitungBreakdownWilkerTb(rows: TbRow[], daftarWilker: readonly string[]): BreakdownWilkerTb[] {
   const map = new Map<string, BreakdownWilkerTb>();
   for (const r of rows) {
     const key = r.wilayah_kerja;
@@ -258,9 +248,9 @@ export function hitungBreakdownWilkerTb(rows: TbRow[]): BreakdownWilkerTb[] {
     if (YA(r.terduga_tbc)) d.totalTerduga += 1;
     if (YA(r.terkonfirmasi_tbc)) d.totalTerkonfirmasi += 1;
   }
-  // Urut sesuai DAFTAR_WILKER_TB supaya tampilan chart konsisten, wilker
+  // Urut sesuai daftarWilker (wilayah modul TB di wilker_modul) supaya tampilan chart konsisten, wilker
   // yang belum ada datanya sama sekali tetap tampil dengan nilai 0.
-  return DAFTAR_WILKER_TB.map(
+  return daftarWilker.map(
     (w) => map.get(w) ?? { wilayahKerja: w, totalSkrining: 0, totalTerduga: 0, totalTerkonfirmasi: 0 }
   );
 }

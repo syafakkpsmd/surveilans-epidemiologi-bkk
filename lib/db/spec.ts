@@ -173,7 +173,7 @@ export abstract class PencatatQuery {
   is(kol: string, v: null | boolean): this { return this.tambah(kol, 'is', v); }
   in(kol: string, v: unknown[]): this { return this.tambah(kol, 'in', v); }
   contains(): this {
-    throw new Error('Filter contains() (kolom JSON/array) belum didukung oleh adapter MariaDB.');
+    throw new Error('Filter contains() (kolom JSON/array) belum didukung oleh adapter PostgreSQL.');
   }
   match(obj: Row): this {
     for (const [k, v] of Object.entries(obj)) this.eq(k, v);

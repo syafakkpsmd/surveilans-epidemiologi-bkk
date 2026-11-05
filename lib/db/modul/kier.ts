@@ -8,7 +8,6 @@
 
 import { getDbClient } from '@/lib/db/client';
 
-export const DAFTAR_WILKER_KIER = ['Samarinda', 'APT Pranoto', 'Tanjung Laut', 'Lhoktuan', 'Sangatta'];
  
 export interface BarisKier {
   wilayah_kerja: string;
@@ -192,12 +191,12 @@ export async function getDaftarTahunKier(): Promise<number[]> {
  
 /**
  * Daftar wilayah kerja YANG BENAR-BENAR ADA di data Turso untuk tahun ini,
- * digabung dengan DAFTAR_WILKER_KIER (supaya urutan/warna tetap konsisten
- * untuk 5 wilker resmi walau datanya baru 0). Wilker "asing" (typo/beda
+ * digabung dengan `daftarResmi` (wilayah modul KIER di wilker_modul; supaya urutan/warna tetap konsisten
+ * untuk wilker resmi walau datanya baru 0). Wilker "asing" (typo/beda
  * ejaan dari sheet) tetap ikut ditampilkan di akhir daftar, bukan hilang
  * diam-diam — supaya kelihatan kalau ada nama wilker yang tidak konsisten.
  */
-export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
+export async function getDaftarWilkerAktif(tahun: number, daftarResmi: readonly string[]): Promise<string[]> {
   const result = await getDbClient().execute({
     sql: `SELECT DISTINCT wilayah_kerja
           FROM kier_kesehatan
@@ -207,7 +206,7 @@ export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
   });
  
   const dariData = result.rows.map((r: any) => String(r.wilayah_kerja));
-  const gabungan = [...DAFTAR_WILKER_KIER];
+  const gabungan = [...daftarResmi];
   dariData.forEach((w) => {
     if (!gabungan.includes(w)) gabungan.push(w);
   });
@@ -222,14 +221,14 @@ export async function getDaftarWilkerAktif(tahun: number): Promise<string[]> {
  *
  * `daftarWilker` SEBAIKNYA diisi hasil getDaftarWilkerAktif(tahun) supaya
  * kolom yang dibentuk cocok persis dengan nilai wilayah_kerja yang benar-
- * benar ada di Turso (bukan hardcode) — kalau tidak diisi, fallback ke
- * DAFTAR_WILKER_KIER (bisa membuat data 0 semua kalau ejaan di sheet beda).
+ * benar ada di database (bukan hardcode). Wajib diisi; sumber awalnya
+ * daftar wilayah modul KIER (bisa membuat data 0 semua kalau ejaan di sheet beda).
  */
 export async function getTrenMingguanPerWilkerKier(
   tahun: number,
   mingguAwal: number,
   mingguAkhir: number,
-  daftarWilker: string[] = DAFTAR_WILKER_KIER
+  daftarWilker: readonly string[]
 ): Promise<TitikMingguanPerWilker[]> {
   const data = await ambilBarisTahun(tahun);
   const perMinggu = new Map<number, Record<string, number>>();
@@ -265,7 +264,7 @@ export async function getTrenBulananPerWilkerKier(
   tahun: number,
   bulanAwal: number,
   bulanAkhir: number,
-  daftarWilker: string[] = DAFTAR_WILKER_KIER
+  daftarWilker: readonly string[]
 ): Promise<TitikBulananPerWilker[]> {
   const data = await ambilBarisTahun(tahun);
   const perBulan = new Map<number, Record<string, number>>();

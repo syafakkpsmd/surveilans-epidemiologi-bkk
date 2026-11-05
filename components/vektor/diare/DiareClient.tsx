@@ -1,6 +1,6 @@
 'use client';
 // components/vektor/diare/DiareClient.tsx
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { JENIS, LABEL_JENIS, NAMA_WILAYAH, OPSI_WILAYAH, STATUS_TMS, type Jenis } from '@/lib/vektor/diare/config';
 import Dialog from './Dialog';
@@ -58,8 +58,6 @@ export default function DiareClient({ jenis }: { jenis: Jenis }) {
   useEffect(() => {
     muat(0);
   }, [muat]);
-
-  const lokasiSaran = useMemo(() => Array.from(new Set(rows.map((r) => r.lokasi))).sort(), [rows]);
 
   function selesai(pesan: string) {
     setDialog(null);
@@ -227,15 +225,25 @@ export default function DiareClient({ jenis }: { jenis: Jenis }) {
         onTutup={() => setDialog(null)}
       >
         {dialog?.tipe === 'survei' && (
-          <FormSurvei jenis={jenis} baris={dialog.baris} lokasiSaran={lokasiSaran}
-            onSelesai={selesai} onBatal={() => setDialog(null)} />
+          <FormSurvei
+            jenis={jenis}
+            baris={dialog.baris}
+            onLokasiBerubah={() => muat(0)}
+            onSelesai={selesai}
+            onBatal={() => setDialog(null)}
+          />
         )}
       </Dialog>
 
       <Dialog buka={dialog?.tipe === 'tindakan'} judul="Tindakan pengendalian" onTutup={() => setDialog(null)}>
         {dialog?.tipe === 'tindakan' && (
-          <FormTindakan jenis={jenis} baris={dialog.baris} pilihan={rows}
-            onSelesai={selesai} onBatal={() => setDialog(null)} />
+          <FormTindakan
+            jenis={jenis}
+            baris={dialog.baris}
+            wilayahAwal={filter.wilayah}
+            onSelesai={selesai}
+            onBatal={() => setDialog(null)}
+          />
         )}
       </Dialog>
 

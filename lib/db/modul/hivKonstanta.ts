@@ -1,7 +1,7 @@
 // lib/db/modul/hivKonstanta.ts
 // Bagian MURNI (tanpa akses database) dari modul HIV. Aman diimpor komponen 'use client'.
 // Jangan mengimpor lib/db/modul/hiv.ts dari komponen client: file itu memuat klien database
-// (mysql2) yang tidak boleh ikut ke bundel browser.
+// (pg) yang tidak boleh ikut ke bundel browser.
 export const KATEGORI_HASIL = ['Reaktif', 'Non Reaktif'] as const;
 export const KATEGORI_HUBUNGAN_BERISIKO = ['Ya', 'Tidak'] as const;
 

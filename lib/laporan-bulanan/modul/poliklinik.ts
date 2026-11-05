@@ -1,5 +1,6 @@
+import { getNamaWilkerModul } from "@/lib/wilayah-kerja/server";
 import "server-only";
-import { DAFTAR_WILKER_POLIKLINIK, getKunjunganRawData, hitungBreakdownWilker, hitungDonutJenisKelaminKunjungan, hitungDonutKelompokUsia, hitungTopDiagnosa } from "@/lib/db/modul/poliklinik";
+import { getKunjunganRawData, hitungBreakdownWilker, hitungDonutJenisKelaminKunjungan, hitungDonutKelompokUsia, hitungTopDiagnosa } from "@/lib/db/modul/poliklinik";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, Donat, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah } from "./_bantu";
@@ -50,7 +51,7 @@ export const modulPoliklinik: ModulLaporan = {
     const total = jumlah(kunjunganBulan);
 
     const topDiagnosa = hitungTopDiagnosa(rows, 10);
-    const perWilker = hitungBreakdownWilker(rows);
+    const perWilker = hitungBreakdownWilker(rows, await getNamaWilkerModul("poliklinik"));
     const gender = hitungDonutJenisKelaminKunjungan(rows);
     const usia = hitungDonutKelompokUsia(rows);
     const diagnosaUnik = new Set(rows.map((r) => (r.diagnosa ?? "").trim()).filter(Boolean)).size;

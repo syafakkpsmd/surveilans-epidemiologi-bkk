@@ -1,7 +1,8 @@
 // lib/input-data/validasi.ts
 // Validasi satu baris menurut konfigurasi modul. MURNI. Dipakai unggah Excel dan form.
 import type { ModulInput, KolomModul } from './modul';
-import { wilayahTersimpan } from './modul';
+import { wilayahBolehModul, wilayahTersimpan } from './modul';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { teksKosong, ubahBilangan, ubahDesimal, ubahRba, ubahTanggal, ubahTanggalWaktu, ubahTeks, ubahWaktu, ubahWilker } from './nilai';
 
 export type NilaiBaris = Record<string, string | number | null>;
@@ -12,7 +13,7 @@ export interface HasilBaris {
   galat: string[];
 }
 
-function ubah(k: KolomModul, v: unknown, modul: ModulInput): { ok: true; nilai: string | number | null } | { ok: false; galat: string } {
+function ubah(k: KolomModul, v: unknown, modul: ModulInput, kamus: KamusWilker): { ok: true; nilai: string | number | null } | { ok: false; galat: string } {
   switch (k.tipe) {
     case 'teks': return ubahTeks(v, k.maks ?? 255);
     case 'desimal': return ubahDesimal(v);
@@ -22,17 +23,17 @@ function ubah(k: KolomModul, v: unknown, modul: ModulInput): { ok: true; nilai: 
     case 'tanggal': return ubahTanggal(v);
     case 'rba': return ubahRba(v);
     case 'wilker': {
-      const r = ubahWilker(v);
+      const r = ubahWilker(v, kamus);
       if (!r.ok) return r;
       if (r.nilai === null) return { ok: true, nilai: null };
-      if (!modul.wilayahBoleh.includes(r.nilai)) return { ok: false, galat: 'wilayah kerja tidak berlaku untuk modul ini' };
-      return { ok: true, nilai: wilayahTersimpan(r.nilai) };
+      if (!wilayahBolehModul(modul, kamus).some((w) => w.kode === r.nilai)) return { ok: false, galat: 'wilayah kerja tidak berlaku untuk modul ini' };
+      return { ok: true, nilai: wilayahTersimpan(r.nilai, kamus) };
     }
   }
 }
 
 /** mentah: kunci = nama kolom tabel, nilai = isi sel/field apa adanya. Kolom yang tidak ada = dianggap kosong. */
-export function validasiBaris(modul: ModulInput, mentah: Record<string, unknown>, tahun?: number): HasilBaris {
+export function validasiBaris(modul: ModulInput, mentah: Record<string, unknown>, kamus: KamusWilker, tahun?: number): HasilBaris {
   const galat: string[] = [];
   const nilai: NilaiBaris = {};
   for (const k of modul.kolom) {
@@ -41,7 +42,7 @@ export function validasiBaris(modul: ModulInput, mentah: Record<string, unknown>
       galat.push(`${k.label}: wajib diisi`);
       continue;
     }
-    const r = ubah(k, v, modul);
+    const r = ubah(k, v, modul, kamus);
     if (!r.ok) galat.push(`${k.label}: ${r.galat}`);
     else nilai[k.nama] = r.nilai;
   }

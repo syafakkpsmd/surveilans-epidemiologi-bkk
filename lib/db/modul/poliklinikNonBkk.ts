@@ -1,7 +1,7 @@
 // SERVER-ONLY. Akses, validasi, dan penulisan kunjungan poliklinik non-BKK (tabel kunjungan_poliklinik).
 import { getDbClient } from '@/lib/db/client';
 import { getPengguna } from '@/lib/auth/session';
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import { muatDaftarWilayahLangsung } from '@/lib/wilayah-kerja/db';
 import type { KunjunganRow } from '@/lib/db/modul/poliklinik';
 
 const POLA_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -147,14 +147,15 @@ const KODE_ULANG = new Set(['23505', '40P01', '40001', '55P03']);
 const bisaDiulang = (e: unknown) => KODE_ULANG.has(String((e as { code?: string })?.code ?? ''));
 
 /** Nama wilker yang disimpan di kolom wilayah_kerja (mengikuti nama pendek wilayah kerja poliklinik tsb). */
-function namaWilker(kodeWilker: string | null): string | null {
-  return WILAYAH_KERJA.find((w) => w.kode === kodeWilker)?.namaPendek ?? null;
+async function namaWilker(kodeWilker: string | null): Promise<string | null> {
+  if (!kodeWilker) return null;
+  return (await muatDaftarWilayahLangsung()).find((w) => w.kode === kodeWilker)?.namaPendek ?? null;
 }
 
 export async function tambahKunjungan(
   p: PoliklinikInfo, d: InputKunjungan, diagnosaNama: string, userId: string
 ): Promise<string> {
-  const wilker = namaWilker(p.kode_wilker);
+  const wilker = await namaWilker(p.kode_wilker);
   if (!wilker) throw new Error('Poliklinik ini belum punya wilayah kerja. Hubungi admin.');
 
   for (let percobaan = 1; ; percobaan++) {

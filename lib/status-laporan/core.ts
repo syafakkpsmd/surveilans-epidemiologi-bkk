@@ -1,4 +1,4 @@
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import type { JenisWilker, KamusWilker } from '@/lib/wilayah-kerja';
 /**
  * lib/status-laporan/core.ts
  *
@@ -20,13 +20,16 @@ export type StatusLaporRow = {
   jumlah: number;
 };
 
-/** Daftar 7 wilker yang dipakai modul ini -- SENGAJA eksplisit (bukan
- * query wilker_ref tanpa filter), supaya WK08/WK09 (yang ada di
- * wilker_ref tapi tidak relevan untuk surveilans) tidak pernah ikut
- * muncul di sini walau nanti wilker_ref bertambah baris lagi. */
-export const DAFTAR_WILKER = WILAYAH_KERJA.map(({ kode, nama, jenis }) => ({ kode, nama, jenis }));
+/** Wilayah kerja yang tampil di matriks status laporan: yang AKTIF di wilker_ref dan bukan kantor induk.
+ * Wilayah yang tidak relevan untuk surveilans (mis. bandara privat) cukup dinonaktifkan di
+ * /dashboard/pengaturan-wilayah-kerja; tidak perlu mengubah kode. */
+export type WilkerMatriks = { kode: string; nama: string; jenis: Exclude<JenisWilker, 'Kantor'> };
 
-export type KodeWilker = (typeof DAFTAR_WILKER)[number]['kode'];
+export function daftarWilkerMatriks(kamus: KamusWilker): WilkerMatriks[] {
+  return kamus.aktif.flatMap((w) => (w.jenis === 'Kantor' ? [] : [{ kode: w.kode, nama: w.nama, jenis: w.jenis }]));
+}
+
+export type KodeWilker = string;
 
 /** Kegiatan bulanan, urutan ini juga dipakai sebagai urutan kolom tabel.
  * Malaria/TB/HIV di-skip sementara (lihat catatan project). Diare lama
@@ -77,14 +80,14 @@ function kelompokkanPerWilker(rows: StatusLaporRow[]): Map<string, Set<string>> 
 }
 
 /**
- * Ubah hasil mentah status_lapor_mingguan() jadi 7 baris matriks siap-render.
+ * Ubah hasil mentah status_lapor_mingguan() jadi satu baris matriks per wilayah kerja.
  * Sel yang bukan kewajiban wilker (mis. kolom Pesawat untuk wilker Pelabuhan)
  * SELALU 'na', tidak pernah 'belum' -- sesuai ATURAN CAKUPAN #1 Segmen 14.
  */
-export function buildMatriksMingguan(rows: StatusLaporRow[]): BarisMatriksMingguan[] {
+export function buildMatriksMingguan(rows: StatusLaporRow[], daftar: WilkerMatriks[]): BarisMatriksMingguan[] {
   const perWilker = kelompokkanPerWilker(rows);
 
-  return DAFTAR_WILKER.map((w) => {
+  return daftar.map((w) => {
     const set = perWilker.get(w.kode) ?? new Set<string>();
     const isBandara = w.jenis === 'Bandara';
 
@@ -100,14 +103,14 @@ export function buildMatriksMingguan(rows: StatusLaporRow[]): BarisMatriksMinggu
 }
 
 /**
- * Ubah hasil mentah status_lapor_bulanan() jadi 7 baris matriks siap-render.
- * Semua 7 wilker punya 7 kolom yang sama (tidak ada sel 'na' di sini,
+ * Ubah hasil mentah status_lapor_bulanan() jadi satu baris matriks per wilayah kerja.
+ * Semua wilker punya kolom yang sama (tidak ada sel 'na' di sini,
  * sesuai ATURAN CAKUPAN #2 Segmen 14).
  */
-export function buildMatriksBulanan(rows: StatusLaporRow[]): BarisMatriksBulanan[] {
+export function buildMatriksBulanan(rows: StatusLaporRow[], daftar: WilkerMatriks[]): BarisMatriksBulanan[] {
   const perWilker = kelompokkanPerWilker(rows);
 
-  return DAFTAR_WILKER.map((w) => {
+  return daftar.map((w) => {
     const set = perWilker.get(w.kode) ?? new Set<string>();
     const status = {} as Record<KegiatanBulanan, SelStatus>;
     let jumlahSudah = 0;

@@ -8,7 +8,6 @@ import {
   DAFTAR_PENYAKIT,
   DAFTAR_PTM,
   LABEL_POSKO,
-  WILAYAH_POSKO,
   type JenisPosko,
   type PeriodePosko,
   type WilayahPosko,
@@ -26,6 +25,7 @@ export default function PoskoInputClient({
   periode,
   tanggal,
   wilayah,
+  wilayahOpsi,
   tanggalMaks,
   awal,
   bolehKelola,
@@ -36,6 +36,8 @@ export default function PoskoInputClient({
   periode: PeriodePosko | null;
   tanggal: string;
   wilayah: WilayahPosko;
+  /** wilayah yang menjalankan posko (pengaturan wilayah kerja) */
+  wilayahOpsi: WilayahPosko[];
   /** tanggal terakhir yang boleh diinput = min(selesai periode, hari ini WITA); '' bila posko belum mulai */
   tanggalMaks: string;
   awal: InputHarianPosko | null;
@@ -171,7 +173,7 @@ export default function PoskoInputClient({
                 onChange={(e) => pindah(tanggal, e.target.value)}
                 className="mt-1 block rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
               >
-                {WILAYAH_POSKO.map((w) => (<option key={w} value={w}>{w}</option>))}
+                {wilayahOpsi.map((w) => (<option key={w} value={w}>{w}</option>))}
               </select>
             </label>
             <p className="pb-1 text-xs text-gray-500">

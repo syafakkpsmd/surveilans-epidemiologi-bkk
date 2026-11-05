@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LABEL_RBA, type KolomModul, type ModulInput } from '@/lib/input-data/modul';
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import type { Wilayah } from '@/lib/wilayah-kerja';
 import MasterNegara from './MasterNegara';
 
 type Baris = Record<string, string | number | null>;
@@ -48,7 +48,7 @@ function PilihanManual({ kolom, nilai, opsi, onUbah, disabled }: {
 }) {
   const daftar = nilai && !opsi.some((o) => o.toLowerCase() === nilai.toLowerCase()) ? [...opsi, nilai] : opsi;
   return (
-    <select className={`${kls.input} max-w-[11rem]`} disabled={disabled} value={nilai}
+    <select className={`${kls.input} max-w-44`} disabled={disabled} value={nilai}
       onChange={(e) => {
         const v = e.target.value;
         if (v === LAINNYA) {
@@ -63,13 +63,13 @@ function PilihanManual({ kolom, nilai, opsi, onUbah, disabled }: {
   );
 }
 
-export default function InputDataClient({ modul, role, awal, judul = 'Input Data' }: { modul: ModulInput[]; role: string; awal?: string; judul?: string }) {
+export default function InputDataClient({ modul, wilayah, role, awal, judul = 'Input Data' }: { modul: ModulInput[]; wilayah: Wilayah[]; role: string; awal?: string; judul?: string }) {
   const [kunci, setKunci] = useState(modul.some((x) => x.kunci === awal) ? (awal as string) : modul[0].kunci); // atau 'master'
   const adaCop = modul.some((x) => x.kunci === 'cop');
   const m = useMemo(() => modul.find((x) => x.kunci === kunci) ?? modul[0], [modul, kunci]);
   const admin = role === 'admin';
   const kolomManual = useMemo(() => m.kolom.filter((k) => k.manual), [m]);
-  const wilayahModul = useMemo(() => WILAYAH_KERJA.filter((w) => m.wilayahBoleh.includes(w.kode)), [m]);
+  const wilayahModul = useMemo(() => wilayah.filter((w) => w.aktif && m.jenisWilayahBoleh.includes(w.jenis)), [wilayah, m]);
 
   // ----- Unggah
   const [tahunUnggah, setTahunUnggah] = useState(TAHUN_INI);

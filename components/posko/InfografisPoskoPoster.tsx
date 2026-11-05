@@ -5,7 +5,7 @@
  *   jadi JPEG/PNG/PDF dengan benar (sama seperti poster Karhutla).
  */
 import type { CSSProperties, ReactNode, Ref } from 'react';
-import { LABEL_POSKO, WILAYAH_POSKO, type DataPosko } from '@/lib/posko/konstanta';
+import { LABEL_POSKO, type DataPosko } from '@/lib/posko/konstanta';
 import {
   donutJenisKelamin,
   hariKe,
@@ -246,7 +246,7 @@ export default function InfografisPoskoPoster({
       tambahan: (ptmHariIni.get(p.jenis) ?? 0) > 0 ? `+${ptmHariIni.get(p.jenis)}` : undefined,
     }));
 
-  const barisWilayah = WILAYAH_POSKO.map((w) => ({
+  const barisWilayah = data.wilayah.map(({ nama: w }) => ({
     wilayah: w,
     ...jumlahkanHarian(harianHari.filter((r) => r.wilayah === w)),
   }));

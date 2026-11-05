@@ -7,7 +7,7 @@
 // Murni (tanpa impor database), aman dipakai komponen 'use client'.
 //
 // Kolom HASIL HITUNG (HI, CI, BI, ABJ, TSI, Indeks Pinjal, MBR/MHD, Hasil Pengamatan, Fly Index,
-// Kepadatan Kecoa) SENGAJA tidak ada di sini: trigger `trg_hitung_*` di MariaDB mengisinya saat INSERT.
+// Kepadatan Kecoa) SENGAJA tidak ada di sini: trigger `trg_hitung_*` di PostgreSQL mengisinya saat INSERT.
 
 export type JenisVektor = 'aedes' | 'anopheles-dewasa' | 'anopheles-larva' | 'lalat' | 'kecoa' | 'tikus';
 

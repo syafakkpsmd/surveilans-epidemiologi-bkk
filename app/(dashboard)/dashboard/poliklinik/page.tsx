@@ -1,4 +1,5 @@
 // app/(dashboard)/dashboard/poliklinik/page.tsx
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import Link from 'next/link';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import {
@@ -14,7 +15,6 @@ import {
   hitungDonutKategoriPasien,
   hitungBreakdownWilker,
   hitungPolaHariKunjungan,
-  DAFTAR_WILKER_POLIKLINIK,
 } from '@/lib/db/modul/poliklinik';
 import PoliklinikClient from './PoliklinikClient';
 
@@ -41,6 +41,7 @@ export default async function HalamanPoliklinik({
   const wilayahKerja = params.wilayah && params.wilayah !== 'semua' ? params.wilayah : undefined;
   const sumber: 'bkk' | 'semua' = bolehGabungan && params.sumber === 'semua' ? 'semua' : 'bkk';
 
+  const wilkerPoliklinik = await getNamaWilkerModul('poliklinik');
   const [rows, rowsSemuaWilker] = await Promise.all([
     getKunjunganRawData(tahun, wilayahKerja, sumber),
     wilayahKerja ? getKunjunganRawData(tahun, undefined, sumber) : Promise.resolve(null),
@@ -51,7 +52,7 @@ export default async function HalamanPoliklinik({
     <PoliklinikClient
       tahunBerjalan={tahun}
       wilayahTerpilih={wilayahKerja ?? 'semua'}
-      daftarWilker={DAFTAR_WILKER_POLIKLINIK}
+      daftarWilker={wilkerPoliklinik}
       basePath={sumber === 'semua' ? '/dashboard/poliklinik?sumber=semua' : '/dashboard/poliklinik'}
             aksiHeader={
         bolehLihatNonBkk ? (
@@ -81,13 +82,13 @@ export default async function HalamanPoliklinik({
       ringkasan={hitungRingkasanKunjungan(rows)}
       trenMingguan={hitungTrenMingguanKunjungan(rows)}
       trenBulanan={hitungTrenBulananKunjungan(rows)}
-      trenPerWilkerMingguan={hitungTrenPerWilkerMingguan(dataUntukBreakdownWilker)}
-      trenPerWilkerBulanan={hitungTrenPerWilkerBulanan(dataUntukBreakdownWilker)}
+      trenPerWilkerMingguan={hitungTrenPerWilkerMingguan(dataUntukBreakdownWilker, wilkerPoliklinik)}
+      trenPerWilkerBulanan={hitungTrenPerWilkerBulanan(dataUntukBreakdownWilker, wilkerPoliklinik)}
       topDiagnosa={hitungTopDiagnosa(rows, 10)}
       donutJenisKelamin={hitungDonutJenisKelaminKunjungan(rows)}
       donutKelompokUsia={hitungDonutKelompokUsia(rows)}
       donutKategoriPasien={hitungDonutKategoriPasien(rows)}
-      breakdownWilker={hitungBreakdownWilker(dataUntukBreakdownWilker)}
+      breakdownWilker={hitungBreakdownWilker(dataUntukBreakdownWilker, wilkerPoliklinik)}
       polaHari={hitungPolaHariKunjungan(rows)}
     />
   );

@@ -5,6 +5,8 @@ import { SidebarProvider } from "@/components/SidebarContext";
 import { catatPageLoad } from "@/lib/analytics/log";
 import { getUserRole } from "@/lib/auth/get-user-role";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children,
 }: {

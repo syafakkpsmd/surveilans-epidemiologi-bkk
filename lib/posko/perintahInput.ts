@@ -3,7 +3,6 @@
 import {
   DAFTAR_PENYAKIT,
   DAFTAR_PTM,
-  WILAYAH_POSKO,
   type JenisPosko,
   type WilayahPosko,
 } from './konstanta';
@@ -41,10 +40,14 @@ export function angkaSah(v: unknown): v is number {
 }
 
 /** null = lolos; selain itu pesan kesalahan. Semua angka diperiksa SEBELUM menulis apa pun. */
-export function validasiInputHarian(input: InputHarianPayload, hariIni: string): string | null {
+export function validasiInputHarian(
+  input: InputHarianPayload,
+  hariIni: string,
+  wilayahValid: readonly string[]
+): string | null {
   if (input.posko !== 'nataru' && input.posko !== 'idul_fitri') return 'Jenis posko tidak dikenal.';
   if (!tanggalSah(input.tanggal)) return 'Tanggal tidak valid.';
-  if (!(WILAYAH_POSKO as readonly string[]).includes(input.wilayah)) return 'Wilayah kerja tidak valid.';
+  if (!wilayahValid.includes(input.wilayah)) return 'Wilayah kerja tidak valid.';
   if (input.tanggal > hariIni) return 'Tanggal belum tiba, data belum bisa diinput.';
   if (!angkaSah(input.klbJumlah)) return 'Jumlah kejadian KLB harus bilangan bulat 0 atau lebih.';
   for (const jenis of DAFTAR_PENYAKIT) {

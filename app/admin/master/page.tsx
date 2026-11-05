@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getPoliklinikNonBkk } from '@/lib/db/queries/queriesMaster';
 import { aksiTambahPoliklinikNonBkk, aksiSetAktif } from '@/app/actions/master';
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,13 +14,17 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
   if ((await getUserRole()) !== 'admin') redirect('/dashboard');
   const { error, ok } = await searchParams;
   const daftar = await getPoliklinikNonBkk(false);
-  const namaWilker = (kode: string | null) => WILAYAH_KERJA.find((w) => w.kode === kode)?.nama ?? '-';
+  const wk = await getKamusWilker();
+  const namaWilker = (kode: string | null) => wk.namaDariKode(kode) ?? '-';
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-[#0F2A38]">Data Master: Poliklinik Non-BKK</h1>
-        <Link href="/admin/users" className="text-sm text-[#0F4C5C] underline">Kelola pengguna</Link>
+        <div className="flex gap-4">
+          <Link href="/dashboard/pengaturan-wilayah-kerja" className="text-sm text-[#0F4C5C] underline">Kelola wilayah kerja</Link>
+          <Link href="/admin/users" className="text-sm text-[#0F4C5C] underline">Kelola pengguna</Link>
+        </div>
       </div>
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -35,7 +39,7 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
           <label className={label} htmlFor="kode_wilker">Wilayah kerja BKK *</label>
           <select id="kode_wilker" name="kode_wilker" required defaultValue="" className={kotak}>
             <option value="" disabled>Pilih wilayah kerja</option>
-            {WILAYAH_KERJA.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </div>
         <div>

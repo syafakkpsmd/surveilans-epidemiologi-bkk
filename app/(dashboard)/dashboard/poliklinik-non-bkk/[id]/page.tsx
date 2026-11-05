@@ -1,10 +1,11 @@
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { cekAkses, getPoliklinikById, getKunjunganPoliklinik } from '@/lib/db/modul/poliklinikNonBkk';
 import {
   hitungRingkasanKunjungan, hitungTrenMingguanKunjungan, hitungTrenBulananKunjungan, hitungTopDiagnosa,
   hitungDonutJenisKelaminKunjungan, hitungDonutKelompokUsia, hitungDonutKategoriPasien,
-  hitungPolaHariKunjungan, DAFTAR_WILKER_POLIKLINIK,
+  hitungPolaHariKunjungan,
 } from '@/lib/db/modul/poliklinik';
 import PoliklinikClient from '../../poliklinik/PoliklinikClient';
 
@@ -30,6 +31,7 @@ export default async function DashboardPoliklinikNonBkk({
   const parsed = t ? parseInt(t, 10) : tahunIni;
   const tahun = Number.isInteger(parsed) && parsed >= 2020 && parsed <= tahunIni + 1 ? parsed : tahunIni;
 
+  const wilkerPoliklinik = await getNamaWilkerModul('poliklinik');
   const rows = await getKunjunganPoliklinik(id, tahun);
 
   return (
@@ -48,7 +50,7 @@ export default async function DashboardPoliklinikNonBkk({
       }
       tahunBerjalan={tahun}
       wilayahTerpilih="semua"
-      daftarWilker={DAFTAR_WILKER_POLIKLINIK}
+      daftarWilker={wilkerPoliklinik}
       ringkasan={hitungRingkasanKunjungan(rows)}
       trenMingguan={hitungTrenMingguanKunjungan(rows)}
       trenBulanan={hitungTrenBulananKunjungan(rows)}

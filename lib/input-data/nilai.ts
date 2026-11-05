@@ -1,7 +1,7 @@
 // lib/input-data/nilai.ts
 // Pengubah nilai sel -> nilai tersimpan. MURNI, mudah diuji. Setiap fungsi mengembalikan
 // { ok: true, nilai } atau { ok: false, galat } (galat berupa kalimat untuk pengguna; tanpa nilai data).
-import { kodeDariTeks, type KodeWilker } from '@/lib/wilayah-kerja';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 export type Hasil<T> = { ok: true; nilai: T } | { ok: false; galat: string };
 
@@ -240,14 +240,14 @@ export function ubahTanggalWaktu(v: unknown): Hasil<string | null> {
   return ok(`${t.nilai} ${w.nilai ?? '00:00:00'}`);
 }
 
-export function ubahWilker(v: unknown): Hasil<KodeWilker | null> {
+export function ubahWilker(v: unknown, kamus: KamusWilker): Hasil<string | null> {
   const t = ubahTeks(v, 100);
   if (!t.ok) return t;
   if (t.nilai === null) return ok(null);
   // Seluruh teks dulu; lalu bagian di sekitar "/" dari kanan ke kiri. Sinkarkes menulis "KKP Induk/Wilker" sebagai
   // "Samarinda / Pelabuhan Laut Sangkulirang": bagian kanan = wilayah kerja, bagian kiri = KKP induk.
   for (const calon of [t.nilai, ...t.nilai.split('/').reverse()]) {
-    const k = kodeDariTeks(calon);
+    const k = kamus.kodeDariTeks(calon);
     if (k) return ok(k);
   }
   return gagal('wilayah kerja tidak dikenal');

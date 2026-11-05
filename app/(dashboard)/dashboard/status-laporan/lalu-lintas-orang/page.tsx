@@ -16,6 +16,8 @@ import {
   buildMatriksMingguanLlo,
   buildMatriksBulananLlo,
 } from '@/lib/status-laporan/lalu-lintas-orang';
+import { daftarWilkerMatriks } from '@/lib/status-laporan/core';
+import { getKamusWilker, getPetaModulWilker } from '@/lib/wilayah-kerja/server';
 import {
   ambilStatusMingguanLlo,
   ambilStatusBulananLlo,
@@ -54,13 +56,18 @@ export default async function StatusLaluLintasOrangPage({
   const tahunBl = angka(sp.tahun_bl, bulanLalu.getFullYear(), 2020, 2100);
   const bulan = angka(sp.bulan, bulanLalu.getMonth() + 1, 1, 12);
 
-  const [srcMingguan, srcBulanan] = await Promise.all([
+  const [srcMingguan, srcBulanan, kamusWilker, petaModul] = await Promise.all([
     ambilStatusMingguanLlo(tahunMg, minggu),
     ambilStatusBulananLlo(tahunBl, bulan),
+    getKamusWilker(),
+    getPetaModulWilker(),
   ]);
 
-  const matriksMingguan = buildMatriksMingguanLlo(srcMingguan);
-  const matriksBulanan = buildMatriksBulananLlo(srcBulanan);
+  const daftarWilker = daftarWilkerMatriks(kamusWilker);
+  // Nama kantor induk BKK dari wilker_ref (jenis 'Kantor'); dipakai untuk baris tingkat BKK.
+  const namaBkk = kamusWilker.semua.find((w) => w.jenis === 'Kantor')?.nama ?? 'BKK';
+  const matriksMingguan = buildMatriksMingguanLlo(srcMingguan, daftarWilker, petaModul, namaBkk);
+  const matriksBulanan = buildMatriksBulananLlo(srcBulanan, daftarWilker, petaModul);
   const { awal, akhir } = rentangTanggalMingguEpid(tahunMg, minggu);
 
   return (

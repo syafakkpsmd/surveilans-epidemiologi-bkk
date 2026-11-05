@@ -13,6 +13,10 @@ import { bacaExcel, buatTemplate, petakanKolom } from '../../lib/input-data/pars
 import { daftarData, hapusBatch, hitungRencana, simpanUnggahan, tambahSatu } from '../../lib/input-data/simpan';
 import { getDbClient, tutupDb } from '../../lib/db/client';
 
+import { wilayahBolehModul } from '../../lib/input-data/modul';
+import { buatKamus, WILAYAH_KERJA } from '../../lib/wilayah-kerja';
+const KAMUS = buatKamus(WILAYAH_KERJA); // daftar bawaan BKK Samarinda untuk uji
+
 const BARU = ['sscec', 'p3k', 'air', 'buku_kesehatan'].map((k) => MODUL[k]);
 
 // Judul kolom ASLI ekspor Sinkarkes (baris judul laporan ada di atasnya).
@@ -66,7 +70,7 @@ test('konfigurasi modul baru konsisten', () => {
     assert.equal(new Set(nama).size, nama.length, `${m.kunci}: nama kolom ganda`);
     for (const c of m.kolomDaftar) assert.ok(nama.includes(c), `${m.kunci}: kolomDaftar ${c} tidak ada`);
     for (const c of [m.kolomWilayah, m.kolomTanggal, m.kolomKunci, ...(m.kolomKunciTambahan ?? [])]) assert.ok(nama.includes(c), `${m.kunci}: ${c}`);
-    assert.equal(m.wilayahBoleh.length, 7);
+    assert.equal(wilayahBolehModul(m, KAMUS).length, 7);
     assert.ok(m.kolom.find((k) => k.nama === m.kolomTanggal)?.wajib, `${m.kunci}: tanggal terbit harus wajib`);
     const dipakai = new Map<string, string>(); // satu judul Excel tidak boleh menunjuk dua kolom
     for (const k of m.kolom) for (const j of [k.label, k.nama, ...(k.alias ?? [])]) {
@@ -115,14 +119,14 @@ test('tanggal: sel Excel (Date/nomor seri) tidak bergantung zona waktu; teks Ind
 });
 
 test('wilayah dari nama KKP/balai dan dari "KKP Induk/Wilker" (bagian kanan "/")', () => {
-  assert.deepEqual(ubahWilker('Samarinda'), { ok: true, nilai: 'WK01' });
-  assert.deepEqual(ubahWilker('Pelabuhan Laut Sangatta'), { ok: true, nilai: 'WK05' });
-  assert.deepEqual(ubahWilker('Pelabuhan Tanjung Laut'), { ok: true, nilai: 'WK03' });
-  assert.deepEqual(ubahWilker('Samarinda / Samarinda'), { ok: true, nilai: 'WK01' });
-  assert.deepEqual(ubahWilker('Samarinda / Pelabuhan Laut Sangkulirang'), { ok: true, nilai: 'WK06' });
-  assert.deepEqual(ubahWilker('Samarinda / Entah Dimana'), { ok: true, nilai: 'WK01' });
-  assert.equal(ubahWilker('Balikpapan / Entah').ok, false);
-  assert.equal(ubahWilker('Tg. Laut').ok, false); // tetap tidak menebak
+  assert.deepEqual(ubahWilker('Samarinda', KAMUS), { ok: true, nilai: 'WK01' });
+  assert.deepEqual(ubahWilker('Pelabuhan Laut Sangatta', KAMUS), { ok: true, nilai: 'WK05' });
+  assert.deepEqual(ubahWilker('Pelabuhan Tanjung Laut', KAMUS), { ok: true, nilai: 'WK03' });
+  assert.deepEqual(ubahWilker('Samarinda / Samarinda', KAMUS), { ok: true, nilai: 'WK01' });
+  assert.deepEqual(ubahWilker('Samarinda / Pelabuhan Laut Sangkulirang', KAMUS), { ok: true, nilai: 'WK06' });
+  assert.deepEqual(ubahWilker('Samarinda / Entah Dimana', KAMUS), { ok: true, nilai: 'WK01' });
+  assert.equal(ubahWilker('Balikpapan / Entah', KAMUS).ok, false);
+  assert.equal(ubahWilker('Tg. Laut', KAMUS).ok, false); // tetap tidak menebak
 });
 
 test('kunci pencocokan: barcode/QR membedakan dokumen kapal yang sama di hari yang sama; COP tidak berubah', () => {
@@ -135,20 +139,20 @@ test('kunci pencocokan: barcode/QR membedakan dokumen kapal yang sama di hari ya
 });
 
 test('validasi baris: berat/bayar numerik, tanggal+jam Sinkarkes, jam analisis', () => {
-  const h = validasiBaris(MODUL.sscec, { wilayah_kerja: 'Pelabuhan Laut Sangkulirang', nama_kapal: 'KM A', tgl_terbit: '2026-10-27 15:08:02', berat_gt: 4337, jumlah_bayar: '600000', tgl_bayar: '2026-10-26 11:18:49' }, 2026);
+  const h = validasiBaris(MODUL.sscec, { wilayah_kerja: 'Pelabuhan Laut Sangkulirang', nama_kapal: 'KM A', tgl_terbit: '2026-10-27 15:08:02', berat_gt: 4337, jumlah_bayar: '600000', tgl_bayar: '2026-10-26 11:18:49' }, KAMUS, 2026);
   assert.deepEqual(h.galat, []);
   assert.equal(h.nilai?.wilayah_kerja, 'Sangkulirang');
   assert.equal(h.nilai?.tgl_terbit, '2026-10-27');
   assert.equal(h.nilai?.tgl_bayar, '2026-10-26');
   assert.equal(h.nilai?.jumlah_bayar, 600000);
-  assert.equal(validasiBaris(MODUL.air, { wilayah_kerja: 'WK01', nama_perusahaan: 'PT X', tgl_terbit: '2026-10-27', jam_analisis: '10:30:00' }).nilai?.jam_analisis, '10:30:00');
-  assert.match(validasiBaris(MODUL.sscec, { wilayah_kerja: 'WK01', nama_kapal: 'K', tgl_terbit: '2025-12-31' }, 2026).galat[0], /di luar tahun 2026/);
-  assert.match(validasiBaris(MODUL.sscec, { wilayah_kerja: 'WK01', tgl_terbit: '2026-01-01' }).galat[0], /Nama Kapal: wajib diisi/);
+  assert.equal(validasiBaris(MODUL.air, { wilayah_kerja: 'WK01', nama_perusahaan: 'PT X', tgl_terbit: '2026-10-27', jam_analisis: '10:30:00' }, KAMUS).nilai?.jam_analisis, '10:30:00');
+  assert.match(validasiBaris(MODUL.sscec, { wilayah_kerja: 'WK01', nama_kapal: 'K', tgl_terbit: '2025-12-31' }, KAMUS, 2026).galat[0], /di luar tahun 2026/);
+  assert.match(validasiBaris(MODUL.sscec, { wilayah_kerja: 'WK01', tgl_terbit: '2026-01-01' }, KAMUS).galat[0], /Nama Kapal: wajib diisi/);
 });
 
 test('template tiap modul dapat dibaca kembali (kosong)', async () => {
   for (const m of BARU) {
-    const h = await bacaExcel(await buatTemplate(m), m, 2026);
+    const h = await bacaExcel(await buatTemplate(m), m, 2026, KAMUS);
     assert.equal(h.fatal, null, `${m.kunci}: ${h.fatal}`);
     assert.equal(h.jumlahBaris, 0);
   }
@@ -160,7 +164,7 @@ test('ekspor Sinkarkes .xls berisi HTML dibaca (judul laporan dilewati, colspan,
 <tr><td>No</td><td>Nama Balai Karkes</td><td>Nama Kapal</td><td>Berat</td><td>Diterbitkan Tanggal</td><td>Tanggal Published</td><td>NIP</td><td>QR Code</td><td>Kode Billing</td><td>Jumlah Bayar</td></tr>
 <tr><td>1</td><td>Samarinda</td><td>KM Uji &amp; Co</td><td>135</td><td>2026-10-27</td><td>2026-10-27 11:13:43</td><td>198001012005011001</td><td>QRX1</td><td>'820260000000001</td><td>10000</td></tr>
 <tr><td>2</td><td>Pelabuhan Laut Sangkulirang</td><td>TB Uji&nbsp;2</td><td>138</td><td>2026-10-27</td><td></td><td></td><td>QRX2</td><td>'820260000000002</td><td>35000</td></tr></table>`;
-  const h = await bacaExcel(Buffer.from(html, 'utf8'), MODUL.p3k, 2026);
+  const h = await bacaExcel(Buffer.from(html, 'utf8'), MODUL.p3k, 2026, KAMUS);
   assert.equal(h.fatal, null);
   assert.equal(h.sah.length, 2, JSON.stringify(h.galat));
   assert.deepEqual(h.sah.map((s) => s.nilai.wilayah_kerja), ['Samarinda', 'Sangkulirang']);
@@ -185,7 +189,7 @@ for (const m of BARU) {
     await bersihkan(m);
     const tabelHitung = async () => Number((await getDbClient().execute({ sql: `SELECT COUNT(*) n FROM \`${m.tabel}\` WHERE ${kolomNama(m)} LIKE ?`, args: [m.kunci === 'air' ? 'PT UJI-%' : 'UJI-%'] })).rows[0].n);
     const unggah = async (rows: Record<string, unknown>[], nama: string) => {
-      const h = await bacaExcel(await xlsxSinkarkes(m.kunci, rows), m, 2026);
+      const h = await bacaExcel(await xlsxSinkarkes(m.kunci, rows), m, 2026, KAMUS);
       assert.equal(h.fatal, null);
       assert.equal(h.galat.length, 0, JSON.stringify(h.galat));
       const brs = h.sah.map((s) => s.nilai);
@@ -237,13 +241,13 @@ for (const m of BARU) {
     await bersihkan(m);
     const k = kolomNama(m);
     const mentah: Record<string, unknown> = { wilayah_kerja: 'Lhoktuan', tgl_terbit: '2026-09-15', [k]: m.kunci === 'air' ? 'PT UJI-form' : 'UJI-form', ...(m.kunci === 'air' ? { sample_id: 'UJI-form', sebagai: 'AIR MINUM' } : {}) };
-    const h = validasiBaris(m, mentah);
+    const h = validasiBaris(m, mentah, KAMUS);
     assert.deepEqual(h.galat, []);
     assert.equal(await tambahSatu(m, h.nilai!), 'ok');
     assert.equal(await tambahSatu(m, h.nilai!), 'duplikat');
     const d = await daftarData(m, { tahun: 2026, bulan: 9, wilayah: 'Lhoktuan', sumber: 'input', ukuran: 200 });
     assert.ok(d.baris.some((b) => b.wilayah_kerja === 'Lhoktuan' && b.sumber === 'input'));
-    assert.equal(validasiBaris(m, { ...mentah, wilayah_kerja: '' }).nilai, null);
+    assert.equal(validasiBaris(m, { ...mentah, wilayah_kerja: '' }, KAMUS).nilai, null);
     await bersihkan(m);
   });
 }

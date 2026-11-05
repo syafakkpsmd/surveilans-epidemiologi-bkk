@@ -1,4 +1,5 @@
-import { getWilkerRef } from '@/lib/db/queries/umum';
+import Link from 'next/link';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
 import { getValidRole } from '@/lib/auth/utils';
 import {
   getTrenDiareMultiVariabel,
@@ -119,7 +120,7 @@ export default async function HalamanDiare({
     hasilAI,
   ] = await Promise.all([
     getUserRole(),
-    getWilkerRef(),
+    getDaftarWilker(),
     getTrenDiareMultiVariabel(tahun, jenis, wilker, mgAwalDipilih, mgAkhirDipilih),
     getTrenDiareBulanan(tahun, jenis, wilker),
     isModeBulanan
@@ -141,26 +142,63 @@ export default async function HalamanDiare({
   const hasilAnalisisAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'analisis' })];
   const hasilPrediksiAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'prediksi' })];
 
-  const wilkerTerpilih = daftarWilker.find(
-    (w: any) => (w.kode_wilker || w.kode || w.id) === wilker
-  );
-  const namaWilkerLengkap = wilkerTerpilih
-    ? (wilkerTerpilih.nama_wilker || wilkerTerpilih.nama_wilayah || wilkerTerpilih.nama)
-    : wilker;
+  // Diperbaiki menggunakan properti standar tipe Wilayah (w.kode dan w.nama)
+  const wilkerTerpilih = daftarWilker.find((w) => w.kode === wilker);
+  const namaWilkerLengkap = wilkerTerpilih ? (wilkerTerpilih.nama || wilkerTerpilih.namaPendek) : wilker;
+
+  // Casting Record<string, any> untuk mencegah error TypeScript 7053
+  const barisTerakhir = dataMingguan.length > 0 ? (dataMingguan[dataMingguan.length - 1] as Record<string, any>) : null;
+  const nilaiTerakhirMetrik = barisTerakhir ? (barisTerakhir[cfg.metrikUtama.key] || 0) : 0;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Header Utama & Tombol Navigasi Kelola Data */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl shadow-xs">
         <div>
           <h1 className="text-lg font-bold">
             {cfg.ikon} {cfg.judul}
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/dashboard/data/vektor/${jenis}`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#0b3844] transition-colors"
+          >
+            <span>+ Input &amp; Kelola Data {jenis === 'lalat' ? 'Lalat' : 'Kecoa'}</span>
+          </Link>
+
           <FilterWilker daftarWilker={daftarWilker} />
         </div>
       </div>
 
+      {/* Kartu Ringkasan Metrik Utama */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
+          <p className="text-xs font-medium text-slate-500">Rata-rata {cfg.metrikUtama.label}</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-slate-800">{nilaiTerakhirMetrik}</span>
+            <span className="text-xs text-slate-600">{jenis === 'lalat' ? 'ekor/block grill' : 'ekor/m²'}</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
+          <p className="text-xs font-medium text-slate-500">Ambang Batas (Threshold)</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-amber-600">&le; {cfg.threshold}</span>
+            <span className="text-xs text-slate-600">Batas Normal</span>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-4 shadow-sm border border-slate-100">
+          <p className="text-xs font-medium text-slate-500">Lokasi Tidak Memenuhi Syarat (TMS)</p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-rose-600">{lokasiTidakMemenuhi.length}</span>
+            <span className="text-xs text-slate-600">Titik / Lokasi</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Grafik & Panel Lingkungan */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
           <PanelTrenDiareLingkungan
@@ -194,6 +232,7 @@ export default async function HalamanDiare({
         </div>
       </div>
 
+      {/* Analisis AI & Breakdown */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <BoxAnalisisAI
           sudahLogin={role !== null}

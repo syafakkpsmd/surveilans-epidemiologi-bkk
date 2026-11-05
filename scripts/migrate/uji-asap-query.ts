@@ -10,6 +10,8 @@
 import { tutupDb } from '@/lib/db/client';
 import * as hiv from '@/lib/db/modul/hiv';
 import * as kier from '@/lib/db/modul/kier';
+// Daftar wilayah modul KIER hanya untuk uji ini (aplikasi membacanya dari wilker_modul).
+const WILKER_KIER_UJI = ['Samarinda', 'APT Pranoto', 'Tanjung Laut', 'Lhoktuan', 'Sangatta'];
 import * as sklt from '@/lib/db/modul/sklt';
 import * as tb from '@/lib/db/modul/tb';
 import * as poli from '@/lib/db/modul/poliklinik';
@@ -64,9 +66,9 @@ async function main() {
   await uji('kier.getTrenMingguanKier', () => kier.getTrenMingguanKier(T, 1, 53));
   await uji('kier.getTrenBulananKier', () => kier.getTrenBulananKier(T, 1, 12));
   await uji('kier.getDaftarTahunKier', () => kier.getDaftarTahunKier());
-  await uji('kier.getDaftarWilkerAktif', () => kier.getDaftarWilkerAktif(T));
-  await uji('kier.getTrenMingguanPerWilkerKier', () => kier.getTrenMingguanPerWilkerKier(T, 1, 53));
-  await uji('kier.getTrenBulananPerWilkerKier', () => kier.getTrenBulananPerWilkerKier(T, 1, 12));
+  await uji('kier.getDaftarWilkerAktif', () => kier.getDaftarWilkerAktif(T, WILKER_KIER_UJI));
+  await uji('kier.getTrenMingguanPerWilkerKier', () => kier.getTrenMingguanPerWilkerKier(T, 1, 53, WILKER_KIER_UJI));
+  await uji('kier.getTrenBulananPerWilkerKier', () => kier.getTrenBulananPerWilkerKier(T, 1, 12, WILKER_KIER_UJI));
   // SKLT
   await uji('sklt.getTahunSklt', () => sklt.getTahunSklt());
   await uji('sklt.getSkltData', () => sklt.getSkltData(T));

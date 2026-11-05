@@ -1,6 +1,6 @@
-// Uji input manual penumpang kapal (lib/db/modul/inputPenumpangKapal.ts): validasi murni + penulisan ke MariaDB.
+// Uji input manual penumpang kapal (lib/db/modul/inputPenumpangKapal.ts): validasi murni + penulisan ke PostgreSQL.
 // Butuh database UJI dengan tabel data_penumpang_kapal (skema 01 + kolom kode_wilker dari 03). JANGAN ke data asli.
-//   DB_USER=epic DB_PASSWORD=epic DB_NAME=epic_uji DB_SOCKET=/run/mysqld/mysqld.sock \
+//   DB_USER=epic DB_PASSWORD=epic DB_NAME=epic_uji DB_HOST=127.0.0.1 \
 //     npx tsx --test --test-force-exit scripts/migrate/uji-input-penumpang-kapal.ts
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,11 +9,12 @@ import {
   validasiInput,
   simpanPenumpangKapal,
   getPenumpangKapalTerbaru,
-  WILKER_PELABUHAN,
+  getWilkerPelabuhan,
 } from '../../lib/db/modul/inputPenumpangKapal';
 import type { InputPenumpangKapal } from '../../lib/db/modul/inputPenumpangKapal';
 
 const HARI_INI = '2026-10-27';
+let PELABUHAN: Awaited<ReturnType<typeof getWilkerPelabuhan>> = []; // diisi di before() dari wilker_ref
 const form = (o: Record<string, string>) => {
   const f = new FormData();
   const dasar = { kode_wilker: 'WK01', tanggal_tiba: '2026-10-26', nama_kapal: 'KM Uji', ...o };
@@ -21,12 +22,12 @@ const form = (o: Record<string, string>) => {
   return f;
 };
 const galat = (o: Record<string, string>) => {
-  const h = validasiInput(form(o), HARI_INI);
+  const h = validasiInput(form(o), HARI_INI, PELABUHAN);
   assert.ok('error' in h, `harus ditolak: ${JSON.stringify(o)}`);
   return h.error;
 };
 const sah = (o: Record<string, string>): InputPenumpangKapal => {
-  const h = validasiInput(form(o), HARI_INI);
+  const h = validasiInput(form(o), HARI_INI, PELABUHAN);
   assert.ok('data' in h, `harus lolos: ${'error' in h ? h.error : ''}`);
   return h.data;
 };
@@ -37,6 +38,7 @@ const masukan = (o: Partial<InputPenumpangKapal> = {}): InputPenumpangKapal => (
 });
 
 before(async () => {
+  PELABUHAN = await getWilkerPelabuhan();
   await getDbClient().execute("DELETE FROM data_penumpang_kapal WHERE nama_kapal LIKE 'KM Uji%' OR wilker = 'TanjungSantan'");
 });
 after(async () => {
@@ -45,7 +47,7 @@ after(async () => {
 });
 
 test('hanya pelabuhan yang ditawarkan (bandara tidak)', () => {
-  assert.deepEqual(WILKER_PELABUHAN.map((w) => w.kode), ['WK01', 'WK02', 'WK03', 'WK04', 'WK05', 'WK06']);
+  assert.deepEqual(PELABUHAN.map((w) => w.kode), ['WK01', 'WK02', 'WK03', 'WK04', 'WK05', 'WK06']);
 });
 
 test('validasi: isian sah, kosong = 0, spasi dipangkas', () => {

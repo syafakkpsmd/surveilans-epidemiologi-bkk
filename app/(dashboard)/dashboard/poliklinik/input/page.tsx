@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { cekAksesBkk, getKunjunganBkkTerbaru } from '@/lib/db/modul/poliklinikBkk';
 import { getKategoriPasienOpsi } from '@/lib/db/modul/poliklinikNonBkk';
-import { DAFTAR_WILKER_POLIKLINIK } from '@/lib/db/modul/poliklinik';
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import KegiatanPoliklinik from '@/components/poliklinik/KegiatanPoliklinik';
 import { simpanKunjunganBkk, hapusKunjunganBkk } from './actions';
 
@@ -31,7 +31,7 @@ export default async function InputKunjunganBkkPage() {
         </div>
         <KegiatanPoliklinik
           poliklinikId={null}
-          wilkerOpsi={[...DAFTAR_WILKER_POLIKLINIK]}
+          wilkerOpsi={await getNamaWilkerModul('poliklinik')}
           hariIni={hariIni}
           baris={baris}
           kategoriOpsi={kategoriOpsi}

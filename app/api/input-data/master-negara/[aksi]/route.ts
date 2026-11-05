@@ -4,7 +4,7 @@
 //   POST   .../simpan  JSON {nama, negara}     POST .../terapkan  (isi negara COP yang masih kosong)
 //   POST   .../unggah  multipart file, mode=pratinjau|simpan
 //   DELETE .../hapus?id=  (admin)
-// Akses: admin dan petugas; hapus khusus admin. Rute memakai MariaDB langsung (tanpa RLS).
+// Akses: admin dan petugas; hapus khusus admin. Rute memakai PostgreSQL langsung (tanpa RLS).
 import { NextRequest, NextResponse } from 'next/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { MAKS_BYTE } from '@/lib/input-data/parse-excel';

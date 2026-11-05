@@ -2,6 +2,7 @@
 
 import { TrenChecklistMingguan, type SeriesChecklist } from "@/components/phqc/TrenChecklistMingguan";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
@@ -21,7 +22,7 @@ type VektorTikusClientProps = {
   mingguBerjalan: number;
   bulanBerjalan: number;
   wilkerParam?: string;
-  hasilAI?: Record<string, HasilAIStruktur | null>; // <-- TAMBAH (batch AI)
+  hasilAI?: Record<string, HasilAIStruktur | null>;
 };
 
 export default function VektorTikusClient({
@@ -36,15 +37,13 @@ export default function VektorTikusClient({
   mingguBerjalan,
   bulanBerjalan,
   wilkerParam,
-  hasilAI = {}, // <-- TAMBAH
+  hasilAI = {},
 }: VektorTikusClientProps) {
   const [selectedWilker, setSelectedWilker] = useState<string>(wilkerParam || "semua");
   const [periodeType, setPeriodeType] = useState<"mingguan" | "bulanan">("mingguan");
   const [chartData, setChartData] = useState<any[]>([]);
 
-  // Rentang yang dipilih user -- default: dari minggu/bulan 1 s.d. periode
-  // berjalan saat ini (perilaku lama). daftar 52 minggu / 12 bulan untuk
-  // opsi dropdown.
+  // Rentang yang dipilih user -- default: dari minggu/bulan 1 s.d. periode berjalan saat ini
   const [mgDari, setMgDari] = useState(1);
   const [mgSampai, setMgSampai] = useState(mingguBerjalan);
   const [bulanDari, setBulanDari] = useState(1);
@@ -55,30 +54,17 @@ export default function VektorTikusClient({
 
   const namaBulan = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
-  // periodeKey grafik utama mengikuti toggle Mingguan/Bulanan yang aktif,
-  // DAN mengikuti rentang yang dipilih user (format rentang: "2026-W1_W9"
-  // atau "2026-M1_M5", dibaca lib/ai/periode.ts di backend)
   const periodeKeyUtama =
     periodeType === "mingguan"
       ? `${tahunBerjalan}-W${mgDari}_W${mgSampai}`
       : `${tahunBerjalan}-M${bulanDari}_M${bulanSampai}`;
 
-  // periodeKey untuk masing-masing boks lab (tidak ikut toggle, karena
-  // keduanya selalu tampil berdampingan) -- tetap ikut rentang mingguan/
-  // bulanan yang dipilih user
   const periodeKeyLabMingguan = `${tahunBerjalan}-W${mgDari}_W${mgSampai}`;
   const periodeKeyLabBulanan = `${tahunBerjalan}-M${bulanDari}_M${bulanSampai}`;
 
   const wilayahKerjaAktif = selectedWilker !== "semua" ? selectedWilker : undefined;
 
-  // ==========================================
-  // LOOKUP HASIL AI (TAMBAH)
-  // Kalau kombinasi konteks/periode/wilayah saat ini persis sama
-  // dengan yang di-prefetch server (state landing awal), Box langsung
-  // dapat hasilnya tanpa fetch GET. Kalau user sudah ganti toggle
-  // periode/rentang/wilayah, kunci ini tidak ketemu di hasilAI ->
-  // undefined -> Box fallback fetch sendiri seperti biasa.
-  // ==========================================
+  // LOOKUP HASIL AI (BATCH)
   const konteksUtama = `vektor-tikus-${periodeType}`;
   const hasilAwalUtamaAnalisis = hasilAI[kunciAI({ konteks: konteksUtama, periodeKey: periodeKeyUtama, wilayahKerja: wilayahKerjaAktif, tipe: "analisis" })];
   const hasilAwalUtamaPrediksi = hasilAI[kunciAI({ konteks: konteksUtama, periodeKey: periodeKeyUtama, wilayahKerja: wilayahKerjaAktif, tipe: "prediksi" })];
@@ -90,7 +76,6 @@ export default function VektorTikusClient({
   const hasilAwalLabMingguanPrediksi = hasilAI[kunciAI({ konteks: "tikus-lab-mingguan", periodeKey: periodeKeyLabMingguan, wilayahKerja: wilayahKerjaAktif, tipe: "prediksi" })];
 
   useEffect(() => {
-    // 1. Pilih dataset sesuai toggle periode, filter wilayah kerja DAN rentang
     const sumberData = periodeType === "mingguan" ? dataMingguan : dataBulanan;
     const filtered = sumberData.filter((d) => {
       const cocokWilker = selectedWilker === "semua" || d.kode_wilker === selectedWilker;
@@ -238,6 +223,18 @@ export default function VektorTikusClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Tombol Navigasi Aksi Input (Ditambahkan Sesuai Panduan Pengujian) */}
+          {sudahLogin && (
+            <div className="flex items-center gap-2 mr-2 border-r pr-3 border-gray-200">
+              <Link
+                href="/dashboard/data/vektor/tikus"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#0b3844] transition-colors"
+              >
+                <span>+ Input Data</span>
+              </Link>
+            </div>
+          )}
+
           <div className="flex rounded-lg bg-gray-100 p-1">
             <button
               onClick={() => setPeriodeType("mingguan")}
@@ -257,7 +254,7 @@ export default function VektorTikusClient({
             </button>
           </div>
 
-          {/* Rentang Minggu -- tampil kalau toggle Mingguan aktif */}
+          {/* Rentang Minggu */}
           {periodeType === "mingguan" && (
             <div className="flex items-center gap-1 text-xs">
               <span className="text-gray-600">Rentang</span>
@@ -283,7 +280,7 @@ export default function VektorTikusClient({
             </div>
           )}
 
-          {/* Rentang Bulan -- tampil kalau toggle Bulanan aktif */}
+          {/* Rentang Bulan */}
           {periodeType === "bulanan" && (
             <div className="flex items-center gap-1 text-xs">
               <span className="text-gray-600">Rentang</span>

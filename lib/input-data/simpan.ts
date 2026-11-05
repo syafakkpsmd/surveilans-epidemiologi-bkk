@@ -1,11 +1,12 @@
 // lib/input-data/simpan.ts
-// SERVER-ONLY. Penyimpanan/pembacaan data modul input ke MariaDB. Semua kueri berparameter;
+// SERVER-ONLY. Penyimpanan/pembacaan data modul input ke PostgreSQL. Semua kueri berparameter;
 // nama tabel/kolom hanya berasal dari konfigurasi modul (bukan masukan pengguna).
 //
 // Mode unggah = "tambah atau perbarui": baris dicocokkan lewat (wilayah, nama kapal, tanggal).
 //   * belum ada  -> baris baru (sumber 'upload', batch_id = unggahan ini)
 //   * sudah ada  -> hanya kolom yang ADA di berkas yang diperbarui, dan nilai kosong TIDAK menimpa
 //                   isian lama (COALESCE). Jadi isian manual petugas (RBA dst.) aman bila berkas diunggah ulang.
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { randomUUID } from 'node:crypto';
 import { getDbClient, type DbValue } from '@/lib/db/client';
 import { galatDuplikat } from '@/lib/db/errors';
@@ -123,7 +124,7 @@ export async function tambahSatu(modul: ModulInput, nilai: NilaiBaris): Promise<
 }
 
 /** Ubah kolom ISIAN MANUAL satu baris. Kolom lain ditolak. Nilai kosong -> NULL. */
-export async function ubahManual(modul: ModulInput, id: string, nilaiMentah: Record<string, unknown>): Promise<{ ok: true } | { ok: false; galat: string[] }> {
+export async function ubahManual(modul: ModulInput, id: string, nilaiMentah: Record<string, unknown>, kamus: KamusWilker): Promise<{ ok: true } | { ok: false; galat: string[] }> {
   const manual = modul.kolom.filter((k) => k.manual);
   const nama = Object.keys(nilaiMentah);
   if (!nama.length) return { ok: false, galat: ['Tidak ada isian'] };
@@ -133,7 +134,7 @@ export async function ubahManual(modul: ModulInput, id: string, nilaiMentah: Rec
   for (const n of nama) {
     const k = manual.find((x) => x.nama === n);
     if (!k) { galat.push(`Kolom ${n} tidak boleh diubah di sini`); continue; }
-    const h = validasiBaris({ ...modul, kolom: [{ ...k, wajib: false }] }, { [n]: nilaiMentah[n] });
+    const h = validasiBaris({ ...modul, kolom: [{ ...k, wajib: false }] }, { [n]: nilaiMentah[n] }, kamus);
     if (!h.nilai) { galat.push(...h.galat); continue; }
     set.push(`${q(n)} = ?`);
     args.push(h.nilai[n] ?? null);

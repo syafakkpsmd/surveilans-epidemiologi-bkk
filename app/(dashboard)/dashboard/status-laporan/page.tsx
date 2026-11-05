@@ -12,7 +12,8 @@ import {
   getStatusLaporMingguan,
   getStatusLaporBulanan,
 } from '@/lib/db/queries/queriesStatusLaporan';
-import { buildMatriksMingguan, buildMatriksBulanan } from '@/lib/status-laporan/core';
+import { buildMatriksMingguan, buildMatriksBulanan, daftarWilkerMatriks } from '@/lib/status-laporan/core';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import KontrolPeriode from '@/components/status-laporan/KontrolPeriode';
 import TabelMingguan from '@/components/status-laporan/TabelMingguan';
 import TabelBulanan from '@/components/status-laporan/TabelBulanan';
@@ -46,13 +47,15 @@ export default async function StatusLaporanPage({
   const tahunBl = tahunBlParam ? parseInt(tahunBlParam, 10) : tahunSekarang;
   const bulan = bulanParam ? parseInt(bulanParam, 10) : bulanBerjalan;
 
-  const [rowsMingguan, rowsBulanan] = await Promise.all([
+  const [rowsMingguan, rowsBulanan, kamusWilker] = await Promise.all([
     getStatusLaporMingguan(tahunMg, minggu),
     getStatusLaporBulanan(tahunBl, bulan),
+    getKamusWilker(),
   ]);
 
-  const matriksMingguan = buildMatriksMingguan(rowsMingguan);
-  const matriksBulanan = buildMatriksBulanan(rowsBulanan);
+  const daftarWilker = daftarWilkerMatriks(kamusWilker);
+  const matriksMingguan = buildMatriksMingguan(rowsMingguan, daftarWilker);
+  const matriksBulanan = buildMatriksBulanan(rowsBulanan, daftarWilker);
 
   return (
     <div className="space-y-10">

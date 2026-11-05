@@ -5,7 +5,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
-import { simpanPenumpangKapal, validasiInput } from '@/lib/db/modul/inputPenumpangKapal';
+import { simpanPenumpangKapal, validasiInput, getWilkerPelabuhan } from '@/lib/db/modul/inputPenumpangKapal';
 
 export type HasilSimpanPenumpangKapal =
   | { sukses: true; pesan: string }
@@ -19,7 +19,7 @@ export async function simpanInputPenumpangKapal(formData: FormData): Promise<Has
 
   // Tanggal "hari ini" menurut zona waktu kantor, bukan UTC server.
   const hariIni = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Makassar' });
-  const cek = validasiInput(formData, hariIni);
+  const cek = validasiInput(formData, hariIni, await getWilkerPelabuhan());
   if ('error' in cek) return { sukses: false, error: cek.error };
 
   try {

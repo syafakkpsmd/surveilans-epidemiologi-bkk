@@ -1,6 +1,6 @@
 // lib/db/modul/inputPesawat.ts
 // Input data kegiatan pesawat (tabel kegiatan_pesawat): validasi murni, pencocokan duplikat, penulisan.
-// SERVER-ONLY (memakai klien MariaDB). Dipakai oleh form satu-satu dan unggah Excel, jadi keduanya
+// SERVER-ONLY (memakai klien PostgreSQL). Dipakai oleh form satu-satu dan unggah Excel, jadi keduanya
 // tunduk pada aturan yang SAMA.
 //
 // Aturan bisnis (docs/masterpromptpesawat.md):

@@ -5,15 +5,6 @@ export interface PilihanKlinik {
   nama: string;
 }
 
-export interface WilayahKerja {
-  id: number;
-  kode: string;
-  nama: string;
-  jenis: 'pelabuhan' | 'bandara' | 'pos_lintas_batas' | 'lainnya';
-  urutan: number;
-  aktif: boolean;
-}
-
 export interface PoliklinikNonBkk {
   id: string;
   nama: string;
@@ -22,14 +13,6 @@ export interface PoliklinikNonBkk {
   telepon: string | null;
   kode_wilker: string | null;
   aktif: boolean;
-}
-
-export async function getWilayahKerja(hanyaAktif = true): Promise<WilayahKerja[]> {
-  const { rows } = await getDbClient().execute(
-    `SELECT id, kode, nama, jenis, urutan, aktif FROM wilayah_kerja
-      ${hanyaAktif ? 'WHERE aktif' : ''} ORDER BY urutan ASC, nama ASC`
-  );
-  return rows as WilayahKerja[];
 }
 
 /** Poliklinik NON-BKK (tabel poliklinik_non_bkk). Tabel `poliklinik` milik BKK tidak disentuh. */
@@ -71,13 +54,6 @@ export async function kodeKlinikValid(jenis: 'poliklinik' | 'klinik_binaan', kod
   return rows.length > 0;
 }
 
-export async function tambahWilayahKerja(d: { kode: string; nama: string; jenis: string; urutan: number }) {
-  await getDbClient().execute({
-    sql: `INSERT INTO wilayah_kerja (kode, nama, jenis, urutan) VALUES (?, ?, ?, ?)`,
-    args: [d.kode, d.nama, d.jenis, d.urutan],
-  });
-}
-
 export async function tambahPoliklinikNonBkk(d: {
   nama: string; kode_wilker: string; alamat: string | null; kabupaten_kota: string | null; telepon: string | null;
 }) {
@@ -88,7 +64,7 @@ export async function tambahPoliklinikNonBkk(d: {
 }
 
 export async function setAktifMaster(
-  tabel: 'wilayah_kerja' | 'poliklinik_non_bkk',
+  tabel: 'poliklinik_non_bkk',
   id: number | string,
   aktif: boolean
 ) {

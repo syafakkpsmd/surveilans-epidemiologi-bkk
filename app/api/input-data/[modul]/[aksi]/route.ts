@@ -12,13 +12,13 @@
 //   DELETE /api/input-data/{modul}/batch?id=          -> batalkan satu unggahan (admin)
 //
 // Akses: lihat/tambah/unggah = peran di MODUL[x].peranBoleh (admin selalu boleh); hapus = admin.
-// Rute ini memakai MariaDB langsung (tanpa RLS), jadi pemeriksaan peran DI SINI adalah satu-satunya pagar.
+// Rute ini memakai PostgreSQL langsung (tanpa RLS), jadi pemeriksaan peran DI SINI adalah satu-satunya pagar.
 import { NextRequest, NextResponse } from 'next/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { dapatkanModul, type ModulInput } from '@/lib/input-data/modul';
 import { validasiBaris } from '@/lib/input-data/validasi';
 import { bacaExcel, buatTemplate, MAKS_BYTE, MAKS_GALAT_DITAMPILKAN } from '@/lib/input-data/parse-excel';
-import { kodeDariTeks } from '@/lib/wilayah-kerja';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { isiNegara } from '@/lib/input-data/master';
 import {
   daftarData, daftarPilihan, daftarRiwayat, daftarTahun, hapusBaris, hapusBatch, hitungRencana,
@@ -92,6 +92,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   // const pengguna = user?.email ?? 'tidak diketahui';
 
   try {
+    const kamus = await getKamusWilker();
     if (aksi === 'unggah') {
       const form = await req.formData();
       const berkas = form.get('file');
@@ -101,8 +102,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (!Number.isInteger(tahun) || tahun < 2000 || tahun > 2100) return galat('Tahun tidak valid', 400);
       if (berkas.size > MAKS_BYTE) return galat(`Berkas lebih dari ${MAKS_BYTE / 1024 / 1024} MB`, 413);
 
-      const wilayahDefault = kodeDariTeks(String(form.get('wilayah') ?? '')) ?? null;
-      const h = await bacaExcel(Buffer.from(await berkas.arrayBuffer()), modul, tahun, { wilayahDefault });
+      const wilayahDefault = kamus.kodeDariTeks(String(form.get('wilayah') ?? '')) ?? null;
+      const h = await bacaExcel(Buffer.from(await berkas.arrayBuffer()), modul, tahun, kamus, { wilayahDefault });
       if (h.fatal) return NextResponse.json({ error: h.fatal, perluWilayah: h.perluWilayah }, { status: 400 });
 
       const baris = h.sah.map((s) => s.nilai);
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     if (aksi === 'ubah') {
       const body = (await req.json().catch(() => null)) as { id?: string; nilai?: Record<string, unknown> } | null;
       if (!body?.id || !/^[0-9a-fA-F-]{1,36}$/.test(body.id) || !body.nilai || typeof body.nilai !== 'object') return galat('Permintaan tidak valid', 400);
-      const r = await ubahManual(modul, body.id, body.nilai);
+      const r = await ubahManual(modul, body.id, body.nilai, kamus);
       if (!r.ok) return NextResponse.json({ error: r.galat.join('; ') }, { status: 400 });
       return NextResponse.json({ ok: true });
     }
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     if (aksi === 'baris') {
       const body = (await req.json().catch(() => null)) as { nilai?: Record<string, unknown> } | null;
       if (!body?.nilai || typeof body.nilai !== 'object') return galat('Isian tidak valid', 400);
-      const h = validasiBaris(modul, body.nilai);
+      const h = validasiBaris(modul, body.nilai, kamus);
       if (!h.nilai) return NextResponse.json({ error: 'Isian belum benar', galat: h.galat }, { status: 400 });
       if (modul.negaraDariMaster) await isiNegara([h.nilai]);
       const r = await tambahSatu(modul, h.nilai);

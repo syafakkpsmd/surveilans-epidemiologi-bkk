@@ -99,7 +99,7 @@ export const ambilBarisFinal = cache(async (
   tahun: number,
   kodeWilker?: string
 ): Promise<BarisRekapPesawat[]> => {
-  // Satu query ke MariaDB lokal (tanpa pagination 1000 baris seperti saat lewat Supabase).
+  // Satu query ke PostgreSQL (tanpa pagination 1000 baris seperti saat lewat Supabase).
   const args: (string | number)[] = [tahun];
   let kondisi = "tahun = ? AND status_data = 'final'";
   if (kodeWilker) { kondisi += ' AND kode_wilker = ?'; args.push(kodeWilker); }

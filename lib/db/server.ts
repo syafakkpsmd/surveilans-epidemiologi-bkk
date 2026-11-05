@@ -1,6 +1,6 @@
 // lib/db/server.ts  (SERVER: Server Component, Server Action, Route Handler)
 // Klien data atas nama pengguna yang sedang login (atau anonim). RLS ditiru di server (lib/db/rls.ts) dengan
-// identitas dari sesi MariaDB (cookie epic_sesi, lib/auth/session.ts).
+// identitas dari sesi aplikasi (cookie epic_sesi, lib/auth/session.ts).
 //
 // JANGAN dipakai di Client Component ('use client'): pakai createDbBrowserClient dari lib/db/browser-client.ts.
 // Untuk operasi sistem yang melewati RLS, pakai createDbServiceClient dari lib/db/serviceRole.ts.

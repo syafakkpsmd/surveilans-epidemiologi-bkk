@@ -1,4 +1,5 @@
 // app/api/kier/tren/route.ts
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getRingkasanKier,
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   try {
     // Ambil dulu daftar wilker yang BENAR-BENAR ada di data tahun ini,
     // supaya kolom breakdown di bawah cocok persis dengan ejaan aslinya.
-    const daftarWilkerAktif = await getDaftarWilkerAktif(tahun);
+    const daftarWilkerAktif = await getDaftarWilkerAktif(tahun, await getNamaWilkerModul('kier'));
 
     const [ringkasan, trenMingguan, trenBulanan, trenMingguanWilker, trenBulananWilker] = await Promise.all([
       getRingkasanKier(tahun, wilayahKerja),

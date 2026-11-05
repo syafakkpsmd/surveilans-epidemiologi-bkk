@@ -2,6 +2,7 @@
 
 // Server action modul Posko: atur periode & input data harian (penyakit, KLB, PTM) langsung dari aplikasi.
 // Tabel yang ditulis SAMA dengan yang diisi lewat Google Sheet (upsert, jadi tidak dobel).
+import { getNamaWilkerModul } from '@/lib/wilayah-kerja/server';
 import { tabelTidakAda } from '@/lib/db/errors';
 import { revalidatePath } from 'next/cache';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
@@ -80,7 +81,7 @@ export async function simpanInputHarianPosko(input: InputHarianPayload): Promise
   const ditolak = await pastikanBolehKelola();
   if (ditolak) return ditolak;
 
-  const salah = validasiInputHarian(input, hariIniWita());
+  const salah = validasiInputHarian(input, hariIniWita(), await getNamaWilkerModul('posko'));
   if (salah) return { ok: false, pesan: salah };
 
   try {

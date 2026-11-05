@@ -1,6 +1,6 @@
 // lib/vektor/simpan.ts
 //
-// Penyimpanan data vektor ke MariaDB. Dipisah dari server action agar bisa diuji langsung.
+// Penyimpanan data vektor ke PostgreSQL. Dipisah dari server action agar bisa diuji langsung.
 // Trigger `trg_hitung_*` mengisi HI/CI/BI/ABJ/TSI/MBR dll. saat INSERT, jadi tidak dihitung di sini.
 import type { DbClient } from '../db/client';
 import { konversiBaris } from './impor';

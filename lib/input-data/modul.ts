@@ -1,7 +1,7 @@
 // lib/input-data/modul.ts
 // Konfigurasi modul input data + unggah Excel. MURNI (tanpa database / exceljs) sehingga aman
 // dipakai komponen 'use client'. Menambah modul baru = menambah satu entri di MODUL.
-import { WILAYAH_KERJA, kodeDariTeks, type KodeWilker } from '@/lib/wilayah-kerja';
+import type { JenisWilker, KamusWilker, Wilayah } from '@/lib/wilayah-kerja';
 
 export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker';
 
@@ -36,8 +36,8 @@ export interface ModulInput {
   kolomKunci: string;
   /** Kolom pembeda tambahan pada kunci pencocokan (mis. nomor barcode/QR), bila satu kapal bisa punya beberapa dokumen sehari. */
   kolomKunciTambahan?: string[];
-  /** Wilayah kerja yang boleh pada modul ini. */
-  wilayahBoleh: KodeWilker[];
+  /** Jenis wilayah kerja yang boleh pada modul ini; daftar wilayahnya diambil dari wilker_ref (yang aktif), bukan ditulis di sini. */
+  jenisWilayahBoleh: JenisWilker[];
   kolom: KolomModul[];
   /** Kolom yang ditampilkan di daftar data (kolom manual selalu ditambahkan di belakang). */
   kolomDaftar: string[];
@@ -47,8 +47,9 @@ export interface ModulInput {
   negaraDariMaster?: boolean;
 }
 
-const WILKER_KAPAL: KodeWilker[] = ['WK01', 'WK02', 'WK03', 'WK04', 'WK05', 'WK06'];
-const SEMUA_WILKER: KodeWilker[] = [...WILKER_KAPAL, 'WK07'];
+/** Modul kapal (COP/PHQC): hanya pelabuhan. Modul lain: pelabuhan dan bandara. */
+const JENIS_KAPAL: JenisWilker[] = ['Pelabuhan'];
+const JENIS_SEMUA: JenisWilker[] = ['Pelabuhan', 'Bandara'];
 /** Judul kolom wilayah yang diterima pada ekspor Sinkarkes (isinya nama wilayah kerja). */
 const ALIAS_WILKER = ['Wilayah Kerja', 'Wilker', 'Pelabuhan', 'Nama KKP', 'KKP', 'Nama Balai Karkes', 'KKP Induk/Wilker', 'KKP Induk'];
 
@@ -66,7 +67,7 @@ export const MODUL: Record<string, ModulInput> = {
     kolomTanggal: 'tgl_kedatangan',
     kolomWilayah: 'wilayah_kerja',
     kolomKunci: 'nama_kapal',
-    wilayahBoleh: WILKER_KAPAL,
+    jenisWilayahBoleh: JENIS_KAPAL,
     peranBoleh: ['admin', 'petugas'],
     negaraDariMaster: true,
     kolomDaftar: ['tgl_kedatangan', 'wilayah_kerja', 'nama_kapal', 'bendera_kapal', 'pelabuhan_kedatangan', 'negara_kedatangan', 'jml_abk_wna', 'jml_abk_wni'],
@@ -109,7 +110,7 @@ export const MODUL: Record<string, ModulInput> = {
     kolomTanggal: 'tgl_keberangkatan',
     kolomWilayah: 'wilayah_kerja',
     kolomKunci: 'nama_kapal',
-    wilayahBoleh: WILKER_KAPAL,
+    jenisWilayahBoleh: JENIS_KAPAL,
     peranBoleh: ['admin', 'petugas'],
     kolomDaftar: ['tgl_keberangkatan', 'wilayah_kerja', 'nama_kapal', 'bendera', 'pelabuhan_kedatangan', 'pelabuhan_tujuan', 'jml_abk_wna', 'jml_abk_wni', 'jml_penumpang_wna', 'jml_penumpang_wni'],
     kolom: [
@@ -149,7 +150,7 @@ export const MODUL: Record<string, ModulInput> = {
 
   // ------------------------------------------------------------------------------------------
   // Dokumen/sertifikat kapal dan air dari Sinkarkes. Tanggal terbit menentukan tahun dan bulan data.
-  // Tabel: schema/mariadb/07_modul_sertifikat.sql. Kolom wilayah menerima juga judul "Nama KKP",
+  // Tabel: schema/postgres/07_modul_sertifikat.sql. Kolom wilayah menerima juga judul "Nama KKP",
   // "Nama Balai Karkes", dan "KKP Induk/Wilker" (isinya nama wilayah kerja, mis. "Pelabuhan Laut Sangatta").
   // ------------------------------------------------------------------------------------------
   sscec: {
@@ -160,7 +161,7 @@ export const MODUL: Record<string, ModulInput> = {
     kolomWilayah: 'wilayah_kerja',
     kolomKunci: 'nama_kapal',
     kolomKunciTambahan: ['nomor_barcode'],
-    wilayahBoleh: SEMUA_WILKER,
+    jenisWilayahBoleh: JENIS_SEMUA,
     peranBoleh: ['admin', 'petugas'],
     kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_kapal', 'nomor_barcode', 'berat_gt', 'bendera', 'nama_wajib_bayar', 'tgl_bayar', 'jumlah_bayar'],
     kolom: [
@@ -187,7 +188,7 @@ export const MODUL: Record<string, ModulInput> = {
     kolomWilayah: 'wilayah_kerja',
     kolomKunci: 'nama_kapal',
     kolomKunciTambahan: ['qr_code'],
-    wilayahBoleh: SEMUA_WILKER,
+    jenisWilayahBoleh: JENIS_SEMUA,
     peranBoleh: ['admin', 'petugas'],
     kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_kapal', 'bendera', 'berat', 'petugas_pemeriksa', 'nip', 'nama_wajib_bayar', 'jumlah_bayar'],
     kolom: [
@@ -213,7 +214,7 @@ export const MODUL: Record<string, ModulInput> = {
     // Di laporan Sinkarkes tidak ada kolom nama kapal; nama kapal ada di Sample ID.
     kolomKunci: 'sample_id',
     kolomKunciTambahan: ['nama_perusahaan', 'sebagai'],
-    wilayahBoleh: SEMUA_WILKER,
+    jenisWilayahBoleh: JENIS_SEMUA,
     peranBoleh: ['admin', 'petugas'],
     kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_perusahaan', 'sample_id', 'lokasi_pengambilan', 'jenis_penampungan', 'tgl_pengambilan', 'tgl_analisis', 'kesimpulan', 'sebagai', 'berlaku_sampai', 'jumlah_bayar'],
     kolom: [
@@ -243,7 +244,7 @@ export const MODUL: Record<string, ModulInput> = {
     kolomWilayah: 'wilayah_kerja',
     kolomKunci: 'nama_kapal',
     kolomKunciTambahan: ['qr_code'],
-    wilayahBoleh: SEMUA_WILKER,
+    jenisWilayahBoleh: JENIS_SEMUA,
     peranBoleh: ['admin', 'petugas'],
     kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_kapal', 'bendera', 'berat', 'pemilik', 'e_healthbook', 'nama_wajib_bayar', 'jumlah_bayar'],
     kolom: [
@@ -267,16 +268,19 @@ export function dapatkanModul(kunci: string): ModulInput | undefined {
   return Object.prototype.hasOwnProperty.call(MODUL, kunci) ? MODUL[kunci] : undefined;
 }
 
-/** Bentuk penyimpanan wilayah di tabel kegiatan_* saat ini: nama pendek tanpa spasi ("TanjungSantan").
- *  Dibakukan menjadi kode WK pada langkah B-2 (lihat docs/MIGRASI_MARIADB.md). */
-export function wilayahTersimpan(kode: KodeWilker): string {
-  const w = WILAYAH_KERJA.find((x) => x.kode === kode);
-  return (w?.namaPendek ?? kode).replace(/\s+/g, '');
+/** Wilayah kerja AKTIF yang boleh dipakai modul ini (menurut jenisnya). Wilayah nonaktif tidak menerima input baru. */
+export function wilayahBolehModul(modul: ModulInput, kamus: KamusWilker): Wilayah[] {
+  return kamus.aktif.filter((w) => modul.jenisWilayahBoleh.includes(w.jenis));
+}
+
+/** Bentuk penyimpanan wilayah di tabel kegiatan_* saat ini: nama pendek tanpa spasi ("TanjungSantan"). */
+export function wilayahTersimpan(kode: string, kamus: KamusWilker): string {
+  return (kamus.dapatkan(kode)?.namaPendek ?? kode).replace(/\s+/g, '');
 }
 
 /** Kebalikannya, untuk filter di daftar; teks tak dikenal -> null. */
-export function kodeDariTersimpan(teks: string | null | undefined): KodeWilker | null {
-  return kodeDariTeks(teks);
+export function kodeDariTersimpan(teks: string | null | undefined, kamus: KamusWilker): string | null {
+  return kamus.kodeDariTeks(teks);
 }
 
 /** Normalisasi judul kolom Excel: huruf kecil, hanya huruf/angka. "Tgl. Kedatangan " -> "tglkedatangan". */

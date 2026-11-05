@@ -9,14 +9,6 @@
 import { getDbClient } from '@/lib/db/client';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 
-export const DAFTAR_WILKER_POLIKLINIK = [
-  'Samarinda',
-  'APT Pranoto',
-  'Tanjung Laut',
-  'Lhoktuan',
-  'Sangatta',
-] as const;
-
 export interface KunjunganRow {
   wilayah_kerja: string;
   no_baris: number;
@@ -157,13 +149,13 @@ function formatPeriodeBulanan(key: string): string {
 // Dipakai khusus untuk chart perbandingan antar-wilker di halaman "Semua
 // Wilayah Kerja". Bentuk return: satu baris per periode, dengan satu kolom
 // per nama wilker (nilai = jumlah kunjungan wilker itu pada periode itu).
-// Setiap wilker di DAFTAR_WILKER_POLIKLINIK selalu diberi nilai (default 0)
+// Setiap wilker di daftarWilker (wilayah modul poliklinik) selalu diberi nilai (default 0)
 // walau tidak ada data pada periode tsb, supaya garis/batang tiap wilker
 // tetap konsisten sepanjang sumbu-X chart.
 // ------------------------------------------------------------
 export type TitikTrenPerWilker = { periode: string } & Record<string, string | number>;
 
-export function hitungTrenPerWilkerMingguan(rows: KunjunganRow[]): TitikTrenPerWilker[] {
+export function hitungTrenPerWilkerMingguan(rows: KunjunganRow[], daftarWilker: readonly string[]): TitikTrenPerWilker[] {
   const map = new Map<string, TitikTrenPerWilker>();
   for (const r of rows) {
     if (!r.tanggal_pemeriksaan) continue;
@@ -174,7 +166,7 @@ export function hitungTrenPerWilkerMingguan(rows: KunjunganRow[]): TitikTrenPerW
 
     if (!map.has(periode)) {
       const baris: TitikTrenPerWilker = { periode };
-      for (const w of DAFTAR_WILKER_POLIKLINIK) baris[w] = 0;
+      for (const w of daftarWilker) baris[w] = 0;
       map.set(periode, baris);
     }
     const baris = map.get(periode)!;
@@ -183,7 +175,7 @@ export function hitungTrenPerWilkerMingguan(rows: KunjunganRow[]): TitikTrenPerW
   return Array.from(map.values()).sort((a, b) => a.periode.localeCompare(b.periode));
 }
 
-export function hitungTrenPerWilkerBulanan(rows: KunjunganRow[]): TitikTrenPerWilker[] {
+export function hitungTrenPerWilkerBulanan(rows: KunjunganRow[], daftarWilker: readonly string[]): TitikTrenPerWilker[] {
   const map = new Map<string, TitikTrenPerWilker>();
   for (const r of rows) {
     if (!r.tanggal_pemeriksaan) continue;
@@ -193,7 +185,7 @@ export function hitungTrenPerWilkerBulanan(rows: KunjunganRow[]): TitikTrenPerWi
 
     if (!map.has(key)) {
       const baris: TitikTrenPerWilker = { periode: key };
-      for (const w of DAFTAR_WILKER_POLIKLINIK) baris[w] = 0;
+      for (const w of daftarWilker) baris[w] = 0;
       map.set(key, baris);
     }
     const baris = map.get(key)!;
@@ -286,12 +278,12 @@ export function hitungDonutKategoriPasien(rows: KunjunganRow[]): { label: string
 // ------------------------------------------------------------
 // 6) Breakdown per Wilker
 // ------------------------------------------------------------
-export function hitungBreakdownWilker(rows: KunjunganRow[]): { wilayahKerja: string; jumlah: number }[] {
+export function hitungBreakdownWilker(rows: KunjunganRow[], daftarWilker: readonly string[]): { wilayahKerja: string; jumlah: number }[] {
   const map = new Map<string, number>();
   for (const r of rows) {
     map.set(r.wilayah_kerja, (map.get(r.wilayah_kerja) ?? 0) + 1);
   }
-  return DAFTAR_WILKER_POLIKLINIK.map((w) => ({ wilayahKerja: w, jumlah: map.get(w) ?? 0 }));
+  return daftarWilker.map((w) => ({ wilayahKerja: w, jumlah: map.get(w) ?? 0 }));
 }
 
 // ------------------------------------------------------------

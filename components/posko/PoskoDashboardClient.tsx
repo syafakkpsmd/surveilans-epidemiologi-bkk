@@ -9,7 +9,6 @@ import { DonutChart } from '@/components/klinik/DonutChart';
 import PengaturPeriodePosko from './PengaturPeriodePosko';
 import {
   LABEL_POSKO,
-  WILAYAH_POSKO,
   type DataPosko,
   type WilayahPosko,
 } from '@/lib/posko/konstanta';
@@ -26,11 +25,6 @@ import {
   type FilterPosko,
 } from '@/lib/posko/hitung';
 
-const WARNA_WILAYAH: Record<WilayahPosko, string> = {
-  Samarinda: '#0F4C5C',
-  'APT Pranoto': '#EA580C',
-  Lhoktuan: '#2563EB',
-};
 const kunciWilayah = (w: WilayahPosko) => w.toLowerCase().replace(/\s+/g, '_');
 
 const fmt = (n: number) => n.toLocaleString('id-ID');
@@ -60,6 +54,8 @@ export default function PoskoDashboardClient({
   const router = useRouter();
   const { periode, tanggalAkhirTampil, daftarPeriode } = data;
   const judulPosko = LABEL_POSKO[data.posko];
+  const daftarWilayah = useMemo(() => data.wilayah.map((w) => w.nama), [data.wilayah]);
+  const warnaWilayah = useMemo(() => Object.fromEntries(data.wilayah.map((w) => [w.nama, w.warna])) as Record<string, string>, [data.wilayah]);
 
   const [aturPeriode, setAturPeriode] = useState(!periode && bolehKelola);
   const [wilayah, setWilayah] = useState<WilayahPosko | ''>('');
@@ -79,14 +75,14 @@ export default function PoskoDashboardClient({
   const rPenyakit = useMemo(() => ringkasPenyakit(penyakit), [penyakit]);
   const rPtm = useMemo(() => ringkasPtm(ptm), [ptm]);
 
-  const wilayahTampil = WILAYAH_POSKO.filter((w) => !wilayah || w === wilayah);
+  const wilayahTampil = daftarWilayah.filter((w) => !wilayah || w === wilayah);
 
   // ---- data grafik ----
   const trenPoliklinik = useMemo(
     () =>
       trenHarian(harian, (rows) =>
         Object.fromEntries(
-          WILAYAH_POSKO.map((w) => [kunciWilayah(w), rows.filter((r) => r.wilayah === w).reduce((a, r) => a + r.poliklinik, 0)])
+          daftarWilayah.map((w) => [kunciWilayah(w), rows.filter((r) => r.wilayah === w).reduce((a, r) => a + r.poliklinik, 0)])
         )
       ),
     [harian]
@@ -206,7 +202,7 @@ export default function PoskoDashboardClient({
               aria-label="Wilayah kerja"
             >
               <option value="">Semua Wilayah Kerja</option>
-              {WILAYAH_POSKO.map((w) => (
+              {daftarWilayah.map((w) => (
                 <option key={w} value={w}>{w}</option>
               ))}
             </select>
@@ -307,7 +303,7 @@ export default function PoskoDashboardClient({
                 <TrenChartLine
                   data={trenPoliklinik}
                   tipeChart="line"
-                  seriesList={wilayahTampil.map((w) => ({ key: kunciWilayah(w), label: w, warna: WARNA_WILAYAH[w] }))}
+                  seriesList={wilayahTampil.map((w) => ({ key: kunciWilayah(w), label: w, warna: warnaWilayah[w] }))}
                 />
               )}
             </KartuGrafik>

@@ -19,8 +19,9 @@ export const LABEL_POSKO: Record<JenisPosko, string> = {
   idul_fitri: 'Posko Idul Fitri',
 };
 
-export const WILAYAH_POSKO = ['Samarinda', 'APT Pranoto', 'Lhoktuan'] as const;
-export type WilayahPosko = (typeof WILAYAH_POSKO)[number];
+/** Nama pendek wilayah (isi kolom wilayah_kerja di tabel posko). Daftar yang berlaku = wilayah bermodul "posko" di pengaturan wilayah kerja. */
+export type WilayahPosko = string;
+export type WilayahPoskoInfo = { nama: WilayahPosko; warna: string };
 
 export const DAFTAR_PENYAKIT = [
   'DIARE AKUT',
@@ -60,16 +61,13 @@ export const DAFTAR_PTM = [
   'HEAT STROKE',
 ] as const;
 
-/** "Pelabuhan Samarinda" / "SAMARINDA" / "Bandara APT Pranoto" -> nama baku wilayah posko (atau null). */
-export function normalisasiWilayah(nama: string | null | undefined): WilayahPosko | null {
-  const kunci = String(nama ?? '')
-    .replace(/^\s*(pelabuhan|bandara)\s+/i, '')
-    .replace(/\s+/g, '')
-    .toLowerCase();
-  if (kunci === 'samarinda') return 'Samarinda';
-  if (kunci === 'aptpranoto') return 'APT Pranoto';
-  if (kunci === 'lhoktuan') return 'Lhoktuan';
-  return null;
+const kunciNamaWilayah = (t: string) => t.replace(/^\s*(pelabuhan|bandara)\s+/i, '').replace(/\s+/g, '').toLowerCase();
+
+/** "Pelabuhan Samarinda" / "SAMARINDA" / "Bandara APT Pranoto" -> nama baku wilayah dari `daftar` (atau null bila tidak ada di daftar). */
+export function normalisasiWilayah(nama: string | null | undefined, daftar: readonly string[]): WilayahPosko | null {
+  const kunci = kunciNamaWilayah(String(nama ?? ''));
+  if (!kunci) return null;
+  return daftar.find((d) => kunciNamaWilayah(d) === kunci) ?? null;
 }
 
 // ---------------------------------------------------------------- tipe data
@@ -127,6 +125,8 @@ export type BarisPtmPosko = {
 
 export type DataPosko = {
   posko: JenisPosko;
+  /** wilayah yang menjalankan posko (urut) beserta warna grafiknya, dari pengaturan wilayah kerja */
+  wilayah: WilayahPoskoInfo[];
   /** hari ini menurut WITA (YYYY-MM-DD), dari server */
   hariIni: string;
   periode: PeriodePosko | null;

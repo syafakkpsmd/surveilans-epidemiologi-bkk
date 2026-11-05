@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { dapatkanModul, type ModulInput } from '@/lib/input-data/modul';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
 import InputDataClient from '../../InputDataClient';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export default async function Page({ params }: { params: Promise<{ modul: string
       <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
         <Link href="/dashboard/input-data" className="text-sm text-[#0F4C5C] underline">&larr; Kembali ke Input Data</Link>
       </div>
-      <InputDataClient modul={modul} role={role} awal={awal} judul="COP dan PHQC (Kapal)" />
+      <InputDataClient wilayah={await getDaftarWilker()} modul={modul} role={role} awal={awal} judul="COP dan PHQC (Kapal)" />
     </div>
   );
 }

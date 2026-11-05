@@ -1,5 +1,5 @@
 // lib/db/tipe.ts
-// Tipe klien data yang dipakai di seluruh aplikasi: hanya .from() dan .rpc(), di atas MariaDB.
+// Tipe klien data yang dipakai di seluruh aplikasi: hanya .from() dan .rpc(), di atas PostgreSQL.
 //
 // Bentuknya sengaja sama dengan klien supabase-js bertipe Database supaya hasil query (data[].kolom) tetap
 // terketik seperti sebelumnya. Hanya IMPOR TIPE dari '@supabase/supabase-js' (hilang saat dikompilasi).

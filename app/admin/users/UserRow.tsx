@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { approveUser, suspendUser, deleteUser, updateUserNama, updateUserRole, resetPasswordUser } from '@/lib/auth/admin-actions';
 import { Pencil, Check, X } from 'lucide-react';
 import KlinikAksesEditor from './KlinikAksesEditor';
+import PoliklinikAksesEditor from './PoliklinikAksesEditor';
 
 interface Props {
   id: string;
@@ -12,6 +13,8 @@ interface Props {
   status: string;
   klinikTersedia: { id: string; nama_klinik: string }[];
   klinikTerpilih: string[];
+  poliklinikTersedia: { id: string; nama: string }[];
+  poliklinikTerpilih: string[];
 }
 
 const OPSI_ROLE = [
@@ -22,7 +25,7 @@ const OPSI_ROLE = [
   { value: 'klinik_binaan', label: 'Klinik Binaan' },
 ];
 
-export default function UserRow({ id, namaAwal, role: roleAwal, status, klinikTersedia, klinikTerpilih }: Props) {
+export default function UserRow({ id, namaAwal, role: roleAwal, status, klinikTersedia, klinikTerpilih, poliklinikTersedia, poliklinikTerpilih }: Props) {
   const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [nama, setNama] = useState(namaAwal);
@@ -143,7 +146,7 @@ export default function UserRow({ id, namaAwal, role: roleAwal, status, klinikTe
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <span>{role.replace('_', ' ')}</span>
+            <span>{OPSI_ROLE.find((o) => o.value === role)?.label ?? role}</span>
             <button
               onClick={() => setEditingRole(true)}
               className="text-[#0F2A38]/40 hover:text-[#0F4C5C]"
@@ -157,6 +160,13 @@ export default function UserRow({ id, namaAwal, role: roleAwal, status, klinikTe
         {/* HANYA tampilkan editor klinik jika perannya klinik_binaan */}
         {role === 'klinik_binaan' && (
           <KlinikAksesEditor userId={id} klinikTersedia={klinikTersedia} klinikTerpilihAwal={klinikTerpilih} />
+        )}
+                {role === 'poliklinik' && (
+          <PoliklinikAksesEditor
+            userId={id}
+            poliklinikTersedia={poliklinikTersedia}
+            poliklinikTerpilihAwal={poliklinikTerpilih}
+          />
         )}
 
         {/* Berikan keterangan bersih jika petugas_klinik (internal BKK) */}

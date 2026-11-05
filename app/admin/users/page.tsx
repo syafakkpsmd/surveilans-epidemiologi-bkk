@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import UserRow from './UserRow';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminUsersPage() {
   const role = await getUserRole();
   if (role !== 'admin') redirect('/dashboard');
@@ -16,10 +18,28 @@ export default async function AdminUsersPage() {
     .select('id, nama_lengkap, role, status')
     .order('status', { ascending: true });
 
-  const klinikTersedia = await sql<{ id: string; nama_klinik: string }>('SELECT id, nama_klinik FROM klinik_binaan ORDER BY nama_klinik');
+  // Klinik binaan hanya yang kategori 'klinik' (entri BKK induk tidak ikut)
+  const klinikTersedia = await sql<{ id: string; nama_klinik: string }>(
+    `SELECT id, nama_klinik FROM klinik_binaan WHERE kategori = 'klinik' ORDER BY nama_klinik`
+  );
   const tautan = await sql<{ user_id: string; klinik_id: string }>('SELECT user_id, klinik_id FROM klinik_akses');
   const klinikPerUser = new Map<string, string[]>();
-  for (const t of tautan) klinikPerUser.set(t.user_id, [...(klinikPerUser.get(t.user_id) ?? []), t.klinik_id]);
+  for (const t of tautan) {
+    const uid = String(t.user_id);
+    klinikPerUser.set(uid, [...(klinikPerUser.get(uid) ?? []), String(t.klinik_id)]);
+  }
+
+  // Poliklinik non-BKK dan tautannya ke akun
+  const poliklinikTersedia = await sql<{ id: string; nama: string }>(
+    `SELECT id::text AS id, nama FROM poliklinik_non_bkk WHERE aktif ORDER BY nama`
+  );
+  const tautanPoli = await sql<{ user_id: string; poliklinik_id: string }>(
+    `SELECT user_id::text AS user_id, poliklinik_id::text AS poliklinik_id FROM poliklinik_non_bkk_akses`
+  );
+  const poliPerUser = new Map<string, string[]>();
+  for (const t of tautanPoli) {
+    poliPerUser.set(t.user_id, [...(poliPerUser.get(t.user_id) ?? []), t.poliklinik_id]);
+  }
 
   return (
     <main className="p-6 max-w-4xl mx-auto">
@@ -62,7 +82,9 @@ export default async function AdminUsersPage() {
                   role={u.role}
                   status={u.status}
                   klinikTersedia={klinikTersedia}
-                  klinikTerpilih={klinikPerUser.get(u.id) ?? []}
+                  klinikTerpilih={klinikPerUser.get(String(u.id)) ?? []}
+                  poliklinikTersedia={poliklinikTersedia}
+                  poliklinikTerpilih={poliPerUser.get(String(u.id)) ?? []}
                 />
               ))}
             </tbody>

@@ -152,12 +152,20 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
           </div>
           <div className="flex gap-2">
             {(role === 'petugas' || role === 'admin') && (
-              <Link
-                href="/dashboard/global-emerging/input"
-                className="inline-flex items-center rounded-lg border border-[#0F4C5C] px-4 py-2 text-sm font-medium text-[#0F4C5C] hover:bg-[#0F4C5C] hover:text-white transition"
-              >
-                + Input Data Manual
-              </Link>
+              <>
+                <Link
+                  href="/dashboard/global-emerging/edit"
+                  className="inline-flex items-center rounded-lg border border-[#0F4C5C] px-4 py-2 text-sm font-medium text-[#0F4C5C] hover:bg-[#0F4C5C] hover:text-white transition"
+                >
+                  Edit Data
+                </Link>
+                <Link
+                  href="/dashboard/global-emerging/input"
+                  className="inline-flex items-center rounded-lg bg-[#0F4C5C] px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+                >
+                  + Input Data Manual
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -269,7 +277,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
             }, {})
           ).map(([negara, total_kasus]) => ({ negara, total_kasus }))}
         />
-        <GlobalEmergingTabelMentah data={dataMentah}/>
+        <GlobalEmergingTabelMentah data={dataMentah} bolehEdit={role === 'petugas' || role === 'admin'} />
       </div>
     </div>
   );

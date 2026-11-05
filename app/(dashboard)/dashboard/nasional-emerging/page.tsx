@@ -27,11 +27,13 @@ export default async function NasionalEmergingPage() {
   return (
     <>
       {bisaInput && (
-        <div className="mx-auto flex max-w-6xl justify-end px-4 pt-6">
-          <Link
-            href="/dashboard/nasional-emerging/input"
-            className="rounded-lg bg-[#0F4C5C] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-          >
+        <div className="mx-auto flex max-w-6xl justify-end gap-2 px-4 pt-6">
+          <Link href="/dashboard/nasional-emerging/edit"
+            className="rounded-lg border border-[#0F4C5C] px-4 py-2 text-sm font-medium text-[#0F4C5C] hover:bg-white">
+            Edit Data
+          </Link>
+          <Link href="/dashboard/nasional-emerging/input"
+            className="rounded-lg bg-[#0F4C5C] px-4 py-2 text-sm font-medium text-white hover:opacity-90">
             + Input Data
           </Link>
         </div>

@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -437,6 +438,7 @@ export default function DashboardNasionalEmerging({
               <th className="py-2 pr-4">Minggu</th>
               <th className="py-2 pr-4">Jumlah kasus</th>
               <th className="py-2 pr-4">Jumlah kematian</th>
+              {(role === 'petugas' || role === 'admin') && <th className="py-2 pr-4" />}
             </tr>
           </thead>
           <tbody>
@@ -450,6 +452,16 @@ export default function DashboardNasionalEmerging({
                   <td className="py-1.5 pr-4">Mg {r.minggu_epid}</td>
                   <td className="py-1.5 pr-4">{r.jumlah_kasus}</td>
                   <td className="py-1.5 pr-4">{r.jumlah_kematian}</td>
+                  {(role === 'petugas' || role === 'admin') && (
+                    <td className="py-1.5 pr-4">
+                      <Link
+                        href={`/dashboard/nasional-emerging/edit?penyakit=${encodeURIComponent(penyakit)}&tahun=${tahun}&minggu=${r.minggu_epid}`}
+                        className="text-[#0F4C5C] underline"
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
           </tbody>

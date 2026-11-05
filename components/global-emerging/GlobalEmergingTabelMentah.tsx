@@ -5,6 +5,7 @@
 // verifikasi/audit data oleh petugas (pola sama seperti Segmen 6/7).
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { LaporanPenyakitEmerging } from '@/types/global-emerging.types';
 
 const NAMA_BULAN = [
@@ -14,9 +15,22 @@ const NAMA_BULAN = [
 
 interface GlobalEmergingTabelMentahProps {
   data: LaporanPenyakitEmerging[];
+  /** true untuk petugas dan admin: menampilkan tombol Edit per baris. */
+  bolehEdit?: boolean;
 }
 
-export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelMentahProps) {
+function tautanEdit(row: LaporanPenyakitEmerging): string {
+  const q = new URLSearchParams({
+    id: String(row.id),
+    tahun: String(row.tahun_epid),
+    penyakit: row.penyakit,
+    negara: row.negara,
+    jenis: row.jenis_periode,
+  });
+  return `/dashboard/global-emerging/edit?${q.toString()}`;
+}
+
+export default function GlobalEmergingTabelMentah({ data, bolehEdit = false }: GlobalEmergingTabelMentahProps) {
   const [terbuka, setTerbuka] = useState(false);
 
   const dataTerbaru = [...data]
@@ -50,6 +64,7 @@ export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelM
                 <th className="pb-2 pr-4">Kasus</th>
                 <th className="pb-2 pr-4">Kematian</th>
                 <th className="pb-2 pr-4">Sumber</th>
+                {bolehEdit && <th className="pb-2 pr-4" />}
               </tr>
             </thead>
             <tbody>
@@ -65,6 +80,13 @@ export default function GlobalEmergingTabelMentah({ data }: GlobalEmergingTabelM
                   <td className="py-2 pr-4">{row.jumlah_kasus}</td>
                   <td className="py-2 pr-4">{row.jumlah_kematian}</td>
                   <td className="py-2 pr-4 text-gray-500">{row.sumber}</td>
+                  {bolehEdit && (
+                    <td className="py-2 pr-4">
+                      <Link href={tautanEdit(row)} className="text-[#0F4C5C] underline">
+                        Edit
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

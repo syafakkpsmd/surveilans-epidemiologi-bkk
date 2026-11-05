@@ -128,3 +128,23 @@ export async function simpanEmerging(d: InputEmerging): Promise<number> {
   );
   return d.baris.length;
 }
+
+/** Data satu penyakit pada satu minggu, untuk halaman edit. */
+export async function getDataMinggu(penyakit: string, tahun: number, minggu: number): Promise<BarisEmerging[]> {
+  const { rows } = await getDbClient().execute({
+    sql: `SELECT penyakit, propinsi, tahun_epid, minggu_epid, jumlah_kasus, jumlah_kematian
+            FROM laporan_penyakit_nasional
+           WHERE penyakit = ? AND tahun_epid = ? AND minggu_epid = ?`,
+    args: [penyakit, tahun, minggu],
+  });
+  return rows as BarisEmerging[];
+}
+
+export async function hapusBarisEmerging(penyakit: string, propinsi: string, tahun: number, minggu: number): Promise<boolean> {
+  const hasil = await getDbClient().execute({
+    sql: `DELETE FROM laporan_penyakit_nasional
+           WHERE penyakit = ? AND propinsi = ? AND tahun_epid = ? AND minggu_epid = ?`,
+    args: [penyakit, propinsi, tahun, minggu],
+  });
+  return hasil.rowsAffected > 0;
+}

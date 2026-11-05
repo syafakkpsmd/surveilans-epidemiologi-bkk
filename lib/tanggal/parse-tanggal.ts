@@ -249,7 +249,7 @@ export function parseTanggal(nilai: unknown, opsi: OpsiTanggal = {}): HasilTangg
 
     // urut 'ambigu': a b c = angka pertama, kedua, tahun
     let tahun = c;
-    if (String(teks).match(/\d+\D+\d+\D+(\d+)\s*$/)?.[1]?.length === 2 || c < 100) tahun = perluasTahun(c, tahunSekarang);
+    if (c < 100) tahun = perluasTahun(c, tahunSekarang);
     const kor = koreksiTahun(tahun, tahunMaks);
     tahun = kor.tahun;
 

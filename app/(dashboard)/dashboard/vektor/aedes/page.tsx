@@ -1,6 +1,7 @@
 import { requireVektor } from '@/lib/vektor/auth';
 import TombolInputDbd from '@/components/vektor/dbd/TombolInputDbd';
 import { getWilkerRef } from '@/lib/db/queries/umum';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
 import {
   getBreakdownKategori,
   getRentangMingguEpid,
@@ -110,7 +111,12 @@ export default async function VektorAedesPage({
   // TETAP selalu dijalankan (independen dari toggle, selalu berbasis
   // minggu berjalan -- sama seperti sebelumnya).
   // ============================================================
-  const [role, daftarWilker, penggunaInput] = await Promise.all([getUserRole(), getWilkerRef(), requireVektor()]);
+  const [role, daftarWilker, penggunaInput, wilayahKamus] = await Promise.all([
+    getUserRole(),
+    getWilkerRef(),
+    requireVektor(),
+    getDaftarWilker(),
+  ]);
   const bolehInput = !!penggunaInput; // admin/petugas (sama dengan syarat API input)
 
   let ringkasanMingguan: Awaited<ReturnType<typeof getRingkasanVektorDbdRentang>> = [];
@@ -250,7 +256,7 @@ export default async function VektorAedesPage({
       {butuhMingguan ? <FilterRentangMinggu /> : <FilterRentangBulan />}
     </div>
   </div>
-      {bolehInput && <TombolInputDbd wilayahAwal={wilker ?? ''} wilayah={daftarWilker} />}
+      {bolehInput && <TombolInputDbd wilayahAwal={wilker ?? ''} wilayah={wilayahKamus} />}
 
       {dataKosong ? (
         <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">

@@ -14,7 +14,8 @@ const salah = (error: string, status = 400) => NextResponse.json({ error }, { st
 export async function GET(req: NextRequest) {
   if (!(await requireVektor())) return tolak();
   const sp = req.nextUrl.searchParams;
-  const data = await daftarSurvei(filterDariQuery(sp), Number(sp.get('limit')) || 100, Number(sp.get('offset')) || 0);
+  const wk = await getKamusWilker();
+  const data = await daftarSurvei(filterDariQuery(sp, wk), Number(sp.get('limit')) || 100, Number(sp.get('offset')) || 0);
   return NextResponse.json({ data });
 }
 

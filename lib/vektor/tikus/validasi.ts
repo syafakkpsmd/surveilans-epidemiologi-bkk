@@ -1,13 +1,18 @@
 // lib/vektor/tikus/validasi.ts
 import { parseTanggal, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
-import { parseAngka, petakanWilayah } from '@/lib/vektor/umum';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
+import { parseAngka } from '@/lib/vektor/umum';
 import {
   bacaHasilLab, bacaSpesies, hitungIndexPinjal, hitungTsi, type HasilLab, type KodeSpesies,
 } from './config';
 
 type Baris = Record<string, unknown>;
 type Hasil<T> = { ok: true; data: T; ambigu?: boolean } | { ok: false; error: string };
-export interface OpsiBaca { urutanAmbigu?: UrutanTanggal }
+export interface OpsiBaca {
+  /** Kamus wilayah kerja dari database (server: getKamusWilker, client: buatKamus). */
+  wk: KamusWilker;
+  urutanAmbigu?: UrutanTanggal;
+}
 
 export interface DataSurveiTikus {
   tgl_survei: string;
@@ -58,7 +63,11 @@ const HEADER_LAB: Record<string, string> = {
   keterangan: 'keterangan',
 };
 
-function kanonik(baris: Baris, peta: Record<string, string>): Baris {
+/**
+ * Samakan judul kolom ke nama baku. `wk` (opsional) dipakai untuk satu kasus khusus: judul kolom wilayah
+ * kadang tertinggal berupa nama wilayah (mis. "Sangkulirang" di sheet survei); kolom itu dianggap kolom wilayah kerja.
+ */
+function kanonik(baris: Baris, peta: Record<string, string>, wk?: KamusWilker): Baris {
   const out: Baris = {};
   const takDikenal: [string, unknown][] = [];
   for (const [h, v] of Object.entries(baris)) {
@@ -67,18 +76,16 @@ function kanonik(baris: Baris, peta: Record<string, string>): Baris {
       if (out[k] === undefined || out[k] === '') out[k] = v;
     } else takDikenal.push([h, v]);
   }
-  // Judul kolom wilayah kadang tertinggal berupa nama wilayah (mis. "Sangkulirang" di sheet survei);
-  // kolom seperti itu dianggap kolom wilayah kerja.
-  if (out.wilayah === undefined) {
+  if (wk && out.wilayah === undefined) {
     for (const [h, v] of takDikenal) {
-      if (petakanWilayah(h)) { out.wilayah = v; break; }
+      if (wk.kodeDariTeks(h)) { out.wilayah = v; break; }
     }
   }
   return out;
 }
 
-export const kanonikSurvei = (b: Baris) => kanonik(b, HEADER_SURVEI);
-export const kanonikLab = (b: Baris) => kanonik(b, HEADER_LAB);
+export const kanonikSurvei = (b: Baris, wk?: KamusWilker) => kanonik(b, HEADER_SURVEI, wk);
+export const kanonikLab = (b: Baris, wk?: KamusWilker) => kanonik(b, HEADER_LAB, wk);
 
 function bacaTanggalWilayah(
   b: Baris, o: OpsiBaca, label: string
@@ -86,7 +93,7 @@ function bacaTanggalWilayah(
   const t = parseTanggal(b.tanggal, { urutanAmbigu: o.urutanAmbigu });
   if (!t.iso) return { ok: false, error: `${label}: ${t.pesan ?? 'tidak terbaca'}` };
   if (t.masaDepan) return { ok: false, error: `${label} ${t.iso} ada di masa depan` };
-  const kode = petakanWilayah(String(b.wilayah ?? ''));
+  const kode = o.wk.kodeDariTeks(String(b.wilayah ?? ''));
   if (!kode) return { ok: false, error: `Wilayah kerja "${b.wilayah ?? ''}" tidak dikenali` };
   return { ok: true, ambigu: t.ambigu, data: { tanggal: t.iso, kode } };
 }
@@ -109,8 +116,8 @@ const teksOpsional = (v: unknown, maks: number) => {
   return s ? s.slice(0, maks) : null;
 };
 
-export function validasiSurveiTikus(b0: Baris, o: OpsiBaca = {}): Hasil<DataSurveiTikus> {
-  const b = kanonikSurvei(b0);
+export function validasiSurveiTikus(b0: Baris, o: OpsiBaca): Hasil<DataSurveiTikus> {
+  const b = kanonikSurvei(b0, o.wk);
   const k = bacaTanggalWilayah(b, o, 'Tanggal kegiatan');
   if (!k.ok) return k;
 
@@ -152,8 +159,8 @@ export function validasiSurveiTikus(b0: Baris, o: OpsiBaca = {}): Hasil<DataSurv
   };
 }
 
-export function validasiLab(b0: Baris, o: OpsiBaca = {}): Hasil<DataLab> {
-  const b = kanonikLab(b0);
+export function validasiLab(b0: Baris, o: OpsiBaca): Hasil<DataLab> {
+  const b = kanonikLab(b0, o.wk);
   const k = bacaTanggalWilayah(b, o, 'Tanggal pemeriksaan');
   if (!k.ok) return k;
 

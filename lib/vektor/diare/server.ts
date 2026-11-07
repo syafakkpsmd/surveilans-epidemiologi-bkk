@@ -2,6 +2,7 @@
 // HANYA untuk server (route handler / server component).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { STATUS_MS, STATUS_TMS, type Jenis } from './config';
 import type { DataSurvei, DataTindakan, KunciSurvei } from './validasi';
 
@@ -16,7 +17,7 @@ export type FilterDiare = {
 
 const TGL = /^\d{4}-\d{2}-\d{2}$/;
 
-export function filterDariQuery(sp: URLSearchParams): FilterDiare | null {
+export function filterDariQuery(sp: URLSearchParams, wk: KamusWilker): FilterDiare | null {
   const jenis = sp.get('jenis');
   if (jenis !== 'lalat' && jenis !== 'kecoa') return null;
   const f: FilterDiare = { jenis };

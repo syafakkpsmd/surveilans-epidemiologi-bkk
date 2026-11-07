@@ -1,6 +1,7 @@
 // lib/vektor/diare/validasi.ts
 import { parseTanggal, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
-import { type Jenis, LABEL_JENIS, hitungStatus, parseAngka, petakanWilayah } from './config';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
+import { type Jenis, LABEL_JENIS, hitungStatus, parseAngka } from './config';
 
 type Baris = Record<string, unknown>;
 type Hasil<T> = { ok: true; data: T; ambigu?: boolean } | { ok: false; error: string };
@@ -22,6 +23,8 @@ export interface DataTindakan {
   luas_area_semprot_m2: number | null;
 }
 export interface OpsiBaca {
+  /** Kamus wilayah kerja dari database (server: getKamusWilker, client: buatKamus). */
+  wk: KamusWilker;
   /** Paksa jenis sesuai halaman (Lalat/Kecoa); baris jenis lain ditolak. */
   jenis?: Jenis;
   /** Hasil tentukanUrutanKolom() untuk file unggahan. */
@@ -59,12 +62,12 @@ function bacaJenis(v: unknown, paksa?: Jenis): { jenis: Jenis } | { error: strin
   return { jenis: dibaca };
 }
 
-export function bacaKunci(b: Baris, o: OpsiBaca = {}): Hasil<KunciSurvei> {
+export function bacaKunci(b: Baris, o: OpsiBaca): Hasil<KunciSurvei> {
   const t = parseTanggal(b.tanggal, { urutanAmbigu: o.urutanAmbigu });
   if (!t.iso) return { ok: false, error: `Tanggal: ${t.pesan ?? 'tidak terbaca'}` };
   if (t.masaDepan) return { ok: false, error: `Tanggal ${t.iso} ada di masa depan` };
 
-  const kode = petakanWilayah(String(b.wilayah ?? ''));
+  const kode = o.wk.kodeDariTeks(String(b.wilayah ?? ''));
   if (!kode) return { ok: false, error: `Wilayah kerja "${b.wilayah ?? ''}" tidak dikenali` };
 
   const j = bacaJenis(b.jenis, o.jenis);
@@ -81,7 +84,7 @@ export function bacaKunci(b: Baris, o: OpsiBaca = {}): Hasil<KunciSurvei> {
   };
 }
 
-export function validasiSurvei(b0: Baris, o: OpsiBaca = {}): Hasil<DataSurvei> {
+export function validasiSurvei(b0: Baris, o: OpsiBaca): Hasil<DataSurvei> {
   const b = kanonikBaris(b0);
   const k = bacaKunci(b, o);
   if (!k.ok) return k;
@@ -117,7 +120,7 @@ export function validasiTindakan(b0: Baris): Hasil<DataTindakan> {
 /** Templat tindakan: kunci survei (tanggal, wilayah, jenis, lokasi) + isian tindakan. */
 export function validasiTindakanBerKunci(
   b0: Baris,
-  o: OpsiBaca = {}
+  o: OpsiBaca
 ): Hasil<{ kunci: KunciSurvei; tindakan: DataTindakan }> {
   const b = kanonikBaris(b0);
   const k = bacaKunci(b, o);
@@ -130,7 +133,7 @@ export function validasiTindakanBerKunci(
 /** Layout sheet lama (satu baris = survei + tindakan opsional), seperti di screenshot. */
 export function validasiBarisGabungan(
   b0: Baris,
-  o: OpsiBaca = {}
+  o: OpsiBaca
 ): Hasil<{ survei: DataSurvei; tindakan: DataTindakan | null }> {
   const b = kanonikBaris(b0);
   const s = validasiSurvei(b, o);

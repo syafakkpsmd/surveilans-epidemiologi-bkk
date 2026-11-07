@@ -4,6 +4,7 @@ import { requireVektor } from '@/lib/vektor/auth';
 import { JENIS, type Jenis } from '@/lib/vektor/diare/config';
 import { validasiSurvei } from '@/lib/vektor/diare/validasi';
 import { daftarDiare, filterDariQuery, hapusSurvei, simpanSurvei, ubahSurvei } from '@/lib/vektor/diare/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 export const runtime = 'nodejs';
 
@@ -15,7 +16,8 @@ const jenisValid = (v: unknown): v is Jenis => JENIS.includes(v as Jenis);
 export async function GET(req: NextRequest) {
   if (!(await requireVektor())) return tolak();
   const sp = req.nextUrl.searchParams;
-  const f = filterDariQuery(sp);
+  const wk = await getKamusWilker();
+  const f = filterDariQuery(sp, wk);
   if (!f) return salah('Jenis harus lalat atau kecoa');
   const data = await daftarDiare(f, Number(sp.get('limit')) || 100, Number(sp.get('offset')) || 0);
   return NextResponse.json({ data });
@@ -28,7 +30,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body || !jenisValid(body.jenis)) return salah('Jenis harus lalat atau kecoa');
 
-  const h = validasiSurvei(body, { jenis: body.jenis });
+  const wk = await getKamusWilker();
+  const h = validasiSurvei(body, { jenis: body.jenis, wk });
   if (!h.ok) return salah(h.error);
 
   const r = await simpanSurvei([h.data], user.nama);
@@ -43,7 +46,8 @@ export async function PATCH(req: NextRequest) {
   const id = Number(body?.id);
   if (!body || !Number.isInteger(id) || !jenisValid(body.jenis)) return salah('Data tidak lengkap');
 
-  const h = validasiSurvei(body, { jenis: body.jenis });
+  const wk = await getKamusWilker();
+  const h = validasiSurvei(body, { jenis: body.jenis, wk });
   if (!h.ok) return salah(h.error);
 
   const r = await ubahSurvei(id, h.data);

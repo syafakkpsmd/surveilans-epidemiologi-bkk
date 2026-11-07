@@ -5,6 +5,7 @@ import { validasiSurveiTikus } from '@/lib/vektor/tikus/validasi';
 import {
   daftarSurveiTikus, filterDariQuery, hapusSurveiTikus, simpanSurveiTikus, ubahSurveiTikus,
 } from '@/lib/vektor/tikus/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 export const runtime = 'nodejs';
 
@@ -15,7 +16,8 @@ const salah = (error: string, status = 400) => NextResponse.json({ error }, { st
 export async function GET(req: NextRequest) {
   if (!(await requireVektor())) return tolak();
   const sp = req.nextUrl.searchParams;
-  const data = await daftarSurveiTikus(filterDariQuery(sp), Number(sp.get('limit')) || 100, Number(sp.get('offset')) || 0);
+  const wk = await getKamusWilker();
+  const data = await daftarSurveiTikus(filterDariQuery(sp, wk), Number(sp.get('limit')) || 100, Number(sp.get('offset')) || 0);
   return NextResponse.json({ data });
 }
 
@@ -26,7 +28,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return salah('Data tidak terbaca');
 
-  const h = validasiSurveiTikus(body);
+  const wk = await getKamusWilker();
+  const h = validasiSurveiTikus(body, { wk });
   if (!h.ok) return salah(h.error);
 
   const r = await simpanSurveiTikus([h.data], user.nama);
@@ -40,7 +43,8 @@ export async function PATCH(req: NextRequest) {
   const id = Number(body?.id);
   if (!body || !Number.isInteger(id)) return salah('Data tidak lengkap');
 
-  const h = validasiSurveiTikus(body);
+  const wk = await getKamusWilker();
+  const h = validasiSurveiTikus(body, { wk });
   if (!h.ok) return salah(h.error);
 
   const r = await ubahSurveiTikus(id, h.data);

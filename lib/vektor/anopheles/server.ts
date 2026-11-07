@@ -2,6 +2,7 @@
 // HANYA untuk server (route handler / server component).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 import {
   CUACA, KEADAAN_TEMPAT, MACAM_TEMPAT, METODE_TANGKAP, TIPE_DB, bacaZona, type Tipe, type Zona,
@@ -12,7 +13,7 @@ const TGL = /^\d{4}-\d{2}-\d{2}$/;
 
 export type FilterAnopheles = { tipe: Tipe; dari?: string; sampai?: string; wilayah?: string; zona?: Zona };
 
-export function filterDariQuery(sp: URLSearchParams): FilterAnopheles | null {
+export function filterDariQuery(sp: URLSearchParams, wk: KamusWilker): FilterAnopheles | null {
   const tipe = sp.get('tipe');
   if (tipe !== 'larva' && tipe !== 'dewasa') return null;
   const f: FilterAnopheles = { tipe };

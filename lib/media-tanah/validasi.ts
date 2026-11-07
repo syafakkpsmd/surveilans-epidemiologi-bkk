@@ -1,5 +1,6 @@
 // lib/media-tanah/validasi.ts
 // Dipakai bersama oleh form input dan unggah Excel.
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { ITEM_B, ITEM_C, ITEM_D, ITEM_E, KESIMPULAN, teksBatas, statusLab } from './config';
 import { parseTanggalCkg, keIsoTanggal } from '@/lib/klinik/ckg/tanggalCkg'; // pembungkus parseTanggalSheet
 
@@ -29,6 +30,9 @@ export type Header = {
 
 export type Pemeriksaan = { header: Header; hasil: HasilRow[] };
 type Hasil = { ok: true; data: Pemeriksaan } | { ok: false; error: string };
+
+/** wilayah = kode wilayah kerja; wk = kamus wilayah kerja dari database (server: getKamusWilker, client: buatKamus). */
+export type OpsiPemeriksaan = { wilayah: string; wk: KamusWilker };
 
 const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
@@ -70,9 +74,10 @@ export function bacaKesimpulan(v: unknown): string | null {
   return null;
 }
 
-export function validasiPemeriksaan(raw: Record<string, any>, o: { wilayah: string }): Hasil {
+export function validasiPemeriksaan(raw: Record<string, any>, o: OpsiPemeriksaan): Hasil {
   try {
-    if (!wk.daftarKodeAktif.includes(o.wilayah)) throw new Error('Wilayah kerja tidak dikenal');
+    // Input baru hanya untuk wilayah kerja yang aktif.
+    if (!o.wk.daftarKodeAktif.includes(o.wilayah)) throw new Error('Wilayah kerja tidak dikenal');
 
     const tgl = parseTanggalCkg(raw.tanggal);
     if (!tgl) throw new Error('Tanggal pemeriksaan tidak terbaca');

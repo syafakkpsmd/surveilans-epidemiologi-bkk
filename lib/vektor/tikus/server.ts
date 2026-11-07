@@ -2,6 +2,7 @@
 // HANYA untuk server (route handler / server component).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 import { AREA_SURVEI, JENIS_TRAP, SPESIES, type KodeSpesies } from './config';
 import type { DataLab, DataSurveiTikus } from './validasi';
@@ -19,7 +20,7 @@ export type FilterTikus = {
   adaPositif?: boolean; // khusus lab
 };
 
-export function filterDariQuery(sp: URLSearchParams): FilterTikus {
+export function filterDariQuery(sp: URLSearchParams, wk: KamusWilker): FilterTikus {
   const f: FilterTikus = {};
   const dari = sp.get('dari');
   const sampai = sp.get('sampai');
@@ -71,8 +72,8 @@ export async function daftarSurveiTikus(f: FilterTikus, limit = 100, offset = 0)
     sql: `SELECT id, tgl_survei, kode_wilker, jml_trap_dipasang, rt, rn, mm, jenis_lainnya, jml_trap_tertangkap,
                  tsi, jml_pinjal_ditemukan, index_pinjal, keterangan,
                  ((uji_lab IS NOT NULL AND uji_lab <> '') OR hasil_leptospira IS NOT NULL OR hasil_pes IS NOT NULL
-                   OR hasil_hantavirus IS NOT NULL
-                   OR COALESCE(jumlah_positif_leptospira, 0) + COALESCE(jumlah_positif_pes, 0)
+                    OR hasil_hantavirus IS NOT NULL
+                    OR COALESCE(jumlah_positif_leptospira, 0) + COALESCE(jumlah_positif_pes, 0)
                       + COALESCE(jumlah_positif_hantavirus, 0) > 0) AS lab_lama
           FROM vektor_tikus WHERE ${where}
           ORDER BY tgl_survei DESC, id DESC LIMIT ? OFFSET ?`,

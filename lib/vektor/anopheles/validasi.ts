@@ -1,6 +1,7 @@
 // lib/vektor/anopheles/validasi.ts
 import { parseTanggal, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
-import { parseAngka, petakanWilayah } from '@/lib/vektor/umum';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
+import { parseAngka } from '@/lib/vektor/umum';
 import {
   bacaFaseBulan, bacaZona, CUACA, KEADAAN_TEMPAT, MACAM_TEMPAT, METODE_TANGKAP,
   hitungMbr, hitungMhd, samakan, type Zona,
@@ -8,7 +9,11 @@ import {
 
 type Baris = Record<string, unknown>;
 type Hasil<T> = { ok: true; data: T; ambigu?: boolean } | { ok: false; error: string };
-export interface OpsiBaca { urutanAmbigu?: UrutanTanggal }
+export interface OpsiBaca {
+  /** Kamus wilayah kerja dari database (server: getKamusWilker, client: buatKamus). */
+  wk: KamusWilker;
+  urutanAmbigu?: UrutanTanggal;
+}
 
 export interface DataUmum {
   tgl_survei: string;
@@ -114,7 +119,7 @@ function bacaUmum(b: Baris, o: OpsiBaca): Hasil<DataUmum> {
   if (!t.iso) return { ok: false, error: `Tanggal survei: ${t.pesan ?? 'tidak terbaca'}` };
   if (t.masaDepan) return { ok: false, error: `Tanggal ${t.iso} ada di masa depan` };
 
-  const kode = petakanWilayah(String(b.wilayah ?? ''));
+  const kode = o.wk.kodeDariTeks(String(b.wilayah ?? ''));
   if (!kode) return { ok: false, error: `Wilayah kerja "${b.wilayah ?? ''}" tidak dikenali` };
 
   const zona = bacaZona(b.zona);
@@ -144,7 +149,7 @@ function bacaUmum(b: Baris, o: OpsiBaca): Hasil<DataUmum> {
   };
 }
 
-export function validasiLarva(b0: Baris, o: OpsiBaca = {}): Hasil<DataLarva> {
+export function validasiLarva(b0: Baris, o: OpsiBaca): Hasil<DataLarva> {
   const b = kanonik(b0);
   const u = bacaUmum(b, o);
   if (!u.ok) return u;
@@ -182,7 +187,7 @@ export function validasiLarva(b0: Baris, o: OpsiBaca = {}): Hasil<DataLarva> {
   };
 }
 
-export function validasiDewasa(b0: Baris, o: OpsiBaca = {}): Hasil<DataDewasa> {
+export function validasiDewasa(b0: Baris, o: OpsiBaca): Hasil<DataDewasa> {
   const b = kanonik(b0);
   const u = bacaUmum(b, o);
   if (!u.ok) return u;

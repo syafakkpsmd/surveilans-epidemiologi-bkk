@@ -1,13 +1,26 @@
 // lib/media-tanah/config.ts
 // Isi formulir "Pemeriksaan Kesehatan Lingkungan Media Tanah". Aman diimpor client maupun server.
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+//
+// Daftar wilayah kerja TIDAK ditulis di sini: sumbernya tabel `wilker_ref` di database.
+//   * Server : const wk = await getKamusWilker();            // '@/lib/wilayah-kerja/server'
+//   * Client : const wk = useMemo(() => buatKamus(wilayah), [wilayah]);  // `wilayah` dari props server
+// lalu teruskan `wk` ke fungsi bantu di bawah.
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
-export const OPSI_WILAYAH: { kode: string; nama: string }[] = WILAYAH_KERJA.map((w) => ({
-  kode: w.kode,
-  nama: w.nama,
-}));
-export const KODE_WILAYAH: string[] = OPSI_WILAYAH.map((w) => w.kode);
-export const NAMA_WILAYAH: Record<string, string> = Object.fromEntries(OPSI_WILAYAH.map((w) => [w.kode, w.nama]));
+/** Opsi dropdown wilayah untuk input baru (hanya wilayah yang aktif). */
+export function opsiWilayah(wk: KamusWilker): { kode: string; nama: string }[] {
+  return wk.aktif.map((w) => ({ kode: w.kode, nama: w.nama }));
+}
+
+/** Kode wilayah yang sah untuk input baru (aktif saja). Dipakai validasi unggahan/form. */
+export function kodeWilayahAktif(wk: KamusWilker): string[] {
+  return wk.daftarKodeAktif;
+}
+
+/** Kode -> nama panjang, termasuk wilayah nonaktif (supaya data historis tetap terbaca). */
+export function namaWilayah(wk: KamusWilker): Record<string, string> {
+  return wk.namaPanjangByKode;
+}
 
 export type Item = { kode: string; label: string; singkat: string };
 

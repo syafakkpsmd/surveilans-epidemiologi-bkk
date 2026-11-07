@@ -4,6 +4,7 @@ import { use, useState, useActionState, useEffect } from 'react';
 import { login } from '@/lib/auth/actions';
 import Link from 'next/link';
 import Image from 'next/image';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export default function LoginPage({
   searchParams,
@@ -33,13 +34,13 @@ export default function LoginPage({
         <div className="text-center mb-6">
           <Image
             src="/logo-bkk.png"
-            alt="Logo BKK Kelas I Samarinda"
+            alt={`Logo ${NAMA_BKK}`}
             width={56}
             height={56}
             className="mx-auto mb-3"
           />
           <p className="text-xs font-semibold tracking-wide uppercase text-[#0F4C5C]">
-            BKK Kelas I Samarinda
+            {NAMA_BKK}
           </p>
           <h1 className="mt-1 text-xl font-semibold text-[#0F2A38]">
             Masuk ke Surveilans Epidemiologi

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { dapatkanModul, type ModulInput } from '@/lib/input-data/modul';
 import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
-import InputDataClient from '../InputDataClient';
+import InputDataClient from '@/components/input-data/InputDataClient';
 
 export const dynamic = 'force-dynamic';
 

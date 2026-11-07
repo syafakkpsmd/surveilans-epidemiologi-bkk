@@ -6,6 +6,7 @@ import { LiveClock } from "./LiveClock";
 import { LiveBadge } from "./LiveBadge";
 import type { PeranUser } from "@/types/database.types";
 import { useSidebar } from "@/components/SidebarContext";
+import { NAMA_BKK, NAMA_KOTA_BKK } from '@/lib/konfigurasi/instansi';
 
 interface NavbarClientProps {
   sudahLogin: boolean;
@@ -28,7 +29,7 @@ export function NavbarClient({ sudahLogin, role }: NavbarClientProps) {
           />
           <img
             src="/logo-bkk.png"
-            alt="Logo BKK Kelas I Samarinda"
+            alt={`Logo ${NAMA_BKK}`}
             className="h-18 w-18 object-contain"
           />
         </Link>
@@ -41,7 +42,7 @@ export function NavbarClient({ sudahLogin, role }: NavbarClientProps) {
             Welcome to
           </span>
           <span className="text-lg font-bold text-yellow-300 md:text-2xl">
-            EPIC-AI BKK Kelas I Samarinda
+            EPIC-AI {NAMA_BKK}
           </span>
           <span className="text-[14px] font-normal tracking-widest text-white">
             Epidemiological Predictive Intelligence Center - Artificial Intelligence Analysis
@@ -72,7 +73,7 @@ export function NavbarClient({ sudahLogin, role }: NavbarClientProps) {
         <div className="space-y-3 border-t border-white/10 px-4 py-3 md:hidden">
           {/* Teks sambutan versi ringkas untuk mobile */}
           <div className="text-center leading-tight">
-            <p className="text-sm font-bold">EPIC-AI Samarinda Quarantine Office</p>
+            <p className="text-sm font-bold">EPIC-AI {NAMA_KOTA_BKK} Quarantine Office</p>
             <p className="text-[11px] text-white/70">
               Epidemiological Predictive Intelligence Center
             </p>

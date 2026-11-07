@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { simpanIspaHarian } from '@/lib/db/queries/queries-karhutla-client';
 import type { WilayahIspaRow } from '@/lib/db/queries/queries-karhutla-server';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export default function FormIspaHarianPublikClient({ daftarWilayah }: { daftarWilayah: WilayahIspaRow[] }) {
   const hariIni = new Date().toISOString().slice(0, 10);
@@ -43,7 +44,7 @@ export default function FormIspaHarianPublikClient({ daftarWilayah }: { daftarWi
       <div className="w-full max-w-lg">
         <div className="text-center mb-6">
           <h1 className="text-lg font-bold text-gray-900">Input Kasus ISPA Harian</h1>
-          <p className="text-sm text-gray-500 mt-1">BKK Kelas I Samarinda &middot; Surveilans Karhutla</p>
+          <p className="text-sm text-gray-500 mt-1">{NAMA_BKK} &middot; Surveilans Karhutla</p>
         </div>
         <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm space-y-4">
           <div>

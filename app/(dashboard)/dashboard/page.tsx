@@ -16,6 +16,7 @@ import GaleriFotoKegiatan from "@/components/GaleriFotoKegiatan";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
 import Link from "next/link";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export const dynamic = "force-dynamic";
 
@@ -275,7 +276,7 @@ export default async function DashboardHubPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-600">
-            BKK Kelas I Samarinda
+            {NAMA_BKK}
           </p>
           <h1 className="text-3xl font-extrabold text-slate-900">Dashboard Surveilans</h1>
           <p className="text-sm text-slate-500">

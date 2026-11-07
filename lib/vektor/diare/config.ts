@@ -1,6 +1,11 @@
 // lib/vektor/diare/config.ts
 // Aman diimpor client maupun server (tanpa import server).
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+//
+// Daftar wilayah kerja TIDAK ditulis di sini: sumbernya tabel `wilker_ref` di database.
+//   * Server : const wk = await getKamusWilker();            // '@/lib/wilayah-kerja/server'
+//   * Client : const wk = useMemo(() => buatKamus(wilayah), [wilayah]);  // `wilayah` dari props server
+// lalu teruskan `wk` ke fungsi bantu di bawah.
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 export const JENIS = ['lalat', 'kecoa'] as const;
 export type Jenis = (typeof JENIS)[number];
@@ -15,40 +20,28 @@ export function hitungStatus(nilai: number): string {
   return nilai <= AMBANG_MS ? STATUS_MS : STATUS_TMS;
 }
 
-export const OPSI_WILAYAH: { kode: string; nama: string }[] = WILAYAH_KERJA.map((w) => ({
-  kode: w.kode,
-  nama: w.nama,
-}));
-export const KODE_WILAYAH: string[] = OPSI_WILAYAH.map((w) => w.kode);
-export const NAMA_WILAYAH: Record<string, string> = Object.fromEntries(OPSI_WILAYAH.map((w) => [w.kode, w.nama]));
-
-// Kunci pembanding nama wilayah: buang kata umum, aksen, dan tanda baca.
-function kunci(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\b(pelabuhan|bandara|bandar udara|apt|airport|port)\b/g, ' ')
-    .replace(/[^a-z0-9]+/g, '');
+/** Opsi dropdown wilayah untuk input baru (hanya wilayah yang aktif). */
+export function opsiWilayah(wk: KamusWilker): { kode: string; nama: string }[] {
+  return wk.aktif.map((w) => ({ kode: w.kode, nama: w.nama }));
 }
 
-/** "Samarinda", "APT Pranoto", "Tanjung Santan" atau "WK02" -> kode baku; null bila tidak dikenali. */
-export function petakanWilayah(teks: string): string | null {
-  const t = teks.trim();
-  if (!t) return null;
-  const kode = t.toUpperCase();
-  if (KODE_WILAYAH.includes(kode)) return kode;
+/** Kode wilayah yang sah untuk input baru (aktif saja). Dipakai validasi unggahan/form. */
+export function kodeWilayahAktif(wk: KamusWilker): string[] {
+  return wk.daftarKodeAktif;
+}
 
-  const k = kunci(t);
-  if (!k) return null;
-  const sama = WILAYAH_KERJA.filter((w) => kunci(w.nama) === k);
-  if (sama.length === 1) return sama[0].kode;
+/** Kode -> nama panjang, termasuk wilayah nonaktif (supaya data historis tetap terbaca). */
+export function namaWilayah(wk: KamusWilker): Record<string, string> {
+  return wk.namaPanjangByKode;
+}
 
-  const mirip = WILAYAH_KERJA.filter((w) => {
-    const kw = kunci(w.nama);
-    return kw && (kw.includes(k) || k.includes(kw));
-  });
-  return mirip.length === 1 ? mirip[0].kode : null;
+/**
+ * "Samarinda", "APT Pranoto", "Tanjung Santan", "Pelabuhan Laut Sangatta" atau "WK02" -> kode baku;
+ * null bila tidak dikenali (pemanggil wajib menolak/melaporkan, jangan menebak).
+ * Pencocokan memakai kamus wilker: kode, nama panjang/pendek, nama peta, dan alias yang terdaftar admin.
+ */
+export function petakanWilayah(wk: KamusWilker, teks: string): string | null {
+  return wk.kodeDariTeks(teks);
 }
 
 /** Angka dari sel Excel/form: terima 2,2 (koma Indonesia), 2.2, 1.234,5 dan 1,234.5. */

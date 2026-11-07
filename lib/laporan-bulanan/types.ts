@@ -1,4 +1,5 @@
-/**
+
+import { NAMA_KOTA_BKK, NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';/**
  * Tipe bersama Laporan Bulanan EPIC-AI.
  *
  * Alurnya:  pembaca modul (ModulLaporan.ambil)  ->  DataModul  ->  HasilModul
@@ -197,14 +198,14 @@ export interface OpsiLaporanWord {
 export const OPSI_WORD_DEFAULT: OpsiLaporanWord = {
   judul: "LAPORAN BULANAN",
   subjudul: "Tim Kerja Surveilans dan Penindakan",
-  instansi: "Balai Kekarantinaan Kesehatan Kelas I Samarinda",
+  instansi: `${NAMA_RESMI_BKK}`,
   dasarHukum: [
     "Undang-Undang Nomor 6 Tahun 2018 tentang Kekarantinaan Kesehatan.",
     "International Health Regulations (IHR) 2005.",
   ],
   modulDikecualikan: [],
   catatan: [],
-  kota: "Samarinda",
+  kota: NAMA_KOTA_BKK,
   penandatangan: { jabatan: "Ketua Tim Kerja Surveilans dan Penindakan" },
 };
 

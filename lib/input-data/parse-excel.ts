@@ -210,7 +210,7 @@ export async function bacaExcel(
       if (penyiap && kolomTanggal.has(nama)) {
         const s = penyiap.siapkan(nama, v, { masaDepanBoleh: nama !== modul.kolomTanggal });
         if (s.galat) galatTanggal.push(`${labelTanggal[nama]}: ${s.galat}`);
-        else v = s.nilai;
+        else v = s.nilai as typeof v; // nilai hasil siapkan() bertipe unknown; divalidasi ulang oleh validasiBaris
         if (s.peringatan) peringatanTanggal.push(`${labelTanggal[nama]}: ${s.peringatan}`);
       }
       mentah[nama] = v;

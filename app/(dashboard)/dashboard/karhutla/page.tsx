@@ -7,6 +7,7 @@ import {
   ambilDaftarWilayahIspa, ambilDaftarLokasiUdara,
   ambilDaftarWilayahKerjaSkdr,
 } from '@/lib/db/queries/queries-karhutla-server';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +27,7 @@ export default async function HalamanKarhutla() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">Surveilans Karhutla &amp; ISPA</h1>
         <p className="text-sm text-gray-500">
-          Pemantauan titik panas dan kasus ISPA harian di wilayah kerja BKK Kelas I Samarinda
+          Pemantauan titik panas dan kasus ISPA harian di wilayah kerja {NAMA_BKK}
         </p>
       </div>
 

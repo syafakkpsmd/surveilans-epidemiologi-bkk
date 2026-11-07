@@ -18,6 +18,7 @@ import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export default async function LarvaPage({
   searchParams,
@@ -76,8 +77,8 @@ export default async function LarvaPage({
       </div>
 
       <PanelTrenPeriode
-        judulBulanan="Disrtibusi Hasil Survei Larva Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
-        judulMingguan="Tren Mingguan Hasil Survei Larva Anopheles di Wilayah Kerja BKK Kelas I Samarinda"
+        judulBulanan={`Disrtibusi Hasil Survei Larva Anopheles di Wilayah Kerja ${NAMA_BKK}`}
+        judulMingguan={`Tren Mingguan Hasil Survei Larva Anopheles di Wilayah Kerja ${NAMA_BKK}`}
         dataMingguan={dataMingguan}
         dataBulanan={dataBulanan}
         seriesListMingguan={[

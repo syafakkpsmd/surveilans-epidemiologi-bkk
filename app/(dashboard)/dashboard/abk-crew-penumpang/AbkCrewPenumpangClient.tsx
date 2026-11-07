@@ -11,6 +11,7 @@ import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser, type WilkerRef } from "@/types/database.types";
 import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 import type { TitikGabungan, TitikLuarDalamNegeri } from "./page";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -295,7 +296,7 @@ export default function AbkCrewPenumpangClient({
       {/* HEADER & FILTER */}
       <div className="space-y-4 rounded-xl bg-white p-5 shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">Pengawasan Lalu Lintas Orang di BKK Kelas I Samarinda</h1>
+          <h1 className="text-xl font-bold text-[#0F2A38]">Pengawasan Lalu Lintas Orang di {NAMA_BKK}</h1>
           <p className="text-xs text-gray-500 mt-1">
             Gabungan ABK Kapal (Dalam Negeri dan Luar Negeri), Penumpang Kapal dan Crew &amp; Penumpang Pesawat
           </p>
@@ -378,7 +379,7 @@ export default function AbkCrewPenumpangClient({
       {namaWilkerTerpilih && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
           Menampilkan data wilayah kerja <strong>{namaWilkerTerpilih}</strong>. Sumber yang tidak beroperasi di wilayah ini
-          (mis. Pesawat di pelabuhan, atau Penumpang Kapal di luar Samarinda dan Lhoktuan) tampil 0. Kotak Analisis &amp;
+          (mis. Pesawat di pelabuhan, atau Penumpang Kapal di wilayah yang tidak menjalankan modul itu) tampil 0. Kotak Analisis &amp;
           Prediksi AI di bawah tetap mencakup seluruh wilayah kerja.
         </p>
       )}
@@ -434,7 +435,7 @@ export default function AbkCrewPenumpangClient({
       {/* ================= KEDATANGAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Seluruh Lalu Lintas Orang Datang di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Seluruh Lalu Lintas Orang Datang di {NAMA_BKK} Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Total gabungan ABK Kapal dari Luar Negeri + Crew Pesawat Datang + Penumpang Pesawat Datang + Penumpang Kapal Datang
@@ -452,7 +453,7 @@ export default function AbkCrewPenumpangClient({
 
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Lalu Lintas Orang yang Datang ke Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas Orang yang Datang ke Wilayah Kerja {NAMA_BKK} Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <TrenChartPilihanSeri data={dataKedatangan} tipeChart={tipeChart} sumberList={SUMBER_KEDATANGAN} />
       </div>
@@ -460,7 +461,7 @@ export default function AbkCrewPenumpangClient({
       {/* ---- BARU: Kedatangan Luar Negeri vs Dalam Negeri ---- */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Lalu Lintas Orang di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas Orang di {NAMA_BKK} Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Luar Negeri: ABK Kapal (COP). Dalam Negeri: ABK Kapal PHQC + Penumpang Kapal Datang + Crew &amp; Penumpang Pesawat Datang
@@ -495,7 +496,7 @@ export default function AbkCrewPenumpangClient({
       {/* ================= KEBERANGKATAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Seluruh Lalu Lintas Orang Berangkat di BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Seluruh Lalu Lintas Orang Berangkat di {NAMA_BKK} Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Total gabungan ABK Kapal PHQC + Penumpang Kapal Berangkat + Crew Pesawat Berangkat + Penumpang Pesawat Berangkat
@@ -513,7 +514,7 @@ export default function AbkCrewPenumpangClient({
 
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Lalu Lintas Orang yang Berangkat dari Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas Orang yang Berangkat dari Wilayah Kerja {NAMA_BKK} Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <TrenChartPilihanSeri data={dataKeberangkatan} tipeChart={tipeChart} sumberList={SUMBER_KEBERANGKATAN} />
       </div>
@@ -521,7 +522,7 @@ export default function AbkCrewPenumpangClient({
       {/* ---- BARU: Keberangkatan Luar Negeri vs Dalam Negeri ---- */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Lalu Lintas orang Berangkat dari Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br /> (dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas orang Berangkat dari Wilayah Kerja {NAMA_BKK} Tahun {tahunEpid} <br /> (dalam {granularitas})
         </h2>
         <p className="mb-4 text-center text-xs text-gray-400">
           Luar Negeri: ABK Kapal PHQC tujuan Luar Negeri. Dalam Negeri: ABK Kapal PHQC tujuan Dalam Negeri + Penumpang Kapal Berangkat + Crew &amp; Penumpang Pesawat Berangkat
@@ -556,7 +557,7 @@ export default function AbkCrewPenumpangClient({
       {/* ================= PERBANDINGAN ================= */}
       <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <h2 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-gray-500">
-          Distribusi Pengawasan Lalu Lintas Orang Datang & Berangkat di Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunEpid} <br />(Dalam {granularitas})
+          Distribusi Pengawasan Lalu Lintas Orang Datang & Berangkat di Wilayah Kerja {NAMA_BKK} Tahun {tahunEpid} <br />(Dalam {granularitas})
         </h2>
         <TrenChartPilihanSeri
           data={dataPerbandingan}

@@ -8,6 +8,7 @@ import { ambilRingkasanLaporanKarhutla, RingkasanLaporanKarhutla } from '@/lib/d
 import { susunPromptLatarBelakangLaporan, susunPromptPembahasanLaporan } from '@/lib/ai/prompt-laporan';
 import { DAFTAR_PUSTAKA_KARHUTLA } from '@/lib/karhutla/daftar-pustaka';
 import { panggilAI } from '@/lib/ai';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export const maxDuration = 60;
 
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
 
           new Paragraph({ text: 'II. METODE', heading: HeadingLevel.HEADING_1 }),
           new Paragraph({
-            text: `Penelitian ini menggunakan pendekatan deskriptif kuantitatif. Data kualitas udara (PM2.5, PM10, suhu, HCHO, TVOC, dan kelembapan) dikumpulkan dari seluruh wilayah kerja BKK Kelas I Samarinda, baik di lingkungan pelabuhan maupun bandara. Data kasus Infeksi Saluran Pernapasan Akut (ISPA) bersumber dari klinik BKK serta klinik/puskesmas di masing-masing wilayah kerja. Data titik panas (hotspot) diperoleh dari NASA FIRMS, sedangkan data Sistem Kewaspadaan Dini dan Respons (SKDR) bersumber dari Kementerian Kesehatan RI. Seluruh data kemudian diolah dan dianalisis secara deskriptif untuk melihat tren harian, distribusi per wilayah kerja, serta pola hubungan temporal antara jumlah titik panas, kualitas udara, dan kasus ISPA selama periode ${periodeLabel}.`,
+            text: `Penelitian ini menggunakan pendekatan deskriptif kuantitatif. Data kualitas udara (PM2.5, PM10, suhu, HCHO, TVOC, dan kelembapan) dikumpulkan dari seluruh wilayah kerja ${NAMA_BKK}, baik di lingkungan pelabuhan maupun bandara. Data kasus Infeksi Saluran Pernapasan Akut (ISPA) bersumber dari klinik BKK serta klinik/puskesmas di masing-masing wilayah kerja. Data titik panas (hotspot) diperoleh dari NASA FIRMS, sedangkan data Sistem Kewaspadaan Dini dan Respons (SKDR) bersumber dari Kementerian Kesehatan RI. Seluruh data kemudian diolah dan dianalisis secara deskriptif untuk melihat tren harian, distribusi per wilayah kerja, serta pola hubungan temporal antara jumlah titik panas, kualitas udara, dan kasus ISPA selama periode ${periodeLabel}.`,
           }),
 
           new Paragraph({ text: 'III. HASIL', heading: HeadingLevel.HEADING_1 }),

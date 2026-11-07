@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const DAFTAR_KATEGORI = ["UU", "PP", "Permenkes", "Kepmenkes", "SK", "SOP", "Juknis", "Lainnya"];
 
@@ -64,7 +65,7 @@ export default function PeraturanClient({ bolehKelola }: { bolehKelola: boolean 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">Kumpulan Peraturan</h1>
-          <p className="text-slate-500 text-sm">BKK Kelas I Samarinda -- dapat diakses dan diunduh siapa saja</p>
+          <p className="text-slate-500 text-sm">{NAMA_BKK} -- dapat diakses dan diunduh siapa saja</p>
         </div>
         <div className="flex items-center gap-2">
           {bolehKelola && (

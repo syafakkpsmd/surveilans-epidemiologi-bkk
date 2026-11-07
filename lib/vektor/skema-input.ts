@@ -72,7 +72,7 @@ const NEGATIF_POSITIF: PilihanKolom[] = [
   { nilai: 'Pending', alias: ['proses', 'menunggu', 'belum ada hasil', 'belum'] },
 ];
 
-const wilker = (): KolomInput => ({ kunci: 'kode_wilker', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: WILKER_ALIAS, bantuan: 'Nama atau kode (WK01-WK07), mis. Samarinda / Pelabuhan Samarinda / WK01' });
+const wilker = (): KolomInput => ({ kunci: 'kode_wilker', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: WILKER_ALIAS, bantuan: 'Nama atau kode wilayah kerja, mis. WK01 (lihat pengaturan wilayah kerja)' });
 const suhu = (): KolomInput => ({ kunci: 'suhu_c', label: 'Suhu (°C)', tipe: 'desimal', min: 0, maks: 60, satuan: '°C', alias: ['suhu', 'temperatur', 'suhu c'] });
 const lembap = (): KolomInput => ({ kunci: 'kelembapan_pct', label: 'Kelembapan (%)', tipe: 'desimal', min: 0, maks: 100, satuan: '%', alias: ['kelembapan', 'kelembaban', 'rh', 'kelembapan udara'] });
 const cuaca = (): KolomInput => ({ kunci: 'cuaca', label: 'Cuaca', tipe: 'teks', maksPanjang: 255, alias: ['kondisi cuaca'] });
@@ -93,7 +93,7 @@ export const DEFINISI_VEKTOR: Record<JenisVektor, DefinisiVektor> = {
       { kunci: 'tgl_survei', label: 'Tanggal Survei', tipe: 'tanggal', wajib: true, alias: TGL_ALIAS },
       wilker(),
       { kunci: 'zona', label: 'Zona', tipe: 'pilihan', pilihan: ZONA, alias: ['area'] },
-      { kunci: 'sub_lokasi', label: 'Sub Lokasi', tipe: 'pilihan', alias: ['sublokasi', 'lokasi'], bantuan: 'Hanya untuk Samarinda',
+      { kunci: 'sub_lokasi', label: 'Sub Lokasi', tipe: 'pilihan', alias: ['sublokasi', 'lokasi'], bantuan: 'Hanya untuk wilayah yang memiliki sub lokasi (pengaturan wilayah kerja)',
         pilihan: [{ nilai: 'Pelabuhan Umum', alias: ['umum', 'pelabuhan samarinda'] }, { nilai: 'TPK Palaran', alias: ['palaran', 'tpk'] }] },
       { kunci: 'jml_rumah_diperiksa', label: 'Jumlah Rumah/Bangunan Diperiksa', tipe: 'bulat', wajib: true, min: 0, maks: 100000, alias: ['rumah diperiksa', 'jml rumah', 'jumlah rumah', 'jumlah rumah diperiksa', 'jumlah bangunan diperiksa', 'bangunan diperiksa', 'jml bangunan'] },
       { kunci: 'jml_positif_jentik', label: 'Jumlah Positif Jentik', tipe: 'bulat', wajib: true, min: 0, maks: 100000, alias: ['positif jentik', 'rumah positif jentik', 'jumlah rumah positif', 'bangunan positif', 'jml positif', 'jumlah positif'] },

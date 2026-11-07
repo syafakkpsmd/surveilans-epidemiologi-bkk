@@ -4,6 +4,7 @@
 // inputPesawat.ts supaya form satu-satu dan unggah Excel memakai aturan yang sama.
 import ExcelJS from 'exceljs';
 import { KOLOM_PESAWAT, type DefKolom } from '@/lib/db/modul/inputPesawat';
+import { NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
 
 export const MAKS_BYTE_EXCEL = 2 * 1024 * 1024; // 2 MB
 export const MAKS_BARIS_EXCEL = 2000;
@@ -24,7 +25,7 @@ const PETA_HEADER: Map<string, DefKolom> = (() => {
 
 export async function buatTemplatePesawat(): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'EPIC-AI BKK Samarinda';
+  wb.creator = `EPIC-AI ${NAMA_BKK_SINGKAT}`;
   wb.created = new Date();
 
   const ws = wb.addWorksheet('Data', { views: [{ state: 'frozen', ySplit: 1 }] });

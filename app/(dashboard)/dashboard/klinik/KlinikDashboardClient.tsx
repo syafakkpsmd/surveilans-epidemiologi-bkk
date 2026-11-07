@@ -9,6 +9,7 @@ import { KartuRekap } from "@/components/klinik/KartuRekap";
 import { DonutChart } from "@/components/klinik/DonutChart";
 import { PencarianIcv } from "@/components/klinik/PencarianIcv";
 import { PengaturanStandarVaksin } from "@/components/klinik/PengaturanStandarVaksin";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const kategoriEfektif = (k: any) => k.kategori ?? 'klinik';
 
@@ -55,7 +56,7 @@ export default function KlinikDashboardClient({
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-xs border border-gray-100">
         <div>
         <h1 className="text-xl font-bold text-[#0F2A38]">
-          {hanyaKlinik ? 'Layanan Vaksinasi Internasional Klinik Binaan' : 'Surveilans Layanan Vaksinasi Internasional BKK Kelas I Samarinda'}
+          {hanyaKlinik ? 'Layanan Vaksinasi Internasional Klinik Binaan' : `Surveilans Layanan Vaksinasi Internasional ${NAMA_BKK}`}
         </h1>
         <p className="text-xs text-gray-500 mt-1">
           Layanan Vaksinasi Internasional Tahun {tahunBerjalan} — {hanyaKlinik ? 'Klinik Binaan' : 'Wilayah Kerja BKK & Klinik Binaan'}

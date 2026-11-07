@@ -9,6 +9,7 @@ import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 import { DAFTAR_KOMORBID } from "@/lib/klinik/komorbid";
 import KomorbidChart from "@/components/klinik/KomorbidChart";
 import MultiSeriesKlinikChart from "@/components/klinik/MultiSeriesKlinikChart";
+import { NAMA_BKK, NAMA_BKK_TANPA_AWALAN } from '@/lib/konfigurasi/instansi';
 
 const NAMA_BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -215,7 +216,7 @@ export default function KlinikClient({
 
           <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
             <h3 className="mb-4 text-center text-sm font-bold text-gray-800">
-              Distribusi Vaksinasi Internasional {selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} di BKK Kelas I Samarinda Tahun {tahunBerjalan}
+              Distribusi Vaksinasi Internasional {selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} di {NAMA_BKK} Tahun {tahunBerjalan}
               <br /> (dalam {granularitas})
             </h3>
             <TrenChartLine data={chartData} tipeChart={tipeChartAktif} seriesList={[
@@ -227,7 +228,7 @@ export default function KlinikClient({
           </div>
 
           <KomorbidChart
-            judul={`Distribusi Komorbid${selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} di BKK Kelas I Samarinda Tahun ${tahunBerjalan} dalam ${granularitas}`}
+            judul={`Distribusi Komorbid${selectedKlinik !== "semua" ? ` di ${selectedKlinik}` : ""} di ${NAMA_BKK} Tahun ${tahunBerjalan} dalam ${granularitas}`}
             data={chartData}
             tipeChart={tipeChartAktif}
           />
@@ -241,7 +242,7 @@ export default function KlinikClient({
             <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="text-base font-bold text-red-900">
-                  Ringkasan Kepatuhan Masa Aktif Vaksin (standar {standarHariVaksin} hari) di {kategoriLabel} Kelas I Samarinda Tahun {tahunBerjalan}
+                  Ringkasan Kepatuhan Masa Aktif Vaksin (standar {standarHariVaksin} hari) di {kategoriLabel} {NAMA_BKK_TANPA_AWALAN} Tahun {tahunBerjalan}
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Jumlah layanan dengan jarak penerbitan-keberangkatan kurang dari {standarHariVaksin} hari.

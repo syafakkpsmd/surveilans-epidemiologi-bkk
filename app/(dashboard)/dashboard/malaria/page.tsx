@@ -22,6 +22,7 @@ import MultiSelectBarList from '@/components/vektor/MultiSelectBarList';
 import DonutChart from '@/components/vektor/DonutChart';
 import KpiCard from '@/components/vektor/KpiCard';
 import { AnalisisPrediksiMalaria } from '@/components/AnalisisPrediksiMalaria';
+import { NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
 
 type SearchParams = {
   wilker?: string;
@@ -99,7 +100,7 @@ export default async function MalariaPage({
           <h1 className="text-xl font-bold text-[#0F2A38]">🔬 Surveilans Migrasi Malaria</h1>
           <p className="text-sm text-gray-500">
             Deteksi dini kasus malaria impor serta pemetaan pengetahuan, sikap, dan perilaku
-            berisiko pada penumpang/ABK migran di wilayah kerja BKK Samarinda.
+            berisiko pada penumpang/ABK migran di wilayah kerja {NAMA_BKK_SINGKAT}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

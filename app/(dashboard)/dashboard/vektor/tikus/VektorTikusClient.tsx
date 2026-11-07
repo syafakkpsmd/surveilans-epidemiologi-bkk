@@ -8,6 +8,7 @@ import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
 import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 type WilkerRef = { kode: string; nama: string };
 type VektorTikusClientProps = {
@@ -329,7 +330,7 @@ export default function VektorTikusClient({
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-xl bg-white p-4 shadow-xs lg:col-span-2">
-            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">Tren Mingguan Spesies Tikus Tertangkap di Wilayah Kerja BKK Kelas I Samarinda Tahun {tahunBerjalan}</h3>
+            <h3 className="mb-4 text-center text-sm font-semibold text-gray-700">Tren Mingguan Spesies Tikus Tertangkap di Wilayah Kerja {NAMA_BKK} Tahun {tahunBerjalan}</h3>
             <TrenChartLine
               data={chartData}
               tipeChart={periodeType === "bulanan" ? "bar" : "line"}

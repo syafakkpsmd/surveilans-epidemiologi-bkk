@@ -1,7 +1,8 @@
 import { labelRentang } from "./periode";
 import type { BahanLaporan, DataModul, HasilModul, OpsiPresentasi, Slide, SlideBlok, Tabel } from "./types";
+import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 
-export const INSTANSI = "Balai Kekarantinaan Kesehatan Kelas I Samarinda";
+export const INSTANSI = `${NAMA_RESMI_BKK}`;
 const BARIS_PER_SLIDE = 12;
 const MAKS_TEMUAN = 4;
 const TINGGI_AREA = 500;

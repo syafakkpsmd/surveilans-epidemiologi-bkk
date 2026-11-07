@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export const metadata: Metadata = {
-  title: "Surveilans Epidemiologi BKK Kelas I Samarinda",
+  title: `Surveilans Epidemiologi ${NAMA_BKK}`,
   description:
-    "Dashboard surveilans Epidemiologi BKK Kelas I Samarinda.",
+    `Dashboard surveilans Epidemiologi ${NAMA_BKK}.`,
 };
 
 export default function RootLayout({

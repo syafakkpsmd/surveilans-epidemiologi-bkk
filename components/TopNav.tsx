@@ -27,6 +27,7 @@ import {
   type NavGroup,
   type NavItem,
 } from "@/components/nav/menu-data";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const targetLuar = (href: string) => (href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {});
 
@@ -102,7 +103,7 @@ export default function TopNav({ role }: { role: PeranAkses }) {
           <Link
             href={HREF_BERANDA}
             prefetch={false}
-            aria-label="EPIC-AI BKK Kelas I Samarinda, ke Beranda"
+            aria-label={`EPIC-AI ${NAMA_BKK}, ke Beranda`}
             inert={!menempel}
             className={`hidden items-center gap-2 self-center overflow-hidden transition-all duration-300 motion-reduce:transition-none xl:flex ${
               menempel ? "mr-2 max-w-40 opacity-100" : "max-w-0 opacity-0"

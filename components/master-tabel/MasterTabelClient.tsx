@@ -6,6 +6,7 @@ import RekapTabelWilkerBulan, {
   type BarisRekap,
   type MetrikDef,
 } from "./RekapTabelWilkerBulan";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 type WilkerRef = { kode: string; nama: string };
 
@@ -76,7 +77,7 @@ function normalisasiNamaWilayah(nama: string): string {
 const WILKER_DIKECUALIKAN = [
   "PT. Badak LNG Bontang",
   "Tanjung Bara Sangatta",
-  "Induk BKK Kelas I Samarinda",
+  `Induk ${NAMA_BKK}`,
 ];
 
 function apakahWilkerDikecualikan(namaSudahDinormalisasi: string): boolean {

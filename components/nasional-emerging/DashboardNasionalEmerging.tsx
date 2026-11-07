@@ -12,6 +12,7 @@ import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import type { PeranUser } from '@/types/database.types';
 import type { HasilAIStruktur } from '@/lib/ai/hasilAiTypes';
 import { DAFTAR_PENYAKIT_NASIONAL } from '@/lib/ai/konstanta-penyakit';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const NasionalEmergingPeta = dynamic(
   () => import('@/components/nasional-emerging/NasionalEmergingPeta'),
@@ -231,7 +232,7 @@ export default function DashboardNasionalEmerging({
     <div className="min-h-screen bg-slate-50 p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-slate-800">Penyakit Infeksi Emerging — Nasional</h1>
-        <p className="text-slate-500 text-sm">Surveilans Epidemiologi BKK Kelas I Samarinda</p>
+        <p className="text-slate-500 text-sm">Surveilans Epidemiologi {NAMA_BKK}</p>
       </div>
 
       {/* ==== FILTER ==== */}

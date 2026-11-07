@@ -4,6 +4,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Responsive
 import PetaMiniHotspot from './PetaMiniHotspot';
 import { LABEL_STATUS, BAKU_MUTU_UDARA, type StatusEvaluasi } from '@/lib/karhutla/constants';
 import type { RingkasanInfografisHarian } from '@/lib/db/queries/queries-karhutla-server';
+import { NAMA_BKK, NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 
 /**
  * Palet "AI dashboard" -- versi CERAH dgn perpaduan gradasi biru-teal-ungu
@@ -110,7 +111,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
             capture poster ini jadi JPEG/PDF. */}
         <img
           src="/logo-header-infografis.png"
-          alt="Kemenkes RI - BKK Kelas I Samarinda"
+          alt={`Kemenkes RI - ${NAMA_BKK}`}
           style={{ height: 76, flexShrink: 0, display: 'block', mixBlendMode: 'lighten' }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -301,7 +302,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
 
       {/* ---------- TABEL KUALITAS UDARA PER WILAYAH KERJA ---------- */}
       <div style={{ padding: '28px 48px 0' }}>
-        <JudulSeksi>Distribusi Kualitas Udara dalam Ruangan di Wilayah Kerja BKK Kelas I Samarinda</JudulSeksi>
+        <JudulSeksi>Distribusi Kualitas Udara dalam Ruangan di Wilayah Kerja {NAMA_BKK}</JudulSeksi>
         <div
           style={{
             marginTop: 12,
@@ -422,7 +423,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
 
       {/* ---------- SKDR MINGGUAN PER WILAYAH ---------- */}
       <div style={{ padding: '28px 48px 0' }}>
-        <JudulSeksi>Distribusi Kasus ISPA dalam SKDR Mingguan di Wilayah Kerja BKK Kelas I Samarinda</JudulSeksi>
+        <JudulSeksi>Distribusi Kasus ISPA dalam SKDR Mingguan di Wilayah Kerja {NAMA_BKK}</JudulSeksi>
         <div
           style={{
             marginTop: 12,
@@ -468,14 +469,14 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
           style={{ margin: 0, fontSize: 11, color: WARNA.muted, lineHeight: 1.6 }}
           suppressHydrationWarning
         >
-          Sumber data: NASA FIRMS (titik panas), laporan wilayah kerja BKK Kelas I Samarinda (ISPA &
+          Sumber data: NASA FIRMS (titik panas), laporan wilayah kerja {NAMA_BKK} (ISPA &
           kualitas udara), SKDR Kementerian Kesehatan RI. Dicetak {new Date().toLocaleString('id-ID', {
             dateStyle: 'long',
             timeStyle: 'short',
           })}
         </p>
         <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 700, color: WARNA.cyan }}>
-          Balai Kekarantinaan Kesehatan Kelas I Samarinda — Direktorat Jenderal Penanggulangan Penyakit Kementerian Kesehatan RI
+          {NAMA_RESMI_BKK} — Direktorat Jenderal Penanggulangan Penyakit Kementerian Kesehatan RI
         </p>
       </div>
     </div>

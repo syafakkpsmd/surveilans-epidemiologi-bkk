@@ -24,6 +24,7 @@ import {
   type BarisHorizontal,
   type TitikHarian,
 } from './GrafikPoster';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 export const LEBAR_POSTER = 1080;
 
@@ -158,6 +159,11 @@ function LogoBerAkhlak({ lebar = 170 }: { lebar?: number }) {
   );
 }
 
+/** ["A", "B", "C"] -> "A, B & C" */
+function gabungNama(nama: string[]): string {
+  return nama.length < 2 ? nama.join('') : `${nama.slice(0, -1).join(', ')} & ${nama[nama.length - 1]}`;
+}
+
 export default function InfografisPoskoPoster({
   data,
   tanggalLaporan,
@@ -279,7 +285,7 @@ export default function InfografisPoskoPoster({
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/logo-header-transparan.png"
-          alt="Kemenkes RI - BKK Kelas I Samarinda"
+          alt={`Kemenkes RI - ${NAMA_BKK}`}
           style={{ height: 70, flexShrink: 0, display: 'block' }}
         />
         
@@ -295,7 +301,7 @@ export default function InfografisPoskoPoster({
             Laporan {tanggalPanjang(tanggalLaporan)}
           </p>
           <p style={{ margin: '3px 0 0', fontSize: 13, color: '#a9c2d1', lineHeight: 1.35 }}>
-            Data {tanggalPanjang(tanggalData)} (H-1) &middot; Hari ke-{hari} dari {totalHari} &middot; Samarinda, APT Pranoto &amp; Lhoktuan
+            Data {tanggalPanjang(tanggalData)} (H-1) &middot; Hari ke-{hari} dari {totalHari} &middot; {gabungNama(data.wilayah.map((w) => w.nama))}
           </p>
         </div>
 
@@ -448,7 +454,7 @@ export default function InfografisPoskoPoster({
         </Seksi>
 
         <p style={{ margin: '4px 0 0', fontSize: 12, color: W.redup, textAlign: 'center' }}>
-          Sumber: data posko, kunjungan poliklinik, kapal penumpang &amp; pesawat BKK Kelas I Samarinda &middot; EPIC-AI
+          Sumber: data posko, kunjungan poliklinik, kapal penumpang &amp; pesawat {NAMA_BKK} &middot; EPIC-AI
         </p>
       </div>
     </div>

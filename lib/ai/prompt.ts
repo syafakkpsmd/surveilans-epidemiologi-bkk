@@ -1,4 +1,4 @@
-﻿import { NAMA_BKK, NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
+﻿import { NAMA_BKK, NAMA_BKK_SINGKAT, NAMA_KOTA_BKK, NAMA_PROVINSI_BKK, NAMA_RESMI_BKK_KURUNG } from '@/lib/konfigurasi/instansi';
 import type { DataAnalisis } from './data';
 import type { DataSimulasiWabah } from "@/lib/ai/data";
 
@@ -13,7 +13,7 @@ export type HasilAnalisisAi = {
  * Tujuannya: respons AI konsisten berbobot & sesuai kompetensi jabatan
  * fungsional Epidemiolog Kesehatan Ahli Madya (bukan chatbot umum).
  */
-const PERSONA_EPIDEMIOLOG = `Kamu berperan sebagai seorang Epidemiolog Kesehatan Ahli Madya dengan spesialisasi Epidemiologi Lapangan (Field Epidemiology / FETP), bertugas pada Balai Kekarantinaan Kesehatan (BKK) Kelas I Samarinda, Direktorat Jenderal Penanggulangan Penyakit (P2), Kementerian Kesehatan RI.
+const PERSONA_EPIDEMIOLOG = `Kamu berperan sebagai seorang Epidemiolog Kesehatan Ahli Madya dengan spesialisasi Epidemiologi Lapangan (Field Epidemiology / FETP), bertugas pada ${NAMA_RESMI_BKK_KURUNG}, Direktorat Jenderal Penanggulangan Penyakit (P2), Kementerian Kesehatan RI.
 
 Sebagai pejabat fungsional Ahli Madya, kompetensi dan cara kerjamu:
 - Surveilans epidemiologi rutin & respons cepat terhadap sinyal KLB/wabah di pintu masuk negara (point of entry: pelabuhan & bandara), sesuai mandat cegah tangkal penyakit karantina dan International Health Regulations (IHR 2005).
@@ -735,7 +735,7 @@ RINCIAN PER PENYAKIT & NEGARA (periode berjalan):
 ${topKategoriTeks || '(tidak ada data)'}
 
 ATURAN WAJIB:
-- Data ini mencakup 12 penyakit infeksi emerging yang dipantau dari 13 negara asal kapal ke wilayah kerja ${NAMA_BKK} (data surveilans global sebagai early warning, BUKAN data kasus terkonfirmasi di Indonesia/Samarinda).
+- Data ini mencakup 12 penyakit infeksi emerging yang dipantau dari 13 negara asal kapal ke wilayah kerja ${NAMA_BKK} (data surveilans global sebagai early warning, BUKAN data kasus terkonfirmasi di Indonesia/${NAMA_KOTA_BKK}).
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama penyakit/negara yang tidak tercantum.
 - Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit).
 - Soroti penyakit atau negara dengan lonjakan kasus paling signifikan, kaitkan dengan implikasi kewaspadaan kekarantinaan kesehatan terhadap kapal dari negara tersebut (skrining ABK/penumpang, kesiapan APD, koordinasi RBA kapal) -- TANPA mengklaim ada kasus terkonfirmasi di wilayah kerja Samarinda kalau datanya tidak ada.
@@ -864,7 +864,7 @@ ATURAN WAJIB:
 - Data ini adalah data kasus dan kematian terkonfirmasi tingkat nasional Indonesia untuk penyakit yang dipilih, dipecah per propinsi (data surveilans nasional Kemenkes, BUKAN data kewaspadaan kapal/pelabuhan).
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama propinsi yang tidak tercantum.
 - Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit), termasuk case fatality rate (CFR) bila datanya memungkinkan dihitung.
-- Soroti propinsi dengan lonjakan kasus paling signifikan, dan kaitkan dengan implikasi kewaspadaan dini bagi ${NAMA_BKK} sebagai pintu masuk (kesiapan skrining, koordinasi RBA, edukasi publik) -- TANPA mengklaim ada kasus terkonfirmasi di Samarinda/Kalimantan Timur kalau propinsi tersebut tidak muncul di data.
+- Soroti propinsi dengan lonjakan kasus paling signifikan, dan kaitkan dengan implikasi kewaspadaan dini bagi ${NAMA_BKK} sebagai pintu masuk (kesiapan skrining, koordinasi RBA, edukasi publik) -- TANPA mengklaim ada kasus terkonfirmasi di ${NAMA_KOTA_BKK}/${NAMA_PROVINSI_BKK} kalau propinsi tersebut tidak muncul di data.
 - Tulis dalam Bahasa Indonesia, istilah epidemiologi baku bila relevan.
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:

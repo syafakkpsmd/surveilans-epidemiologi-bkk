@@ -6,6 +6,7 @@ import {
 } from '@/lib/pengawasan-klinik/perbaikan';
 import FormPerbaikan from './FormPerbaikan';
 import { createDbClient } from '@/lib/db/server';
+import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,7 @@ export default async function HalamanPerbaikan({ params }: { params: Promise<{ t
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-6">
       <div className="rounded-xl border bg-white p-5 shadow-sm">
-        <p className="text-xs text-gray-500">Balai Kekarantinaan Kesehatan Kelas I Samarinda</p>
+        <p className="text-xs text-gray-500">{NAMA_RESMI_BKK}</p>
         <h1 className="mt-1 text-lg font-bold">Dokumentasi Perbaikan</h1>
         <p className="text-sm text-gray-700">{klinik?.nama_klinik}</p>
         <p className="text-xs text-gray-500">Pengawasan tanggal {tgl}</p>

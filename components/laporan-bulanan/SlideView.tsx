@@ -4,6 +4,7 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis, ComposedChart } from "recharts";
 import type { BatangMendatar, Donat, Slide, SlideBlok, Tren } from "@/lib/laporan-bulanan/types";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 /**
  * Pratinjau dan mode presentasi. Tata letak meniru generator PPTX (lib/laporan-bulanan/ppt.ts):
@@ -423,7 +424,7 @@ export default function SlideView({ slide, nomor, periodeLabel, style }: Props) 
         <img src={LOGO_HEADER} alt="" onError={sembunyikan} style={{ position: "absolute", right: MARGIN, top: 28, height: 40, maxWidth: 280, width: "auto", objectFit: "contain" }} />
         {slide.subjudul ? <div style={{ position: "absolute", left: X_JUDUL, top: 98, width: LEBAR - X_JUDUL - MARGIN, fontSize: 19, color: C.soft }}>{slide.subjudul}</div> : null}
         {elemen}
-        <div style={{ position: "absolute", left: MARGIN, top: 672, fontSize: 13, color: C.soft }}>EPIC-AI | BKK Kelas I Samarinda | {periodeLabel}</div>
+        <div style={{ position: "absolute", left: MARGIN, top: 672, fontSize: 13, color: C.soft }}>EPIC-AI | {NAMA_BKK} | {periodeLabel}</div>
         <div style={{ position: "absolute", right: ORN + 29, top: 672, fontSize: 13, color: C.soft }}>{nomor}</div>
       </>
     );

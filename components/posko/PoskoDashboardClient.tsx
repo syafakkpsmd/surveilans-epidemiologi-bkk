@@ -24,6 +24,7 @@ import {
   trenHarian,
   type FilterPosko,
 } from '@/lib/posko/hitung';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const kunciWilayah = (w: WilayahPosko) => w.toLowerCase().replace(/\s+/g, '_');
 
@@ -148,7 +149,7 @@ export default function PoskoDashboardClient({
             </h1>
             <p className="mt-1 text-xs text-gray-500">
               {periode
-                ? `${periode.nama || judulPosko} · ${tanggalPanjang(periode.tanggalMulai)} – ${tanggalPanjang(periode.tanggalSelesai)} · BKK Kelas I Samarinda (Samarinda, APT Pranoto, Lhoktuan)`
+                ? `${periode.nama || judulPosko} · ${tanggalPanjang(periode.tanggalMulai)} – ${tanggalPanjang(periode.tanggalSelesai)} · ${NAMA_BKK} (${daftarWilayah.join(', ')})`
                 : 'Periode posko belum diatur'}
             </p>
           </div>

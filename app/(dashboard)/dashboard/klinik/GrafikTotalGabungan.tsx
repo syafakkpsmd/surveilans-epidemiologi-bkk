@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import TrenChartLine from "@/components/vektor/TrenChartLine";
 import KomorbidChart from "@/components/klinik/KomorbidChart";
 import { DAFTAR_KOMORBID } from "@/lib/klinik/komorbid";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const NAMA_BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -99,13 +100,13 @@ export default function GrafikTotalGabungan({
 
   return (
    <div className="space-y-6 px-1">
-    <h2 className="text-lg font-bold text-[#0F2A38] px-2">Grafik Total Layanan di BKK Kelas I Samarinda</h2>
+    <h2 className="text-lg font-bold text-[#0F2A38] px-2">Grafik Total Layanan di {NAMA_BKK}</h2>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* 1. Total seluruh vaksinasi */}
         <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
           <h3 className="mb-4 text-center text-sm font-bold text-gray-800">
-            Distribusi Seluruh Vaksinasi di BKK Kelas I Samarinda
+            Distribusi Seluruh Vaksinasi di {NAMA_BKK}
             <br /><span className="font-normal text-gray-500">(dalam {granularitas})</span>
           </h3>
           <TrenChartLine data={dataGabungan} tipeChart={tipeChart} seriesList={[
@@ -115,7 +116,7 @@ export default function GrafikTotalGabungan({
 
         {/* 2. Total layanan + jenis kelamin */}
         <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Layanan Vaksinasi menurut Jenis Kelamin di BKK Kelas I Samarinda
+          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Layanan Vaksinasi menurut Jenis Kelamin di {NAMA_BKK}
             <br /><span className="font-normal text-gray-500">(dalam {granularitas})</span>
           </h3>
           <TrenChartLine data={dataGabungan} tipeChart={tipeChart} seriesList={[
@@ -127,7 +128,7 @@ export default function GrafikTotalGabungan({
 
         {/* 3. BKK vs Klinik */}
         <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Layanan berdasarkan Klinik BKK dan Klinik Binaan di BKK Kelas I Samarinda 
+          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Layanan berdasarkan Klinik BKK dan Klinik Binaan di {NAMA_BKK} 
             <br /><span className="font-normal text-gray-500">(dalam {granularitas})</span>
           </h3>
           <TrenChartLine data={dataGabungan} tipeChart={tipeChart} seriesList={[
@@ -138,7 +139,7 @@ export default function GrafikTotalGabungan({
 
         {/* 4. Jenis vaksinasi */}
         <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Layanan berdasarkan Jenis Vaksinasi di BKK Kelas I Samarinda
+          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Layanan berdasarkan Jenis Vaksinasi di {NAMA_BKK}
             <br /><span className="font-normal text-gray-500">(dalam {granularitas})</span>
           </h3>
           <TrenChartLine data={dataGabungan} tipeChart={tipeChart} seriesList={[
@@ -151,7 +152,7 @@ export default function GrafikTotalGabungan({
 
         {/* 5. WUS Total */}
         <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 lg:col-span-2">
-          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Hasil Pemeriksaan Wanita Usia Subur (WUS) di BKK Kelas I Samarinda
+          <h3 className="mb-4 text-center text-sm font-bold text-gray-800">Distribusi Hasil Pemeriksaan Wanita Usia Subur (WUS) di {NAMA_BKK}
             <br /><span className="font-normal text-gray-500">(dalam {granularitas})</span>
           </h3>
           <TrenChartLine data={dataGabungan} tipeChart={tipeChart} seriesList={[
@@ -167,7 +168,7 @@ export default function GrafikTotalGabungan({
         {/* 7. Kepatuhan */}
         <div className="rounded-xl bg-white p-5 shadow-xs border border-red-100 lg:col-span-2">
           <h3 className="mb-4 text-center text-sm font-bold text-red-900">
-            Distribusi Kepatuhan Masa Aktif Vaksin (standar {standarHariVaksin} hari) di BKK Kelas I Samarinda
+            Distribusi Kepatuhan Masa Aktif Vaksin (standar {standarHariVaksin} hari) di {NAMA_BKK}
             <br /><span className="font-normal text-gray-500">(dalam {granularitas})</span>
           </h3>
           <TrenChartLine data={dataGabungan} tipeChart={tipeChart} seriesList={[

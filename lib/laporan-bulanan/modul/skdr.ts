@@ -3,8 +3,9 @@ import { createDbClient } from "@/lib/db/server";
 import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { ambilSemuaHalaman, CATATAN_MINGGU_KE_BULAN, jumlah, mingguDalamPeriode } from "./_bantu";
+import { NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
 
-const JUDUL = "SKDR BKK Samarinda";
+const JUDUL = `SKDR ${NAMA_BKK_SINGKAT}`;
 const MAKS_BARIS_TABEL = 15;
 
 /** Kolom view_skdr_alert_mingguan yang dipakai. */

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { simpanKualitasUdaraHarian } from '@/lib/db/queries/queries-karhutla-client';
 import { hitungStatusEvaluasi, LABEL_STATUS } from '@/lib/karhutla/constants';
 import type { LokasiUdaraRow } from '@/lib/db/queries/queries-karhutla-server';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 const STATUS_ISPU = ['Baik', 'Sedang', 'Tidak Sehat', 'Sangat Tidak Sehat', 'Berbahaya'] as const;
 
@@ -69,7 +70,7 @@ export default function FormLingkunganHarianPublikClient({ daftarLokasi }: { daf
       <div className="w-full max-w-lg">
         <div className="text-center mb-6">
           <h1 className="text-lg font-bold text-gray-900">Input Hasil Pengukuran Lingkungan</h1>
-          <p className="text-sm text-gray-500 mt-1">BKK Kelas I Samarinda &middot; Surveilans Karhutla</p>
+          <p className="text-sm text-gray-500 mt-1">{NAMA_BKK} &middot; Surveilans Karhutla</p>
         </div>
         <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm space-y-4">
           <div>

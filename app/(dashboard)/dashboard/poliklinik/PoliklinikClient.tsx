@@ -18,6 +18,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
 
 const WARNA_HARI = ['#0d9488', '#0f766e', '#0d9488', '#0f766e', '#0d9488', '#f59e0b', '#dc2626'];
 // Senin..Jumat teal, Sabtu oranye, Minggu merah -- menonjolkan akhir pekan
@@ -59,7 +60,7 @@ interface Props {
 export default function PoliklinikClient({
   mode = 'bkk',
   judul = 'Kunjungan Poliklinik',
-  subjudul = 'Rekap kunjungan pasien di 5 wilayah kerja BKK Samarinda',
+  subjudul = `Rekap kunjungan pasien di 5 wilayah kerja ${NAMA_BKK_SINGKAT}`,
   basePath = '/dashboard/poliklinik',
   aksiHeader,
   tahunBerjalan,

@@ -30,6 +30,7 @@ import type {
   TerdugaBelumTindakLanjutTb,
   DemografiTb,
 } from '@/lib/db/modul/tb';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 // Palet warna modern untuk chart & visualisasi
 const WARNA_PIE = ['#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -442,7 +443,7 @@ export default function TbClient({
       </Panel>
 
       {/* Grafik Tren */}
-      <Panel judul="Distribusi Kegiatan Pengawasan Tuberkulosis di BKK Kelas I Samarinda">
+      <Panel judul={`Distribusi Kegiatan Pengawasan Tuberkulosis di ${NAMA_BKK}`}>
         <p className="mb-3 text-center text-xs font-medium text-gray-500">
           Skope Periode: {granularitas === 'mingguan' ? 'Mingguan' : 'Bulanan'}
         </p>

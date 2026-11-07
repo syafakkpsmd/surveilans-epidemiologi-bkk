@@ -14,6 +14,7 @@ import {
 } from '@/lib/pengawasan-klinik/antrianOffline';
 import { ITEM_CHECKLIST } from '@/lib/pengawasan-klinik/itemChecklist';
 import PadTandaTangan, { type PadTandaTanganHandle } from './PadTandaTangan';
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 type Klinik = { id: string; nama_klinik: string };
 
@@ -287,17 +288,17 @@ export default function PengawasanKlinikFormClient({ daftarKlinik }: { daftarKli
         <label className="block font-medium">Nama Petugas</label>
         <input
           name="nama_petugas_1"
-          placeholder="Nama Petugas BKK Kelas I Samarinda"
+          placeholder={`Nama Petugas ${NAMA_BKK}`}
           className="border rounded px-3 py-2 w-full"
         />
         <input
           name="nama_petugas_2"
-          placeholder="Nama Petugas BKK Kelas I Samarinda"
+          placeholder={`Nama Petugas ${NAMA_BKK}`}
           className="border rounded px-3 py-2 w-full"
         />
         <input
           name="nama_petugas_3"
-          placeholder="Nama Petugas BKK Kelas I Samarinda"
+          placeholder={`Nama Petugas ${NAMA_BKK}`}
           className="border rounded px-3 py-2 w-full"
         />
         <input

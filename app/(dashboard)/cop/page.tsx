@@ -25,6 +25,7 @@ import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import type { Wilayah, KategoriCop, KegiatanCopEnriched, RingkasanMingguanCop, RingkasanBulananCop } from "@/types/database.types";
 import PetaNegaraKedatangan from "@/components/cop/PetaNegaraKedatanganClient";
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI, type HasilAIStruktur } from "@/lib/ai/getBanyakHasilAI";
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
 /**
  * resolveWarnaRba
@@ -797,7 +798,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
             <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
               Distribusi Kedatangan Kapal dari Luar Negeri dalam {mode === "mingguan" ? "Mingguan" : "Bulanan"}
               <br />
-              di BKK Kelas I Samarinda
+              di {NAMA_BKK}
             </h2>
             <TrenPerWilkerChart
               data={mode === "mingguan" ? dataTrenPerWilker : dataTrenPerWilkerBulanan}
@@ -878,7 +879,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
             <h2 className="mb-1 text-center text-sm font-bold uppercase tracking-wide text-muted">
               Distribusi Kedatangan ABK dari Luar Negeri {mode === "mingguan" ? "Mingguan" : "Bulanan"}
               <br />
-              di BKK Kelas I Samarinda
+              di {NAMA_BKK}
             </h2>
             <TrenPerWilkerChart
               data={mode === "mingguan" ? dataTrenPerWilkerAbk : dataTrenPerWilkerAbkBulanan}
@@ -909,14 +910,14 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
                   <span className="block text-center">
                     Distribusi ABK WNA & WNI {mode === "mingguan" ? "Mingguan" : "Bulanan"}
                     <br />
-                    di BKK Kelas I Samarinda
+                    di {NAMA_BKK}
                   </span>
                 }
                 judulKapalTotal={
                   <span className="block text-center">
                     Distribusi Total ABK & Jumlah Kapal {mode === "mingguan" ? "Mingguan" : "Bulanan"}
                     <br />
-                    di BKK Kelas I Samarinda
+                    di {NAMA_BKK}
                   </span>
                 }
                 seriAbk={[
@@ -1198,7 +1199,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
              ============================================================ */}
           <div className="rounded-card bg-surface p-6">
             <h3 className="mb-4 text-center text-sm font-bold uppercase tracking-wide text-muted">
-              Peta Sebaran Negara Kedatangan Kapal ke BKK Kelas I Samarinda Selama Tahun {tahun}
+              Peta Sebaran Negara Kedatangan Kapal ke {NAMA_BKK} Selama Tahun {tahun}
             </h3>
             <PetaNegaraKedatangan data={kategoriData.negara_kedatangan} />
           </div>

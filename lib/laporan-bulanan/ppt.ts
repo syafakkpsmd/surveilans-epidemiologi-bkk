@@ -2,6 +2,7 @@ import PptxGenJS from "pptxgenjs";
 import fs from "node:fs";
 import path from "node:path";
 import type { Slide, SlideBlok, Tren } from "./types";
+import { NAMA_BKK, NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 
 /** Palet sama dengan tampilan "Laporan rapat bulanan" di Spectra AI. */
 const C = {
@@ -348,8 +349,8 @@ function gambarBlok(pptx: PptxGenJS, s: PptxGenJS.Slide, b: SlideBlok, x: number
 export async function rakitPptx(slides: Slide[], meta: { periode: string; judul: string }): Promise<Uint8Array> {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
-  pptx.author = "EPIC-AI - BKK Kelas I Samarinda";
-  pptx.company = "Balai Kekarantinaan Kesehatan Kelas I Samarinda";
+  pptx.author = `EPIC-AI - ${NAMA_BKK}`;
+  pptx.company = `${NAMA_RESMI_BKK}`;
   pptx.title = `${meta.judul} ${meta.periode}`;
 
   // Halaman judul: logo Kemenkes RI + BKK. Slide lainnya: logo header infografis.
@@ -407,7 +408,7 @@ export async function rakitPptx(slides: Slide[], meta: { periode: string; judul:
       y = 1.65;
     }
     for (const b of sl.blok) y = gambarBlok(pptx, s, b, MARGIN, y, W - MARGIN * 2);
-    s.addText(`EPIC-AI | BKK Kelas I Samarinda | ${meta.periode}`, { x: MARGIN, y: 7.0, w: 9, h: 0.3, fontFace: FONT, fontSize: 10, color: C.soft, isTextBox: true });
+    s.addText(`EPIC-AI | ${NAMA_BKK} | ${meta.periode}`, { x: MARGIN, y: 7.0, w: 9, h: 0.3, fontFace: FONT, fontSize: 10, color: C.soft, isTextBox: true });
     s.addText(String(idx + 1), { x: W - ORN - 0.3 - 1, y: 7.0, w: 1, h: 0.3, fontFace: FONT, fontSize: 10, color: C.soft, align: "right", isTextBox: true });
   });
 

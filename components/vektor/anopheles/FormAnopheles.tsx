@@ -1,6 +1,7 @@
 'use client';
 // components/vektor/anopheles/FormAnopheles.tsx
 import { useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { parseAngka } from '@/lib/vektor/umum';
 import { FASE_BULAN, ZONA, hitungMbr, hitungMhd, type Tipe, type Zona } from '@/lib/vektor/anopheles/config';
 import { gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput } from '@/components/vektor/diare/umum';
@@ -42,8 +43,9 @@ function Angka({ label, nilai, set, wajib, desimal, min, disabled, placeholder }
 }
 
 export default function FormAnopheles({
-  tipe, baris, opsi, onSelesai, onBatal, onLokasiBerubah,
+  wk, tipe, baris, opsi, onSelesai, onBatal, onLokasiBerubah,
 }: {
+  wk: KamusWilker;
   tipe: Tipe;
   baris: BarisAnopheles | null; // null = tambah baru
   opsi: Opsi;
@@ -157,7 +159,7 @@ export default function FormAnopheles({
         </label>
       </div>
 
-      <PilihLokasi wilayah={wilayah} zona={zona} nilai={lokasi} onUbah={setLokasi} onLokasiBerubah={onLokasiBerubah} />
+      <PilihLokasi wk={wk} wilayah={wilayah} zona={zona} nilai={lokasi} onUbah={setLokasi} onLokasiBerubah={onLokasiBerubah} />
 
       {tipe === 'larva' ? (
         <>

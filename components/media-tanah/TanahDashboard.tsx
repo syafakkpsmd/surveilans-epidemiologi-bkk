@@ -1,6 +1,7 @@
 'use client';
 // components/media-tanah/TanahDashboard.tsx
 import { useEffect, useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -110,7 +111,7 @@ function BarH({ judul, data, kosong }: { judul: string; data: Item[]; kosong: st
   );
 }
 
-export default function TanahDashboard() {
+export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
   const [dari, setDari] = useState(() => `${new Date().getFullYear()}-01-01`);
   const [sampai, setSampai] = useState(() => tglLokal(new Date()));
   const [wilayah, setWilayah] = useState('');

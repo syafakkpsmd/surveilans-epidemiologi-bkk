@@ -1,6 +1,7 @@
 'use client';
 // components/media-tanah/TanahForm.tsx
 import { useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { ITEM_B, ITEM_C, ITEM_D, ITEM_E, SATUAN_E, KESIMPULAN, teksBatas, statusLab } from '@/lib/media-tanah/config';
 
 type It = { status: string; hasil: string; batas: string; keterangan: string; tindak_lanjut: string };
@@ -70,7 +71,7 @@ function Pilih({ nama, nilai, pilihan, onPilih }: {
 const MT = [{ v: 'memenuhi', l: 'Memenuhi' }, { v: 'tidak_memenuhi', l: 'Tidak memenuhi' }];
 const ADA = [{ v: 'ada', l: 'Ada' }, { v: 'tidak_ada', l: 'Tidak ada' }];
 
-export default function TanahForm() {
+export default function TanahForm({ wk }: { wk: KamusWilker }) {
   const [f, setF] = useState<Form>(() => kosong());
   const [pesan, setPesan] = useState<{ jenis: 'ok' | 'galat'; teks: string } | null>(null);
   const [kirim, setKirim] = useState(false);

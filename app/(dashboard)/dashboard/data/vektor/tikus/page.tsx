@@ -1,6 +1,7 @@
 // app/(dashboard)/dashboard/data/vektor/tikus/page.tsx
 import { requireVektor } from '@/lib/vektor/auth';
 import TikusClient from '@/components/vektor/tikus/TikusClient';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
 
 export default async function Page() {
   const user = await requireVektor();
@@ -11,5 +12,5 @@ export default async function Page() {
       </main>
     );
   }
-  return <TikusClient />;
+  return <TikusClient wilayah={await getDaftarWilker()} />;
 }

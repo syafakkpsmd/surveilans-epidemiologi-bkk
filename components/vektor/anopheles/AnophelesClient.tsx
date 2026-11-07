@@ -1,6 +1,7 @@
 'use client';
 // components/vektor/anopheles/AnophelesClient.tsx
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { buatKamus, type Wilayah } from '@/lib/wilayah-kerja';
 
 import { ZONA, type Tipe } from '@/lib/vektor/anopheles/config';
 import Dialog from '@/components/vektor/diare/Dialog';
@@ -29,7 +30,8 @@ function Zona({ b }: { b: BarisAnopheles }) {
   );
 }
 
-export default function AnophelesClient() {
+export default function AnophelesClient({ wilayah }: { wilayah: Wilayah[] }) {
+  const wk = useMemo(() => buatKamus(wilayah), [wilayah]);
   const [tampilan, setTampilan] = useState<Tipe>('larva');
   const [filter, setFilter] = useState(FILTER_AWAL);
   const [rows, setRows] = useState<BarisAnopheles[]>([]);
@@ -256,7 +258,7 @@ export default function AnophelesClient() {
         onTutup={() => setDialog(null)}
       >
         {dSurvei && (
-          <FormAnopheles tipe={dSurvei.tipe} baris={dSurvei.baris} opsi={opsi} onSelesai={selesai}
+          <FormAnopheles wk={wk} tipe={dSurvei.tipe} baris={dSurvei.baris} opsi={opsi} onSelesai={selesai}
             onBatal={() => setDialog(null)} onLokasiBerubah={() => muat(0)} />
         )}
       </Dialog>

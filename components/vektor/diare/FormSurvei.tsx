@@ -1,13 +1,15 @@
 'use client';
 // components/vektor/diare/FormSurvei.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { AMBANG_MS, LABEL_JENIS, STATUS_TMS, hitungStatus, parseAngka, type Jenis } from '@/lib/vektor/diare/config';
 import { gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput, type Baris } from './umum';
 import PengaturLokasi, { type AksiLokasi, type LokasiItem } from './PengaturLokasi';
 
 export default function FormSurvei({
-  jenis, baris, onSelesai, onBatal, onLokasiBerubah,
+  wk, jenis, baris, onSelesai, onBatal, onLokasiBerubah,
 }: {
+  wk: KamusWilker;
   jenis: Jenis;
   baris: Baris | null; // null = tambah baru
   onSelesai: (pesan: string) => void;

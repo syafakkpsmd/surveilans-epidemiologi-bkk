@@ -1,6 +1,7 @@
 'use client';
 // components/vektor/tikus/TikusClient.tsx
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { buatKamus, type Wilayah } from '@/lib/wilayah-kerja';
 
 import { SPESIES } from '@/lib/vektor/tikus/config';
 import Dialog from '@/components/vektor/diare/Dialog';
@@ -32,7 +33,8 @@ function Hasil({ v }: { v: string | null }) {
   );
 }
 
-export default function TikusClient() {
+export default function TikusClient({ wilayah }: { wilayah: Wilayah[] }) {
+  const wk = useMemo(() => buatKamus(wilayah), [wilayah]);
   const [tampilan, setTampilan] = useState<Tampilan>('survei');
   const [filter, setFilter] = useState(FILTER_AWAL);
   const [surveiRows, setSurveiRows] = useState<BarisSurvei[]>([]);
@@ -274,7 +276,7 @@ export default function TikusClient() {
         onTutup={() => setDialog(null)}
       >
         {dialog?.tipe === 'survei' && (
-          <FormSurveiTikus baris={dialog.baris} onSelesai={selesai} onBatal={() => setDialog(null)} />
+          <FormSurveiTikus wk={wk} baris={dialog.baris} onSelesai={selesai} onBatal={() => setDialog(null)} />
         )}
       </Dialog>
 
@@ -284,7 +286,7 @@ export default function TikusClient() {
         onTutup={() => setDialog(null)}
       >
         {dialog?.tipe === 'lab' && (
-          <FormLab baris={dialog.baris} lokasiSaran={lokasiSaran} onSelesai={selesai}
+          <FormLab wk={wk} baris={dialog.baris} lokasiSaran={lokasiSaran} onSelesai={selesai}
             onTersimpan={() => { if (tampilan === 'lab') muat(0); }} onBatal={() => setDialog(null)} />
         )}
       </Dialog>

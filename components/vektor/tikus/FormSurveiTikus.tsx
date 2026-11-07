@@ -1,6 +1,7 @@
 'use client';
 // components/vektor/tikus/FormSurveiTikus.tsx
 import { useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { parseAngka } from '@/lib/vektor/umum';
 import { hitungIndexPinjal, hitungTsi } from '@/lib/vektor/tikus/config';
 import { fmtAngka, gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput } from '@/components/vektor/diare/umum';
@@ -9,8 +10,9 @@ import type { BarisSurvei } from './tipe';
 const n = (s: string) => parseAngka(s) ?? 0;
 
 export default function FormSurveiTikus({
-  baris, onSelesai, onBatal,
+  wk, baris, onSelesai, onBatal,
 }: {
+  wk: KamusWilker;
   baris: BarisSurvei | null; // null = tambah baru
   onSelesai: (pesan: string) => void;
   onBatal: () => void;

@@ -1,14 +1,16 @@
 'use client';
 // components/vektor/anopheles/PilihLokasi.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 import type { Zona } from '@/lib/vektor/anopheles/config';
 import { gayaInput } from '@/components/vektor/diare/umum';
 import PengaturLokasiZona, { type AksiLokasi, type LokasiItem } from './PengaturLokasiZona';
 
 export default function PilihLokasi({
-  wilayah, zona, nilai, onUbah, onLokasiBerubah,
+  wk, wilayah, zona, nilai, onUbah, onLokasiBerubah,
 }: {
+  wk: KamusWilker;
   wilayah: string;
   zona: Zona | '';
   nilai: string;

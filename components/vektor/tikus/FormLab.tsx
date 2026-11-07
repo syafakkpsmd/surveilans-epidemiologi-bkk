@@ -1,6 +1,7 @@
 'use client';
 // components/vektor/tikus/FormLab.tsx
 import { useMemo, useRef, useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 import { PEMERIKSAAN, SPESIES } from '@/lib/vektor/tikus/config';
 import { gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal } from '@/components/vektor/diare/umum';
@@ -10,8 +11,9 @@ type Kunci = (typeof PEMERIKSAAN)[number]['kunci'];
 const HASIL_KOSONG: Record<Kunci, string> = { leptospira: '', pes: '', hantavirus: '' };
 
 export default function FormLab({
-  baris, lokasiSaran, onSelesai, onTersimpan, onBatal,
+  wk, baris, lokasiSaran, onSelesai, onTersimpan, onBatal,
 }: {
+  wk: KamusWilker;
   baris: BarisLab | null; // null = tambah baru
   lokasiSaran: string[];
   onSelesai: (pesan: string) => void;

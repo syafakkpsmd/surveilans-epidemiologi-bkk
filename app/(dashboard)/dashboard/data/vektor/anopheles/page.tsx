@@ -1,6 +1,7 @@
 // app/(dashboard)/dashboard/data/vektor/anopheles/page.tsx
 import { requireVektor } from '@/lib/vektor/auth';
 import AnophelesClient from '@/components/vektor/anopheles/AnophelesClient';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
 
 export default async function Page() {
   const user = await requireVektor();
@@ -11,5 +12,5 @@ export default async function Page() {
       </main>
     );
   }
-  return <AnophelesClient />;
+  return <AnophelesClient wilayah={await getDaftarWilker()} />;
 }

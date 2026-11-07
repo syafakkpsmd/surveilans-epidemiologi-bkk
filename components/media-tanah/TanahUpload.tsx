@@ -1,6 +1,7 @@
 'use client';
 // components/media-tanah/TanahUpload.tsx
 import { useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 
 type Hasil = {
@@ -11,7 +12,7 @@ type Hasil = {
 const input =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600';
 
-export default function TanahUpload() {
+export default function TanahUpload({ wk }: { wk: KamusWilker }) {
   const [wilayah, setWilayah] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [kirim, setKirim] = useState(false);

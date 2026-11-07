@@ -1,6 +1,7 @@
 'use client';
 // components/media-tanah/TanahRiwayat.tsx
 import { Fragment, useCallback, useEffect, useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { KESIMPULAN, LABEL_KESIMPULAN } from '@/lib/media-tanah/config';
 
 type Baris = {
@@ -70,7 +71,7 @@ function PanelRincian({ d }: { d: Rincian }) {
   );
 }
 
-export default function TanahRiwayat() {
+export default function TanahRiwayat({ wk }: { wk: KamusWilker }) {
   const awal = { dari: `${new Date().getFullYear()}-01-01`, sampai: tglLokal(new Date()), wilayah: '', kesimpulan: '', q: '' };
   const [saring, setSaring] = useState(awal);
   const [terapan, setTerapan] = useState(awal);

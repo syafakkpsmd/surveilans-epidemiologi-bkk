@@ -1,6 +1,7 @@
 'use client';
 // components/vektor/diare/DiareClient.tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { buatKamus, type Wilayah } from '@/lib/wilayah-kerja';
 import Link from 'next/link';
 import { JENIS, LABEL_JENIS, STATUS_TMS, type Jenis } from '@/lib/vektor/diare/config';
 import Dialog from './Dialog';
@@ -20,7 +21,8 @@ const FILTER_AWAL = { dari: '', sampai: '', wilayah: '', hasil: '', tanpaTindaka
 const aksiKecil =
   'rounded px-2 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600';
 
-export default function DiareClient({ jenis }: { jenis: Jenis }) {
+export default function DiareClient({ jenis, wilayah }: { jenis: Jenis; wilayah: Wilayah[] }) {
+  const wk = useMemo(() => buatKamus(wilayah), [wilayah]);
   const [filter, setFilter] = useState(FILTER_AWAL);
   const [rows, setRows] = useState<Baris[]>([]);
   const [memuat, setMemuat] = useState(false);
@@ -226,6 +228,7 @@ export default function DiareClient({ jenis }: { jenis: Jenis }) {
       >
         {dialog?.tipe === 'survei' && (
           <FormSurvei
+            wk={wk}
             jenis={jenis}
             baris={dialog.baris}
             onLokasiBerubah={() => muat(0)}
@@ -238,6 +241,7 @@ export default function DiareClient({ jenis }: { jenis: Jenis }) {
       <Dialog buka={dialog?.tipe === 'tindakan'} judul="Tindakan pengendalian" onTutup={() => setDialog(null)}>
         {dialog?.tipe === 'tindakan' && (
           <FormTindakan
+            wk={wk}
             jenis={jenis}
             baris={dialog.baris}
             wilayahAwal={filter.wilayah}

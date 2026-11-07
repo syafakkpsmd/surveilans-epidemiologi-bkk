@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireVektor } from '@/lib/vektor/auth';
 import { JENIS, type Jenis } from '@/lib/vektor/diare/config';
 import DiareClient from '@/components/vektor/diare/DiareClient';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
 
 export default async function Page({ params }: { params: Promise<{ jenis: string }> }) {
   const { jenis } = await params;
@@ -16,5 +17,5 @@ export default async function Page({ params }: { params: Promise<{ jenis: string
       </main>
     );
   }
-  return <DiareClient jenis={jenis as Jenis} />;
+  return <DiareClient jenis={jenis as Jenis} wilayah={await getDaftarWilker()} />;
 }

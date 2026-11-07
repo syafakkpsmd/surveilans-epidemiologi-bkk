@@ -1,6 +1,7 @@
 'use client';
 // components/media-tanah/TanahClient.tsx
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { buatKamus, type Wilayah } from '@/lib/wilayah-kerja';
 import TanahDashboard from './TanahDashboard';
 import TanahRiwayat from './TanahRiwayat';
 import TanahForm from './TanahForm';
@@ -15,7 +16,8 @@ const TAB = [
 
 type TabId = (typeof TAB)[number]['id'];
 
-export default function TanahClient() {
+export default function TanahClient({ wilayah }: { wilayah: Wilayah[] }) {
+  const wk = useMemo(() => buatKamus(wilayah), [wilayah]);
   const [tab, setTab] = useState<TabId>('dashboard');
 
   return (
@@ -44,10 +46,10 @@ export default function TanahClient() {
       </div>
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'dashboard' && <TanahDashboard />}
-        {tab === 'riwayat' && <TanahRiwayat />}
-        {tab === 'input' && <TanahForm />}
-        {tab === 'unggah' && <TanahUpload />}
+        {tab === 'dashboard' && <TanahDashboard wk={wk} />}
+        {tab === 'riwayat' && <TanahRiwayat wk={wk} />}
+        {tab === 'input' && <TanahForm wk={wk} />}
+        {tab === 'unggah' && <TanahUpload wk={wk} />}
       </div>
     </main>
   );

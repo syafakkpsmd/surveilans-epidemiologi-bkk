@@ -1,6 +1,7 @@
 'use client';
 // components/vektor/diare/FormTindakan.tsx
 import { useEffect, useState } from 'react';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { LABEL_JENIS, STATUS_MS, STATUS_TMS, type Jenis } from '@/lib/vektor/diare/config';
 import { fmtAngka, fmtTgl, gayaInput, gayaTombol, gayaTombolPutih, keInput, type Baris } from './umum';
 
@@ -10,7 +11,7 @@ const SARAN: Record<Jenis, string[]> = {
   kecoa: ['Spraying', 'Baiting', 'Perbaikan sanitasi'],
 };
 
-const ringkas = (r: Baris, denganWilayah: boolean) =>
+const ringkas = (r: Baris, denganWilayah: boolean, wk: KamusWilker) =>
   [
     fmtTgl(r.tgl_kegiatan),
     denganWilayah ? wk.namaPanjangByKode[r.kode_wilker] ?? r.kode_wilker : null,
@@ -19,8 +20,9 @@ const ringkas = (r: Baris, denganWilayah: boolean) =>
   ].filter(Boolean).join(' · ');
 
 export default function FormTindakan({
-  jenis, baris, wilayahAwal, onSelesai, onBatal,
+  wk, jenis, baris, wilayahAwal, onSelesai, onBatal,
 }: {
+  wk: KamusWilker;
   jenis: Jenis;
   baris: Baris | null; // survei yang sudah terpilih (dari tombol pintas di baris)
   wilayahAwal: string; // wilayah yang sedang difilter di halaman ('' = semua)
@@ -155,7 +157,7 @@ export default function FormTindakan({
   return (
     <form onSubmit={simpan} className="space-y-4">
       {baris ? (
-        <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">{ringkas(baris, true)}</p>
+        <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">{ringkas(baris, true, wk)}</p>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -186,7 +188,7 @@ export default function FormTindakan({
               </option>
               {urut.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {ringkas(r, false)}{r.tindakan_pengendalian ? ' · sudah ada tindakan' : ''}
+                  {ringkas(r, false, wk)}{r.tindakan_pengendalian ? ' · sudah ada tindakan' : ''}
                 </option>
               ))}
             </select>

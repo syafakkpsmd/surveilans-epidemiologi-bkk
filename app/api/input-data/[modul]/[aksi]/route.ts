@@ -15,7 +15,8 @@
 // Rute ini memakai PostgreSQL langsung (tanpa RLS), jadi pemeriksaan peran DI SINI adalah satu-satunya pagar.
 import { NextRequest, NextResponse } from 'next/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
-import { dapatkanModul, type ModulInput } from '@/lib/input-data/modul';
+import { dapatkanModul, wilayahBolehModul, type ModulInput } from '@/lib/input-data/modul';
+import { modulEfektif } from '@/lib/input-data/modul-server';
 import { validasiBaris } from '@/lib/input-data/validasi';
 import { bacaExcel, buatTemplate, MAKS_BYTE, MAKS_GALAT_DITAMPILKAN } from '@/lib/input-data/parse-excel';
 import { getKamusWilker } from '@/lib/wilayah-kerja/server';
@@ -51,11 +52,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const { modul: kunci, aksi } = await ctx.params;
   const a = await izin(kunci);
   if (a instanceof NextResponse) return a;
-  const { modul } = a;
   const sp = req.nextUrl.searchParams;
   try {
+    const modul = await modulEfektif(a.modul); // modul sanitasi: batasi wilayah sesuai centang wilker_modul
     if (aksi === 'template') {
-      const buf = await buatTemplate(modul);
+      const kamus = await getKamusWilker();
+      const buf = await buatTemplate(modul, wilayahBolehModul(modul, kamus).map((w) => w.namaPendek));
       return new NextResponse(new Uint8Array(buf), {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -87,11 +89,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const { modul: kunci, aksi } = await ctx.params;
   const a = await izin(kunci);
   if (a instanceof NextResponse) return a;
-  const { modul } = a;
   // const { user } = await getAuthUser();
   // const pengguna = user?.email ?? 'tidak diketahui';
 
   try {
+    const modul = await modulEfektif(a.modul); // modul sanitasi: batasi wilayah sesuai centang wilker_modul
     const kamus = await getKamusWilker();
     if (aksi === 'unggah') {
       const form = await req.formData();
@@ -119,6 +121,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         wilayah: wilayahDalam(modul, baris), kolomDiabaikan: h.kolomDiabaikan,
         negaraTerisi, pelabuhanTanpaMaster: tidakCocok.slice(0, 100),
         galat: h.galat.slice(0, MAKS_GALAT_DITAMPILKAN), galatTerpotong: h.galat.length > MAKS_GALAT_DITAMPILKAN,
+        peringatan: h.peringatan.slice(0, MAKS_GALAT_DITAMPILKAN), peringatanTerpotong: h.peringatan.length > MAKS_GALAT_DITAMPILKAN,
+        peringatanUmum: h.peringatanUmum,
       };
       if (mode === 'pratinjau') return NextResponse.json({ mode, ...ringkas });
 
@@ -145,7 +149,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (!h.nilai) return NextResponse.json({ error: 'Isian belum benar', galat: h.galat }, { status: 400 });
       if (modul.negaraDariMaster) await isiNegara([h.nilai]);
       const r = await tambahSatu(modul, h.nilai);
-      if (r === 'duplikat') return galat('Data dengan wilayah, nama kapal, dan tanggal yang sama sudah ada', 409);
+      if (r === 'duplikat') return galat(`Data dengan wilayah, ${modul.namaKunci ?? 'nama kapal'}, dan tanggal yang sama sudah ada`, 409);
       return NextResponse.json({ ok: true });
     }
   } catch (e) {

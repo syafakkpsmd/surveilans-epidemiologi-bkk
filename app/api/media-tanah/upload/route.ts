@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { requireStaf } from '@/lib/media-tanah/auth';
-import { KODE_WILAYAH } from '@/lib/media-tanah/config';
 import { validasiPemeriksaan } from '@/lib/media-tanah/validasi';
 import { barisKePayload, kunciKolom } from '@/lib/media-tanah/kolom';
 import { simpanPemeriksaan } from '@/lib/media-tanah/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 export const runtime = 'nodejs';
 
@@ -20,9 +20,12 @@ export async function POST(req: NextRequest) {
   const file = fd.get('file');
   const wilayah = String(fd.get('wilayah') ?? '');
 
+  // Daftar wilayah kerja berasal dari database (tabel wilker_ref); unggahan baru hanya untuk wilayah aktif.
+  const wk = await getKamusWilker();
+
   if (!(file instanceof File)) return NextResponse.json({ error: 'File belum dipilih' }, { status: 400 });
   if (file.size > MAKS_BYTE) return NextResponse.json({ error: 'File lebih dari 5 MB' }, { status: 400 });
-  if (!KODE_WILAYAH.includes(wilayah)) return NextResponse.json({ error: 'Pilih wilayah kerja' }, { status: 400 });
+  if (!wk.daftarKodeAktif.includes(wilayah)) return NextResponse.json({ error: 'Pilih wilayah kerja' }, { status: 400 });
 
   let baris: Record<string, any>[];
   try {
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
     for (const [k, v] of Object.entries(baris[i])) norm[kunciKolom(k)] = v;
     if (Object.values(norm).every((v) => v === '' || v == null)) continue; // baris kosong
 
-    const h = validasiPemeriksaan(barisKePayload(norm), { wilayah });
+    const h = validasiPemeriksaan(barisKePayload(norm), { wilayah, wk });
     if (!h.ok) {
       gagal++;
       if (galat.length < 20) galat.push({ baris: i + 2, pesan: h.error }); // +2: judul kolom + indeks 0

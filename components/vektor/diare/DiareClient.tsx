@@ -2,7 +2,7 @@
 // components/vektor/diare/DiareClient.tsx
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { JENIS, LABEL_JENIS, NAMA_WILAYAH, OPSI_WILAYAH, STATUS_TMS, type Jenis } from '@/lib/vektor/diare/config';
+import { JENIS, LABEL_JENIS, STATUS_TMS, type Jenis } from '@/lib/vektor/diare/config';
 import Dialog from './Dialog';
 import FormSurvei from './FormSurvei';
 import FormTindakan from './FormTindakan';
@@ -116,7 +116,7 @@ export default function DiareClient({ jenis }: { jenis: Jenis }) {
           <span className="mb-1 block">Wilayah kerja</span>
           <select className={gayaInput} value={filter.wilayah} onChange={(e) => setFilter({ ...filter, wilayah: e.target.value })}>
             <option value="">Semua</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         <label className="text-xs text-slate-700">
@@ -163,7 +163,7 @@ export default function DiareClient({ jenis }: { jenis: Jenis }) {
               return (
                 <tr key={b.id} className="align-top">
                   <td className="whitespace-nowrap px-3 py-2">{fmtTgl(b.tgl_kegiatan)}</td>
-                  <td className="px-3 py-2">{NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker}</td>
+                  <td className="px-3 py-2">{wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}</td>
                   <td className="px-3 py-2">{b.lokasi}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmtAngka(b.nilai)}</td>
                   <td className="px-3 py-2">

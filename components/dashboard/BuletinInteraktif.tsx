@@ -247,7 +247,7 @@ export default function BuletinInteraktif({
       {/* ===== Toolbar ===== */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[220px] flex-1">
+          <div className="relative min-w-55 flex-1">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
             <input
               value={q}
@@ -423,7 +423,7 @@ export default function BuletinInteraktif({
                         src={urlViewer(b.link_url)}
                         title={`Pratinjau ${b.nama_kegiatan}`}
                         allow="fullscreen"
-                        className="h-[420px] w-full md:h-[560px]"
+                        className="h-105 w-full md:h-140"
                       />
                     </div>
                     <p className="mt-1.5 text-[11px] text-slate-400">
@@ -433,7 +433,7 @@ export default function BuletinInteraktif({
                 )}
 
                 {/* Kotak Ringkasan Eksekutif */}
-                <div className="border-t border-slate-100 bg-gradient-to-br from-emerald-50/70 to-white px-4 py-3">
+                <div className="border-t border-slate-100 bg-linear-to-br from-emerald-50/70 to-white px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
                     <button
                       onClick={() => toggle(b.id)}

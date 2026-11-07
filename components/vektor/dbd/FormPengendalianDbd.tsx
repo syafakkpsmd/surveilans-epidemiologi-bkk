@@ -1,7 +1,8 @@
 'use client';
 // components/vektor/dbd/FormPengendalianDbd.tsx
 import { useEffect, useState } from 'react';
-import { NAMA_WILAYAH, OPSI_WILAYAH } from '@/lib/vektor/umum';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
+
 import { AMBANG_ABJ, LITER_KE_DB } from '@/lib/vektor/dbd/config';
 import { fmtAngka, fmtTgl, gayaInput, gayaTombol, gayaTombolPutih, keInput } from '@/components/vektor/diare/umum';
 import type { BarisDbd } from './tipe';
@@ -9,19 +10,20 @@ import type { BarisDbd } from './tipe';
 const keLiter = (v: number | null | undefined) =>
   v == null ? '' : keInput(Math.round((v / LITER_KE_DB) * 10000) / 10000);
 
-const ringkas = (r: BarisDbd, denganWilayah: boolean) =>
+const ringkas = (r: BarisDbd, denganWilayah: boolean, wk: KamusWilker) =>
   [
     fmtTgl(r.tgl_survei),
-    denganWilayah ? NAMA_WILAYAH[r.kode_wilker] ?? r.kode_wilker : null,
+    denganWilayah ? wk.namaPanjangByKode[r.kode_wilker] ?? r.kode_wilker : null,
     r.sub_lokasi ? `${r.zona} · ${r.sub_lokasi}` : r.zona,
     `ABJ ${r.abj == null ? '-' : fmtAngka(r.abj)}%`,
   ].filter(Boolean).join(' · ');
 
 export default function FormPengendalianDbd({
-  baris, wilayahAwal, onSelesai, onBatal,
+  baris, wilayahAwal, wk, onSelesai, onBatal,
 }: {
   baris: BarisDbd | null; // survei yang sudah terpilih (dari tombol pintas di baris)
   wilayahAwal: string; // wilayah yang sedang difilter di halaman ('' = semua)
+  wk: KamusWilker;
   onSelesai: (pesan: string) => void;
   onBatal: () => void;
 }) {
@@ -129,7 +131,7 @@ export default function FormPengendalianDbd({
   return (
     <form onSubmit={simpan} className="space-y-4">
       {baris ? (
-        <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">{ringkas(baris, true)}</p>
+        <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">{ringkas(baris, true, wk)}</p>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -138,7 +140,7 @@ export default function FormPengendalianDbd({
               <select required className={gayaInput} value={wilayah}
                 onChange={(e) => { setWilayah(e.target.value); kosongkanPilihan(); }}>
                 <option value="">Pilih wilayah kerja</option>
-                {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+                {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
               </select>
             </label>
             <label className="block text-sm">
@@ -160,7 +162,7 @@ export default function FormPengendalianDbd({
               </option>
               {urut.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {ringkas(r, false)}{r.ada_pengendalian ? ' · sudah ada pengendalian' : ''}
+                  {ringkas(r, false, wk)}{r.ada_pengendalian ? ' · sudah ada pengendalian' : ''}
                 </option>
               ))}
             </select>

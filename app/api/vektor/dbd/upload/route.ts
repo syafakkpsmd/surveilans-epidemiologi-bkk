@@ -8,6 +8,7 @@ import {
   type DataSurvei,
 } from '@/lib/vektor/dbd/validasi';
 import { simpanSurvei, terapkanPengendalianBanyak, type ItemPengendalian } from '@/lib/vektor/dbd/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 export const runtime = 'nodejs';
 
@@ -46,7 +47,9 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const o = { urutanAmbigu: urutan.urutan ?? ('dmy' as const) };
+  // Kamus wilayah kerja dari database, dipakai validator untuk memetakan teks wilayah ke kode baku.
+  const wk = await getKamusWilker();
+  const o = { wk, urutanAmbigu: urutan.urutan ?? ('dmy' as const) };
 
   const galat: { baris: number; pesan: string }[] = [];
   let gagal = 0;

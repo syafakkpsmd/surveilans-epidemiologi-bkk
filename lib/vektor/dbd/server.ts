@@ -2,7 +2,8 @@
 // HANYA untuk server (route handler / server component).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
-import { KODE_WILAYAH } from '@/lib/vektor/umum';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
+
 import { TINDAKAN_TIDAK, TINDAKAN_YA, bacaZona, type Zona } from './config';
 import type { DataPengendalian, DataSurvei, KunciSurvei } from './validasi';
 
@@ -17,7 +18,7 @@ export type FilterDbd = {
   dari?: string; sampai?: string; wilayah?: string; zona?: Zona; belumPengendalian?: boolean;
 };
 
-export function filterDariQuery(sp: URLSearchParams): FilterDbd {
+export function filterDariQuery(sp: URLSearchParams, wk: KamusWilker): FilterDbd {
   const f: FilterDbd = {};
   const dari = sp.get('dari');
   const sampai = sp.get('sampai');
@@ -25,7 +26,7 @@ export function filterDariQuery(sp: URLSearchParams): FilterDbd {
   const zona = bacaZona(sp.get('zona'));
   if (dari && TGL.test(dari)) f.dari = dari;
   if (sampai && TGL.test(sampai)) f.sampai = sampai;
-  if (wilayah && KODE_WILAYAH.includes(wilayah)) f.wilayah = wilayah;
+  if (wilayah && wk.isKode(wilayah)) f.wilayah = wilayah;
   if (zona) f.zona = zona;
   if (sp.get('belum_pengendalian') === '1') f.belumPengendalian = true;
   return f;

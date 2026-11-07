@@ -1,7 +1,7 @@
 'use client';
 // components/vektor/tikus/TikusClient.tsx
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { NAMA_WILAYAH, OPSI_WILAYAH } from '@/lib/vektor/umum';
+
 import { SPESIES } from '@/lib/vektor/tikus/config';
 import Dialog from '@/components/vektor/diare/Dialog';
 import { fmtAngka, fmtTgl, gayaInput, gayaTombol, gayaTombolPutih } from '@/components/vektor/diare/umum';
@@ -86,7 +86,7 @@ export default function TikusClient() {
 
   async function hapusSurvei(b: BarisSurvei) {
     const peringatan = b.lab_lama ? ' Catatan lab lama pada baris ini (jumlah diuji dan hasil) juga akan hilang.' : '';
-    if (!window.confirm(`Hapus survei ${fmtTgl(b.tgl_survei)} di ${NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker}?${peringatan}`)) return;
+    if (!window.confirm(`Hapus survei ${fmtTgl(b.tgl_survei)} di ${wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}?${peringatan}`)) return;
     const res = await fetch(`/api/vektor/tikus?id=${b.id}`, { method: 'DELETE' });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) setGalat(j.error ?? 'Gagal menghapus');
@@ -146,7 +146,7 @@ export default function TikusClient() {
           <span className="mb-1 block">Wilayah kerja</span>
           <select className={gayaInput} value={filter.wilayah} onChange={(e) => setFilter({ ...filter, wilayah: e.target.value })}>
             <option value="">Semua</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         {tampilan === 'lab' ? (
@@ -202,7 +202,7 @@ export default function TikusClient() {
                     {fmtTgl(b.tgl_survei)}
                     {b.lab_lama && <span className="block text-xs text-slate-500">ada catatan lab lama</span>}
                   </td>
-                  <td className="px-3 py-2">{NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker}</td>
+                  <td className="px-3 py-2">{wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.jml_trap_dipasang)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.rt)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.rn)}</td>
@@ -242,7 +242,7 @@ export default function TikusClient() {
               {labRows.map((b) => (
                 <tr key={b.id} className="align-top">
                   <td className="whitespace-nowrap px-3 py-2">{fmtTgl(b.tgl_periksa)}</td>
-                  <td className="px-3 py-2">{NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker}</td>
+                  <td className="px-3 py-2">{wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}</td>
                   <td className="px-3 py-2">{b.nama_tikus}</td>
                   <td className="px-3 py-2">{b.lokasi_pemasangan}</td>
                   <td className="px-3 py-2">{b.kode_sampel ?? <span className="text-slate-400">-</span>}</td>

@@ -1,6 +1,7 @@
 // app/(dashboard)/dashboard/data/vektor/dbd/page.tsx
 import { requireVektor } from '@/lib/vektor/auth';
 import DbdClient from '@/components/vektor/dbd/DbdClient';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
 
 export default async function Page() {
   const user = await requireVektor();
@@ -11,5 +12,6 @@ export default async function Page() {
       </main>
     );
   }
-  return <DbdClient />;
+  const wilayah = await getDaftarWilker();
+  return <DbdClient wilayah={wilayah} />;
 }

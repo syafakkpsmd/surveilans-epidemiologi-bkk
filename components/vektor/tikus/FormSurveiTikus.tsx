@@ -1,7 +1,7 @@
 'use client';
 // components/vektor/tikus/FormSurveiTikus.tsx
 import { useState } from 'react';
-import { OPSI_WILAYAH, parseAngka } from '@/lib/vektor/umum';
+import { parseAngka } from '@/lib/vektor/umum';
 import { hitungIndexPinjal, hitungTsi } from '@/lib/vektor/tikus/config';
 import { fmtAngka, gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput } from '@/components/vektor/diare/umum';
 import type { BarisSurvei } from './tipe';
@@ -76,7 +76,7 @@ export default function FormSurveiTikus({
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select required className={gayaInput} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
       </div>

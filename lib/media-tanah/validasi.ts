@@ -1,6 +1,6 @@
 // lib/media-tanah/validasi.ts
 // Dipakai bersama oleh form input dan unggah Excel.
-import { ITEM_B, ITEM_C, ITEM_D, ITEM_E, KODE_WILAYAH, KESIMPULAN, teksBatas, statusLab } from './config';
+import { ITEM_B, ITEM_C, ITEM_D, ITEM_E, KESIMPULAN, teksBatas, statusLab } from './config';
 import { parseTanggalCkg, keIsoTanggal } from '@/lib/klinik/ckg/tanggalCkg'; // pembungkus parseTanggalSheet
 
 export type HasilRow = {
@@ -72,7 +72,7 @@ export function bacaKesimpulan(v: unknown): string | null {
 
 export function validasiPemeriksaan(raw: Record<string, any>, o: { wilayah: string }): Hasil {
   try {
-    if (!KODE_WILAYAH.includes(o.wilayah)) throw new Error('Wilayah kerja tidak dikenal');
+    if (!wk.daftarKodeAktif.includes(o.wilayah)) throw new Error('Wilayah kerja tidak dikenal');
 
     const tgl = parseTanggalCkg(raw.tanggal);
     if (!tgl) throw new Error('Tanggal pemeriksaan tidak terbaca');

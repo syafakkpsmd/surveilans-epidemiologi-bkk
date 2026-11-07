@@ -1,9 +1,7 @@
 'use client';
 // components/media-tanah/TanahForm.tsx
 import { useState } from 'react';
-import {
-  OPSI_WILAYAH, ITEM_B, ITEM_C, ITEM_D, ITEM_E, SATUAN_E, KESIMPULAN, teksBatas, statusLab,
-} from '@/lib/media-tanah/config';
+import { ITEM_B, ITEM_C, ITEM_D, ITEM_E, SATUAN_E, KESIMPULAN, teksBatas, statusLab } from '@/lib/media-tanah/config';
 
 type It = { status: string; hasil: string; batas: string; keterangan: string; tindak_lanjut: string };
 type Form = {
@@ -120,7 +118,7 @@ export default function TanahForm() {
           <Isian label="Wilayah kerja">
             <select required className={input} value={f.wilayah} onChange={(e) => set('wilayah', e.target.value)}>
               <option value="">Pilih wilayah kerja</option>
-              {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+              {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
             </select>
           </Isian>
           <Isian label="Tanggal pemeriksaan">

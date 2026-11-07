@@ -1,7 +1,7 @@
 'use client';
 // components/vektor/diare/FormTindakan.tsx
 import { useEffect, useState } from 'react';
-import { LABEL_JENIS, NAMA_WILAYAH, OPSI_WILAYAH, STATUS_MS, STATUS_TMS, type Jenis } from '@/lib/vektor/diare/config';
+import { LABEL_JENIS, STATUS_MS, STATUS_TMS, type Jenis } from '@/lib/vektor/diare/config';
 import { fmtAngka, fmtTgl, gayaInput, gayaTombol, gayaTombolPutih, keInput, type Baris } from './umum';
 
 // Saran isian saja; petugas tetap bisa mengetik tindakan lain.
@@ -13,7 +13,7 @@ const SARAN: Record<Jenis, string[]> = {
 const ringkas = (r: Baris, denganWilayah: boolean) =>
   [
     fmtTgl(r.tgl_kegiatan),
-    denganWilayah ? NAMA_WILAYAH[r.kode_wilker] ?? r.kode_wilker : null,
+    denganWilayah ? wk.namaPanjangByKode[r.kode_wilker] ?? r.kode_wilker : null,
     r.lokasi,
     `${fmtAngka(r.nilai)} (${r.hasil_pengamatan === STATUS_TMS ? 'TMS' : 'MS'})`,
   ].filter(Boolean).join(' · ');
@@ -164,7 +164,7 @@ export default function FormTindakan({
               <select required className={gayaInput} value={wilayah}
                 onChange={(e) => { setWilayah(e.target.value); kosongkanPilihan(); }}>
                 <option value="">Pilih wilayah kerja</option>
-                {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+                {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
               </select>
             </label>
             <label className="block text-sm">

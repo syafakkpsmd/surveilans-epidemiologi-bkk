@@ -2,7 +2,7 @@
 
 export function BuletinViewer({ url, title }: { url: string; title: string }) {
   return (
-    <div className="w-full h-[600px] bg-slate-100 rounded-xl overflow-hidden shadow-inner border border-slate-200">
+    <div className="w-full h-150 bg-slate-100 rounded-xl overflow-hidden shadow-inner border border-slate-200">
       <iframe
         src={url}
         title={title}

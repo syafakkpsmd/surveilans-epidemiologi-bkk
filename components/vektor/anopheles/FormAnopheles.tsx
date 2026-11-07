@@ -1,7 +1,7 @@
 'use client';
 // components/vektor/anopheles/FormAnopheles.tsx
 import { useState } from 'react';
-import { OPSI_WILAYAH, parseAngka } from '@/lib/vektor/umum';
+import { parseAngka } from '@/lib/vektor/umum';
 import { FASE_BULAN, ZONA, hitungMbr, hitungMhd, type Tipe, type Zona } from '@/lib/vektor/anopheles/config';
 import { gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput } from '@/components/vektor/diare/umum';
 import PilihLokasi from './PilihLokasi';
@@ -138,7 +138,7 @@ export default function FormAnopheles({
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select required className={gayaInput} value={wilayah} onChange={(e) => gantiWilayah(e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         <label className="block text-sm">

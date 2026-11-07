@@ -2,7 +2,7 @@
 // HANYA untuk server (route handler / server component).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
-import { KODE_WILAYAH } from '@/lib/vektor/umum';
+
 import {
   CUACA, KEADAAN_TEMPAT, MACAM_TEMPAT, METODE_TANGKAP, TIPE_DB, bacaZona, type Tipe, type Zona,
 } from './config';
@@ -22,7 +22,7 @@ export function filterDariQuery(sp: URLSearchParams): FilterAnopheles | null {
   const zona = sp.get('zona');
   if (dari && TGL.test(dari)) f.dari = dari;
   if (sampai && TGL.test(sampai)) f.sampai = sampai;
-  if (wilayah && KODE_WILAYAH.includes(wilayah)) f.wilayah = wilayah;
+  if (wilayah && wk.isKode(wilayah)) f.wilayah = wilayah;
   if (zona && bacaZona(zona)) f.zona = bacaZona(zona)!;
   return f;
 }

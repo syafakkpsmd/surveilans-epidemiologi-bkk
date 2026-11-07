@@ -1,7 +1,7 @@
 'use client';
 // components/vektor/anopheles/AnophelesClient.tsx
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NAMA_WILAYAH, OPSI_WILAYAH } from '@/lib/vektor/umum';
+
 import { ZONA, type Tipe } from '@/lib/vektor/anopheles/config';
 import Dialog from '@/components/vektor/diare/Dialog';
 import { fmtAngka, fmtTgl, gayaInput, gayaTombol, gayaTombolPutih } from '@/components/vektor/diare/umum';
@@ -99,7 +99,7 @@ export default function AnophelesClient() {
 
   async function hapus(b: BarisAnopheles) {
     const ok = window.confirm(
-      `Hapus survei ${NAMA[tampilan]} ${fmtTgl(b.tgl_survei)} di ${NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker}?`
+      `Hapus survei ${NAMA[tampilan]} ${fmtTgl(b.tgl_survei)} di ${wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}?`
     );
     if (!ok) return;
     const res = await fetch(`/api/vektor/anopheles?id=${b.id}&tipe=${tampilan}`, { method: 'DELETE' });
@@ -152,7 +152,7 @@ export default function AnophelesClient() {
           <span className="mb-1 block">Wilayah kerja</span>
           <select className={gayaInput} value={filter.wilayah} onChange={(e) => setFilter({ ...filter, wilayah: e.target.value })}>
             <option value="">Semua</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         <label className="text-xs text-slate-700">
@@ -205,7 +205,7 @@ export default function AnophelesClient() {
             {rows.map((b) => (
               <tr key={b.id} className="align-top">
                 <td className="whitespace-nowrap px-3 py-2">{fmtTgl(b.tgl_survei)}</td>
-                <td className="px-3 py-2">{NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker}</td>
+                <td className="px-3 py-2">{wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}</td>
                 <td className="px-3 py-2"><Zona b={b} /></td>
                 {tampilan === 'larva' ? (
                   <>

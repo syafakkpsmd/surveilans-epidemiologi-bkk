@@ -1,7 +1,7 @@
 'use client';
 // components/media-tanah/TanahRiwayat.tsx
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { OPSI_WILAYAH, NAMA_WILAYAH, KESIMPULAN, LABEL_KESIMPULAN } from '@/lib/media-tanah/config';
+import { KESIMPULAN, LABEL_KESIMPULAN } from '@/lib/media-tanah/config';
 
 type Baris = {
   id: number; tanggal_periksa: string; wilayah: string; nama_pelabuhan: string; area_lokasi: string;
@@ -127,7 +127,7 @@ export default function TanahRiwayat() {
         <label className="text-sm"><span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select className={input} value={saring.wilayah} onChange={(e) => set('wilayah', e.target.value)}>
             <option value="">Semua wilayah</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select></label>
         <label className="text-sm"><span className="mb-1 block text-slate-700">Kesimpulan</span>
           <select className={input} value={saring.kesimpulan} onChange={(e) => set('kesimpulan', e.target.value)}>
@@ -165,7 +165,7 @@ export default function TanahRiwayat() {
                   <tr className="border-b border-slate-100">
                     <td className="whitespace-nowrap px-3 py-2">{tglIndo(b.tanggal_periksa)}</td>
                     <td className="px-3 py-2">{b.nama_pelabuhan}{b.area_lokasi && <span className="text-slate-600"> / {b.area_lokasi}</span>}</td>
-                    <td className="px-3 py-2">{NAMA_WILAYAH[b.wilayah] ?? b.wilayah}</td>
+                    <td className="px-3 py-2">{wk.namaPanjangByKode[b.wilayah] ?? b.wilayah}</td>
                     <td className="px-3 py-2">
                       <span className={`rounded px-2 py-0.5 text-xs ${WARNA_KES[b.kesimpulan] ?? ''}`}>
                         {SINGKAT_KES[b.kesimpulan] ?? LABEL_KESIMPULAN[b.kesimpulan]}

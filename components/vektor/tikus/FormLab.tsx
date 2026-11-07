@@ -1,7 +1,7 @@
 'use client';
 // components/vektor/tikus/FormLab.tsx
 import { useMemo, useRef, useState } from 'react';
-import { OPSI_WILAYAH } from '@/lib/vektor/umum';
+
 import { PEMERIKSAAN, SPESIES } from '@/lib/vektor/tikus/config';
 import { gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal } from '@/components/vektor/diare/umum';
 import type { BarisLab } from './tipe';
@@ -89,7 +89,7 @@ export default function FormLab({
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select required className={gayaInput} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
       </div>

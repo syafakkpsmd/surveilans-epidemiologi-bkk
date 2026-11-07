@@ -1,7 +1,8 @@
 'use client';
 // components/vektor/dbd/DbdClient.tsx
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { NAMA_WILAYAH, OPSI_WILAYAH } from '@/lib/vektor/umum';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { buatKamus, type Wilayah } from '@/lib/wilayah-kerja';
+
 import { AMBANG_ABJ, LITER_KE_DB, ZONA } from '@/lib/vektor/dbd/config';
 import Dialog from '@/components/vektor/diare/Dialog';
 import { fmtAngka, fmtTgl, gayaInput, gayaTombol, gayaTombolPutih } from '@/components/vektor/diare/umum';
@@ -23,7 +24,13 @@ const aksiKecil =
 const tampil = (v: number | null | undefined) => (v == null ? '-' : fmtAngka(v));
 const liter = (v: number) => fmtAngka(Math.round((v / LITER_KE_DB) * 10000) / 10000);
 
-export default function DbdClient() {
+interface DbdClientProps {
+  wilayah: Wilayah[];
+}
+
+export default function DbdClient({ wilayah }: DbdClientProps) {
+  const wk = useMemo(() => buatKamus(wilayah), [wilayah]);
+
   const [filter, setFilter] = useState(FILTER_AWAL);
   const [rows, setRows] = useState<BarisDbd[]>([]);
   const [memuat, setMemuat] = useState(false);
@@ -73,7 +80,7 @@ export default function DbdClient() {
 
   async function hapus(b: BarisDbd) {
     const ok = window.confirm(
-      `Hapus survei ${fmtTgl(b.tgl_survei)} di ${NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker} (${b.zona})? ` +
+      `Hapus survei ${fmtTgl(b.tgl_survei)} di ${wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker} (${b.zona})? ` +
         (b.ada_pengendalian ? 'Pengendaliannya ikut terhapus.' : '')
     );
     if (!ok) return;
@@ -113,7 +120,7 @@ export default function DbdClient() {
           <span className="mb-1 block">Wilayah kerja</span>
           <select className={gayaInput} value={filter.wilayah} onChange={(e) => setFilter({ ...filter, wilayah: e.target.value })}>
             <option value="">Semua</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         <label className="text-xs text-slate-700">
@@ -159,7 +166,7 @@ export default function DbdClient() {
               return (
                 <tr key={b.id} className="align-top">
                   <td className="whitespace-nowrap px-3 py-2">{fmtTgl(b.tgl_survei)}</td>
-                  <td className="px-3 py-2">{NAMA_WILAYAH[b.kode_wilker] ?? b.kode_wilker}</td>
+                  <td className="px-3 py-2">{wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}</td>
                   <td className="px-3 py-2">
                     {b.zona}
                     {b.sub_lokasi && <span className="block text-xs text-slate-600">{b.sub_lokasi}</span>}
@@ -217,12 +224,12 @@ export default function DbdClient() {
       </div>
 
       <Dialog buka={!!dSurvei} judul={dSurvei?.baris ? 'Ubah survei DBD' : 'Tambah survei DBD'} onTutup={() => setDialog(null)}>
-        {dSurvei && <FormSurveiDbd baris={dSurvei.baris} onSelesai={selesai} onBatal={() => setDialog(null)} />}
+        {dSurvei && <FormSurveiDbd baris={dSurvei.baris} wk={wk} onSelesai={selesai} onBatal={() => setDialog(null)} />}
       </Dialog>
 
       <Dialog buka={!!dKendali} judul="Pengendalian DBD" onTutup={() => setDialog(null)}>
         {dKendali && (
-          <FormPengendalianDbd baris={dKendali.baris} wilayahAwal={filter.wilayah} onSelesai={selesai}
+          <FormPengendalianDbd baris={dKendali.baris} wilayahAwal={filter.wilayah} wk={wk} onSelesai={selesai}
             onBatal={() => setDialog(null)} />
         )}
       </Dialog>

@@ -1,9 +1,7 @@
 'use client';
 // components/vektor/diare/FormSurvei.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AMBANG_MS, LABEL_JENIS, NAMA_WILAYAH, OPSI_WILAYAH, STATUS_TMS, hitungStatus, parseAngka, type Jenis,
-} from '@/lib/vektor/diare/config';
+import { AMBANG_MS, LABEL_JENIS, STATUS_TMS, hitungStatus, parseAngka, type Jenis } from '@/lib/vektor/diare/config';
 import { gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput, type Baris } from './umum';
 import PengaturLokasi, { type AksiLokasi, type LokasiItem } from './PengaturLokasi';
 
@@ -111,7 +109,7 @@ export default function FormSurvei({
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select required className={gayaInput} value={wilayah} onChange={(e) => gantiWilayah(e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
       </div>
@@ -149,7 +147,7 @@ export default function FormSurvei({
           {opsiLokasi.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
         {atur && wilayah && (
-          <PengaturLokasi jenis={jenis} wilayah={wilayah} wilayahNama={NAMA_WILAYAH[wilayah] ?? wilayah}
+          <PengaturLokasi jenis={jenis} wilayah={wilayah} wilayahNama={wk.namaPanjangByKode[wilayah] ?? wilayah}
             daftar={daftarLokasi} onBerubah={lokasiBerubah} />
         )}
       </div>

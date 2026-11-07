@@ -2,7 +2,7 @@
 // HANYA untuk server (route handler / server component).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
-import { KODE_WILAYAH, STATUS_MS, STATUS_TMS, type Jenis } from './config';
+import { STATUS_MS, STATUS_TMS, type Jenis } from './config';
 import type { DataSurvei, DataTindakan, KunciSurvei } from './validasi';
 
 export type FilterDiare = {
@@ -26,7 +26,7 @@ export function filterDariQuery(sp: URLSearchParams): FilterDiare | null {
   const hasil = sp.get('hasil');
   if (dari && TGL.test(dari)) f.dari = dari;
   if (sampai && TGL.test(sampai)) f.sampai = sampai;
-  if (wilayah && KODE_WILAYAH.includes(wilayah)) f.wilayah = wilayah;
+  if (wilayah && wk.isKode(wilayah)) f.wilayah = wilayah;
   if (hasil === 'ms' || hasil === 'tms') f.hasil = hasil;
   if (sp.get('tanpa_tindakan') === '1') f.tanpaTindakan = true;
   return f;

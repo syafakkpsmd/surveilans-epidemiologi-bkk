@@ -3,7 +3,7 @@
 // placeholder `?` otomatis menjadi $1, $2, ...; DATE kembali 'YYYY-MM-DD'; numeric/bigint menjadi number.
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
-import { ITEM_B, ITEM_D, ITEM_E, KODE_WILAYAH, KESIMPULAN, LABEL_ITEM } from './config';
+import { ITEM_B, ITEM_D, ITEM_E, KESIMPULAN, LABEL_ITEM } from './config';
 import type { Pemeriksaan } from './validasi';
 
 export type FilterTanah = { dari?: string; sampai?: string; wilayah?: string; kesimpulan?: string; q?: string };
@@ -19,7 +19,7 @@ export function filterDariQuery(sp: URLSearchParams): FilterTanah {
   const q = (sp.get('q') ?? '').trim();
   if (dari && TGL.test(dari)) f.dari = dari;
   if (sampai && TGL.test(sampai)) f.sampai = sampai;
-  if (wilayah && KODE_WILAYAH.includes(wilayah)) f.wilayah = wilayah;
+  if (wilayah && wk.isKode(wilayah)) f.wilayah = wilayah;
   if (kes && KESIMPULAN.some((k) => k.nilai === kes)) f.kesimpulan = kes;
   if (q) f.q = q.slice(0, 80);
   return f;

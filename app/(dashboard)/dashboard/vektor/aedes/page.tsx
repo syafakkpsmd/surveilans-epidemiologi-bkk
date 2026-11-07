@@ -250,7 +250,7 @@ export default async function VektorAedesPage({
       {butuhMingguan ? <FilterRentangMinggu /> : <FilterRentangBulan />}
     </div>
   </div>
-      {bolehInput && <TombolInputDbd wilayahAwal={wilker ?? ''} />}
+      {bolehInput && <TombolInputDbd wilayahAwal={wilker ?? ''} wilayah={daftarWilker} />}
 
       {dataKosong ? (
         <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">

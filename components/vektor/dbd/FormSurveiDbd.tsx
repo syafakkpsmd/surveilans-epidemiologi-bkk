@@ -1,7 +1,8 @@
 'use client';
 // components/vektor/dbd/FormSurveiDbd.tsx
 import { useEffect, useRef, useState } from 'react';
-import { OPSI_WILAYAH, parseAngka } from '@/lib/vektor/umum';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
+import { parseAngka } from '@/lib/vektor/umum';
 import { AMBANG_ABJ, ZONA, hitungIndeks, type Zona } from '@/lib/vektor/dbd/config';
 import { fmtAngka, gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput } from '@/components/vektor/diare/umum';
 import type { BarisDbd } from './tipe';
@@ -22,10 +23,11 @@ const bulat = (s: string) => {
 };
 
 export default function FormSurveiDbd({
-  baris, wilayahAwal = '', onSelesai, onBatal,
+  baris, wilayahAwal = '', wk, onSelesai, onBatal,
 }: {
   baris: BarisDbd | null; // null = tambah baru
   wilayahAwal?: string;
+  wk: KamusWilker;
   onSelesai: (pesan: string) => void;
   onBatal: () => void;
 }) {
@@ -105,7 +107,7 @@ export default function FormSurveiDbd({
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select required className={gayaInput} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         <label className="block text-sm">

@@ -1,7 +1,7 @@
 // app/api/vektor/diare/lokasi/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { requireVektor } from '@/lib/vektor/auth';
-import { JENIS, KODE_WILAYAH, type Jenis } from '@/lib/vektor/diare/config';
+import { JENIS, type Jenis } from '@/lib/vektor/diare/config';
 import { bersihNama, daftarLokasi, hapusLokasi, tambahLokasi, ubahLokasi } from '@/lib/vektor/diare/lokasi';
 
 export const runtime = 'nodejs';
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 const tolak = () => NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 });
 const salah = (error: string, status = 400) => NextResponse.json({ error }, { status });
 const jenisValid = (v: unknown): v is Jenis => JENIS.includes(v as Jenis);
-const wilayahValid = (v: unknown): v is string => typeof v === 'string' && KODE_WILAYAH.includes(v);
+const wilayahValid = (v: unknown): v is string => typeof v === 'string' && wk.isKode(v);
 const namaValid = (n: string) => n.length >= 1 && n.length <= 120;
 
 // /api/vektor/diare/lokasi?jenis=lalat&wilayah=WK01

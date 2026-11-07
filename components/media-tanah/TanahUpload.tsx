@@ -1,7 +1,7 @@
 'use client';
 // components/media-tanah/TanahUpload.tsx
 import { useState } from 'react';
-import { OPSI_WILAYAH } from '@/lib/media-tanah/config';
+
 
 type Hasil = {
   total: number; masuk: number; duplikat: number; gagal: number;
@@ -56,7 +56,7 @@ export default function TanahUpload() {
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select required className={input} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireVektor } from '@/lib/vektor/auth';
 import { validasiSurvei } from '@/lib/vektor/dbd/validasi';
 import { daftarSurvei, filterDariQuery, hapusSurvei, simpanSurvei, ubahSurvei } from '@/lib/vektor/dbd/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return salah('Data tidak terbaca');
 
-  const h = validasiSurvei(body);
+  const wk = await getKamusWilker();
+  const h = validasiSurvei(body, { wk });
   if (!h.ok) return salah(h.error);
 
   const r = await simpanSurvei([h.data]);
@@ -38,7 +40,8 @@ export async function PATCH(req: NextRequest) {
   const id = Number(body?.id);
   if (!body || !Number.isInteger(id)) return salah('Data tidak lengkap');
 
-  const h = validasiSurvei(body);
+  const wk = await getKamusWilker();
+  const h = validasiSurvei(body, { wk });
   if (!h.ok) return salah(h.error);
 
   const r = await ubahSurvei(id, h.data);

@@ -1,8 +1,9 @@
 'use client';
 // components/vektor/dbd/TombolInputDbd.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { buatKamus, type Wilayah } from '@/lib/wilayah-kerja';
 import Dialog from '@/components/vektor/diare/Dialog';
 import { gayaTombol, gayaTombolPutih } from '@/components/vektor/diare/umum';
 import FormSurveiDbd from './FormSurveiDbd';
@@ -11,7 +12,13 @@ import UnggahDbd from './UnggahDbd';
 
 type Dialogan = null | 'survei' | 'pengendalian' | 'unggah';
 
-export default function TombolInputDbd({ wilayahAwal }: { wilayahAwal: string }) {
+interface TombolInputDbdProps {
+  wilayahAwal: string;
+  wilayah: Wilayah[];
+}
+
+export default function TombolInputDbd({ wilayahAwal, wilayah }: TombolInputDbdProps) {
+  const wk = useMemo(() => buatKamus(wilayah), [wilayah]);
   const router = useRouter();
   const [dialog, setDialog] = useState<Dialogan>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -35,7 +42,6 @@ export default function TombolInputDbd({ wilayahAwal }: { wilayahAwal: string })
       <button onClick={() => buka('pengendalian')} className={gayaTombol}>Tambah Pengendalian</button>
       <button onClick={() => buka('unggah')} className={gayaTombolPutih}>Unggah Excel</button>
       
-      {/* ml-auto dihapus agar tidak saling bentrok dengan justify-end */}
       <Link
         href="/dashboard/data/vektor/dbd"
         className="rounded text-sm text-teal-800 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ml-2"
@@ -47,13 +53,13 @@ export default function TombolInputDbd({ wilayahAwal }: { wilayahAwal: string })
 
       <Dialog buka={dialog === 'survei'} judul="Tambah survei DBD" onTutup={tutup}>
         {dialog === 'survei' && (
-          <FormSurveiDbd baris={null} wilayahAwal={wilayahAwal} onSelesai={selesai} onBatal={tutup} />
+          <FormSurveiDbd baris={null} wilayahAwal={wilayahAwal} wk={wk} onSelesai={selesai} onBatal={tutup} />
         )}
       </Dialog>
 
       <Dialog buka={dialog === 'pengendalian'} judul="Pengendalian DBD" onTutup={tutup}>
         {dialog === 'pengendalian' && (
-          <FormPengendalianDbd baris={null} wilayahAwal={wilayahAwal} onSelesai={selesai} onBatal={tutup} />
+          <FormPengendalianDbd baris={null} wilayahAwal={wilayahAwal} wk={wk} onSelesai={selesai} onBatal={tutup} />
         )}
       </Dialog>
 

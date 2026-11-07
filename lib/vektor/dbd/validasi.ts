@@ -1,13 +1,24 @@
 // lib/vektor/dbd/validasi.ts
 import { parseTanggal, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
-import { parseAngka, petakanWilayah } from '@/lib/vektor/umum';
+import type { KamusWilker } from '@/lib/wilayah-kerja';
+import { parseAngka } from '@/lib/vektor/umum';
 import { bacaZona, hitungIndeks, LITER_KE_DB, type Zona } from './config';
 
 type Baris = Record<string, unknown>;
 type Hasil<T> = { ok: true; data: T; ambigu?: boolean } | { ok: false; error: string };
-export interface OpsiBaca { urutanAmbigu?: UrutanTanggal }
 
-export interface KunciSurvei { tgl_survei: string; kode_wilker: string; zona: Zona; sub_lokasi: string | null }
+export interface OpsiBaca {
+  wk: KamusWilker;
+  urutanAmbigu?: UrutanTanggal;
+}
+
+export interface KunciSurvei {
+  tgl_survei: string;
+  kode_wilker: string;
+  zona: Zona;
+  sub_lokasi: string | null;
+}
+
 export interface DataSurvei extends KunciSurvei {
   sub_lokasi: string;
   jml_rumah_diperiksa: number;
@@ -20,14 +31,14 @@ export interface DataSurvei extends KunciSurvei {
   ci: number;
   bi: number;
 }
+
 export interface DataPengendalian {
   larvasida_gram: number | null;
   luas_wilayah_fogging_ha: number | null;
   jml_insektisida_fogging_ml: number | null;
 }
 
-// Judul kolom Excel (huruf kecil tanpa spasi/tanda baca) -> nama baku. Nama baku form juga dikenali apa adanya.
-// Kolom ABJ, HI, CI, BI, dan Minggu_Ke sengaja tidak dipetakan (dihitung ulang / tidak dipakai).
+// Judul kolom Excel (huruf kecil tanpa spasi/tanda baca) -> nama baku.
 const HEADER: Record<string, string> = {
   tglsurvei: 'tanggal', tanggalsurvei: 'tanggal', tanggal: 'tanggal', tglkegiatan: 'tanggal', tanggalkegiatan: 'tanggal',
   kodewilker: 'wilayah', namawilker: 'wilayah', wilayahkerja: 'wilayah', wilayah: 'wilayah', wilker: 'wilayah',
@@ -71,32 +82,32 @@ function desimal(v: unknown, nama: string, maks: number): { nilai: number | null
   return { nilai: n };
 }
 
-/** Kosong bila tidak ada, atau bila hanya mengulang nama zona (kebiasaan di sheet); di database dicatat NULL. */
 function bacaSubLokasi(v: unknown): string | null {
   const s = String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
   if (!s || /^(buffer|perimeter)$/i.test(s)) return null;
   return s;
 }
+
 /** Tanggal + wilayah + zona (kunci pencocokan survei). */
 export function bacaKunci(b: Baris, o: OpsiBaca): Hasil<KunciSurvei> {
   const t = parseTanggal(b.tanggal, { urutanAmbigu: o.urutanAmbigu });
   if (!t.iso) return { ok: false, error: `Tanggal survei: ${t.pesan ?? 'tidak terbaca'}` };
   if (t.masaDepan) return { ok: false, error: `Tanggal ${t.iso} ada di masa depan` };
 
-  const kode = petakanWilayah(String(b.wilayah ?? ''));
+  const kode = o.wk.kodeDariTeks(String(b.wilayah ?? ''));
   if (!kode) return { ok: false, error: `Wilayah kerja "${b.wilayah ?? ''}" tidak dikenali` };
 
   const zona = bacaZona(b.zona);
   if (!zona) return { ok: false, error: `Zona "${b.zona ?? ''}" tidak dikenali (Buffer atau Perimeter)` };
 
-    return {
+  return {
     ok: true,
     ambigu: t.ambigu,
     data: { tgl_survei: t.iso, kode_wilker: kode, zona, sub_lokasi: bacaSubLokasi(b.sub_lokasi) },
   };
 }
 
-export function validasiSurvei(b0: Baris, o: OpsiBaca = {}): Hasil<DataSurvei> {
+export function validasiSurvei(b0: Baris, o: OpsiBaca): Hasil<DataSurvei> {
   const b = kanonik(b0);
   const k = bacaKunci(b, o);
   if (!k.ok) return k;
@@ -170,7 +181,8 @@ export function validasiPengendalian(b0: Baris): Hasil<DataPengendalian> {
 
 /** Templat pengendalian: kunci survei (tanggal, wilayah, zona) + isian pengendalian. */
 export function validasiPengendalianBerKunci(
-  b0: Baris, o: OpsiBaca = {}
+  b0: Baris,
+  o: OpsiBaca
 ): Hasil<{ kunci: KunciSurvei; pengendalian: DataPengendalian }> {
   const b = kanonik(b0);
   const k = bacaKunci(b, o);
@@ -182,7 +194,8 @@ export function validasiPengendalianBerKunci(
 
 /** Layout sheet (satu baris = survei + pengendalian bila ada). */
 export function validasiGabungan(
-  b0: Baris, o: OpsiBaca = {}
+  b0: Baris,
+  o: OpsiBaca
 ): Hasil<{ survei: DataSurvei; pengendalian: DataPengendalian | null }> {
   const b = kanonik(b0);
   const s = validasiSurvei(b, o);

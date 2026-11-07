@@ -1,7 +1,7 @@
 // app/api/vektor/anopheles/lokasi/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { requireVektor } from '@/lib/vektor/auth';
-import { KODE_WILAYAH } from '@/lib/vektor/umum';
+
 import { bacaZona } from '@/lib/vektor/anopheles/config';
 import { bersihNama, daftarLokasi, hapusLokasi, tambahLokasi, ubahLokasi } from '@/lib/vektor/anopheles/lokasi';
 
@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 
 const tolak = () => NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 });
 const salah = (error: string, status = 400) => NextResponse.json({ error }, { status });
-const wilayahValid = (v: unknown): v is string => typeof v === 'string' && KODE_WILAYAH.includes(v);
+const wilayahValid = (v: unknown): v is string => typeof v === 'string' && wk.isKode(v);
 const namaValid = (n: string) => n.length >= 1 && n.length <= 120;
 
 // /api/vektor/anopheles/lokasi?wilayah=WK03&zona=Buffer

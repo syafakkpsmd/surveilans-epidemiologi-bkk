@@ -50,7 +50,7 @@ function PilihanManual({ kolom, nilai, opsi, onUbah, disabled }: {
 }) {
   const daftar = nilai && !opsi.some((o) => o.toLowerCase() === nilai.toLowerCase()) ? [...opsi, nilai] : opsi;
   return (
-    <select className={`${kls.input} max-w-[11rem]`} disabled={disabled} value={nilai}
+    <select className={`${kls.input} max-w-44`} disabled={disabled} value={nilai}
       onChange={(e) => {
         const v = e.target.value;
         if (v === LAINNYA) {

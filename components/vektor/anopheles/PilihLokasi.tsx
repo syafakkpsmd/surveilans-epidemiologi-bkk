@@ -1,7 +1,7 @@
 'use client';
 // components/vektor/anopheles/PilihLokasi.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NAMA_WILAYAH } from '@/lib/vektor/umum';
+
 import type { Zona } from '@/lib/vektor/anopheles/config';
 import { gayaInput } from '@/components/vektor/diare/umum';
 import PengaturLokasiZona, { type AksiLokasi, type LokasiItem } from './PengaturLokasiZona';
@@ -84,7 +84,7 @@ export default function PilihLokasi({
         {opsi.map((n) => <option key={n} value={n}>{n}</option>)}
       </select>
       {atur && siap && (
-        <PengaturLokasiZona key={`${wilayah}-${zona}`} wilayah={wilayah} wilayahNama={NAMA_WILAYAH[wilayah] ?? wilayah}
+        <PengaturLokasiZona key={`${wilayah}-${zona}`} wilayah={wilayah} wilayahNama={wk.namaPanjangByKode[wilayah] ?? wilayah}
           zona={zona as Zona} daftar={daftar} onBerubah={berubah} />
       )}
     </div>

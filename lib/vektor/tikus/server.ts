@@ -2,7 +2,7 @@
 // HANYA untuk server (route handler / server component).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
-import { KODE_WILAYAH } from '@/lib/vektor/umum';
+
 import { AREA_SURVEI, JENIS_TRAP, SPESIES, type KodeSpesies } from './config';
 import type { DataLab, DataSurveiTikus } from './validasi';
 
@@ -27,7 +27,7 @@ export function filterDariQuery(sp: URLSearchParams): FilterTikus {
   const spesies = sp.get('spesies');
   if (dari && TGL.test(dari)) f.dari = dari;
   if (sampai && TGL.test(sampai)) f.sampai = sampai;
-  if (wilayah && KODE_WILAYAH.includes(wilayah)) f.wilayah = wilayah;
+  if (wilayah && wk.isKode(wilayah)) f.wilayah = wilayah;
   if (spesies && KODE_SPESIES.includes(spesies)) f.spesies = spesies as KodeSpesies;
   if (sp.get('positif') === '1') f.adaPositif = true;
   return f;

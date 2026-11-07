@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { OPSI_WILAYAH } from '@/lib/media-tanah/config';
+
 
 type Item = { label: string; n: number };
 type Seri = { periode: string; n: number };
@@ -167,7 +167,7 @@ export default function TanahDashboard() {
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select className={input} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
             <option value="">Semua wilayah</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         {memuat && <p className="pb-2 text-sm text-slate-500" role="status">Memuat...</p>}

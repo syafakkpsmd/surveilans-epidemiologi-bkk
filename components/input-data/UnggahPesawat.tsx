@@ -19,7 +19,7 @@ const LABEL_STATUS = {
   galat: { teks: 'Galat', kelas: 'bg-red-100 text-red-800' },
 } as const;
 
-export default function UnggahPesawat() {
+export default function UnggahPesawat({ kodeBandara }: { kodeBandara?: string }) {
   const [berkas, setBerkas] = useState<File | null>(null);
   const [memeriksa, setMemeriksa] = useState(false);
   const [menyimpan, setMenyimpan] = useState(false);
@@ -35,6 +35,7 @@ export default function UnggahPesawat() {
     try {
       const f = new FormData();
       f.set('file', berkas);
+      if (kodeBandara) f.set('wilker', kodeBandara);
       const res = await fetch('/api/input-data/pesawat/periksa', { method: 'POST', body: f });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) setPesan({ sukses: false, teks: json.error ?? 'Gagal memeriksa file.' });
@@ -52,7 +53,7 @@ export default function UnggahPesawat() {
     setPesan(null);
     // Kirim hanya baris yang siap; server tetap memvalidasi ulang dan mengecek duplikat.
     const kirim = pratinjau.baris.filter((b) => b.status === 'siap').map((b) => b.data);
-    const res = await simpanUnggahPesawat(kirim);
+    const res = await simpanUnggahPesawat(kirim, kodeBandara);
     setMenyimpan(false);
     if (res.sukses) {
       setPesan({ sukses: true, teks: res.pesan });

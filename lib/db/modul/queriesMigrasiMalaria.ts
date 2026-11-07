@@ -1,4 +1,4 @@
-import { NAMA_PENDEK_BY_KODE } from '@/lib/wilayah-kerja';
+import { muatDaftarWilayahSingkat } from '@/lib/wilayah-kerja/db';
 import type { DbValue as InValue } from '@/lib/db/client';
 import { getRentangMingguEpid } from '@/lib/db/queries/queriesVektorBreakdown';
 import { getDbClient } from '@/lib/db/client';
@@ -168,15 +168,13 @@ function urutkanBreakdown(kolom: KolomKategoriMigrasi, data: BreakdownItem[]): B
  * tidak lengkap, mis. "Sangkulirang" bukan "Pelabuhan Sangkulirang"). Jadi
  * pencocokan pakai kata kunci nama tempat yang khas + LIKE, bukan '=' persis.
  */
-const KODE_KE_KATA_KUNCI_WILKER: Record<string, string> = NAMA_PENDEK_BY_KODE;
-
-function buildFilterWilker(kodeWilker?: string): { klausa: string; args: InValue[] } {
+async function buildFilterWilker(kodeWilker?: string): Promise<{ klausa: string; args: InValue[] }> {
   if (!kodeWilker || kodeWilker === 'Semua') {
     return { klausa: '', args: [] };
   }
-  const kataKunci = KODE_KE_KATA_KUNCI_WILKER[kodeWilker];
+  const kataKunci = (await muatDaftarWilayahSingkat()).find((w) => w.kode === kodeWilker)?.namaPendek;
   if (!kataKunci) {
-    // Kode tidak dikenal (bukan salah satu WK01–WK07) — fallback cocokkan persis
+    // Kode tidak dikenal (tidak ada di wilker_ref) — fallback cocokkan persis
     // supaya tidak diam-diam menampilkan semua data kalau kodenya salah/berubah.
     return { klausa: ' AND wilayah_kerja = ?', args: [kodeWilker] };
   }
@@ -213,7 +211,7 @@ export async function getRingkasanUtamaMigrasi({
   kodeWilker,
 }: FilterPeriode): Promise<RingkasanUtamaMalaria> {
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
     sql: `
@@ -261,7 +259,7 @@ export async function getBreakdownKategoriMigrasi({
     throw new Error(`Kolom "${kolom}" tidak diizinkan untuk breakdown.`);
   }
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
     sql: `
@@ -303,7 +301,7 @@ export async function getBreakdownMultiSelectMigrasi({
     throw new Error(`Kolom "${kolom}" tidak diizinkan untuk breakdown multi-pilihan.`);
   }
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
     sql: `
@@ -343,7 +341,7 @@ export async function getRuteMigrasiTeratas({
   limit = 10,
 }: FilterPeriode & { limit?: number }): Promise<RuteMigrasi[]> {
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
     sql: `
@@ -368,7 +366,7 @@ export async function getDistribusiUsiaMigrasi({
   kodeWilker,
 }: FilterPeriode): Promise<BreakdownItem[]> {
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
 
   const hasil = await client.execute({
     sql: `
@@ -429,7 +427,7 @@ export async function getTrenMingguanRdtGender({
   kodeWilker?: string;
 }): Promise<TitikTrenGenderMinggu[]> {
   const client = getDbClient();
-  const { klausa, args: argsWilker } = buildFilterWilker(kodeWilker);
+  const { klausa, args: argsWilker } = await buildFilterWilker(kodeWilker);
 
   const daftarMinggu: number[] = [];
   for (let mg = mgDari; mg <= mgSampai; mg++) daftarMinggu.push(mg);
@@ -480,7 +478,7 @@ export async function getTrenBulananRdtGender({
   kodeWilker?: string;
 }): Promise<TitikTrenGenderBulan[]> {
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
   const bulanDariStr = String(bulanDari).padStart(2, '0');
   const bulanSampaiStr = String(bulanSampai).padStart(2, '0');
 
@@ -532,7 +530,7 @@ export async function getBreakdownKapalPesawat({
   limit?: number;
 }): Promise<BreakdownItem[]> {
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
   const bulanDariStr = String(bulanDari).padStart(2, '0');
   const bulanSampaiStr = String(bulanSampai).padStart(2, '0');
 
@@ -558,7 +556,7 @@ type FiltrePeriode = { tahun: number; bulanDari: number; bulanSampai: number; ko
 /** Jumlah responden per kelompok usia (urutan kelompok diatur di sisi modul). */
 export async function getDonatUsiaMigrasiMalaria({ tahun, bulanDari, bulanSampai, kodeWilker }: FiltrePeriode): Promise<{ label: string; jumlah: number }[]> {
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
   const hasil = await client.execute({
     sql: `
       SELECT
@@ -585,7 +583,7 @@ export async function getDonatUsiaMigrasiMalaria({ tahun, bulanDari, bulanSampai
 /** Jumlah responden per pekerjaan (huruf besar/kecil digabung), terbanyak dulu. */
 export async function getDonatPekerjaanMigrasiMalaria({ tahun, bulanDari, bulanSampai, kodeWilker }: FiltrePeriode): Promise<{ label: string; jumlah: number }[]> {
   const client = getDbClient();
-  const { klausa, args } = buildFilterWilker(kodeWilker);
+  const { klausa, args } = await buildFilterWilker(kodeWilker);
   const hasil = await client.execute({
     sql: `
       SELECT

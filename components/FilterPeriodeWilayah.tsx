@@ -4,15 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import type { Wilayah } from "@/types/database.types";
 
-const DAFTAR_WILAYAH: Wilayah[] = [
-  "Samarinda",
-  "TanjungSantan",
-  "TanjungLaut",
-  "Lhoktuan",
-  "Sangatta",
-  "Sangkulirang",
-];
-
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
@@ -23,6 +14,8 @@ const DAFTAR_MINGGU = Array.from({ length: 53 }, (_, i) => i + 1);
 interface FilterPeriodeWilayahProps {
   mode: "mingguan" | "bulanan";
   wilayah: Wilayah | "Semua";
+  /** Pilihan wilayah (kunci tanpa spasi), dari daftar wilayah kerja aktif. */
+  daftarWilayah: readonly string[];
 
   /**
    * Filter rentang minggu/bulan -- OPSIONAL. Kalau tidak diisi (mis.
@@ -53,6 +46,7 @@ interface FilterPeriodeWilayahProps {
 export function FilterPeriodeWilayah({
   mode,
   wilayah,
+  daftarWilayah,
   tampilkanRentang = false,
   mingguAwal,
   mingguAkhir,
@@ -154,7 +148,7 @@ export function FilterPeriodeWilayah({
         className="rounded-control border border-border bg-surface px-3 py-1.5 text-sm text-ink"
       >
         <option value="Semua">Semua Wilayah</option>
-        {DAFTAR_WILAYAH.map((w) => (
+        {daftarWilayah.map((w) => (
           <option key={w} value={w}>
             {w}
           </option>

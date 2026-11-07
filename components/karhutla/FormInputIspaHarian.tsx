@@ -3,7 +3,6 @@
 
 import { useState } from 'react';
 import { simpanIspaHarian } from '@/lib/db/queries/queries-karhutla-client';
-import { NAMA_WILKER } from '@/lib/karhutla/constants';
 import type { WilayahIspaRow } from '@/lib/db/queries/queries-karhutla-server';
 
 export default function FormInputIspaHarian({
@@ -21,7 +20,7 @@ export default function FormInputIspaHarian({
   const [pesanSukses, setPesanSukses] = useState<string | null>(null);
 
   const wilayahTerkelompok = daftarWilayah.reduce<Record<string, WilayahIspaRow[]>>((acc, w) => {
-    const namaInduk = NAMA_WILKER[w.kode_wilker] ?? w.kode_wilker;
+    const namaInduk = w.induk;
     (acc[namaInduk] ??= []).push(w);
     return acc;
   }, {});

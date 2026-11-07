@@ -8,18 +8,28 @@ const norm = (v: unknown) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g,
  * baris pertama yang memuat semuanya dianggap akhir blok judul. Tanpa penanda, baris 1 = judul.
  * Nomor baris (`n`) sesuai nomor baris di Excel.
  */
-export function bacaTabel(buf: Buffer, penanda: string[] = []) {
+export function bacaTabel(buf: Buffer, penanda: string[] = [], kenali?: (judul: string) => boolean) {
   const wb = XLSX.read(buf, { type: 'buffer' });
   const ws = wb.Sheets[wb.SheetNames[0]];
   const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: '' });
 
-  let akhir = 0;
+    let akhir = 0;
   if (penanda.length) {
     for (let i = 0; i < Math.min(aoa.length, 8); i++) {
       const sel = aoa[i].map(norm);
       if (penanda.every((p) => sel.includes(p))) {
         akhir = i;
         break;
+      }
+    }
+  } else if (kenali) {
+    // baris judul = baris (dari 8 baris pertama) yang paling banyak memuat judul dikenali (minimal 3)
+    let terbanyak = 2;
+    for (let i = 0; i < Math.min(aoa.length, 8); i++) {
+      const jumlah = aoa[i].filter((v) => kenali(String(v ?? ''))).length;
+      if (jumlah > terbanyak) {
+        terbanyak = jumlah;
+        akhir = i;
       }
     }
   }

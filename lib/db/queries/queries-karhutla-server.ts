@@ -8,11 +8,13 @@ import {
 import { createDbClient } from '@/lib/db/server';
 import { hitungMingguEpidemiologi } from '@/lib/epi-week';
 import { getDaftarWilayahKerjaSkdr } from '@/lib/db/queries/umum';
-import { NAMA_WILKER, hitungStatusEvaluasi, type StatusEvaluasi } from '@/lib/karhutla/constants';
+import { hitungStatusEvaluasi, type StatusEvaluasi } from '@/lib/karhutla/constants';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
+import { buatKamus } from '@/lib/wilayah-kerja';
+import { opsiWilkerPeta, type WilkerPeta } from '@/lib/wilayah-kerja/peta';
 import {
   petakanLokasiUdaraKeWilker,
   cariWilkerTerdekatDariTitik,
-  DAFTAR_KODE_WILKER,
   mundurkanTanggal,
 } from '@/lib/karhutla/infografis-utils';
 
@@ -182,6 +184,8 @@ export interface WilayahIspaRow {
   id: string;
   label: string;
   kode_wilker: string;
+  /** Nama pendek wilayah kerja induk (dari wilker_ref), untuk pengelompokan di dropdown. */
+  induk: string;
   zona: string | null;
   urutan: number;
 }
@@ -194,7 +198,8 @@ export async function ambilDaftarWilayahIspa(): Promise<WilayahIspaRow[]> {
     .order('urutan', { ascending: true });
 
   if (error) throw new Error(`Gagal mengambil daftar wilayah ISPA: ${error.message}`);
-  return data ?? [];
+  const kamus = buatKamus(await getDaftarWilker());
+  return (data ?? []).map((r) => ({ ...r, induk: kamus.namaDariKode(r.kode_wilker, 'pendek') ?? r.kode_wilker }));
 }
 
 export interface LokasiUdaraRow {
@@ -762,6 +767,8 @@ export type RingkasanInfografisHarian = {
   statusIspuDominan: string | null;
   perWilker: RingkasanWilker[];
   hotspotPoints: { latitude: number; longitude: number }[];
+  /** Wilayah kerja (pusat koordinat) untuk peta mini; dari wilker_ref. */
+  wilayahPeta: WilkerPeta[];
   tren7Hari: TitikTren7Hari[];
   skdrMingguIni: RingkasanSkdrMingguan;
   skdrMingguLalu: RingkasanSkdrMingguan;
@@ -772,6 +779,9 @@ export async function ambilRingkasanInfografisHarian(
   tanggalDiminta: string
 ): Promise<RingkasanInfografisHarian> {
   const supabase = await createDbClient();
+  const kamusWilker = buatKamus(await getDaftarWilker());
+  const wilayahPeta = opsiWilkerPeta(kamusWilker.semua).filter((w) => w.jenis !== 'Kantor');
+  const daftarKodeWilker = wilayahPeta.map((w) => w.kode).sort();
 
   // --- 1. Tentukan tanggal efektif: fallback ke tanggal terakhir yang ada
   //        data kalau tanggal yang diminta masih kosong (mis. cron belum
@@ -835,10 +845,10 @@ export async function ambilRingkasanInfografisHarian(
 
   // --- 3. Susun breakdown per wilker (7 wilker, selalu lengkap walau 0) ---
   const perWilkerMap = new Map<string, RingkasanWilker>();
-    for (const kode of DAFTAR_KODE_WILKER) {
+    for (const kode of daftarKodeWilker) {
     perWilkerMap.set(kode, {
       kode_wilker: kode,
-      nama: NAMA_WILKER[kode] ?? kode,
+      nama: kamusWilker.namaDariKode(kode, 'pendek') ?? kode,
       kasusIspaAnak: 0,
       kasusIspaDewasa: 0,
       jumlahHotspot: 0,
@@ -986,13 +996,13 @@ export async function ambilRingkasanInfografisHarian(
   }
 
   for (const b of dataHotspot ?? []) {
-    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude);
+    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude, wilayahPeta);
     if (!kode) continue; // titik di luar jangkauan wilker manapun
     const w = perWilkerMap.get(kode);
     if (w) w.jumlahHotspot += 1;
   }
 
-  const perWilker = DAFTAR_KODE_WILKER.map((k) => perWilkerMap.get(k)!);
+  const perWilker = daftarKodeWilker.map((k) => perWilkerMap.get(k)!);
 
     // --- 4. Total & rerata regional (semua lokasi, tanpa breakdown) ---
   const totalIspaAnak = perWilker.reduce((s, w) => s + w.kasusIspaAnak, 0);
@@ -1135,6 +1145,7 @@ const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
     statusIspuDominan,
     perWilker,
     hotspotPoints: (dataHotspot ?? []).map((b) => ({ latitude: b.latitude, longitude: b.longitude })),
+    wilayahPeta,
     tren7Hari,
     skdrMingguIni: { label: `Mg ${mingguEpid}/${tahunEpid}`, totalKasus: totalSkdrIni },
     skdrMingguLalu: { label: `Mg ${mingguLaluEpid}/${tahunMingguLalu}`, totalKasus: totalSkdrLalu },
@@ -1179,7 +1190,10 @@ export async function ambilRingkasanLaporanKarhutla(
   wilayahKeys: string[]
 ): Promise<RingkasanLaporanKarhutla> {
   const supabase = await createDbClient();
-  const filterWilker = wilayahKeys.length > 0 ? wilayahKeys : DAFTAR_KODE_WILKER;
+  const kamusWilker = buatKamus(await getDaftarWilker());
+  const wilayahPeta = opsiWilkerPeta(kamusWilker.semua).filter((w) => w.jenis !== 'Kantor');
+  const daftarKodeWilker = wilayahPeta.map((w) => w.kode).sort();
+  const filterWilker = wilayahKeys.length > 0 ? wilayahKeys : daftarKodeWilker;
 
   // --- 1. Data mentah rentang tanggal (pola sama seperti infografis, tanpa fallback) ---
   const [
@@ -1220,7 +1234,7 @@ export async function ambilRingkasanLaporanKarhutla(
   for (const kode of filterWilker) {
     perWilkerMap.set(kode, {
       kode_wilker: kode,
-      nama: NAMA_WILKER[kode] ?? kode,
+      nama: kamusWilker.namaDariKode(kode, 'pendek') ?? kode,
       kasusIspaAnak: 0,
       kasusIspaDewasa: 0,
       jumlahHotspot: 0,
@@ -1325,7 +1339,7 @@ export async function ambilRingkasanLaporanKarhutla(
   }
 
   for (const b of dataHotspot ?? []) {
-    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude);
+    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude, wilayahPeta);
     if (!kode) continue; // titik di luar jangkauan wilker manapun
     const w = perWilkerMap.get(kode);
     if (w) w.jumlahHotspot += 1;

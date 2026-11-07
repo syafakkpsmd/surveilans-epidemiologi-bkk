@@ -1,6 +1,6 @@
 // lib/klinik/ckg/validasi.ts
 // Dipakai bersama oleh form input dan unggah Excel.
-import { KODE_WILAYAH, hitungIMT } from './config';
+import { hitungIMT } from './config';
 import { parseTanggalCkg, keIsoTanggal } from './tanggalCkg';
 
 export type BarisCkg = {
@@ -32,9 +32,9 @@ const dalam = (v: number | null, min: number, max: number) =>
 
 export function validasiBaris(
   raw: Record<string, any>,
-  o: { wilayah: string }
+  o: { wilayah: string; kodeValid: readonly string[] }
 ): Hasil {
-  if (!KODE_WILAYAH.includes(o.wilayah)) return { ok: false, error: 'Wilayah kerja tidak dikenal' };
+  if (!o.kodeValid.includes(o.wilayah)) return { ok: false, error: 'Wilayah kerja tidak dikenal' };
 
   const nama = String(raw.nama ?? '').trim();
   if (!nama) return { ok: false, error: 'Nama kosong' };

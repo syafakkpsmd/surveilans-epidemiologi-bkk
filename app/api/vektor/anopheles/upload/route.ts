@@ -4,7 +4,7 @@ import { requireVektor } from '@/lib/vektor/auth';
 import { tentukanUrutanKolom } from '@/lib/tanggal/parse-tanggal';
 import { bacaTabel } from '@/lib/vektor/tikus/sheet';
 import {
-  adaDataDewasa, adaDataLarva, kanonik, validasiDewasa, validasiLarva, type DataDewasa, type DataLarva,
+  adaDataDewasa, adaDataLarva, dikenalSebagaiKolom, kanonik, validasiDewasa, validasiLarva, type DataDewasa, type DataLarva,
 } from '@/lib/vektor/anopheles/validasi';
 import { simpanDewasa, simpanLarva } from '@/lib/vektor/anopheles/server';
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   let tabel;
   try {
     // Tanpa cellDates: tanggal Excel datang sebagai angka serial (bebas zona waktu).
-    tabel = bacaTabel(Buffer.from(await file.arrayBuffer()));
+    tabel = bacaTabel(Buffer.from(await file.arrayBuffer()), [], dikenalSebagaiKolom);
   } catch {
     return NextResponse.json({ error: 'File Excel tidak bisa dibaca' }, { status: 400 });
   }

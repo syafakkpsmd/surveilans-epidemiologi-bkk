@@ -9,7 +9,8 @@ import ExcelJS from 'exceljs';
 import { getDbClient, tutupDb } from '../../lib/db/client';
 import {
   KOLOM_PESAWAT,
-  WILKER_BANDARA,
+  getWilkerBandara,
+  pilihKodeBandara,
   barisMentahDariForm,
   hitungIdentitasDiDb,
   kunciIdentitas,
@@ -26,14 +27,15 @@ import { bacaExcelPesawat, buatTemplatePesawat } from '../../lib/db/modul/excelP
 
 const HARI_INI = '2026-10-27';
 const WK = 'WK07';
+const BANDARA_UJI = [{ kode: WK, nama: 'Bandara APT Pranoto' }]; // pada pengujian murni; aplikasi membacanya dari wilker_ref
 
 const sah = (m: Record<string, unknown>): BarisPesawat => {
-  const h = validasiBarisPesawat({ tanggal: '2026-10-26', maskapai: 'Uji Air', ...m }, HARI_INI, WK);
+  const h = validasiBarisPesawat({ tanggal: '2026-10-26', maskapai: 'Uji Air', ...m }, HARI_INI, WK, BANDARA_UJI);
   assert.ok('data' in h, `harus lolos: ${'galat' in h ? h.galat.join(' | ') : ''}`);
   return h.data;
 };
 const galat = (m: Record<string, unknown>, kode = WK): string => {
-  const h = validasiBarisPesawat({ tanggal: '2026-10-26', maskapai: 'Uji Air', kedatangan: 'X', penumpang_datang: 1, ...m }, HARI_INI, kode);
+  const h = validasiBarisPesawat({ tanggal: '2026-10-26', maskapai: 'Uji Air', kedatangan: 'X', penumpang_datang: 1, ...m }, HARI_INI, kode, BANDARA_UJI);
   assert.ok('galat' in h, `harus ditolak: ${JSON.stringify(m)}`);
   return h.galat.join(' | ');
 };
@@ -44,8 +46,8 @@ after(async () => { await getDbClient().execute(BERSIH); await tutupDb(); });
 
 // ------------------------------------------------------------------ murni
 
-test('hanya bandara yang ditawarkan, dan kolom lengkap 18', () => {
-  assert.deepEqual(WILKER_BANDARA.map((w) => w.kode), ['WK07']);
+test('hanya bandara yang ditawarkan, dan kolom lengkap 18', async () => {
+  assert.deepEqual((await getWilkerBandara()).map((w) => w.kode), ['WK07']);
   assert.equal(KOLOM_PESAWAT.length, 18);
   assert.equal(new Set(KOLOM_PESAWAT.map((k) => k.kunci)).size, 18);
 });
@@ -103,14 +105,14 @@ test('validasi: aturan wajib dan batas', () => {
 });
 
 test('validasi: semua galat satu baris dilaporkan sekaligus', () => {
-  const h = validasiBarisPesawat({ tanggal: 'x', maskapai: '', crew_datang: '-1', penumpang_datang: 'abc' }, HARI_INI, WK);
+  const h = validasiBarisPesawat({ tanggal: 'x', maskapai: '', crew_datang: '-1', penumpang_datang: 'abc' }, HARI_INI, WK, BANDARA_UJI);
   assert.ok('galat' in h);
   assert.ok(h.galat.length >= 4, h.galat.join(' | '));
 });
 
 test('validasi ulang hasil validasi memberi hasil yang sama (dasar server tidak mempercayai pratinjau)', () => {
   const a = sah({ keberangkatan: 'Jakarta', crew_berangkat: 6, penumpang_berangkat: 100, kedatangan: 'Balikpapan', sklt_female: 3, tanggal: '27/10/2026' });
-  const b = validasiBarisPesawat(a as unknown as Record<string, unknown>, HARI_INI, WK);
+  const b = validasiBarisPesawat(a as unknown as Record<string, unknown>, HARI_INI, WK, BANDARA_UJI);
   assert.ok('data' in b);
   assert.deepEqual(b.data, a);
 });
@@ -122,7 +124,7 @@ test('barisMentahDariForm membaca semua kolom', () => {
   assert.equal(m.maskapai, 'Uji Air');
   assert.equal(m.crew_datang, '2');
   assert.equal(m.kier_female, undefined);
-  assert.ok('data' in validasiBarisPesawat(m, HARI_INI, WK));
+  assert.ok('data' in validasiBarisPesawat(m, HARI_INI, WK, BANDARA_UJI));
 });
 
 test('kunci identitas: tidak peka huruf besar/spasi, peka angka dan rute', () => {
@@ -185,7 +187,7 @@ test('baca Excel: template kosong ditolak; baris campuran dibaca dengan nomor ba
   assert.deepEqual(baca.baris.map((b) => b.nomor), [2, 3, 5]); // baris kosong dilewati, nomor Excel asli
   assert.deepEqual(baca.peringatan, []);
 
-  const hasil = await periksaBanyak(baca.baris, HARI_INI, WK);
+  const hasil = await periksaBanyak(baca.baris, HARI_INI, WK, BANDARA_UJI);
   assert.deepEqual(hasil.map((h) => h.status), ['siap', 'siap', 'galat']);
   assert.equal(hasil[0].data?.tanggal, '2026-10-26');
   assert.equal(hasil[0].data?.penumpang_datang, 120);
@@ -206,7 +208,7 @@ test('baca Excel: judul beda ejaan/urutan dan judul di baris bawah tetap dikenal
   assert.ok(baca.ok);
   assert.equal(baca.baris[0].nomor, 4);
   assert.match(baca.peringatan[0], /Kolom tidak ditemukan/);
-  const [h] = await periksaBanyak(baca.baris, HARI_INI, WK);
+  const [h] = await periksaBanyak(baca.baris, HARI_INI, WK, BANDARA_UJI);
   assert.equal(h.status, 'siap');
   assert.equal(h.data?.kedatangan, 'Makassar');
   assert.equal(h.data?.sklt_male, 2);
@@ -275,6 +277,7 @@ test('duplikat: baris identik dengan DB ditandai; multiset; beda sedikit bukan d
     ],
     HARI_INI,
     WK,
+    BANDARA_UJI,
   );
   assert.deepEqual(hasil.map((h) => h.status), ['duplikat', 'siap', 'siap', 'siap', 'galat']);
   // baris 5 identik dengan DB juga, tetapi DB hanya punya 1 baris dan sudah "dipakai" baris 2

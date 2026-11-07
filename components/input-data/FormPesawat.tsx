@@ -7,6 +7,8 @@ import { useRef, useState } from 'react';
 import { simpanPesawatSatuan, type HasilSimpanPesawat } from '@/app/(dashboard)/dashboard/input-data/pesawat/actions';
 
 interface Props {
+  /** Kode bandara terpilih (kosong bila hanya satu bandara; server memilih otomatis). */
+  kodeBandara?: string;
   hariIni: string; // YYYY-MM-DD zona waktu kantor
 }
 
@@ -30,7 +32,7 @@ const SERTIFIKAT: { kode: string; nama: string }[] = [
   { kode: 'kier', nama: 'KIER' },
 ];
 
-export default function FormPesawat({ hariIni }: Props) {
+export default function FormPesawat({ hariIni, kodeBandara }: Props) {
   const [menyimpan, setMenyimpan] = useState(false);
   const [hasil, setHasil] = useState<HasilSimpanPesawat | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -38,6 +40,7 @@ export default function FormPesawat({ hariIni }: Props) {
   async function tanganiSubmit(formData: FormData) {
     setMenyimpan(true);
     setHasil(null);
+    if (kodeBandara) formData.set('wilker', kodeBandara);
     const res = await simpanPesawatSatuan(formData);
     setHasil(res);
     setMenyimpan(false);

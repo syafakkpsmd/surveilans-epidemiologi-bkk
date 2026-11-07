@@ -1,3 +1,5 @@
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
+import { daftarWilayahKapal } from '@/lib/wilayah-kerja/kapal';
 import { NextResponse } from 'next/server';
 import { getPengguna } from '@/lib/auth/session';
 import { getDbClient } from '@/lib/db/client';
@@ -101,12 +103,8 @@ import { bolehJalankanAI } from '@/lib/auth/aksesAI';
 
 export const maxDuration = 60;
 
-const DAFTAR_WILAYAH: readonly Wilayah[] = [
-  'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',
-];
-
-function isWilayahValid(nilai: unknown): nilai is Wilayah {
-  return typeof nilai === 'string' && (DAFTAR_WILAYAH as readonly string[]).includes(nilai);
+function isWilayahValid(nilai: unknown, daftar: readonly string[]): nilai is Wilayah {
+  return typeof nilai === 'string' && daftar.includes(nilai);
 }
 
 function isKodeWilkerValid(nilai: unknown): nilai is string {
@@ -282,12 +280,15 @@ export async function POST(request: Request) {
   }
 
 
+  // Wilayah kerja kapal yang valid untuk konteks COP/PHQC/penumpang = pelabuhan aktif di wilker_ref.
+  const daftarWilayahKapalValid = daftarWilayahKapal(await getDaftarWilker()).map((w) => w.value);
+
   let wilayahKerja: string | undefined;
 
   if (konteksVektor) {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
-        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor DBD (format kode: WK01-WK07).` },
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor DBD (gunakan kode wilayah kerja, mis. WK01).` },
         { status: 400 }
       );
     }
@@ -295,7 +296,7 @@ export async function POST(request: Request) {
   } else if (konteksPesawat) {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
-        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks pesawat (format kode: WK01-WK07).` },
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks pesawat (gunakan kode wilayah kerja, mis. WK01).` },
         { status: 400 }
       );
     }
@@ -303,7 +304,7 @@ export async function POST(request: Request) {
   } else if (konteksTikusLab) {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
-        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor tikus (format kode: WK01-WK07).` },
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor tikus (gunakan kode wilayah kerja, mis. WK01).` },
         { status: 400 }
       );
     }
@@ -311,7 +312,7 @@ export async function POST(request: Request) {
   } else if (konteksVektorDiare) {
     if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isKodeWilkerValid(wilayah_kerja)) {
       return NextResponse.json(
-        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor diare (format kode: WK01-WK09).` },
+        { error: `wilayah_kerja "${wilayah_kerja}" tidak valid untuk konteks vektor diare (gunakan kode wilayah kerja, mis. WK01).` },
         { status: 400 }
       );
     }
@@ -355,10 +356,10 @@ export async function POST(request: Request) {
     // adanya (string bebas) atau undefined ("Semua Klinik").
     wilayahKerja = typeof wilayah_kerja === 'string' && wilayah_kerja.trim().length > 0 ? wilayah_kerja : undefined;
   } else {
-    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja)) {
+    if (wilayah_kerja !== undefined && wilayah_kerja !== null && !isWilayahValid(wilayah_kerja, daftarWilayahKapalValid)) {
       return NextResponse.json({ error: `wilayah_kerja "${wilayah_kerja}" tidak dikenal.` }, { status: 400 });
     }
-    wilayahKerja = isWilayahValid(wilayah_kerja) ? wilayah_kerja : undefined;
+    wilayahKerja = isWilayahValid(wilayah_kerja, daftarWilayahKapalValid) ? wilayah_kerja : undefined;
   }
 
   if (!paksaPerbarui) {

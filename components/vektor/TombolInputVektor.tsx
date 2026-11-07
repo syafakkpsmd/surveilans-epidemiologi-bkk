@@ -1,5 +1,6 @@
 'use server';
 
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { revalidatePath } from 'next/cache';
 import { getPengguna } from '@/lib/auth/session';
 import { getDbClient } from '@/lib/db/client';
@@ -35,7 +36,7 @@ export async function simpanDataVektor(input: {
 
   try {
     const inputOleh = (user.namaLengkap || user.email || '').slice(0, 255) || null;
-    const hasil = await simpanBarisVektor(getDbClient(), def, input.baris, mode, inputOleh);
+    const hasil = await simpanBarisVektor(getDbClient(), def, input.baris, mode, inputOleh, await getKamusWilker());
     if (hasil.disimpan + hasil.diperbarui > 0) revalidatePath('/dashboard/vektor', 'layout');
     return { ok: true, hasil };
   } catch (err) {

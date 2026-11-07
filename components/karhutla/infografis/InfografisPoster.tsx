@@ -228,7 +228,7 @@ export default function InfografisPoster({ data }: { data: RingkasanInfografisHa
         <div style={{ flex: '0 0 300px' }}>
           <JudulSeksi>Sebaran Titik Panas di Kalimantan Timur</JudulSeksi>
           <div style={{ marginTop: 12, height: 460, borderRadius: 16, overflow: 'hidden', border: `1px solid ${WARNA.border}` }}>
-            <PetaMiniHotspot hotspots={data.hotspotPoints} />
+            <PetaMiniHotspot hotspots={data.hotspotPoints} wilayah={data.wilayahPeta} />
           </div>
         </div>
         <div style={{ flex: 1 }}>

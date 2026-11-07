@@ -13,6 +13,11 @@ export const MODUL_WILKER = [
   { kunci: 'tb', label: 'Surveilans TB' },
   { kunci: 'hiv', label: 'Surveilans HIV' },
   { kunci: 'malaria', label: 'Migrasi Malaria' },
+  { kunci: 'tpp', label: 'Sanitasi TPP (Tempat Pengolahan Pangan)' },
+  { kunci: 'ttu', label: 'Sanitasi TTU (Tempat-Tempat Umum)' },
+  { kunci: 'pab', label: 'Sanitasi PAB (Penyediaan Air Bersih)' },
+  { kunci: 'limbah_b3', label: 'Pemeriksaan Limbah B3 Klinik' },
+  { kunci: 'udara_ruang', label: 'Pemeriksaan Udara Dalam Ruang' },
 ] as const;
 
 export type KunciModulWilker = (typeof MODUL_WILKER)[number]['kunci'];

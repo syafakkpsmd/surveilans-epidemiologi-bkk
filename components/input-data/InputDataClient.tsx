@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { LABEL_RBA, type KolomModul, type ModulInput } from '@/lib/input-data/modul';
 import type { Wilayah } from '@/lib/wilayah-kerja';
 import MasterNegara from './MasterNegara';
@@ -11,6 +11,8 @@ interface Pratinjau {
   jumlahBaris: number; sah: number; ditolak: number; baru: number; diperbarui: number;
   wilayah: string[]; kolomDiabaikan: string[]; negaraTerisi: number; pelabuhanTanpaMaster: string[];
   galat: { baris: number; pesan: string[] }[]; galatTerpotong: boolean;
+  /** Baris sah yang perlu dicek (tanggal ambigu/masa depan). Hanya terisi untuk modul pakaiParseTanggal. */
+  peringatan?: { baris: number; pesan: string[] }[]; peringatanTerpotong?: boolean; peringatanUmum?: string[];
 }
 interface Riwayat {
   id: string; tahun: number | null; sumber: string; nama_file: string | null;
@@ -48,7 +50,7 @@ function PilihanManual({ kolom, nilai, opsi, onUbah, disabled }: {
 }) {
   const daftar = nilai && !opsi.some((o) => o.toLowerCase() === nilai.toLowerCase()) ? [...opsi, nilai] : opsi;
   return (
-    <select className={`${kls.input} max-w-44`} disabled={disabled} value={nilai}
+    <select className={`${kls.input} max-w-[11rem]`} disabled={disabled} value={nilai}
       onChange={(e) => {
         const v = e.target.value;
         if (v === LAINNYA) {
@@ -244,7 +246,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
               <a className={kls.tombolPutih} href={`${dasar}/template`}>Unduh template</a>
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Baris dicocokkan lewat wilayah + nama kapal + tanggal: yang belum ada ditambahkan, yang sudah ada diperbarui. Isian petugas (RBA dst.) tidak ditimpa dengan kosong, jadi berkas boleh diunggah ulang.
+              Baris dicocokkan lewat wilayah + {m.namaKunci ?? 'nama kapal'} + tanggal: yang belum ada ditambahkan, yang sudah ada diperbarui. Isian petugas (RBA dst.) tidak ditimpa dengan kosong, jadi berkas boleh diunggah ulang.
             </p>
 
             {pratinjau && (
@@ -267,6 +269,14 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                     {pratinjau.galatTerpotong && <div className="mt-1 italic">Daftar dipotong; perbaiki lalu periksa ulang.</div>}
                   </div>
                 )}
+                {((pratinjau.peringatanUmum?.length ?? 0) > 0 || (pratinjau.peringatan?.length ?? 0) > 0) && (
+                  <div className="mt-2 max-h-56 overflow-auto rounded border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                    <div className="mb-1 font-medium">Perlu dicek (baris tetap bisa disimpan):</div>
+                    {pratinjau.peringatanUmum?.map((p) => <div key={p} className="mb-1">{p}</div>)}
+                    {pratinjau.peringatan?.map((g) => <div key={g.baris}>Baris {g.baris}: {g.pesan.join('; ')}</div>)}
+                    {pratinjau.peringatanTerpotong && <div className="mt-1 italic">Daftar dipotong.</div>}
+                  </div>
+                )}
                 <div className="mt-3">
                   <button className={kls.tombol} disabled={sibuk || pratinjau.sah === 0} onClick={() => kirimBerkas('simpan')}>
                     Simpan {pratinjau.sah} baris{pratinjau.ditolak ? ` (lewati ${pratinjau.ditolak} yang ditolak)` : ''}
@@ -282,8 +292,26 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
             {bukaForm && (
               <div className="mt-3">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {kolomForm.map((k) => (
-                    <label key={k.nama} className="text-sm">{k.label}{k.wajib ? ' *' : ''}<br />
+                  {kolomForm.map((k, i) => (
+                    <Fragment key={k.nama}>
+                    {k.kelompok && k.kelompok !== kolomForm[i - 1]?.kelompok && (
+                      <h3 className="mt-2 border-b pb-1 text-sm font-semibold text-gray-700 sm:col-span-2 lg:col-span-3">{k.kelompok}</h3>
+                    )}
+                    {k.tipe === 'ya_tidak' ? (
+                      // Butir formulir: kalimat pertanyaan di kiri, pilihan Ya/Tidak/N/A di kanan. Kosong = belum dinilai.
+                      <label className="flex items-center justify-between gap-3 border-b border-gray-100 py-1 text-sm sm:col-span-2 lg:col-span-3">
+                        <span>{k.deskripsi ?? k.label}</span>
+                        <select className={`${kls.input} shrink-0`} value={isian[k.nama] ?? ''} onChange={(e) => setIsian({ ...isian, [k.nama]: e.target.value })}>
+                          <option value="">—</option><option value="Ya">Ya</option><option value="Tidak">Tidak</option><option value="N/A">N/A</option>
+                        </select>
+                      </label>
+                    ) : (k.maks ?? 0) >= 2000 ? (
+                      <label className="text-sm sm:col-span-2 lg:col-span-3">{k.label}{k.wajib ? ' *' : ''}
+                        {k.deskripsi && <span className="block text-xs text-gray-500">{k.deskripsi}</span>}
+                        <textarea className={`${kls.input} w-full`} rows={3} value={isian[k.nama] ?? ''} onChange={(e) => setIsian({ ...isian, [k.nama]: e.target.value })} />
+                      </label>
+                    ) : (
+                    <label className="text-sm">{k.label}{k.wajib ? ' *' : ''}<br />
                       {k.tipe === 'wilker' ? (
                         <select className={`${kls.input} w-full`} value={isian[k.nama] ?? ''} onChange={(e) => setIsian({ ...isian, [k.nama]: e.target.value })}>
                           <option value="">— pilih —</option>
@@ -294,10 +322,13 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                       ) : (
                         <input className={`${kls.input} w-full`}
                           type={k.tipe === 'tanggal' ? 'date' : k.tipe === 'bilangan' || k.tipe === 'desimal' ? 'number' : k.tipe === 'waktu' ? 'time' : 'text'}
-                          min={k.tipe === 'bilangan' || k.tipe === 'desimal' ? 0 : undefined} value={isian[k.nama] ?? ''}
+                          min={k.tipe === 'bilangan' || k.tipe === 'desimal' ? 0 : undefined} step={k.tipe === 'desimal' ? 'any' : undefined}
+                          title={k.deskripsi} placeholder={k.tipe === 'desimal' ? k.deskripsi?.split(' — acuan: ')[1] : undefined} value={isian[k.nama] ?? ''}
                           onChange={(e) => setIsian({ ...isian, [k.nama]: e.target.value })} />
                       )}
                     </label>
+                    )}
+                    </Fragment>
                   ))}
                 </div>
                 {galatForm.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-red-700">{galatForm.map((g) => <li key={g}>{g}</li>)}</ul>}

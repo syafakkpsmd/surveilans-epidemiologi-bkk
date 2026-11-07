@@ -1,14 +1,14 @@
 // lib/klinik/ckg/config.ts
 // Aman diimpor client maupun server component (tidak ada import server).
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import type { Wilayah } from '@/lib/wilayah-kerja';
 
-// Kolom `wilayah` di tabel menyimpan KODE baku (WK01..WK07), sesuai lib/wilayah-kerja.
-export const OPSI_WILAYAH: { kode: string; nama: string }[] = WILAYAH_KERJA.map((w) => ({
-  kode: w.kode,
-  nama: w.nama,
-}));
-export const KODE_WILAYAH: string[] = OPSI_WILAYAH.map((w) => w.kode);
-export const NAMA_WILAYAH: Record<string, string> = Object.fromEntries(OPSI_WILAYAH.map((w) => [w.kode, w.nama]));
+// Kolom `wilayah` di tabel menyimpan KODE baku wilayah kerja (mis. WK01), sesuai tabel wilker_ref.
+export type OpsiWilayahCkg = { kode: string; nama: string };
+
+/** Pilihan wilayah di form/filter CKG: semua wilayah kerja AKTIF (daftar dikelola di pengaturan wilayah kerja). */
+export function opsiWilayahCkg(daftar: readonly Wilayah[]): OpsiWilayahCkg[] {
+  return daftar.filter((w) => w.aktif).map((w) => ({ kode: w.kode, nama: w.nama }));
+}
 
 // Batas mengikuti register CKG: TD normal 120/80, gula darah diabet >= 200 mg/dL,
 // lansia >= 60 tahun. Ubah di sini kalau definisinya berubah.

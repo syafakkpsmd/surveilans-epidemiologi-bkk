@@ -1,8 +1,9 @@
+import Link from "next/link";
 import {
   getRingkasanTtuBulanan,
   getRingkasanTtuMingguan,
-  getDaftarWilayahKerjaSanitasi,
 } from "@/lib/db/queries/umum";
+import { getNamaWilkerModul } from "@/lib/wilayah-kerja/server";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import TtuClient from "./TtuClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
@@ -34,12 +35,9 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
   // ============================================================
   // PENTING: kombinasi ini HARUS PERSIS SAMA dengan default state di
   // TtuClient.tsx -- granularitas default "bulanan", rentangBulan
-  // default { awal: 1, akhir: bulanBerjalan } (BUKAN akhir=12 seperti
-  // PAB -- TTU defaultnya ikut bulan berjalan). wilayahKerja default
+  // default { awal: 1, akhir: bulanBerjalan }. wilayahKerja default
   // BISA dihitung server karena selectedWilayah awal client =
-  // wilayahParam || "semua". Kalau default di TtuClient.tsx berubah
-  // nanti, sesuaikan juga di sini -- kalau lupa, tidak fatal (fallback
-  // fetch client tetap jalan), cuma prefetch jadi mubazir.
+  // wilayahParam || "semua".
   // ============================================================
   const konteksAiDefault = "ttu-bulanan";
   const periodeKeyDefault = `${tahun}-${bulanBerjalan}`;
@@ -48,7 +46,7 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
 
   const [role, daftarWilayah, dataBulanan, dataMingguan, hasilAI] = await Promise.all([
     getUserRole(),
-    getDaftarWilayahKerjaSanitasi(),
+    getNamaWilkerModul("ttu"), // Menggunakan wilayah kerja khusus modul TTU sesuai centang admin
     getRingkasanTtuBulanan(tahun, wilayah),
     getRingkasanTtuMingguan(tahun, wilayah),
     getBanyakHasilAI([
@@ -57,9 +55,9 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
     ]),
   ]);
 
-  // Sama seperti di page.tsx TPP: minggu epid dimundurkan 1 minggu
-  // khusus untuk tampilan, tanpa mengubah lib/epi-week.ts yang harus
-  // tetap sinkron dengan SQL mmwr_week.
+  const bolehInput = role === "admin" || role === "petugas";
+
+  // Minggu epid dimundurkan 1 minggu khusus untuk tampilan
   const tanggalMundurSatuMinggu = new Date();
   tanggalMundurSatuMinggu.setDate(tanggalMundurSatuMinggu.getDate() - 7);
   const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalan } =
@@ -76,6 +74,16 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
       tahunEpidBerjalan={tahunEpidBerjalan}
       mingguEpidBerjalan={mingguEpidBerjalan}
       wilayahParam={wilayah}
+      aksiHeader={
+        bolehInput ? (
+          <Link
+            href="/dashboard/ttu/input"
+            className="rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 shadow-xs transition-all"
+          >
+            + Input / Unggah Data
+          </Link>
+        ) : null
+      }
       hasilAwalInisial={{
         comboKeyDasar,
         analisis: hasilAI[kunciAI({ konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "analisis" })] ?? null,

@@ -1,3 +1,5 @@
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
+import { daftarWilayahKapal } from "@/lib/wilayah-kerja/kapal";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
 import {
   getRingkasanMingguan,
@@ -232,6 +234,10 @@ export default async function AbkCrewPenumpangPage({
   const namaWilayah = wilkerTerpilih
     ? wilkerTerpilih.nama.replace(/^(pelabuhan|bandara)\s+/i, "").replace(/\s+/g, "")
     : undefined;
+  // Data PHQC lama memakai ejaan "Pelabuhan Laut X": filter PHQC memakai semua ejaan wilayah itu.
+  const ejaanPhqc: string | readonly string[] | undefined = wilkerTerpilih
+    ? (daftarWilayahKapal(await getDaftarWilker(), ["Pelabuhan", "Bandara"]).find((w) => w.kode === wilkerTerpilih.kode)?.variants ?? namaWilayah)
+    : undefined;
   const cocokWilayah = (r: { wilayah_kerja?: string | null }) =>
     !namaWilayah || normalisasiNamaWilker(String(r.wilayah_kerja ?? "")) === normalisasiNamaWilker(namaWilayah);
 
@@ -256,8 +262,8 @@ export default async function AbkCrewPenumpangPage({
     getRingkasanPesawatBulanan({ tahun: tahunKalender, kodeWilker }),
     getPenumpangKapalMingguan(tahunEpid, namaWilayah),
     getPenumpangKapalBulanan(tahunKalender, namaWilayah),
-    getAbkPhqcPerTujuanMingguan(tahunEpid, namaWilayah),
-    getAbkPhqcPerTujuanBulanan(tahunKalender, namaWilayah),
+    getAbkPhqcPerTujuanMingguan(tahunEpid, ejaanPhqc),
+    getAbkPhqcPerTujuanBulanan(tahunKalender, ejaanPhqc),
     getBanyakHasilAI(permintaanAI),
   ]);
 

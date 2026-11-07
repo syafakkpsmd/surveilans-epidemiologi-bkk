@@ -56,6 +56,18 @@ function Isian({ w }: { w?: Wilayah }) {
         <label className={label}>Bujur (lng) *</label>
         <input name="lng" required inputMode="decimal" defaultValue={w?.lng ?? ''} placeholder="117.1711" className={kotak} />
       </div>
+      <div>
+        <label className={label}>Pusat peta: lintang <span className="font-normal">(kosong = pakai lat/lng di atas)</span></label>
+        <input name="peta_lat" inputMode="decimal" defaultValue={w?.petaLat ?? ''} className={kotak} />
+      </div>
+      <div>
+        <label className={label}>Pusat peta: bujur</label>
+        <input name="peta_lng" inputMode="decimal" defaultValue={w?.petaLng ?? ''} className={kotak} />
+      </div>
+      <div>
+        <label className={label}>Zoom peta (3-19)</label>
+        <input name="zoom" type="number" min={3} max={19} defaultValue={w?.zoom ?? 13} className={kotak} />
+      </div>
       <div className="sm:col-span-2">
         <label className={label}>Sub-lokasi / pelabuhan di dalam wilayah <span className="font-normal">(satu per baris)</span></label>
         <textarea name="sub_lokasi" rows={3} defaultValue={w?.subLokasi.join('\n') ?? ''} className={kotak} />

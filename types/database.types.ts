@@ -7,13 +7,8 @@ type SafeDatabase = any;
 // ============================================================
 // DOMAIN ENUM (manual, bukan hasil generate)
 // ============================================================
-export type Wilayah =
-  | 'Samarinda'
-  | 'TanjungSantan'
-  | 'TanjungLaut'
-  | 'Lhoktuan'
-  | 'Sangatta'
-  | 'Sangkulirang';
+/** Kunci wilayah tanpa spasi (mis. 'TanjungSantan'); daftar wilayah dinamis, dikelola di pengaturan wilayah kerja. */
+export type Wilayah = string;
 
 export type Rba = 'Hijau' | 'Kuning' | 'Merah';
 

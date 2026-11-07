@@ -19,15 +19,16 @@ interface BarisAbkPhqc {
   jumlahAbk: number;
 }
 
-async function ambilAbkPhqcTahun(tahunKalender: number, wilayah?: string): Promise<BarisAbkPhqc[]> {
+async function ambilAbkPhqcTahun(tahunKalender: number, wilayah?: string | readonly string[]): Promise<BarisAbkPhqc[]> {
   const supabase = await createDbClient();
   let query = supabase
     .from("kegiatan_phqc")
     .select("tgl_keberangkatan, jml_abk_wna, jml_abk_wni, tujuan_berlayar")
     .gte("tgl_keberangkatan", `${tahunKalender}-01-01`)
     .lte("tgl_keberangkatan", `${tahunKalender}-12-31`);
-  // `wilayah` = nilai enum Wilayah (mis. "Samarinda", "TanjungSantan"); kosong = semua wilayah.
-  if (wilayah) query = query.eq("wilayah_kerja", wilayah);
+  // `wilayah` = kunci wilayah (mis. "TanjungSantan") ATAU daftar semua ejaan yang mungkin tersimpan (variants dari
+  // lib/wilayah-kerja/kapal; data PHQC lama memakai "Pelabuhan Laut X"); kosong = semua wilayah.
+  if (wilayah) query = Array.isArray(wilayah) ? query.in("wilayah_kerja", [...wilayah]) : query.eq("wilayah_kerja", wilayah as string);
   const { data, error } = await query;
 
   if (error) throw error;
@@ -50,7 +51,7 @@ function isLuarNegeri(tujuan: string): boolean {
  */
 export async function getAbkPhqcPerTujuanMingguan(
   tahunEpid: number,
-  wilayah?: string
+  wilayah?: string | readonly string[]
 ): Promise<{ petaDalamNegeri: Map<number, number>; petaLuarNegeri: Map<number, number> }> {
   // 3 tahun diambil PARALEL (sebelumnya 3 await berurutan).
   const [sebelum, ini, sesudah] = await Promise.all([
@@ -81,7 +82,7 @@ export async function getAbkPhqcPerTujuanMingguan(
 /** ABK PHQC per bulan kalender, dipecah Dalam Negeri / Luar Negeri. */
 export async function getAbkPhqcPerTujuanBulanan(
   tahunKalender: number,
-  wilayah?: string
+  wilayah?: string | readonly string[]
 ): Promise<{ petaDalamNegeri: Map<number, number>; petaLuarNegeri: Map<number, number> }> {
   const baris = await ambilAbkPhqcTahun(tahunKalender, wilayah);
 

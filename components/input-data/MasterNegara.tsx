@@ -106,7 +106,7 @@ export default function MasterNegara({ admin, onPesan, onBerubah }: {
           <div className="max-h-64 overflow-auto">
             {belum.map((b) => (
               <div key={b.pelabuhan} className="mb-1 flex flex-wrap items-center gap-2">
-                <span className="min-w-[14rem]">{b.pelabuhan} <span className="text-gray-500">({b.jumlah} kapal)</span></span>
+                <span className="min-w-56">{b.pelabuhan} <span className="text-gray-500">({b.jumlah} kapal)</span></span>
                 <input className={kls.input} placeholder="Negara" value={isianBelum[b.pelabuhan] ?? ''}
                   onChange={(e) => setIsianBelum((x) => ({ ...x, [b.pelabuhan]: e.target.value }))} />
                 <button className={kls.tombolPutih} disabled={sibuk || !(isianBelum[b.pelabuhan] ?? '').trim()} onClick={() => simpanBelum(b.pelabuhan)}>Simpan</button>

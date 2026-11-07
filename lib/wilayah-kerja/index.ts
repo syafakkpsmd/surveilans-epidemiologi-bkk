@@ -14,8 +14,6 @@
 //   namaPendek : nama pendek di data  ("Tanjung Santan", "APT Pranoto")
 //   namaPeta   : label di modul peta
 //
-// Bagian "BAWAAN" di bawah hanyalah cadangan untuk kode lama yang belum dipindah ke kamus dari database.
-// Kode baru JANGAN memakainya. Ia akan dihapus setelah semua pemakai dipindah.
 
 export type JenisWilker = 'Pelabuhan' | 'Bandara' | 'Kantor';
 export const DAFTAR_JENIS_WILKER: readonly JenisWilker[] = ['Pelabuhan', 'Bandara', 'Kantor'];
@@ -31,6 +29,10 @@ export interface Wilayah {
   aktif: boolean;
   lat: number | null;
   lng: number | null;
+  /** Pusat tampilan di Peta Wilayah Kerja (kosong = pakai lat/lng) dan tingkat zoom saat wilayah dipilih. */
+  petaLat: number | null;
+  petaLng: number | null;
+  zoom: number;
   subLokasi: string[];
   warna: string | null;
   catatan: string | null;
@@ -113,38 +115,12 @@ export function normalisasiWilayah(b: Record<string, unknown>, alias: string[] =
     aktif: b.aktif === undefined || b.aktif === null ? true : Boolean(b.aktif),
     lat: angka(b.lat),
     lng: angka(b.lng),
+    petaLat: angka(b.peta_lat ?? b.petaLat),
+    petaLng: angka(b.peta_lng ?? b.petaLng),
+    zoom: Number(b.zoom ?? 13) || 13,
     subLokasi: Array.isArray(b.sub_lokasi ?? b.subLokasi) ? ((b.sub_lokasi ?? b.subLokasi) as unknown[]).map(String) : [],
     warna: (b.warna as string | null) ?? null,
     catatan: (b.catatan as string | null) ?? null,
     alias,
   };
 }
-
-// ---------------------------------------------------------------------------------------------
-// BAWAAN (cadangan sementara untuk kode lama, BKK Kelas I Samarinda). Jangan dipakai di kode baru.
-// ---------------------------------------------------------------------------------------------
-const bawaan = (kode: string, nama: string, namaPendek: string, namaPeta: string, jenis: JenisWilker, urutan: number): Wilayah => ({
-  kode, nama, namaPendek, namaPeta, jenis, urutan, aktif: true, lat: null, lng: null, subLokasi: [], warna: null, catatan: null, alias: [],
-});
-
-/** @deprecated Pakai getKamusWilker() (server) atau buatKamus(props) (client). */
-export const WILAYAH_KERJA: readonly Wilayah[] = [
-  bawaan('WK01', 'Pelabuhan Samarinda', 'Samarinda', 'Samarinda', 'Pelabuhan', 1),
-  bawaan('WK02', 'Pelabuhan Tanjung Santan', 'Tanjung Santan', 'Tanjung Santan', 'Pelabuhan', 2),
-  bawaan('WK03', 'Pelabuhan Tanjung Laut', 'Tanjung Laut', 'Tanjung Laut', 'Pelabuhan', 3),
-  bawaan('WK04', 'Pelabuhan Lhoktuan', 'Lhoktuan', 'Lhoktuan', 'Pelabuhan', 4),
-  bawaan('WK05', 'Pelabuhan Sangatta', 'Sangatta', 'Sangatta', 'Pelabuhan', 5),
-  bawaan('WK06', 'Pelabuhan Sangkulirang', 'Sangkulirang', 'Sangkulirang', 'Pelabuhan', 6),
-  bawaan('WK07', 'Bandara APT Pranoto', 'APT Pranoto', 'Bandara APT Pranoto', 'Bandara', 7),
-];
-
-const kamusBawaan = buatKamus(WILAYAH_KERJA);
-
-/** @deprecated */ export const DAFTAR_KODE_WILKER = kamusBawaan.daftarKode;
-/** @deprecated */ export const NAMA_PENDEK_BY_KODE = kamusBawaan.namaPendekByKode;
-/** @deprecated */ export const NAMA_PANJANG_BY_KODE = kamusBawaan.namaPanjangByKode;
-/** @deprecated */ export const OPSI_WILKER_PETA = kamusBawaan.opsiPeta;
-/** @deprecated */ export const kodeDariTeks = kamusBawaan.kodeDariTeks;
-/** @deprecated */ export const isKodeWilker = kamusBawaan.isKode;
-/** @deprecated */ export const dapatkanWilayah = kamusBawaan.dapatkan;
-/** @deprecated */ export const namaDariKode = kamusBawaan.namaDariKode;

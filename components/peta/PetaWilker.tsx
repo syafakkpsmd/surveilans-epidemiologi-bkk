@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { MapContainer, TileLayer, LayersControl, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,19 +9,9 @@ import WilkerSelector from "./WilkerSelector";
 import SubPelabuhanSelector from "./SubPelabuhanSelector";
 import GaleriFoto from "./GaleriFoto";
 import FormFasilitas from "./FormFasilitas";
+import { opsiWilkerPeta, pusatOverviewPeta } from "@/lib/wilayah-kerja/peta";
+import type { Wilayah } from "@/lib/wilayah-kerja";
 
-const WILKER_META: Record<string, { nama: string; pusat: { lat: number; lng: number }; zoomDetail: number }> = {
-  INDUK: { nama: "Kantor Induk BKK Kelas I Samarinda", pusat: { lat: -0.524379, lng: 117.171117 }, zoomDetail: 16 },
-  WK01: { nama: "Samarinda", pusat: { lat: -0.5022, lng: 117.1536 }, zoomDetail: 13 },
-  WK02: { nama: "Tanjung Santan", pusat: { lat: -0.088364, lng: 117.445010 }, zoomDetail: 14 },
-  WK03: { nama: "Tanjung Laut", pusat: { lat: 0.139905, lng: 117.494248 }, zoomDetail: 13 },
-  WK04: { nama: "Lhoktuan", pusat: { lat: 0.144479, lng: 117.452530 }, zoomDetail: 13 },
-  WK05: { nama: "Sangatta", pusat: { lat: 0.533514, lng: 117.566455 }, zoomDetail: 13 },
-  WK06: { nama: "Sangkulirang", pusat: { lat: 0.991061, lng: 117.979325 }, zoomDetail: 13 },
-  WK07: { nama: "Bandara APT Pranoto", pusat: { lat: -0.3746, lng: 117.2506 }, zoomDetail: 15 },
-};
-
-const PUSAT_SAMARINDA: [number, number] = [-0.5022, 117.1536];
 const ZOOM_OVERVIEW = 9;
 
 const iconWilker = L.icon({
@@ -46,7 +36,10 @@ function FlyToTarget({ lat, lng, zoom }: { lat: number; lng: number; zoom: numbe
   return null;
 }
 
-export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
+export default function PetaWilker({ isAdmin, wilayah }: { isAdmin: boolean; wilayah: Wilayah[] }) {
+  const opsiWilker = useMemo(() => opsiWilkerPeta(wilayah), [wilayah]);
+  const WILKER_META = useMemo(() => Object.fromEntries(opsiWilker.map((w) => [w.kode, w])), [opsiWilker]);
+  const PUSAT_OVERVIEW = useMemo(() => pusatOverviewPeta(opsiWilker), [opsiWilker]);
   const [fasilitasList, setFasilitasList] = useState<Fasilitas[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWilker, setSelectedWilker] = useState<string | null>(null);
@@ -110,15 +103,17 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
     flyTarget = { lat: activeFasilitas.lat, lng: activeFasilitas.lng, zoom: 16 };
   } else if (selectedWilker) {
     const meta = WILKER_META[selectedWilker];
-    flyTarget = { lat: meta.pusat.lat, lng: meta.pusat.lng, zoom: meta.zoomDetail };
+    flyTarget = meta
+      ? { lat: meta.pusat.lat, lng: meta.pusat.lng, zoom: meta.zoomDetail }
+      : { lat: PUSAT_OVERVIEW[0], lng: PUSAT_OVERVIEW[1], zoom: ZOOM_OVERVIEW };
   } else {
-    flyTarget = { lat: PUSAT_SAMARINDA[0], lng: PUSAT_SAMARINDA[1], zoom: ZOOM_OVERVIEW };
+    flyTarget = { lat: PUSAT_OVERVIEW[0], lng: PUSAT_OVERVIEW[1], zoom: ZOOM_OVERVIEW };
   }
 
   return (
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
-        <WilkerSelector selected={selectedWilker} onSelect={handlePilihWilker} />
+        <WilkerSelector opsi={opsiWilker} selected={selectedWilker} onSelect={handlePilihWilker} />
         {isAdmin && (
           <button
             onClick={handleTambah}
@@ -153,7 +148,7 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
           </div>
         )}
 
-        <MapContainer center={PUSAT_SAMARINDA} zoom={ZOOM_OVERVIEW} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
+        <MapContainer center={PUSAT_OVERVIEW} zoom={ZOOM_OVERVIEW} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
           <LayersControl position="topright">
             <LayersControl.BaseLayer checked name="Peta Jalan">
               <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -217,6 +212,7 @@ export default function PetaWilker({ isAdmin }: { isAdmin: boolean }) {
 
       {showForm && (
         <FormFasilitas
+          opsiWilker={opsiWilker}
           kodeWilkerAktif={selectedWilker}
           fasilitasEdit={editTarget}
           onClose={() => setShowForm(false)}

@@ -1,20 +1,21 @@
 "use client";
 
-import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
+import type { WilkerPeta } from '@/lib/wilayah-kerja/peta';
 import { useState } from "react";
 import { createDbBrowserClient } from "@/lib/db/browser-client";
 import { uploadFotoFasilitas } from "@/lib/upload-fasilitas-foto";
 
 interface Props {
+  opsiWilker: WilkerPeta[];
   kodeWilkerAktif: string | null;
   fasilitasEdit?: { id: string; kode_wilker: string; nama: string; tipe: string; lat: number; lng: number; deskripsi: string | null } | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose, onSaved }: Props) {
+export default function FormFasilitas({ opsiWilker, kodeWilkerAktif, fasilitasEdit, onClose, onSaved }: Props) {
   const [kodeWilker, setKodeWilker] = useState(
-    fasilitasEdit ? fasilitasEdit.kode_wilker : kodeWilkerAktif ?? "WK01"
+    fasilitasEdit ? fasilitasEdit.kode_wilker : kodeWilkerAktif ?? opsiWilker[0]?.kode ?? ""
   );
   const [nama, setNama] = useState(fasilitasEdit?.nama ?? "");
   const [tipe, setTipe] = useState(fasilitasEdit?.tipe ?? "pelabuhan");
@@ -90,8 +91,7 @@ export default function FormFasilitas({ kodeWilkerAktif, fasilitasEdit, onClose,
           <div>
             <label className="text-xs font-medium text-gray-500">Wilayah Kerja</label>
             <select value={kodeWilker} onChange={(e) => setKodeWilker(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm">
-              <option value="INDUK">INDUK - Kantor BKK Kelas I Samarinda</option>
-              {OPSI_WILKER_PETA.map((w) => (
+              {opsiWilker.map((w) => (
                 <option key={w.kode} value={w.kode}>{w.kode} - {w.nama}</option>
               ))}
             </select>

@@ -1,5 +1,3 @@
-import { NAMA_WILKER } from '@/lib/karhutla/constants';
-import { WILKER_LOKASI } from '@/lib/data/wilker-lokasi';
 
 /**
  * PEMETAAN LOKASI KUALITAS UDARA -> KODE WILKER
@@ -59,7 +57,7 @@ export function petakanLokasiUdaraKeWilker(lokasi: string): string | null {
  * Tabel hotspot_nasa_kaltim cuma punya lat/lng (dari NASA FIRMS), tidak
  * ada kode_wilker sama sekali. Untuk breakdown per-wilayah, tiap titik
  * hotspot didekatkan ke wilker dengan jarak garis-lurus (haversine)
- * terpendek dari titik pusat wilker (lib/data/wilker-lokasi.ts).
+ * terpendek dari titik pusat wilker (peta_lat/peta_lng di wilker_ref).
  *
  * Ini estimasi kasar utk kebutuhan info grafis publik (menunjukkan wilayah
  * mana yang paling terdampak) -- BUKAN untuk keputusan operasional presisi
@@ -82,10 +80,16 @@ function jarakHaversineKm(lat1: number, lng1: number, lat2: number, lng2: number
  *  (mis. Kalteng/Kalsel) tidak salah dihitung sebagai milik Samarinda dst. */
 const JARAK_MAKS_WILKER_KM = 100;
 
-export function cariWilkerTerdekatDariTitik(lat: number, lng: number): string | null {
-  let terdekat = WILKER_LOKASI[0];
+/** `wilayah` = pusat tiap wilayah kerja (dari opsiWilkerPeta, tanpa kantor induk). */
+export function cariWilkerTerdekatDariTitik(
+  lat: number,
+  lng: number,
+  wilayah: readonly { kode: string; pusat: { lat: number; lng: number } }[]
+): string | null {
+  if (wilayah.length === 0) return null;
+  let terdekat = wilayah[0];
   let jarakTerdekat = Infinity;
-  for (const w of WILKER_LOKASI) {
+  for (const w of wilayah) {
     const jarak = jarakHaversineKm(lat, lng, w.pusat.lat, w.pusat.lng);
     if (jarak < jarakTerdekat) {
       jarakTerdekat = jarak;
@@ -94,9 +98,6 @@ export function cariWilkerTerdekatDariTitik(lat: number, lng: number): string | 
   }
   return jarakTerdekat <= JARAK_MAKS_WILKER_KM ? terdekat.kode : null;
 }
-
-/** Daftar 7 wilker urut kode, dipakai utk breakdown grid di Info Grafis. */
-export const DAFTAR_KODE_WILKER = Object.keys(NAMA_WILKER).sort();
 
 /** Tanggal "hari ini" menurut WITA (UTC+8), format YYYY-MM-DD. Konsisten
  * dengan lib/ai/periode.ts (rentangHariIniWita) -- Kaltim pakai WITA,

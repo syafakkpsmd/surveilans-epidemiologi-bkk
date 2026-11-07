@@ -1,3 +1,5 @@
+import { requireVektor } from '@/lib/vektor/auth';
+import TombolInputDbd from '@/components/vektor/dbd/TombolInputDbd';
 import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   getBreakdownKategori,
@@ -20,6 +22,7 @@ import TrenChartBulanan from '@/components/vektor/TrenChartBulanan';
 import GrafikBarBulanan from '@/components/vektor/GrafikBarBulanan';
 import BreakdownList from '@/components/vektor/BreakdownList';
 import DonutChart from '@/components/vektor/DonutChart';
+import RingkasanKartuVektor from '@/components/vektor/RingkasanKartuVektor';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
@@ -107,7 +110,8 @@ export default async function VektorAedesPage({
   // TETAP selalu dijalankan (independen dari toggle, selalu berbasis
   // minggu berjalan -- sama seperti sebelumnya).
   // ============================================================
-  const [role, daftarWilker] = await Promise.all([getUserRole(), getWilkerRef()]);
+  const [role, daftarWilker, penggunaInput] = await Promise.all([getUserRole(), getWilkerRef(), requireVektor()]);
+  const bolehInput = !!penggunaInput; // admin/petugas (sama dengan syarat API input)
 
   let ringkasanMingguan: Awaited<ReturnType<typeof getRingkasanVektorDbdRentang>> = [];
   let dataAktivitasMingguan: any[] = [];
@@ -141,7 +145,7 @@ export default async function VektorAedesPage({
     ]);
   }
 
-// Rentang tanggal minggu berjalan
+  // Rentang tanggal minggu berjalan
   const { mulai, selesai } = getRentangMingguEpid(tahunBerjalan, mingguBerjalan);
 
   const filterTambahanBreakdown: Record<string, string> = {};
@@ -188,6 +192,23 @@ export default async function VektorAedesPage({
   const sudahLogin = !!role;
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
 
+  // ============================================================
+  // KARTU RINGKASAN -- data & label mengikuti granularitas aktif.
+  // Tidak ada query tambahan: memakai data aktivitas yang sudah di-fetch.
+  // Sesuaikan 'kode' / 'nama' dengan field hasil getWilkerRef() kalau berbeda.
+  // ============================================================
+  const dataKartu = butuhMingguan ? dataAktivitasMingguan : dataAktivitasBulanan;
+  const labelPeriodeKartu = butuhMingguan
+    ? mgAwalDipilih === mgAkhirDipilih
+      ? `Minggu ke-${mgAwalDipilih} · ${tahun}`
+      : `Minggu ke-${mgAwalDipilih}–${mgAkhirDipilih} · ${tahun}`
+    : bulanAwalDipilih === bulanAkhirDipilih
+      ? `Bulan ke-${bulanAwalDipilih} · ${tahun}`
+      : `Bulan ke-${bulanAwalDipilih}–${bulanAkhirDipilih} · ${tahun}`;
+  const labelWilayahKartu = wilker
+    ? ((daftarWilker as any[])?.find((w) => w.kode === wilker || w.kode_wilker === wilker)?.nama ?? wilker)
+    : 'Semua Wilayah Kerja';
+
   // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
   const hasilAI = await hasilAIPromise;
 
@@ -212,21 +233,24 @@ export default async function VektorAedesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Aedes Aegypti (DBD)</h1>
-          <p className="text-sm text-gray-500">
-            HI, CI, ABJ per zona (Perimeter/Buffer)
-            {wilker === 'WK01' ? ' & sub-lokasi (Pelabuhan Umum/TPK Palaran)' : ''}.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ToggleGranularitas granularitasAktif={granularitas} />
-          <FilterWilker daftarWilker={daftarWilker} />
-          <FilterZonaSubLokasi />
-          {butuhMingguan ? <FilterRentangMinggu /> : <FilterRentangBulan />}
-        </div>
-      </div>
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Aedes Aegypti (DBD)</h1>
+      <p className="text-sm text-gray-500">
+        HI, CI, ABJ per zona (Perimeter/Buffer)
+        {wilker === 'WK01' ? ' & sub-lokasi (Pelabuhan Umum/TPK Palaran)' : ''}.
+      </p>
+    </div>
+    
+    {/* Tambahkan ml-auto di sini agar kelompok filter otomatis bergeser ke kanan */}
+    <div className="flex flex-wrap items-center gap-2 ml-auto">
+      <ToggleGranularitas granularitasAktif={granularitas} />
+      <FilterWilker daftarWilker={daftarWilker} />
+      <FilterZonaSubLokasi />
+      {butuhMingguan ? <FilterRentangMinggu /> : <FilterRentangBulan />}
+    </div>
+  </div>
+      {bolehInput && <TombolInputDbd wilayahAwal={wilker ?? ''} />}
 
       {dataKosong ? (
         <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
@@ -234,6 +258,14 @@ export default async function VektorAedesPage({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* ================= KARTU RINGKASAN ================= */}
+          <RingkasanKartuVektor
+            data={dataKartu}
+            granularitas={granularitas}
+            labelPeriode={labelPeriodeKartu}
+            labelWilayah={labelWilayahKartu}
+          />
+
           {/* ================= MINGGUAN ================= */}
           {butuhMingguan && (
             <>

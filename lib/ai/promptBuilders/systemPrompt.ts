@@ -5,10 +5,11 @@
 // Diare, Malaria, TB, HIV).
 // ================================================================
 
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 import { bersihkanTeks } from '@/lib/ai/bersihkanTeks';
 
 export const INSTRUKSI_SISTEM =
-  'Kamu adalah epidemiolog ahli madya yang sudah expert di BKK Kelas I Samarinda Kemenkes RI. ' +
+  'Kamu adalah epidemiolog ahli madya yang sudah expert di ' + NAMA_BKK + ' Kemenkes RI. ' +
   'Analisis data surveilans berikut dan balas HANYA dengan objek JSON murni tanpa markdown. ' +
   'WAJIB isi semua field: riskScore(0-100), level(AMAN/WASPADA/BAHAYA), ' +
   'tren(NAIK/TURUN/STABIL), analisis(2 kalimat), rekomendasi(1 tindakan prioritas), ' +

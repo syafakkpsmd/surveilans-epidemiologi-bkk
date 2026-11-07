@@ -4,7 +4,7 @@
 // DATE kembali sebagai 'YYYY-MM-DD' dan numeric/bigint sebagai number (diatur di klien itu).
 import 'server-only';
 import { getDbClient, type DbValue } from '@/lib/db/client';
-import { BATAS, KELOMPOK_UMUR, KODE_WILAYAH } from './config';
+import { BATAS, KELOMPOK_UMUR } from './config';
 import type { BarisCkg } from './validasi';
 
 export type FilterCkg = {
@@ -17,7 +17,8 @@ export type FilterCkg = {
 
 const TGL = /^\d{4}-\d{2}-\d{2}$/;
 
-export function filterDariQuery(sp: URLSearchParams): FilterCkg {
+/** `kodeValid` = kode wilayah yang dikenal (kamus.daftarKode), supaya filter tidak menerima kode asing. */
+export function filterDariQuery(sp: URLSearchParams, kodeValid: readonly string[]): FilterCkg {
   const f: FilterCkg = {};
   const dari = sp.get('dari');
   const sampai = sp.get('sampai');
@@ -26,7 +27,7 @@ export function filterDariQuery(sp: URLSearchParams): FilterCkg {
   const umax = sp.get('umur_max');
   if (dari && TGL.test(dari)) f.dari = dari;
   if (sampai && TGL.test(sampai)) f.sampai = sampai;
-  if (wilayah && KODE_WILAYAH.includes(wilayah)) f.wilayah = wilayah;
+  if (wilayah && kodeValid.includes(wilayah)) f.wilayah = wilayah;
   if (umin && Number.isInteger(Number(umin))) f.umurMin = Number(umin);
   if (umax && Number.isInteger(Number(umax))) f.umurMax = Number(umax);
   return f;

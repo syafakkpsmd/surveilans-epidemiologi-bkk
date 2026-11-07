@@ -2,14 +2,8 @@
 import { parseTanggal, type UrutanTanggal } from '@/lib/tanggal/parse-tanggal';
 import { parseAngka, petakanWilayah } from '@/lib/vektor/umum';
 import {
-  bacaFaseBulan,
-  bacaZona,
-  CUACA,
-  KEADAAN_TEMPAT,
-  MACAM_TEMPAT,
-  METODE_TANGKAP,
-  samakan,
-  type Zona,
+  bacaFaseBulan, bacaZona, CUACA, KEADAAN_TEMPAT, MACAM_TEMPAT, METODE_TANGKAP,
+  hitungMbr, hitungMhd, samakan, type Zona,
 } from './config';
 
 type Baris = Record<string, unknown>;
@@ -37,6 +31,7 @@ export interface DataLarva extends DataUmum {
 export interface DataDewasa extends DataUmum {
   metode_tangkap: string;
   jml_nyamuk: number;
+  jml_petugas: number | null;
   jml_jam_tangkap: number;
   mbr: number | null;
   mhd: number | null;
@@ -60,6 +55,7 @@ const HEADER: Record<string, string> = {
   // dewasa
   metodetangkap: 'metode', metode: 'metode',
   jmlnyamuk: 'nyamuk', jumlahnyamuk: 'nyamuk', nyamuk: 'nyamuk',
+  jamtangkap: 'jam', petugas: 'petugas', jumlahpetugas: 'petugas', jmlpetugas: 'petugas',
   jmljamtangkap: 'jam', jumlahjamtangkap: 'jam', jam: 'jam',
   mbr: 'mbr', mhd: 'mhd', spesies: 'spesies',
 };
@@ -73,6 +69,8 @@ export function kanonik(baris: Baris): Baris {
   }
   return out;
 }
+
+export const dikenalSebagaiKolom = (judul: string) => !!HEADER[judul.toLowerCase().replace(/[^a-z0-9]/g, '')];
 
 const kosong = (v: unknown) => v === '' || v === null || v === undefined;
 
@@ -198,10 +196,25 @@ export function validasiDewasa(b0: Baris, o: OpsiBaca = {}): Hasil<DataDewasa> {
   if ('error' in jam) return { ok: false, error: jam.error };
   if (!((jam.nilai as number) > 0)) return { ok: false, error: 'Jumlah jam tangkap harus lebih dari 0' };
 
-  const mbr = desimal(b.mbr, 'MBR', 0, 100000, false);
-  if ('error' in mbr) return { ok: false, error: mbr.error };
-  const mhd = desimal(b.mhd, 'MHD', 0, 100000, false);
-  if ('error' in mhd) return { ok: false, error: mhd.error };
+  const petugas = bulat(b.petugas, 'Jumlah petugas', 1, false);
+  if ('error' in petugas) return { ok: false, error: petugas.error };
+
+  const mbrIn = desimal(b.mbr, 'MBR', 0, 100000, false);
+  if ('error' in mbrIn) return { ok: false, error: mbrIn.error };
+  const mhdIn = desimal(b.mhd, 'MHD', 0, 100000, false);
+  if ('error' in mhdIn) return { ok: false, error: mhdIn.error };
+
+  const jumlahNyamuk = nyamuk.nilai as number;
+  const jamTangkap = jam.nilai as number;
+  let mbr = mbrIn.nilai;
+  let mhd = mhdIn.nilai;
+
+  if (petugas.nilai !== null) {
+    mbr = hitungMbr(jumlahNyamuk, petugas.nilai, jamTangkap);
+    mhd = hitungMhd(jumlahNyamuk, petugas.nilai, jamTangkap);
+  } else if (mbr === null || mhd === null) {
+    return { ok: false, error: 'Jumlah petugas wajib diisi untuk menghitung MBR dan MHD' };
+  }
 
   return {
     ok: true,
@@ -209,10 +222,11 @@ export function validasiDewasa(b0: Baris, o: OpsiBaca = {}): Hasil<DataDewasa> {
     data: {
       ...u.data,
       metode_tangkap: metode,
-      jml_nyamuk: nyamuk.nilai as number,
-      jml_jam_tangkap: jam.nilai as number,
-      mbr: mbr.nilai,
-      mhd: mhd.nilai,
+      jml_nyamuk: jumlahNyamuk,
+      jml_petugas: petugas.nilai,
+      jml_jam_tangkap: jamTangkap,
+      mbr,
+      mhd,
       spesies: teks(b.spesies, 120, true),
     },
   };

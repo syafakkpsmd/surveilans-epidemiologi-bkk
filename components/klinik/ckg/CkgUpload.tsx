@@ -1,7 +1,7 @@
 'use client';
 // components/klinik/ckg/CkgUpload.tsx
 import { useState } from 'react';
-import { OPSI_WILAYAH } from '@/lib/klinik/ckg/config';
+import type { OpsiWilayahCkg } from '@/lib/klinik/ckg/config';
 
 type Hasil = {
   total: number;
@@ -14,7 +14,7 @@ type Hasil = {
 const input =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600';
 
-export default function CkgUpload() {
+export default function CkgUpload({ opsiWilayah }: { opsiWilayah: OpsiWilayahCkg[] }) {
   const [wilayah, setWilayah] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [kirim, setKirim] = useState(false);
@@ -49,7 +49,7 @@ export default function CkgUpload() {
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select required className={input} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {opsiWilayah.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
 

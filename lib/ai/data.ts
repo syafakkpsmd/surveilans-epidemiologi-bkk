@@ -1,4 +1,5 @@
-﻿import {
+﻿import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
+import {
   getRingkasanMingguan,
   getRingkasanBulanan,
   getKategoriBreakdown,
@@ -19,7 +20,8 @@
   getRingkasanRatGuardMingguan, 
   getRingkasanRatGuardBulanan,
 } from '@/lib/db/queries/umum';
-import { NAMA_PANJANG_BY_KODE } from '@/lib/wilayah-kerja';
+import { muatDaftarWilayahSingkat } from '@/lib/wilayah-kerja/db';
+import { daftarWilayahKapal, type WilayahKapal } from '@/lib/wilayah-kerja/kapal';
 import { getTrenDiareMultiVariabel, getTrenDiareBulanan, getHasilPengamatanPerWilker, getHasilPengamatanPerWilkerBulanan } from '@/lib/db/queries/queriesVektorDiareEnhanced';
 import type { KategoriCop } from "@/types/domain.types";
 import {
@@ -44,8 +46,7 @@ import type { RingkasanPenyakitEmerging, Penyakit, Negara } from '@/types/global
 import { DAFTAR_PENYAKIT, DAFTAR_NEGARA } from '@/types/global-emerging.types';
 import { createDbClient } from '@/lib/db/server';
 import { getRingkasanPesawatMingguan, getRingkasanPesawatBulanan } from '@/lib/db/queries/queriesPesawat';
-import { ambilPerbandinganIspaHotspot, ambilPerbandinganSkdrHotspot } from '@/lib/db/queries/queries-karhutla-server';
-import { DAFTAR_WILAYAH_KARHUTLA } from '@/lib/karhutla/constants';
+import { ambilDaftarWilayahIspa, ambilPerbandinganIspaHotspot, ambilPerbandinganSkdrHotspot } from '@/lib/db/queries/queries-karhutla-server';
 import {
   getTbRawData,
   hitungTrenMingguanTb,
@@ -258,6 +259,7 @@ export async function ambilDataAnalisisTb(
   periodeKey: string,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const tahun = parseInt(periodeKey.split('-')[0], 10);
   const rows = await getTbRawData(tahun);
  
@@ -309,6 +311,7 @@ export async function ambilDataAnalisisSkdr(
   periodeKey: string,
   wilayahKerja?: string
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const supabase = await createDbClient();
   const [tahunStr, mingguStr] = periodeKey.replace('W', '').split('-');
   const tahun = Number(tahunStr);
@@ -486,15 +489,16 @@ function jumlahkanRingkasan<T extends Record<string, unknown>>(
 
 function cariAtauJumlahkan<T extends Record<string, unknown>>(
   baris: T[],
-  wilayahKerja: string | undefined,
+  wilayahKerja: string | readonly string[] | undefined,
   kolomAngka: (keyof T)[]
 ): Record<string, number> {
   if (wilayahKerja) {
-    const cocok = baris.find((b) => b.wilayah_kerja === wilayahKerja);
-    if (!cocok) {
+    const ejaan = typeof wilayahKerja === 'string' ? [wilayahKerja] : wilayahKerja;
+    const cocok = baris.filter((b) => ejaan.includes(b.wilayah_kerja as string));
+    if (cocok.length === 0) {
       return Object.fromEntries(kolomAngka.map((k) => [k as string, 0]));
     }
-    return Object.fromEntries(kolomAngka.map((k) => [k as string, Number(cocok[k]) || 0]));
+    return jumlahkanRingkasan(cocok, kolomAngka);
   }
   return jumlahkanRingkasan(baris, kolomAngka);
 }
@@ -510,10 +514,11 @@ function cariAtauJumlahkan<T extends Record<string, unknown>>(
  */
 function jumlahkanRentang<T extends Record<string, unknown>>(
   baris: T[],
-  wilayahKerja: string | undefined,
+  wilayahKerja: string | readonly string[] | undefined,
   kolomAngka: (keyof T)[]
 ): Record<string, number> {
-  const terfilter = wilayahKerja ? baris.filter((b) => b.wilayah_kerja === wilayahKerja) : baris;
+  const ejaan = typeof wilayahKerja === 'string' ? [wilayahKerja] : wilayahKerja;
+  const terfilter = ejaan ? baris.filter((b) => ejaan.includes(b.wilayah_kerja as string)) : baris;
   return jumlahkanRingkasan(terfilter, kolomAngka);
 }
 
@@ -574,9 +579,10 @@ export async function ambilDataAnalisisCop(
   wilayahKerja: string | undefined,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const labelWilayah = wilayahKerja
     ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
 
   if (konteks === 'cop-mingguan') {
     const periodeSaatIni = parsePeriodeMingguan(periodeKey);
@@ -748,6 +754,7 @@ function gabungkanRisikoWilker(
 export async function ambilDataAnalisisRisikoWilker(
   periodeKey: string
 ): Promise<DataRisikoWilker> {
+  await segarkanNamaWilker();
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
 
   if (isMingguan) {
@@ -842,9 +849,10 @@ export async function ambilDataAnalisisRatGuard(
   wilayahKerja: string | undefined,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const labelWilayah = wilayahKerja
     ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
   const labelModul = 'Pengawasan Rat Guard';
   const isMingguan = konteks === 'rat-guard-mingguan';
 
@@ -1011,9 +1019,10 @@ export async function ambilDataAnalisisPhqc(
   wilayahKerja: string | undefined,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const labelWilayah = wilayahKerja
     ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
 
   if (konteks === 'phqc-mingguan') {
     const periodeSaatIni = parsePeriodeMingguan(periodeKey);
@@ -1127,9 +1136,10 @@ export async function ambilDataAnalisisPenumpang(
   wilayahKerja: string | undefined,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const labelWilayah = wilayahKerja
     ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
 
   if (konteks === 'penumpang-mingguan') {
     const periodeSaatIni = parsePeriodeMingguan(periodeKey);
@@ -1642,24 +1652,25 @@ async function topKategoriUmum(
     .slice(0, 8);
 }
 
-const NAMA_WILKER: Record<string, string> = NAMA_PANJANG_BY_KODE;
+/** Peta kode -> nama resmi wilayah kerja (dari wilker_ref). Diisi ulang di awal setiap fungsi ekspor lewat segarkanNamaWilker(). */
+let NAMA_WILKER: Record<string, string> = {};
 
-const DAFTAR_WILAYAH_COP = [
-  'Samarinda', 'TanjungSantan', 'TanjungLaut', 'Lhoktuan', 'Sangatta', 'Sangkulirang',
-] as const;
+async function segarkanNamaWilker(): Promise<void> {
+  const daftar = await muatDaftarWilayahSingkat();
+  NAMA_WILKER = Object.fromEntries(daftar.map((w) => [w.kode, w.nama]));
+  WILAYAH_KAPAL_AI = daftarWilayahKapal(daftar);
+}
 
-const MAP_WILAYAH_DB_PHQC: Record<string, string> = {
-  Samarinda: 'Samarinda',
-  TanjungLaut: 'Pelabuhan Tanjung Laut',
-  Sangkulirang: 'Pelabuhan Laut Sangkulirang',
-  Sangatta: 'Pelabuhan Laut Sangatta',
-  Lhoktuan: 'Pelabuhan Lhoktuan',
-  TanjungSantan: 'Pelabuhan Laut Tanjung Santan',
-};
+/** Wilayah kerja kapal (pelabuhan aktif) beserta semua ejaan tersimpan; diisi ulang oleh segarkanNamaWilker(). */
+let WILAYAH_KAPAL_AI: WilayahKapal[] = [];
 
-function resolveWilayahPhqcDb(wilayahKerja: string | undefined): string | undefined {
+/**
+ * Kunci wilayah (mis. "TanjungSantan") -> semua ejaan yang mungkin tersimpan di data PHQC ("Pelabuhan Laut Tanjung Santan", ...).
+ * Dipakai sebagai filter IN; kunci yang tidak dikenal dikembalikan apa adanya.
+ */
+function resolveWilayahPhqcDb(wilayahKerja: string | undefined): string | string[] | undefined {
   if (!wilayahKerja) return undefined;
-  return MAP_WILAYAH_DB_PHQC[wilayahKerja] ?? wilayahKerja;
+  return WILAYAH_KAPAL_AI.find((w) => w.value === wilayahKerja)?.variants ?? wilayahKerja;
 }
 
 async function ambilNegaraKedatanganPeriode(
@@ -1731,14 +1742,14 @@ async function ambilDataBreakdownPerWilkerCop(periodeKey: string): Promise<DataB
   const peta = new Map<string, number>();
   baris.forEach((b) => peta.set(b.wilayah_kerja, (peta.get(b.wilayah_kerja) ?? 0) + b.jumlah_kapal));
 
-  const breakdown = DAFTAR_WILAYAH_COP
-    .map((w) => ({ nilai: w, jumlah: peta.get(w) ?? 0 }))
+  const breakdown = WILAYAH_KAPAL_AI
+    .map((w) => ({ nilai: w.value, jumlah: peta.get(w.value) ?? 0 }))
     .sort((a, b) => b.jumlah - a.jumlah);
   const totalKapal = breakdown.reduce((total, b) => total + b.jumlah, 0);
 
   return {
     labelKonteks: 'Perbandingan Kedatangan Kapal Antar Wilayah Kerja (Kegiatan COP)',
-    labelWilayah: 'Seluruh wilayah kerja BKK Kelas I Samarinda (perbandingan 6 wilayah)',
+    labelWilayah: `Seluruh wilayah kerja ${NAMA_BKK} (perbandingan ${WILAYAH_KAPAL_AI.length} wilayah)`,
     labelPeriode,
     totalKapal,
     breakdown,
@@ -1866,6 +1877,7 @@ export async function ambilDataAnalisisGlobalEmerging(
   metrik: string | undefined,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   if (!metrik) {
     throw new Error('Pilih penyakit atau negara terlebih dahulu untuk menjalankan Analisis/Prediksi AI Global Emerging.');
   }
@@ -2042,6 +2054,7 @@ export async function ambilDataAnalisisNasionalEmerging(
   metrik: string | undefined,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   if (!metrik || !isPenyakitNasionalValid(metrik)) {
     throw new Error('Pilih penyakit terlebih dahulu untuk menjalankan Analisis/Prediksi AI Nasional Emerging.');
   }
@@ -2217,9 +2230,10 @@ export async function ambilDataAnalisisAbkCrewPenumpang(
   periodeKey: string,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const arah: 'kedatangan' | 'keberangkatan' = konteks.includes('kedatangan') ? 'kedatangan' : 'keberangkatan';
   const isMingguan = konteks.endsWith('-mingguan');
-  const labelWilayah = 'Seluruh wilayah kerja BKK Kelas I Samarinda (gabungan kapal & pesawat)';
+  const labelWilayah = `Seluruh wilayah kerja ${NAMA_BKK} (gabungan kapal & pesawat)`;
   const labelKonteks =
     arah === 'kedatangan'
       ? 'ABK Kapal, Crew Pesawat & Penumpang Pesawat — Kedatangan'
@@ -2319,6 +2333,7 @@ export interface DataSimulasiWabah {
 }
 
 export async function ambilDataSimulasiWabahKapal(simulasiId: string): Promise<DataSimulasiWabah> {
+  await segarkanNamaWilker();
   const supabase = await createDbClient();
   const { data, error } = await supabase
     .from("simulasi_wabah_kapal")
@@ -2340,6 +2355,7 @@ export async function ambilDataSimulasiWabahKapal(simulasiId: string): Promise<D
 }
 
 export async function ambilDataSimulasiWabahPesawat(simulasiId: string): Promise<DataSimulasiWabah> {
+  await segarkanNamaWilker();
   const supabase = await createDbClient();
   const { data, error } = await supabase
     .from("simulasi_wabah_pesawat")
@@ -2366,13 +2382,14 @@ export async function ambilDataAnalisis(
   wilayahKerja: string | undefined,
   metrik?: MetrikVektor
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   if (konteks === 'vektor-dbd-mingguan' || konteks === 'vektor-dbd-bulanan') {
     return ambilDataAnalisisVektorDbdRentang(periodeKey, wilayahKerja, metrik);
   }
 
   const labelWilayah = wilayahKerja
   ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-  : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+  : `Seluruh wilayah kerja ${NAMA_BKK}`;
 
   if (konteks === 'penumpang-mingguan' || konteks === 'penumpang-bulanan') {
     if (konteks === 'penumpang-mingguan') {
@@ -3103,9 +3120,10 @@ export async function ambilDataAnalisisSanitasi(
   wilayahKerja: string | undefined,
   tipe: 'analisis' | 'prediksi'
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const labelWilayah = wilayahKerja
     ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
   const labelModul =
     konteks.startsWith('tpp') ? 'Surveilans TPP (Tempat Pengelolaan Pangan)'
     : konteks.startsWith('ttu') ? 'Surveilans TTU (Tempat-Tempat Umum)'
@@ -3320,7 +3338,7 @@ async function ambilDataBreakdownPelabuhanPhqc(
 ): Promise<DataBreakdownAnalisis> {
   const labelWilayah = wilayahKerja
     ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
   const wilayahUntukQuery = resolveWilayahPhqcDb(wilayahKerja);
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
 
@@ -3395,6 +3413,7 @@ export async function ambilDataBreakdownAnalisis(
   wilayahKerja: string | undefined,
   tipe: 'analisis' | 'prediksi' = 'analisis'
 ): Promise<DataBreakdownAnalisis> {
+  await segarkanNamaWilker();
   if (konteks === 'phqc-pelabuhan-mingguan' || konteks === 'phqc-pelabuhan-bulanan') {
     return ambilDataBreakdownPelabuhanPhqc(periodeKey, wilayahKerja);
   }
@@ -3412,7 +3431,7 @@ export async function ambilDataBreakdownAnalisis(
   if (konteks === 'cop-per-wilker') {
     const labelWilayah = wilayahKerja
       ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-      : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+      : `Seluruh wilayah kerja ${NAMA_BKK}`;
     const isMingguanPerWilker = /^\d{4}-W\d{1,2}$/.test(periodeKey);
 
     if (isMingguanPerWilker) {
@@ -3462,7 +3481,7 @@ export async function ambilDataBreakdownAnalisis(
     const kategori = konteks === 'phqc-daerah-asal' ? 'pelabuhan_kedatangan' : 'pelabuhan_tujuan';
     const labelWilayah = wilayahKerja
       ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-      : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+      : `Seluruh wilayah kerja ${NAMA_BKK}`;
     const wilayahUntukQuery = resolveWilayahPhqcDb(wilayahKerja);
     const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
 
@@ -3521,7 +3540,7 @@ export async function ambilDataBreakdownAnalisis(
 
   const labelWilayah = wilayahKerja
     ? (NAMA_WILKER[wilayahKerja] ?? wilayahKerja)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
   const kategori = KATEGORI_PER_KONTEKS_BREAKDOWN[konteks];
   const tabel = TABEL_PER_KONTEKS_BREAKDOWN[konteks];
   const wilayahUntukQuery = tabel === 'phqc' ? resolveWilayahPhqcDb(wilayahKerja) : wilayahKerja;
@@ -3624,6 +3643,7 @@ export async function ambilDataAnalisisSkdrTren(
   wilayahKerja: string | undefined,
   jenisPenyakitId: number
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const supabase = await createDbClient();
 
   const { data: penyakitRow } = await supabase
@@ -3715,10 +3735,14 @@ export async function ambilDataAnalisisSkdrTren(
 
 const NAMA_BULAN_KARHUTLA = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-function labelWilayahKarhutla(wilayahKeys: string[]): string {
+/** Label dari tabel wilayah_ispa (dikelola di pengaturan lokasi karhutla); key tak dikenal ditampilkan apa adanya. */
+function labelWilayahKarhutla(
+  wilayahKeys: string[],
+  daftar: { kode_wilker: string; zona: string | null; label: string }[]
+): string {
   if (wilayahKeys.length === 0) return 'Seluruh wilayah kerja';
   const label = wilayahKeys.map((key) => {
-    const entri = DAFTAR_WILAYAH_KARHUTLA.find((w) =>
+    const entri = daftar.find((w) =>
       w.zona ? `${w.kode_wilker}::${w.zona}` === key : w.kode_wilker === key
     );
     return entri?.label ?? key;
@@ -3731,6 +3755,7 @@ export async function ambilDataAnalisisKarhutlaIspaHotspot(
   periodeKey: string,
   wilayahKerja: string | undefined
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const isMingguan = konteks === 'karhutla-ispa-mingguan';
 
   const tahunMatch = periodeKey.match(/^(\d+)-/);
@@ -3781,7 +3806,7 @@ export async function ambilDataAnalisisKarhutlaIspaHotspot(
 
   return {
     labelKonteks: 'Karhutla — Kasus ISPA vs Titik Panas',
-    labelWilayah: labelWilayahKarhutla(wilayahKeys),
+    labelWilayah: labelWilayahKarhutla(wilayahKeys, await ambilDaftarWilayahIspa()),
     labelPeriodeSaatIni: labelSaatIni,
     labelPeriodeSebelumnya: isMingguan
       ? `Minggu ${periodeDariSebelumnya}-${periodeSampaiSebelumnya} tahun ${tahun}`
@@ -3810,6 +3835,7 @@ export async function ambilDataAnalisisKarhutlaSkdrHotspot(
   periodeKey: string,
   wilayahKerja: string | undefined
 ): Promise<DataAnalisis> {
+  await segarkanNamaWilker();
   const tahunMatch = periodeKey.match(/^(\d+)-/);
   const tahun = tahunMatch ? Number(tahunMatch[1]) : new Date().getFullYear();
 

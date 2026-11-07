@@ -14,9 +14,7 @@ import { isiNegara, simpanMaster, terapkanMasterKeData, belumTerdaftar } from '.
 import { ubahDesimal, ubahTanggalWaktu, ubahWaktu } from '../../lib/input-data/nilai';
 import { getDbClient, tutupDb } from '../../lib/db/client';
 
-import { buatKamus, WILAYAH_KERJA } from '../../lib/wilayah-kerja';
-// Kamus uji = daftar bawaan BKK Samarinda (aplikasi sebenarnya membacanya dari wilker_ref).
-const KAMUS = buatKamus(WILAYAH_KERJA);
+import { KAMUS_UJI as KAMUS } from './fixtures-wilker'; // daftar contoh BKK Samarinda (aplikasi membacanya dari wilker_ref)
 
 const cop = MODUL.cop;
 const phqc = MODUL.phqc;

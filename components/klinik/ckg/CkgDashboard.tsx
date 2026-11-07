@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { OPSI_WILAYAH } from '@/lib/klinik/ckg/config';
+import type { OpsiWilayahCkg } from '@/lib/klinik/ckg/config';
 
 type Item = { label: string; n: number };
 type Seri = { periode: string; n: number };
@@ -68,7 +68,7 @@ function Donut({ judul, data }: { judul: string; data: Item[] }) {
   );
 }
 
-export default function CkgDashboard() {
+export default function CkgDashboard({ opsiWilayah }: { opsiWilayah: OpsiWilayahCkg[] }) {
   const [dari, setDari] = useState(() => `${new Date().getFullYear()}-01-01`);
   const [sampai, setSampai] = useState(() => tglLokal(new Date()));
   const [wilayah, setWilayah] = useState('');
@@ -123,7 +123,7 @@ export default function CkgDashboard() {
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>
           <select className={input} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
             <option value="">Semua wilayah</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {opsiWilayah.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         {memuat && <p className="pb-2 text-sm text-slate-500" role="status">Memuat...</p>}

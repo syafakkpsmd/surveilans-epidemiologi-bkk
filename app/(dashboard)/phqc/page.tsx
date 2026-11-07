@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { FilterPeriodeWilayah } from "@/components/FilterPeriodeWilayah";
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
+import { daftarWilayahKapal } from "@/lib/wilayah-kerja/kapal";
 import { TrenChart } from "@/components/TrenChart";
 import { BreakdownCard } from "@/components/BreakdownCard";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
@@ -21,31 +23,6 @@ import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI, type HasilAIStruktur
 // ============================================================
 // 1. MAPPING WILAYAH SUPABASE & HELPER MODULE-LEVEL
 // ============================================================
-
-const MAP_WILAYAH_DB: Record<string, string> = {
-  Samarinda: "Samarinda",
-  TanjungLaut: "Pelabuhan Tanjung Laut",
-  Sangkulirang: "Pelabuhan Laut Sangkulirang",
-  Sangatta: "Pelabuhan Laut Sangatta",
-  Lhoktuan: "Pelabuhan Lhoktuan",
-  TanjungSantan: "Pelabuhan Laut Tanjung Santan",
-};
-
-/**
- * Mengonversi parameter URL menjadi tipe Wilayah yang valid
- */
-function dapatkanDbWilayah(nilai: string | undefined): Wilayah | undefined {
-  if (!nilai || nilai === "Semua") return undefined;
-
-  if (MAP_WILAYAH_DB[nilai]) return MAP_WILAYAH_DB[nilai] as Wilayah;
-
-  const bersih = nilai.toLowerCase().replace(/\s+/g, "");
-  const foundKey = Object.keys(MAP_WILAYAH_DB).find(
-    (k) => k.toLowerCase() === bersih
-  );
-
-  return (foundKey ? MAP_WILAYAH_DB[foundKey] : nilai) as Wilayah;
-}
 
 function normalisasiNilaiKategori(nilai: string): string {
   const d = nilai.trim();
@@ -80,22 +57,13 @@ const KATEGORI_LIST: { key: KategoriPhqc; label: string }[] = [
   { key: "pelabuhan_tujuan", label: "Pelabuhan Tujuan" },
 ];
 
-const DAFTAR_WILAYAH: Wilayah[] = [
-  "Samarinda",
-  "TanjungSantan",
-  "TanjungLaut",
-  "Lhoktuan",
-  "Sangatta",
-  "Sangkulirang",
-];
-
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
 ];
 
-function validasiWilayah(nilai: string | undefined): Wilayah | "Semua" {
-  if (nilai && (DAFTAR_WILAYAH as string[]).includes(nilai)) return nilai as Wilayah;
+function validasiWilayah(nilai: string | undefined, daftar: readonly string[]): Wilayah | "Semua" {
+  if (nilai && daftar.includes(nilai)) return nilai as Wilayah;
   return "Semua";
 }
 
@@ -159,10 +127,13 @@ export default async function PhqcPage({
   const sp = await searchParams;
   const isMingguan = sp.mode !== "bulanan";
   const mode: "mingguan" | "bulanan" = isMingguan ? "mingguan" : "bulanan";
-  const wilayah = validasiWilayah(sp.wilayah);
+  // Wilayah kerja kapal dari pengaturan; PHQC menyimpan ejaan lama ("Pelabuhan Laut X"), jadi filter memakai semua ejaan (variants).
+  const wilayahKapal = daftarWilayahKapal(await getDaftarWilker());
+  const DAFTAR_WILAYAH = wilayahKapal.map((w) => w.value);
+  const wilayah = validasiWilayah(sp.wilayah, DAFTAR_WILAYAH);
 
   // Penegasan Tipe Wilayah Kerja untuk Query Supabase
-  const targetWilayahDb: Wilayah | undefined = dapatkanDbWilayah(wilayah);
+  const targetWilayahDb: string[] | undefined = wilayah === "Semua" ? undefined : wilayahKapal.find((w) => w.value === wilayah)?.variants;
 
   const { sudahLogin, role } = await getStatusAkses();
 
@@ -349,13 +320,10 @@ export default async function PhqcPage({
     }
 
     // Olah Data Tren Utama
-    const terfilterRingkasan = !targetWilayahDb 
-      ? ringkasan 
-      : ringkasan.filter(
-          (r) =>
-            r.wilayah_kerja?.trim().toLowerCase() ===
-            targetWilayahDb.trim().toLowerCase()
-        );
+    const varianKecil = targetWilayahDb?.map((v) => v.trim().toLowerCase());
+    const terfilterRingkasan = !varianKecil
+      ? ringkasan
+      : ringkasan.filter((r) => varianKecil.includes(r.wilayah_kerja?.trim().toLowerCase() ?? ""));
 
     const petaTren = new Map<number, TitikTrenPhqc>();
     terfilterRingkasan.forEach((r) => {
@@ -508,6 +476,7 @@ export default async function PhqcPage({
       </div>
 
       <FilterPeriodeWilayah
+        daftarWilayah={DAFTAR_WILAYAH}
         mode={mode}
         wilayah={wilayah}
         tampilkanRentang

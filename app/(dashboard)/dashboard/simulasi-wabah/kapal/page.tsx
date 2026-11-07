@@ -3,15 +3,8 @@ import { getDbClient } from "@/lib/db/client";
 import { parseKolomJson } from "@/lib/db/json";
 import { SimulasiKapalClient } from "@/components/simulasi-wabah/SimulasiKapalClient";
 import { PeranUser } from "@/types/database.types";
-
-const WILAYAH_KAPAL = [
-  { value: "Samarinda", label: "Pelabuhan Samarinda" },
-  { value: "TanjungSantan", label: "Pelabuhan Tanjung Santan" },
-  { value: "TanjungLaut", label: "Pelabuhan Tanjung Laut" },
-  { value: "Lhoktuan", label: "Pelabuhan Lhoktuan" },
-  { value: "Sangatta", label: "Pelabuhan Sangatta" },
-  { value: "Sangkulirang", label: "Pelabuhan Sangkulirang" },
-] as const;
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
+import { daftarWilayahKapal } from "@/lib/wilayah-kerja/kapal";
 
 type Penyakit = { id: number; kategori: string; r0_default: number };
 
@@ -40,7 +33,7 @@ export default async function HalamanSimulasiKapal() {
       sudahLogin={!!user}
       role={(user?.role ?? null) as PeranUser | null}
       daftarPenyakit={daftarPenyakit as Penyakit[]}
-      daftarWilayah={WILAYAH_KAPAL as unknown as { value: string; label: string }[]}
+      daftarWilayah={daftarWilayahKapal(await getDaftarWilker()).map((w) => ({ value: w.value, label: w.namaResmi }))}
       riwayatSimulasi={riwayatSimulasi}
     />
   );

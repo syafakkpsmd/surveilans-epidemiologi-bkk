@@ -45,14 +45,12 @@ const KOLOM_ANGKA = [
 // ---------------------------------------------------------------------------
 const norm = (v: any): string => String(v ?? "").trim().toLowerCase();
 
-// TMS: "tms", "Tidak Memenuhi Syarat", "TMS (Tidak Memenuhi Syarat)", dst.
 const isTmsText = (val: any): boolean => {
   const s = norm(val);
   if (!s) return false;
   return s === "tms" || s.includes("tidak memenuhi");
 };
 
-// MS: "ms", "Memenuhi Syarat", "Memenuhi", dst. (kecuali yang mengandung "tidak")
 const isMsText = (val: any): boolean => {
   const s = norm(val);
   if (!s) return false;
@@ -60,20 +58,10 @@ const isMsText = (val: any): boolean => {
   return s === "ms" || s.includes("memenuhi");
 };
 
-/**
- * Tentukan status sebuah baris data: "tms" | "ms" | null.
- * Prioritas:
- *  1. Kolom `status` (kalau terisi dan dikenali)
- *  2. Kalau `status` KOSONG, turunkan dari parameter fisik/kimia/bakteriologis:
- *     - ada satu saja TMS  -> "tms"
- *     - tidak ada TMS, ada yang MS -> "ms"
- *  3. Selain itu null (data belum lengkap / belum diinput)
- */
 function tentukanStatus(item: any): "tms" | "ms" | null {
   if (isTmsText(item.status)) return "tms";
   if (isMsText(item.status)) return "ms";
 
-  // status kosong -> fallback ke parameter
   if (!norm(item.status)) {
     const params = [item.fisik, item.kimia, item.bakteriologis];
     if (params.some(isTmsText)) return "tms";
@@ -84,13 +72,6 @@ function tentukanStatus(item: any): "tms" | "ms" | null {
 }
 
 interface HasilAwalInisial {
-  // Kunci kombinasi (konteks|periodeKey|wilayahKerja) yang DI-PREFETCH
-  // server di page.tsx, dibangun dengan format SAMA PERSIS seperti
-  // bangunComboKeyDasar() di bawah. Cuma valid untuk kombinasi filter
-  // DEFAULT (granularitas="bulanan", appliedBulanAkhir=12, wilayah dari
-  // wilayahParam). Begitu user ganti granularitas/rentang/wilayah,
-  // comboKeyAktif tidak akan cocok lagi dan Box otomatis balik fetch
-  // sendiri.
   comboKeyDasar: string;
   analisis: HasilAIStruktur | null;
   prediksi: HasilAIStruktur | null;
@@ -104,11 +85,12 @@ type PabClientProps = {
   role: string;
   tahunBerjalan: number;
   bulanBerjalan: number;
-  tahunEpidBerjalan: number;   // dipakai saat granularitas mingguan
-  mingguEpidBerjalan: number;  // dipakai saat granularitas mingguan
+  tahunEpidBerjalan: number;
+  mingguEpidBerjalan: number;
   wilayahParam?: string;
-  /** Opsional: kalau tidak dioper, kedua Box otomatis fetch sendiri seperti biasa. */
   hasilAwalInisial?: HasilAwalInisial | null;
+  /** Tombol aksi di header (mis. Input/Unggah Data); dibuat di page.tsx server. */
+  aksiHeader?: React.ReactNode;
 };
 
 function bangunComboKeyDasar(konteks: string, periodeKey: string, wilayahKerja?: string): string {
@@ -163,6 +145,7 @@ export default function PabClient({
   mingguEpidBerjalan,
   wilayahParam,
   hasilAwalInisial,
+  aksiHeader,
 }: PabClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
@@ -241,24 +224,17 @@ export default function PabClient({
         ms_bakteriologis: 0,
       };
 
-      // Akumulasi Angka Agregat & Teks Fallback
       existing.jumlah_pemeriksaan += Number(item.jumlah_pemeriksaan || item.total_pemeriksaan || 1);
       existing.total_pab_diperiksa += Number(item.total_pab_diperiksa || item.jumlah_titik || 1);
 
-      // Evaluasi Parameter TMS (Teks maupun Angka)
       if (isTmsText(item.fisik) || Number(item.tms_fisik) > 0) existing.tms_fisik += Number(item.tms_fisik || 1);
       if (isTmsText(item.kimia) || Number(item.tms_kimia) > 0) existing.tms_kimia += Number(item.tms_kimia || 1);
       if (isTmsText(item.bakteriologis) || Number(item.tms_bakteriologis) > 0) existing.tms_bakteriologis += Number(item.tms_bakteriologis || 1);
 
-      // Evaluasi Parameter MS (Teks maupun Angka)
       if (isMsText(item.fisik) || Number(item.ms_fisik) > 0) existing.ms_fisik += Number(item.ms_fisik || 1);
       if (isMsText(item.kimia) || Number(item.ms_kimia) > 0) existing.ms_kimia += Number(item.ms_kimia || 1);
       if (isMsText(item.bakteriologis) || Number(item.ms_bakteriologis) > 0) existing.ms_bakteriologis += Number(item.ms_bakteriologis || 1);
 
-      // Evaluasi Total MS & TMS
-      // - Kalau baris sudah berisi angka agregat (jumlah_ms / jumlah_tms), pakai angkanya.
-      // - Kalau tidak, tentukan dari teks status (dengan fallback ke parameter
-      //   fisik/kimia/bakteriologis saat kolom status kosong).
       const jmsAngka = Number(item.jumlah_ms) || 0;
       const jtmsAngka = Number(item.jumlah_tms) || 0;
 
@@ -298,26 +274,19 @@ export default function PabClient({
     { key: "ms_bakteriologis", label: "Bakteriologis - MS", warna: WARNA.msBakt },
   ];
 
-  // periodeKey & konteks mengikuti granularitas chart.
   const konteksAI = granularitas === "bulanan" ? "pab-bulanan" : "pab-mingguan";
   const periodeKey = granularitas === "bulanan"
     ? `${tahunBerjalan}-${appliedBulanAkhir}`
     : `${tahunBerjalan}-W${appliedMingguAkhir}`;
 
   const tipeChartAktif = granularitas === "bulanan" ? "bar" : "line";
-
   const wilayahKerjaAktif = selectedWilayah !== "semua" ? selectedWilayah : undefined;
 
-  // Kombinasi filter AKTIF di client, format sama seperti comboKeyDasar
-  // dari server. Cocok -> boleh pakai hasil prefetch. Tidak cocok (user
-  // sudah ganti granularitas/rentang/wilayah) -> hasilAwal jadi undefined,
-  // Box otomatis fetch sendiri.
   const comboKeyAktif = bangunComboKeyDasar(konteksAI, periodeKey, wilayahKerjaAktif);
   const cocokDenganPrefetch = hasilAwalInisial?.comboKeyDasar === comboKeyAktif;
   const hasilAwalAnalisis = cocokDenganPrefetch ? hasilAwalInisial!.analisis : undefined;
   const hasilAwalPrediksi = cocokDenganPrefetch ? hasilAwalInisial!.prediksi : undefined;
 
-  // Ringkasan untuk kartu di atas grafik (mengikuti filter rentang & wilayah)
   const ringkasan = chartData.reduce(
     (acc, d) => {
       acc.pemeriksaan += Number(d.jumlah_pemeriksaan) || 0;
@@ -328,14 +297,17 @@ export default function PabClient({
     },
     { pemeriksaan: 0, titik: 0, ms: 0, tms: 0 }
   );
+
   const totalHasil = ringkasan.ms + ringkasan.tms;
   const persenStr = (n: number) =>
     totalHasil > 0 ? `${((n / totalHasil) * 100).toFixed(1).replace(".", ",")}%` : "-";
   const angka = (n: number) => n.toLocaleString("id-ID");
+  
   const labelPeriode =
     granularitas === "bulanan"
       ? `${NAMA_BULAN[appliedBulanAwal - 1]} – ${NAMA_BULAN[appliedBulanAkhir - 1]} ${tahunBerjalan}`
       : `Mg ${appliedMingguAwal}–${appliedMingguAkhir} ${tahunBerjalan}`;
+      
   const labelWilayah = selectedWilayah !== "semua" ? selectedWilayah : "Semua wilayah kerja";
 
   return (
@@ -350,15 +322,19 @@ export default function PabClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {aksiHeader}
+
           {/* Switch Granularitas */}
           <div className="flex rounded-lg border border-gray-300 bg-white p-0.5 text-sm">
             <button
+              type="button"
               onClick={() => setGranularitas("mingguan")}
               className={`rounded-md px-3 py-1 ${granularitas === "mingguan" ? "bg-[#0F4C5C] text-white" : "text-gray-600"}`}
             >
               Mingguan
             </button>
             <button
+              type="button"
               onClick={() => setGranularitas("bulanan")}
               className={`rounded-md px-3 py-1 ${granularitas === "bulanan" ? "bg-[#0F4C5C] text-white" : "text-gray-600"}`}
             >
@@ -416,6 +392,7 @@ export default function PabClient({
 
           {/* Tombol Terapkan */}
           <button
+            type="button"
             onClick={handleTerapkanFilter}
             className="rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#0c3c49] transition-colors"
           >

@@ -42,3 +42,17 @@ export function bacaFaseBulan(v: unknown): { nilai: string | null } | { error: s
   const m = FASE_BULAN.find((f) => f.toLowerCase() === s);
   return m ? { nilai: m } : { error: `Fase bulan "${v}" tidak dikenali` };
 }
+
+const bulatkan = (n: number) => Math.round(n * 10000) / 10000;
+
+/** Rumus sheet: MBR = nyamuk / (petugas x (jam / 12)). */
+export function hitungMbr(nyamuk: number, petugas: number, jam: number): number | null {
+  if (!(petugas > 0) || !(jam > 0)) return null;
+  return bulatkan(nyamuk / (petugas * (jam / 12)));
+}
+
+/** Rumus sheet: MHD = nyamuk / (petugas x jam x (40 / 60)). */
+export function hitungMhd(nyamuk: number, petugas: number, jam: number): number | null {
+  if (!(petugas > 0) || !(jam > 0)) return null;
+  return bulatkan(nyamuk / (petugas * jam * (40 / 60)));
+}

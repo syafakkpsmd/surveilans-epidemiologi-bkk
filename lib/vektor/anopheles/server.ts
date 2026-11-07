@@ -60,7 +60,7 @@ export async function daftarSurvei(f: FilterAnopheles, limit = 100, offset = 0) 
   const { where, p } = bangunWhere(f);
   const res = await getDbClient().execute({
     sql: `SELECT id, tgl_survei, kode_wilker, zona, sub_lokasi, fase_bulan, suhu_c, kelembapan_pct, cuaca,
-                 metode_tangkap, jml_nyamuk, jml_jam_tangkap, mbr, mhd, spesies,
+                 metode_tangkap, jml_nyamuk, jml_petugas, jml_jam_tangkap, mbr, mhd, spesies,
                  jumlah_cidukan, jumlah_larva, jumlah_jenis_larva, spesies_larva,
                  macam_tempat_perindukan, keadaan_tempat_perindukan
           FROM vektor_anopheles WHERE ${where}
@@ -160,12 +160,12 @@ export async function simpanDewasa(rows: DataDewasa[]) {
     const res = await db.execute({
       sql: `INSERT INTO vektor_anopheles
               (tgl_survei, kode_wilker, zona, tipe_pengamatan, sub_lokasi, fase_bulan, suhu_c, kelembapan_pct, cuaca,
-               metode_tangkap, jml_nyamuk, jml_jam_tangkap, mbr, mhd, spesies)
+               metode_tangkap, jml_nyamuk, jml_petugas, jml_jam_tangkap, mbr, mhd, spesies)
             SELECT x.t, x.w, x.z, '${TIPE_DB.dewasa}', x.sl, x.fb, x.su, x.kl, x.cu,
-                   x.me, x.ny, x.ja, x.mbr, x.mhd, x.sp
+                   x.me, x.ny, x.pe, x.ja, x.mbr, x.mhd, x.sp
             FROM unnest(?::date[], ?::text[], ?::text[], ?::text[], ?::text[], ?::numeric[], ?::numeric[], ?::text[],
-                        ?::text[], ?::int[], ?::numeric[], ?::numeric[], ?::numeric[], ?::text[])
-                 AS x(t, w, z, sl, fb, su, kl, cu, me, ny, ja, mbr, mhd, sp)
+                        ?::text[], ?::int[], ?::int[], ?::numeric[], ?::numeric[], ?::numeric[], ?::text[])
+                 AS x(t, w, z, sl, fb, su, kl, cu, me, ny, pe, ja, mbr, mhd, sp)
             WHERE NOT EXISTS (
               SELECT 1 FROM vektor_anopheles v
               WHERE v.tipe_pengamatan = '${TIPE_DB.dewasa}' AND v.tgl_survei = x.t AND v.kode_wilker = x.w
@@ -183,6 +183,7 @@ export async function simpanDewasa(rows: DataDewasa[]) {
         c.map((r) => r.cuaca),
         c.map((r) => r.metode_tangkap),
         c.map((r) => r.jml_nyamuk),
+        c.map((r) => r.jml_petugas),
         c.map((r) => r.jml_jam_tangkap),
         c.map((r) => r.mbr),
         c.map((r) => r.mhd),
@@ -206,15 +207,15 @@ export async function ubahDewasa(id: number, d: DataDewasa): Promise<'ok' | 'dup
   });
   if (kembar.rows.length) return 'duplikat';
 
-  const res = await db.execute({
-    sql: `UPDATE vektor_anopheles
-          SET tgl_survei = ?, kode_wilker = ?, zona = ?, sub_lokasi = ?, fase_bulan = ?, suhu_c = ?,
-              kelembapan_pct = ?, cuaca = ?, metode_tangkap = ?, jml_nyamuk = ?, jml_jam_tangkap = ?,
-              mbr = ?, mhd = ?, spesies = ?
-          WHERE id = ? AND tipe_pengamatan = '${TIPE_DB.dewasa}'`,
-    args: [d.tgl_survei, d.kode_wilker, d.zona, d.sub_lokasi, d.fase_bulan, d.suhu_c, d.kelembapan_pct, d.cuaca,
-           d.metode_tangkap, d.jml_nyamuk, d.jml_jam_tangkap, d.mbr, d.mhd, d.spesies, id],
-  });
+    const res = await db.execute({
+        sql: `UPDATE vektor_anopheles
+            SET tgl_survei = ?, kode_wilker = ?, zona = ?, sub_lokasi = ?, fase_bulan = ?, suhu_c = ?,
+                kelembapan_pct = ?, cuaca = ?, metode_tangkap = ?, jml_nyamuk = ?, jml_petugas = ?,
+                jml_jam_tangkap = ?, mbr = ?, mhd = ?, spesies = ?
+            WHERE id = ? AND tipe_pengamatan = '${TIPE_DB.dewasa}'`,
+        args: [d.tgl_survei, d.kode_wilker, d.zona, d.sub_lokasi, d.fase_bulan, d.suhu_c, d.kelembapan_pct, d.cuaca,
+            d.metode_tangkap, d.jml_nyamuk, d.jml_petugas, d.jml_jam_tangkap, d.mbr, d.mhd, d.spesies, id],
+    });
   return res.rowsAffected ? 'ok' : 'tidak_ada';
 }
 

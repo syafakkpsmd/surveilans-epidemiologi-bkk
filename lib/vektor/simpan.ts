@@ -2,6 +2,7 @@
 //
 // Penyimpanan data vektor ke PostgreSQL. Dipisah dari server action agar bisa diuji langsung.
 // Trigger `trg_hitung_*` mengisi HI/CI/BI/ABJ/TSI/MBR dll. saat INSERT, jadi tidak dihitung di sini.
+import type { KamusWilker } from '../wilayah-kerja';
 import type { DbClient } from '../db/client';
 import { konversiBaris } from './impor';
 import type { DefinisiVektor } from './skema-input';
@@ -27,6 +28,7 @@ export async function simpanBarisVektor(
   baris: Record<string, unknown>[],
   mode: ModeSimpan,
   inputOleh: string | null,
+  kamus: KamusWilker,
 ): Promise<HasilSimpan> {
   const hasil: HasilSimpan = { disimpan: 0, diperbarui: 0, dilewati: 0, galat: [] };
   // jenis tanpa kunci alami unik (Aedes, Lalat, Kecoa) tidak mendukung "perbarui"
@@ -34,7 +36,7 @@ export async function simpanBarisVektor(
 
   const valid: { indeks: number; nilai: Record<string, string | number | null> }[] = [];
   baris.forEach((mentah, indeks) => {
-    const h = konversiBaris(def, mentah);
+    const h = konversiBaris(def, mentah, { kamus });
     if (h.galat.length) hasil.galat.push({ indeks, pesan: h.galat.join('; ') });
     else valid.push({ indeks, nilai: h.nilai });
   });

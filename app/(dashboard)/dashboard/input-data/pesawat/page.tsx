@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
-import { WILKER_BANDARA, getPesawatTerbaru, naikkanRencanaKeFinal } from '@/lib/db/modul/inputPesawat';
+import { getWilkerBandara, getPesawatTerbaru, naikkanRencanaKeFinal } from '@/lib/db/modul/inputPesawat';
 import PanelInputPesawat from '@/components/input-data/PanelInputPesawat';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ export default async function InputPesawatPage() {
   const hariIni = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Makassar' });
   // Data rencana yang tanggalnya sudah tiba otomatis menjadi final saat halaman ini dibuka.
   await naikkanRencanaKeFinal(hariIni).catch((e) => console.error('[input-pesawat] gagal menaikkan rencana:', e));
-  const terbaru = await getPesawatTerbaru(10);
+  const [terbaru, bandara] = await Promise.all([getPesawatTerbaru(10), getWilkerBandara()]);
 
   return (
     <div className="min-h-screen bg-[#EEF1F4] p-6">
@@ -22,10 +22,12 @@ export default async function InputPesawatPage() {
         <div>
           <Link href="/dashboard/input-data" className="text-sm text-[#0F4C5C] underline">&larr; Kembali ke Input Data</Link>
           <h1 className="mt-2 text-xl font-bold text-[#0F2A38]">Input Data Pesawat</h1>
-          <p className="text-sm text-gray-500">Wilayah kerja: {WILKER_BANDARA[0].nama}</p>
+          <p className="text-sm text-gray-500">
+            {bandara.length === 0 ? 'Belum ada bandara aktif. Tambahkan di pengaturan wilayah kerja (jenis Bandara).' : `Wilayah kerja: ${bandara.map((b) => b.nama).join(', ')}`}
+          </p>
         </div>
 
-        <PanelInputPesawat hariIni={hariIni} />
+        <PanelInputPesawat hariIni={hariIni} bandara={bandara} />
 
         <div className="rounded-[10px] bg-white p-6 shadow-sm">
           <h2 className="mb-3 text-base font-bold text-[#0F2A38]">10 Data Terakhir Masuk</h2>

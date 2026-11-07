@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { FilterPeriodeWilayah } from "@/components/FilterPeriodeWilayah";
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
+import { daftarWilayahKapal } from "@/lib/wilayah-kerja/kapal";
 import { TrenChartGanda } from "@/components/TrenChartGanda";
 import { DonutRba } from "@/components/cop/DonutRba";
 import { RbaBarBulanan, type DataRbaBulanan } from "@/components/cop/RbaBarBulanan";
@@ -76,17 +78,8 @@ function normalisasiNilaiKategori(nilai: string): string {
     .join(" ");
 }
 
-function getWarnaWilayah(wilayah: string): string {
-  const palet: Record<string, string> = {
-    "Samarinda": "#D62839",    // Teal gelap
-    "TanjungSantan": "#2F9E44", // Hijau
-    "TanjungLaut": "rgb(145, 2, 240)",   // Kuning/Oranye
-    "Lhoktuan": "#0F4C5C",      // Merah
-    "Sangatta": "#0f24e3",      // Ungu
-    "Sangkulirang": "rgb(234, 212, 12)",  // Oranye terang
-  };
-  return palet[wilayah] || "#64748b"; // Warna default abu-abu jika tidak ditemukan
-}
+/** Warna garis/batang per wilayah, berurutan mengikuti daftar wilayah (6 warna pertama = warna lama). */
+const PALET_COP = ["#D62839", "#2F9E44", "rgb(145, 2, 240)", "#0F4C5C", "#0f24e3", "rgb(234, 212, 12)", "#0891B2", "#EA580C", "#7C3AED", "#5B7083"];
 
 /**
  * KATEGORI_LIST
@@ -108,26 +101,6 @@ const KATEGORI_LIST: { key: KategoriCop; label: string }[] = [
   { key: "bendera_kapal", label: "Bendera Kapal" },
 ];
 
-/**
- * DAFTAR_WILAYAH & WILAYAH_URUTAN
- * ---------------------------------
- * Urutan tetap 6 wilayah kerja COP (TIDAK termasuk Bandara APT
- * Pranoto -- itu wilker khusus modul Alat Angkut Pesawat).
- * TAMBAH WILAYAH BARU: tambah nama di sini, lalu tambah 1 warna baru
- * yang senada di getWarnaWilayah() (harus konsisten per nama wilayah).
- */
-const DAFTAR_WILAYAH: Wilayah[] = [
-  "Samarinda",
-  "TanjungSantan",
-  "TanjungLaut",
-  "Lhoktuan",
-  "Sangatta",
-  "Sangkulirang",
-];
-const WILAYAH_URUTAN = DAFTAR_WILAYAH;
-
-/** Warna garis per wilayah di TrenPerWilkerChart -- urutannya SEJAJAR dengan WILAYAH_URUTAN. */
-
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
@@ -137,12 +110,12 @@ const NAMA_BULAN = [
  * validasiWilayah
  * ----------------
  * Memastikan nilai `?wilayah=` dari URL itu benar-benar salah satu
- * dari 6 wilayah yang valid. Kalau tidak dikenali (typo, wilayah lama
+ * dari wilayah kerja kapal yang aktif. Kalau tidak dikenali (typo, wilayah lama
  * yang sudah dihapus, dll), fallback ke "Semua" supaya halaman tidak
  * error/kosong.
  */
-function validasiWilayah(nilai: string | undefined): Wilayah | "Semua" {
-  if (nilai && (DAFTAR_WILAYAH as string[]).includes(nilai)) return nilai as Wilayah;
+function validasiWilayah(nilai: string | undefined, daftar: readonly string[]): Wilayah | "Semua" {
+  if (nilai && daftar.includes(nilai)) return nilai as Wilayah;
   return "Semua";
 }
 
@@ -195,7 +168,13 @@ export default async function CopPage({
 }) {
   const sp = await searchParams;
   const mode: "mingguan" | "bulanan" = sp.mode === "bulanan" ? "bulanan" : "mingguan";
-  const wilayah = validasiWilayah(sp.wilayah);
+  // Wilayah kerja kapal (pelabuhan aktif) dari pengaturan wilayah kerja; urutan & warna mengikutinya.
+  const WILAYAH_URUTAN = daftarWilayahKapal(await getDaftarWilker()).map((w) => w.value);
+  const getWarnaWilayah = (nama: string): string => {
+    const i = WILAYAH_URUTAN.indexOf(nama);
+    return i < 0 ? "#64748b" : PALET_COP[i % PALET_COP.length];
+  };
+  const wilayah = validasiWilayah(sp.wilayah, WILAYAH_URUTAN);
 
   const { sudahLogin, role } = await getStatusAkses();
   // roleAI: hanya admin/petugas yang boleh menekan "Generate" di semua BoxAnalisisAI/BoxPrediksiAI
@@ -708,6 +687,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
       <FilterPeriodeWilayah
         mode={mode}
         wilayah={wilayah}
+        daftarWilayah={WILAYAH_URUTAN}
         tampilkanRentang
         mingguAwal={mingguAwal}
         mingguAkhir={mingguAkhir}

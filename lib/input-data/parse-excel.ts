@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import { kunciJudul, type ModulInput, type KolomModul } from './modul';
 import { kunciBaris, validasiBaris, type NilaiBaris } from './validasi';
 import { selMentah, teksKosong } from './nilai';
+import { buatPenyiapTanggal, type PenyiapTanggal } from './tanggal-kolom';
 import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 export const MAKS_BYTE = 5 * 1024 * 1024;
@@ -28,6 +29,10 @@ export interface HasilParse {
   kolomDiabaikan: string[];
   /** Nama kolom tabel yang ADA di berkas; unggahan hanya memperbarui kolom ini pada baris yang sudah ada. */
   kolomAda: string[];
+  /** Baris yang SAH tetapi perlu dicek petugas (tanggal ambigu, tanggal di masa depan). Hanya untuk modul pakaiParseTanggal. */
+  peringatan: GalatBaris[];
+  /** Catatan untuk seluruh berkas (mis. satu kolom tanggal bercampur dua gaya). */
+  peringatanUmum: string[];
 }
 
 type Grid = unknown[][];
@@ -116,6 +121,7 @@ const teksKosongSel = (x: unknown) => teksKosong(x);
 function petaJudul(modul: ModulInput): Map<string, string> {
   const peta = new Map<string, string>();
   for (const k of modul.kolom) {
+    if (k.turunan) continue; // kolom turunan tidak dibaca dari berkas
     for (const j of [k.label, k.nama, ...(k.alias ?? [])]) {
       const kj = kunciJudul(j);
       if (!peta.has(kj)) peta.set(kj, k.nama); // judul pertama menang; tabrakan dicegah oleh uji
@@ -158,7 +164,7 @@ export async function bacaExcel(
   kamus: KamusWilker,
   opsi: { wilayahDefault?: string | null } = {},
 ): Promise<HasilParse> {
-  const kosong: HasilParse = { fatal: null, perluWilayah: false, jumlahBaris: 0, sah: [], galat: [], kolomDiabaikan: [], kolomAda: [] };
+  const kosong: HasilParse = { fatal: null, perluWilayah: false, jumlahBaris: 0, sah: [], galat: [], kolomDiabaikan: [], kolomAda: [], peringatan: [], peringatanUmum: [] };
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer as ArrayBuffer);
   const g = await bacaGrid(buf);
   if ('fatal' in g) return { ...kosong, fatal: g.fatal };
@@ -176,14 +182,38 @@ export async function bacaExcel(
 
   const hasil: HasilParse = { ...kosong, kolomDiabaikan: pk.diabaikan, kolomAda: [...new Set([...ada, ...(tanpaWilayah ? [modul.kolomWilayah] : [])])] };
   const terlihat = new Set<string>();
+
+  // Modul pakaiParseTanggal: pindai SELURUH isi tiap kolom tanggal lebih dulu untuk menyimpulkan urutan
+  // hari/bulan kolom itu (satu nilai seperti 25/10/2026 sudah membuktikannya), baru tiap sel diurai.
+  let penyiap: PenyiapTanggal | null = null;
+  const kolomTanggal = new Set(modul.kolom.filter((k) => k.tipe === 'tanggal').map((k) => k.nama));
+  const labelTanggal: Record<string, string> = Object.fromEntries(modul.kolom.filter((k) => k.tipe === 'tanggal').map((k) => [k.nama, k.label]));
+  if (modul.pakaiParseTanggal) {
+    const nilaiPerKolom: Record<string, unknown[]> = {};
+    for (const nama of kolomKe.values()) if (kolomTanggal.has(nama)) nilaiPerKolom[nama] = [];
+    for (let r = barisJudul + 1; r < g.grid.length; r++) {
+      for (const [n, nama] of kolomKe) if (nama in nilaiPerKolom) nilaiPerKolom[nama].push(selMentah(g.grid[r][n]));
+    }
+    penyiap = buatPenyiapTanggal(nilaiPerKolom, labelTanggal);
+    hasil.peringatanUmum.push(...penyiap.peringatanUmum);
+  }
+
   for (let r = barisJudul + 1; r < g.grid.length; r++) {
     const row = g.grid[r];
     const mentah: Record<string, unknown> = {};
+    const galatTanggal: string[] = [];
+    const peringatanTanggal: string[] = [];
     let isi = false;
     for (const [n, nama] of kolomKe) {
-      const v = selMentah(row[n]);
-      mentah[nama] = v;
+      let v = selMentah(row[n]);
       if (!teksKosong(v)) isi = true;
+      if (penyiap && kolomTanggal.has(nama)) {
+        const s = penyiap.siapkan(nama, v, { masaDepanBoleh: nama !== modul.kolomTanggal });
+        if (s.galat) galatTanggal.push(`${labelTanggal[nama]}: ${s.galat}`);
+        else v = s.nilai;
+        if (s.peringatan) peringatanTanggal.push(`${labelTanggal[nama]}: ${s.peringatan}`);
+      }
+      mentah[nama] = v;
     }
     if (!isi) continue; // baris kosong dilewati
     if (tanpaWilayah && opsi.wilayahDefault) mentah[modul.kolomWilayah] = opsi.wilayahDefault;
@@ -192,6 +222,12 @@ export async function bacaExcel(
 
     const nomor = r + 1;
     const h = validasiBaris(modul, mentah, kamus, tahun);
+    if (galatTanggal.length) {
+      // Pesan parseTanggal lebih jelas daripada pesan umum validator untuk kolom yang sama: pakai yang pertama.
+      const lainnya = h.galat.filter((p) => !galatTanggal.some((t) => p.startsWith(t.split(':')[0] + ':')));
+      hasil.galat.push({ baris: nomor, pesan: [...galatTanggal, ...lainnya] });
+      continue;
+    }
     if (!h.nilai) { hasil.galat.push({ baris: nomor, pesan: h.galat }); continue; }
     const kd = kunciBaris(modul, h.nilai);
     if (kd) {
@@ -199,17 +235,20 @@ export async function bacaExcel(
       terlihat.add(kd);
     }
     hasil.sah.push({ baris: nomor, nilai: h.nilai });
+    if (peringatanTanggal.length) hasil.peringatan.push({ baris: nomor, pesan: peringatanTanggal });
   }
   return hasil;
 }
 
 /** Judul semua kolom yang dikenal modul, dalam urutan template (kolom manual tidak disertakan: diisi di aplikasi). */
 export function kolomTemplate(modul: ModulInput): KolomModul[] {
-  return modul.kolom.filter((k) => !k.manual);
+  return modul.kolom.filter((k) => !k.manual && !k.turunan);
 }
 
-/** Template Excel kosong: judul kolom = label modul. */
-export async function buatTemplate(modul: ModulInput): Promise<Buffer> {
+/** Template Excel kosong: judul kolom = label modul.
+ *  namaWilker = nama pendek wilayah kerja yang berlaku untuk modul ini (dari database), supaya petunjuk
+ *  tidak berisi daftar yang ditulis di kode dan otomatis benar di BKK mana pun. */
+export async function buatTemplate(modul: ModulInput, namaWilker: string[] = []): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Data');
   const kol = kolomTemplate(modul);
@@ -219,17 +258,24 @@ export async function buatTemplate(modul: ModulInput): Promise<Buffer> {
   kol.forEach((k, i) => {
     const c = ws.getColumn(i + 1);
     c.width = Math.max(14, k.label.length + 4);
-    if (k.tipe === 'tanggal') c.numFmt = 'yyyy-mm-dd';
+    if (k.tipe === 'tanggal') c.numFmt = modul.pakaiParseTanggal ? 'dd/mm/yyyy' : 'yyyy-mm-dd';
   });
   const cat = wb.addWorksheet('Petunjuk');
-  [
+  const manual = modul.kolom.filter((k) => k.manual).map((k) => k.label);
+  const wilkerLabel = modul.kolom.find((k) => k.nama === modul.kolomWilayah)?.label ?? 'Wilayah Kerja';
+  const petunjuk: string[][] = [
     ['Kolom bertanda * wajib diisi.'],
     ['Berkas ekspor asli Sinkarkes (.xls) juga bisa langsung diunggah tanpa diubah; kolom yang tidak dikenal diabaikan.'],
-    ['Tanggal: TTTT-BB-HH (mis. 2026-10-23) atau HH/BB/TTTT. Jam: JJ:MM.'],
+    [modul.pakaiParseTanggal
+      ? 'Tanggal: HH/BB/TTTT (mis. 09/01/2026), TTTT-BB-HH, atau "9 Januari 2026"; sel bertipe tanggal Excel juga dibaca. Angka yang bisa dibaca dua cara (mis. 05/10/2026) dibaca hari/bulan/tahun dan ditandai untuk dicek.'
+      : 'Tanggal: TTTT-BB-HH (mis. 2026-10-23) atau HH/BB/TTTT. Jam: JJ:MM.'],
     ['Jumlah: bilangan bulat tanpa titik/koma. Berat dan Jumlah Bayar: pakai titik untuk desimal, tanpa pemisah ribuan.'],
-    ['Induk/Wilker: Samarinda, Tanjung Santan, Tanjung Laut, Lhoktuan, Sangatta, atau Sangkulirang (boleh ditulis "Pelabuhan Laut Sangatta").'],
-    ['RBA, Faktor Risiko, Daerah Terjangkit, Kelengkapan Dokumen, Orang Sakit, Keberadaan Vektor, Sanitasi, dan Tujuan Berlayar diisi petugas di aplikasi setelah data masuk.'],
-  ].forEach((r) => cat.addRow(r));
+    [namaWilker.length
+      ? `${wilkerLabel}: ${namaWilker.join(', ')} (nama pendek; nama lengkap dan alias yang terdaftar juga dikenali). Wilayah di luar daftar ini ditolak.`
+      : `${wilkerLabel}: tulis nama pendek wilayah kerja sesuai pengaturan wilayah kerja.`],
+  ];
+  if (manual.length) petunjuk.push([`${manual.join(', ')} diisi petugas di aplikasi setelah data masuk.`]);
+  petunjuk.forEach((r) => cat.addRow(r));
   cat.getColumn(1).width = 110;
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

@@ -1,9 +1,10 @@
+import Link from "next/link";
 import {
   getRingkasanPabBulanan,
   getRingkasanPabMingguan,
-  getDaftarWilayahKerjaSanitasi,
   getDaftarPabTmsDetail,
 } from "@/lib/db/queries/umum";
+import { getNamaWilkerModul } from "@/lib/wilayah-kerja/server";
 import { getUserRole } from "@/lib/auth/get-user-role";
 import PabClient from "./PabClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
@@ -30,18 +31,6 @@ export default async function PabPage({ searchParams }: PabPageProps) {
   const tahunParsed = tahunParam ? parseInt(tahunParam, 10) : NaN;
   const tahun = Number.isFinite(tahunParsed) ? tahunParsed : new Date().getFullYear();
 
-  // ============================================================
-  // PENTING: kombinasi ini HARUS PERSIS SAMA dengan default useState
-  // di PabClient.tsx -- granularitas default "bulanan", appliedBulanAwal=1/
-  // appliedBulanAkhir=12 (periodeKey pakai appliedBulanAkhir). wilayahKerja
-  // default MEMANG bisa dihitung server karena selectedWilayah awal client
-  // = wilayahParam || "semua" -- jadi `wilayah` dari searchParams ini valid
-  // dipakai langsung (undefined kalau belum ada filter wilayah, sama seperti
-  // wilayahKerja undefined saat selectedWilayah==="semua" di client).
-  // Kalau default granularitas/rentang di PabClient.tsx berubah nanti,
-  // sesuaikan juga di sini -- kalau lupa, tidak fatal (fallback fetch client
-  // tetap jalan), cuma prefetch jadi mubazir.
-  // ============================================================
   const konteksAiDefault = "pab-bulanan";
   const periodeKeyDefault = `${tahun}-12`;
   const wilayahKerjaDefault = wilayah || undefined;
@@ -49,7 +38,7 @@ export default async function PabPage({ searchParams }: PabPageProps) {
 
   const [role, daftarWilayah, dataBulanan, dataMingguan, dataTmsDetail, hasilAI] = await Promise.all([
     getUserRole(),
-    getDaftarWilayahKerjaSanitasi(),
+    getNamaWilkerModul("pab"),
     getRingkasanPabBulanan(tahun, wilayah),
     getRingkasanPabMingguan(tahun, wilayah),
     getDaftarPabTmsDetail(tahun, wilayah),
@@ -60,11 +49,8 @@ export default async function PabPage({ searchParams }: PabPageProps) {
   ]);
 
   const bulanBerjalan = new Date().getMonth() + 1;
+  const bolehInput = role === "admin" || role === "petugas";
 
-  // Sama seperti TPP/TTU: minggu epid dimundurkan 1 minggu khusus
-  // untuk tampilan (periodeKey Box AI saat granularitas mingguan),
-  // tanpa mengubah lib/epi-week.ts yang harus tetap sinkron dengan
-  // SQL mmwr_week.
   const tanggalMundurSatuMinggu = new Date();
   tanggalMundurSatuMinggu.setDate(tanggalMundurSatuMinggu.getDate() - 7);
   const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalan } =
@@ -82,6 +68,16 @@ export default async function PabPage({ searchParams }: PabPageProps) {
       tahunEpidBerjalan={tahunEpidBerjalan}
       mingguEpidBerjalan={mingguEpidBerjalan}
       wilayahParam={wilayah}
+      aksiHeader={
+        bolehInput ? (
+          <Link
+            href="/dashboard/pab/input"
+            className="rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 shadow-xs transition-all"
+          >
+            + Input / Unggah Data
+          </Link>
+        ) : null
+      }
       hasilAwalInisial={{
         comboKeyDasar,
         analisis: hasilAI[kunciAI({ konteks: konteksAiDefault, periodeKey: periodeKeyDefault, wilayahKerja: wilayahKerjaDefault, tipe: "analisis" })] ?? null,

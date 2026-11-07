@@ -5,7 +5,7 @@
 // sehingga hasilnya selalu sama. Jangan percaya hasil dari browser: server memvalidasi lagi.
 
 import { parseTanggal, tentukanUrutanKolom, type UrutanTanggal, type SimpulanUrutan } from '../tanggal/parse-tanggal';
-import { kodeDariTeks } from '../wilayah-kerja';
+import type { KamusWilker } from '../wilayah-kerja';
 import type { DefinisiVektor, KolomInput } from './skema-input';
 
 // ---------------------------------------------------------------- header
@@ -111,10 +111,14 @@ function kosong(v: unknown): boolean {
   return v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
 }
 
-export interface OpsiKonversi { urutanTanggal?: UrutanTanggal }
+export interface OpsiKonversi {
+  urutanTanggal?: UrutanTanggal;
+  /** Kamus wilayah kerja (dari wilker_ref) untuk menerjemahkan kolom wilayah; hanya wilayah AKTIF yang diterima. */
+  kamus: KamusWilker;
+}
 
 /** Validasi + normalisasi satu baris. `mentah` berkunci = `kunci` kolom DB. */
-export function konversiBaris(def: DefinisiVektor, mentah: Record<string, unknown>, opsi: OpsiKonversi = {}): HasilBaris {
+export function konversiBaris(def: DefinisiVektor, mentah: Record<string, unknown>, opsi: OpsiKonversi): HasilBaris {
   const nilai: NilaiBaris = {};
   const galat: string[] = [];
   const peringatan: string[] = [];
@@ -137,7 +141,8 @@ export function konversiBaris(def: DefinisiVektor, mentah: Record<string, unknow
         break;
       }
       case 'wilker': {
-        const kode = kodeDariTeks(String(raw));
+        const kodeCalon = opsi.kamus.kodeDariTeks(String(raw));
+        const kode = kodeCalon && opsi.kamus.daftarKodeAktif.includes(kodeCalon) ? kodeCalon : null;
         if (!kode) { galat.push(`${k.label}: "${String(raw)}" tidak dikenal`); nilai[k.kunci] = null; break; }
         nilai[k.kunci] = kode;
         break;
@@ -242,12 +247,14 @@ export interface HasilLembar {
 }
 
 export interface OpsiLembar {
+  /** Kamus wilayah kerja (dari wilker_ref). */
+  kamus: KamusWilker;
   /** 'auto' = simpulkan dari isi kolom (bawaan), atau paksa 'dmy'/'mdy' */
   urutanTanggal?: UrutanTanggal | 'auto';
 }
 
 /** Proses satu sheet (array-of-array dari SheetJS `header:1`, nilai mentah). */
-export function prosesLembarKerja(def: DefinisiVektor, aoa: unknown[][], opsi: OpsiLembar = {}): HasilLembar {
+export function prosesLembarKerja(def: DefinisiVektor, aoa: unknown[][], opsi: OpsiLembar): HasilLembar {
   const kosongUrutan: SimpulanUrutan = { urutan: null, buktiDmy: 0, buktiMdy: 0, bertentangan: false };
   const barisHeader = cariBarisHeader(def, aoa);
   if (barisHeader < 0) {
@@ -280,7 +287,7 @@ export function prosesLembarKerja(def: DefinisiVektor, aoa: unknown[][], opsi: O
 
   const terlihat = new Set<string>();
   const baris: BarisImpor[] = dataMentah.map(({ nomor, mentah }) => {
-    const h = konversiBaris(def, mentah, { urutanTanggal: urutanDipakai });
+    const h = konversiBaris(def, mentah, { urutanTanggal: urutanDipakai, kamus: opsi.kamus });
     let duplikatDalamFile = false;
     if (h.galat.length === 0) {
       const kunci = kunciDuplikat(def, h.nilai);

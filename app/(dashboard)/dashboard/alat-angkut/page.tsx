@@ -1,3 +1,5 @@
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
+import { daftarWilayahKapal, cocokWilayahKapal } from "@/lib/wilayah-kerja/kapal";
 import Link from "next/link";
 import { catatKunjungan } from "@/app/actions/kunjungan";
 import { getStatusAkses } from "@/lib/auth/getStatusAkses";
@@ -14,42 +16,12 @@ import type {
 
 export const dynamic = 'force-dynamic';
 
-// Palette warna-warni yang konsisten per wilayah
-const PALET_WARNA_WILAYAH: Record<string, string> = {
-  Samarinda: "bg-[#D97706]",
-  TanjungSantan: "bg-amber-500",
-  TanjungLaut: "bg-blue-500",
-  Lhoktuan: "bg-rose-500",
-  Sangatta: "bg-[#6b21a8]",
-  Sangkulirang: "bg-emerald-500",
-};
-
-const WILAYAH_URUTAN = [
-  "Samarinda",
-  "TanjungSantan",
-  "TanjungLaut",
-  "Lhoktuan",
-  "Sangatta",
-  "Sangkulirang",
+// Palet warna batang per wilayah, berurutan mengikuti daftar wilayah (6 warna pertama = warna lama).
+// Kelas Tailwind harus tertulis utuh di sini agar ikut terkompilasi.
+const PALET_WARNA_WILAYAH = [
+  "bg-[#D97706]", "bg-amber-500", "bg-blue-500", "bg-rose-500", "bg-[#6b21a8]", "bg-emerald-500",
+  "bg-cyan-500", "bg-orange-500", "bg-indigo-500", "bg-slate-500",
 ];
-
-function cocokWilayah(wilayahDb: string | undefined | null, targetWilayah: string): boolean {
-  if (!wilayahDb) return false;
-
-  const bersihDb = wilayahDb.toLowerCase().replace(/\s+/g, "");
-  const bersihTarget = targetWilayah.toLowerCase().replace(/\s+/g, "");
-
-  if (bersihDb === bersihTarget) return true;
-
-  if (targetWilayah === "TanjungSantan" && bersihDb.includes("tanjungsantan")) return true;
-  if (targetWilayah === "TanjungLaut" && bersihDb.includes("tanjunglaut")) return true;
-  if (targetWilayah === "Lhoktuan" && bersihDb.includes("lhoktuan")) return true;
-  if (targetWilayah === "Sangatta" && bersihDb.includes("sangatta")) return true;
-  if (targetWilayah === "Sangkulirang" && bersihDb.includes("sangkulirang")) return true;
-  if (targetWilayah === "Samarinda" && bersihDb.includes("samarinda")) return true;
-
-  return false;
-}
 
 export default async function DashboardPage() {
   // Catat kunjungan non-blocking
@@ -58,6 +30,7 @@ export default async function DashboardPage() {
   });
 
   const { sudahLogin, role } = await getStatusAkses();
+  const wilayahKapal = daftarWilayahKapal(await getDaftarWilker());
 
   const JUMLAH_MINGGU_MUNDUR = 1;
 
@@ -158,18 +131,20 @@ export default async function DashboardPage() {
   const adaData = totalKapalCop > 0 || totalKapalPhqc > 0;
 
   // === DATA GRAFIK PER WILAYAH (WARNA-WARNI) ===
-  const wilayahBarCop = WILAYAH_URUTAN.map((w) => {
-    const ditemuka = ringkasanCopMinggu.filter((r) => cocokWilayah(r.wilayah_kerja, w));
+  const wilayahBarCop = wilayahKapal.map((wk, i) => {
+    const w = wk.value;
+    const ditemuka = ringkasanCopMinggu.filter((r) => cocokWilayahKapal(r.wilayah_kerja, wk));
     const totalJml = ditemuka.reduce((acc, curr) => acc + curr.jumlah_kapal, 0);
-    return { wilayah: w, jumlah: totalJml, warna: PALET_WARNA_WILAYAH[w] || "bg-teal-500" };
+    return { wilayah: w, jumlah: totalJml, warna: PALET_WARNA_WILAYAH[i % PALET_WARNA_WILAYAH.length] };
   }).sort((a, b) => b.jumlah - a.jumlah);
 
   const maxWilayahCop = Math.max(1, ...wilayahBarCop.map((w) => w.jumlah));
 
-  const wilayahBarPhqc = WILAYAH_URUTAN.map((w) => {
-    const ditemuka = ringkasanPhqcMinggu.filter((r) => cocokWilayah(r.wilayah_kerja, w));
+  const wilayahBarPhqc = wilayahKapal.map((wk, i) => {
+    const w = wk.value;
+    const ditemuka = ringkasanPhqcMinggu.filter((r) => cocokWilayahKapal(r.wilayah_kerja, wk));
     const totalJml = ditemuka.reduce((acc, curr) => acc + curr.jumlah_kapal, 0);
-    return { wilayah: w, jumlah: totalJml, warna: PALET_WARNA_WILAYAH[w] || "bg-teal-500" };
+    return { wilayah: w, jumlah: totalJml, warna: PALET_WARNA_WILAYAH[i % PALET_WARNA_WILAYAH.length] };
   }).sort((a, b) => b.jumlah - a.jumlah);
 
   const maxWilayahPhqc = Math.max(1, ...wilayahBarPhqc.map((w) => w.jumlah));

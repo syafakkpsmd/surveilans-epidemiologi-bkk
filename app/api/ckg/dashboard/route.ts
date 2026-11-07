@@ -1,4 +1,5 @@
 // app/api/ckg/dashboard/route.ts
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCkg } from '@/lib/klinik/ckg/auth';
 import { ambilDashboard, filterDariQuery } from '@/lib/klinik/ckg/server';
@@ -9,6 +10,6 @@ export async function GET(req: NextRequest) {
   const user = await requireCkg();
   if (!user) return NextResponse.json({ error: 'Tidak punya akses' }, { status: 403 });
 
-  const data = await ambilDashboard(filterDariQuery(req.nextUrl.searchParams));
+  const data = await ambilDashboard(filterDariQuery(req.nextUrl.searchParams, (await getKamusWilker()).daftarKode));
   return NextResponse.json(data);
 }

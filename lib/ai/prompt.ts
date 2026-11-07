@@ -1,4 +1,5 @@
-﻿import type { DataAnalisis } from './data';
+﻿import { NAMA_BKK, NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
+import type { DataAnalisis } from './data';
 import type { DataSimulasiWabah } from "@/lib/ai/data";
 
 export type HasilAnalisisAi = {
@@ -192,7 +193,7 @@ ${ATURAN_UMUM_BREAKDOWN}`;
 export function susunPromptPrediksiNegaraAsal(data: DataBreakdownAnalisis): string {
   return `${PERSONA_EPIDEMIOLOG}
 
-TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja BKK Samarinda, berdasarkan pola negara kedatangan kapal periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan (RBA, MDH, faktor risiko) TIDAK dijalankan sesuai prosedur pada kapal-kapal dari negara tersebut.
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja ${NAMA_BKK_SINGKAT}, berdasarkan pola negara kedatangan kapal periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan (RBA, MDH, faktor risiko) TIDAK dijalankan sesuai prosedur pada kapal-kapal dari negara tersebut.
 
 ${DAFTAR_SUMBER_RUJUKAN}
 
@@ -217,13 +218,13 @@ const STANDAR_VEKTOR_DBD = `STANDAR BAKU MUTU VEKTOR AEDES (rujukan resmi, JANGA
 export function susunPromptPerWilker(data: DataBreakdownAnalisis): string {
   return `${PERSONA_EPIDEMIOLOG}
 
-TUGAS SAAT INI: menganalisis distribusi kedatangan kapal antar 6 wilayah kerja BKK Kelas I Samarinda untuk periode ${data.labelPeriode}.
+TUGAS SAAT INI: menganalisis distribusi kedatangan kapal antar ${data.breakdown.length} wilayah kerja ${NAMA_BKK} untuk periode ${data.labelPeriode}.
 
 ${DAFTAR_SUMBER_RUJUKAN}
 
 JUMLAH KAPAL PER WILAYAH KERJA (${data.labelPeriode}):
 ${formatBreakdownList(data.breakdown)}
-Total kapal periode ini (6 wilayah): ${data.totalKapal}
+Total kapal periode ini (${data.breakdown.length} wilayah): ${data.totalKapal}
 
 TUGAS KHUSUS untuk field "ringkasan": jelaskan wilayah kerja mana yang paling sibuk dan paling sepi kedatangan kapalnya periode ini, beserta proporsinya terhadap total.
 TUGAS KHUSUS untuk field "anomali": soroti ketimpangan beban kerja antar wilayah jika ada (misalnya satu wilayah menangani porsi jauh lebih besar dari yang lain) -- ini murni observasi distribusi, BUKAN klaim ada masalah kesehatan/epidemiologi.
@@ -241,7 +242,7 @@ ${DAFTAR_SUMBER_RUJUKAN}
 
 JUMLAH KAPAL PER WILAYAH KERJA (${data.labelPeriode}):
 ${formatBreakdownList(data.breakdown)}
-Total kapal periode ini (6 wilayah): ${data.totalKapal}
+Total kapal periode ini (${data.breakdown.length} wilayah): ${data.totalKapal}
 
 TUGAS KHUSUS untuk field "ringkasan": identifikasi wilayah kerja dengan tren volume kedatangan tertinggi yang berpotensi berlanjut ke periode berikutnya.
 TUGAS KHUSUS untuk field "anomali": proyeksikan risiko KUALITATIF -- wilayah mana yang berisiko kewalahan (understaffed) jika volume kedatangan terus tinggi tanpa penyesuaian sumber daya. Nyatakan EKSPLISIT ini proyeksi kualitatif berbasis pola volume, BUKAN prediksi statistik pasti.
@@ -269,7 +270,7 @@ function formatRisikoWilker(daftarWilayah: {
 export function susunPromptRisikoWilker(data: DataRisikoWilker): string {
   return `${PERSONA_EPIDEMIOLOG}
 
-TUGAS SAAT INI: membandingkan RISIKO KESEHATAN (bukan sekadar beban kerja) kedatangan kapal dari luar negeri antar SELURUH wilayah kerja BKK Kelas I Samarinda untuk periode ${data.labelPeriode}.
+TUGAS SAAT INI: membandingkan RISIKO KESEHATAN (bukan sekadar beban kerja) kedatangan kapal dari luar negeri antar SELURUH wilayah kerja ${NAMA_BKK} untuk periode ${data.labelPeriode}.
 
 ${DAFTAR_SUMBER_RUJUKAN}
 
@@ -291,7 +292,7 @@ ${ATURAN_UMUM_BREAKDOWN}`;
 export function susunPromptPrediksiRisikoWilker(data: DataRisikoWilker): string {
   return `${PERSONA_EPIDEMIOLOG}
 
-TUGAS SAAT INI: membuat PROYEKSI wilayah kerja mana yang berpotensi menjadi TITIK RISIKO kesehatan tertinggi pada periode mendatang, berdasarkan pola kedatangan kapal per wilayah kerja BKK Kelas I Samarinda periode ${data.labelPeriode}.
+TUGAS SAAT INI: membuat PROYEKSI wilayah kerja mana yang berpotensi menjadi TITIK RISIKO kesehatan tertinggi pada periode mendatang, berdasarkan pola kedatangan kapal per wilayah kerja ${NAMA_BKK} periode ${data.labelPeriode}.
 
 ${DAFTAR_SUMBER_RUJUKAN}
 
@@ -450,7 +451,7 @@ ${ATURAN_UMUM_BREAKDOWN}`;
 export function susunPromptPrediksiPhqcDaerahAsal(data: DataBreakdownAnalisis): string {
   return `${PERSONA_EPIDEMIOLOG}
 
-TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja BKK Samarinda, berdasarkan pola pelabuhan kedatangan kapal (PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan TIDAK dijalankan sesuai prosedur untuk kapal dari pelabuhan-pelabuhan tersebut.
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja ${NAMA_BKK_SINGKAT}, berdasarkan pola pelabuhan kedatangan kapal (PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan TIDAK dijalankan sesuai prosedur untuk kapal dari pelabuhan-pelabuhan tersebut.
 
 ${DAFTAR_SUMBER_RUJUKAN}
 
@@ -477,7 +478,7 @@ ${formatBreakdownList(data.breakdown, 'kapal')}
 Total kapal periode ini: ${data.totalKapal}
 
 TUGAS KHUSUS: identifikasi pelabuhan tujuan dengan jumlah kapal TERBANYAK dari data di atas. Untuk SETIAP pelabuhan yang kamu bahas, tentukan dulu apakah itu pelabuhan DALAM NEGERI (domestik, Indonesia) atau LUAR NEGERI (internasional) berdasarkan namanya:
-- Kalau DALAM NEGERI: kaitkan dengan pola penyakit menular endemis antar-wilayah di Indonesia yang sudah mapan (mis. dengue, leptospirosis, diare, penyakit yang tercakup SKDR Kemenkes) -- fokus pada risiko transmisi antar-pulau/antar-provinsi dari BKK Samarinda MENUJU pelabuhan tersebut, BUKAN kerangka lintas negara.
+- Kalau DALAM NEGERI: kaitkan dengan pola penyakit menular endemis antar-wilayah di Indonesia yang sudah mapan (mis. dengue, leptospirosis, diare, penyakit yang tercakup SKDR Kemenkes) -- fokus pada risiko transmisi antar-pulau/antar-provinsi dari ${NAMA_BKK_SINGKAT} MENUJU pelabuhan tersebut, BUKAN kerangka lintas negara.
 - Kalau LUAR NEGERI: kaitkan dengan pengetahuan umum kesehatan masyarakat global tentang penyakit menular yang endemis/rawan/sedang berkembang di negara tujuan tersebut, rujuk DAFTAR SUMBER RUJUKAN di atas.
 - JANGAN mengarang kejadian wabah spesifik terbaru yang tidak bisa kamu pastikan kebenarannya. Tegaskan eksplisit di "anomali" bahwa ini pengetahuan umum epidemiologi, BUKAN data surveilans real-time, dan sarankan verifikasi ke sumber rujukan resmi yang sesuai (SKDR Kemenkes untuk domestik, WHO/CDC/ECDC untuk internasional).
 
@@ -487,7 +488,7 @@ ${ATURAN_UMUM_BREAKDOWN}`;
 export function susunPromptPrediksiPhqcDaerahTujuan(data: DataBreakdownAnalisis): string {
   return `${PERSONA_EPIDEMIOLOG}
 
-TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular DARI wilayah kerja BKK Samarinda KE pelabuhan tujuan, berdasarkan pola pelabuhan tujuan kapal (PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan TIDAK dijalankan sesuai prosedur untuk kapal menuju pelabuhan-pelabuhan tersebut.
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular DARI wilayah kerja ${NAMA_BKK_SINGKAT} KE pelabuhan tujuan, berdasarkan pola pelabuhan tujuan kapal (PHQC) periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan TIDAK dijalankan sesuai prosedur untuk kapal menuju pelabuhan-pelabuhan tersebut.
 
 ${DAFTAR_SUMBER_RUJUKAN}
 
@@ -734,7 +735,7 @@ RINCIAN PER PENYAKIT & NEGARA (periode berjalan):
 ${topKategoriTeks || '(tidak ada data)'}
 
 ATURAN WAJIB:
-- Data ini mencakup 12 penyakit infeksi emerging yang dipantau dari 13 negara asal kapal ke wilayah kerja BKK Kelas I Samarinda (data surveilans global sebagai early warning, BUKAN data kasus terkonfirmasi di Indonesia/Samarinda).
+- Data ini mencakup 12 penyakit infeksi emerging yang dipantau dari 13 negara asal kapal ke wilayah kerja ${NAMA_BKK} (data surveilans global sebagai early warning, BUKAN data kasus terkonfirmasi di Indonesia/Samarinda).
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama penyakit/negara yang tidak tercantum.
 - Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit).
 - Soroti penyakit atau negara dengan lonjakan kasus paling signifikan, kaitkan dengan implikasi kewaspadaan kekarantinaan kesehatan terhadap kapal dari negara tersebut (skrining ABK/penumpang, kesiapan APD, koordinasi RBA kapal) -- TANPA mengklaim ada kasus terkonfirmasi di wilayah kerja Samarinda kalau datanya tidak ada.
@@ -863,14 +864,14 @@ ATURAN WAJIB:
 - Data ini adalah data kasus dan kematian terkonfirmasi tingkat nasional Indonesia untuk penyakit yang dipilih, dipecah per propinsi (data surveilans nasional Kemenkes, BUKAN data kewaspadaan kapal/pelabuhan).
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama propinsi yang tidak tercantum.
 - Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit), termasuk case fatality rate (CFR) bila datanya memungkinkan dihitung.
-- Soroti propinsi dengan lonjakan kasus paling signifikan, dan kaitkan dengan implikasi kewaspadaan dini bagi BKK Kelas I Samarinda sebagai pintu masuk (kesiapan skrining, koordinasi RBA, edukasi publik) -- TANPA mengklaim ada kasus terkonfirmasi di Samarinda/Kalimantan Timur kalau propinsi tersebut tidak muncul di data.
+- Soroti propinsi dengan lonjakan kasus paling signifikan, dan kaitkan dengan implikasi kewaspadaan dini bagi ${NAMA_BKK} sebagai pintu masuk (kesiapan skrining, koordinasi RBA, edukasi publik) -- TANPA mengklaim ada kasus terkonfirmasi di Samarinda/Kalimantan Timur kalau propinsi tersebut tidak muncul di data.
 - Tulis dalam Bahasa Indonesia, istilah epidemiologi baku bila relevan.
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
 {
   "ringkasan": "ringkasan tren kasus & kematian penyakit ini secara nasional periode berjalan, 2-4 kalimat",
   "anomali": "deteksi lonjakan/penurunan tidak wajar dibanding periode sebelumnya per propinsi, atau nyatakan aman",
-  "rekomendasi": "rekomendasi kewaspadaan dini bagi wilayah kerja BKK Samarinda berbasis data ini, 1-3 poin"
+  "rekomendasi": "rekomendasi kewaspadaan dini bagi wilayah kerja ${NAMA_BKK_SINGKAT} berbasis data ini, 1-3 poin"
 }`;
 }
 
@@ -896,7 +897,7 @@ ATURAN WAJIB:
 - HANYA gunakan angka yang benar-benar ada di atas sebagai dasar proyeksi. JANGAN mengarang angka.
 - Proyeksi harus berbasis tren dua periode ini (naik/turun/stabil) -- jangan klaim kepastian, gunakan bahasa probabilistik ("kemungkinan", "berpotensi").
 - Fokuskan proyeksi pada propinsi dengan tren kenaikan paling jelas.
-- Sertakan tindakan antisipatif yang relevan bagi BKK Kelas I Samarinda sebagai pintu masuk, sesuai skala risiko dari tren nasional ini.
+- Sertakan tindakan antisipatif yang relevan bagi ${NAMA_BKK} sebagai pintu masuk, sesuai skala risiko dari tren nasional ini.
 - Tulis dalam Bahasa Indonesia.
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:
@@ -932,7 +933,7 @@ ${ATURAN_UMUM_BREAKDOWN}`;
 export function susunPromptPrediksiPesawatDaerahAsal(data: DataBreakdownAnalisis): string {
   return `${PERSONA_EPIDEMIOLOG}
 
-TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja BKK Samarinda lewat jalur udara, berdasarkan pola daerah/negara asal penerbangan periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan pesawat (General Declaration, Aircraft Health Part) TIDAK dijalankan sesuai prosedur untuk penerbangan dari daerah/negara tersebut.
+TUGAS SAAT INI: membuat PREDIKSI risiko penyebaran penyakit menular ke wilayah kerja ${NAMA_BKK_SINGKAT} lewat jalur udara, berdasarkan pola daerah/negara asal penerbangan periode ${data.labelPeriode}, wilayah: ${data.labelWilayah}, SEANDAINYA pemeriksaan kekarantinaan kesehatan pesawat (General Declaration, Aircraft Health Part) TIDAK dijalankan sesuai prosedur untuk penerbangan dari daerah/negara tersebut.
 
 ${DAFTAR_SUMBER_RUJUKAN}
 

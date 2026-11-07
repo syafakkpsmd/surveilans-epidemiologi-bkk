@@ -2,6 +2,7 @@
 // lib/ai/dataVektor.ts
 // ================================================================
 
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 import { createDbClient } from '@/lib/db/server';
 import { getRentangMingguEpid, getBreakdownKategori } from '@/lib/db/queries/queriesVektorBreakdown';
 import { getWilkerRef } from '@/lib/db/queries/umum';
@@ -178,7 +179,7 @@ export async function ambilDataAnalisisVektorDbd(
 ): Promise<DataAnalisis> {
   const labelWilayah = kodeWilker
     ? await namaWilker(kodeWilker)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
   const isMingguan = /^\d{4}-W\d{1,2}$/.test(periodeKey);
   const kunci = KUNCI_PER_METRIK[metrik];
   const labelMetrik = LABEL_PER_METRIK[metrik];
@@ -257,7 +258,7 @@ export async function ambilDataAnalisisVektorDbdRentang(
 ): Promise<DataAnalisis> {
   const labelWilayah = kodeWilker
     ? await namaWilker(kodeWilker)
-    : 'Seluruh wilayah kerja BKK Kelas I Samarinda';
+    : `Seluruh wilayah kerja ${NAMA_BKK}`;
   const kunci = KUNCI_PER_METRIK[metrik];
   const labelMetrik = LABEL_PER_METRIK[metrik];
 

@@ -6,11 +6,13 @@
 import { useState } from 'react';
 import FormPesawat from './FormPesawat';
 import UnggahPesawat from './UnggahPesawat';
+import type { WilkerBandara } from '@/lib/db/modul/inputPesawat';
 
 type Tab = 'satuan' | 'excel';
 
-export default function PanelInputPesawat({ hariIni }: { hariIni: string }) {
+export default function PanelInputPesawat({ hariIni, bandara }: { hariIni: string; bandara: WilkerBandara[] }) {
   const [tab, setTab] = useState<Tab>('satuan');
+  const [kodeBandara, setKodeBandara] = useState<string>(bandara[0]?.kode ?? '');
   const kelasTab = (aktif: boolean) =>
     `flex-1 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
       aktif ? 'border-[#0F4C5C] text-[#0F4C5C]' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -26,12 +28,22 @@ export default function PanelInputPesawat({ hariIni }: { hariIni: string }) {
           Unggah Excel
         </button>
       </div>
+      {bandara.length > 1 && (
+        <div className="flex items-center gap-2 border-b border-gray-200 px-6 py-3 text-sm">
+          <label htmlFor="pilih-bandara" className="font-semibold text-[#0F2A38]">Bandara</label>
+          <select id="pilih-bandara" value={kodeBandara} onChange={(e) => setKodeBandara(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-1.5">
+            {bandara.map((b) => (
+              <option key={b.kode} value={b.kode}>{b.nama}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="p-6">
         <div role="tabpanel" id="panel-satuan" aria-labelledby="tab-satuan" hidden={tab !== 'satuan'}>
-          <FormPesawat hariIni={hariIni} />
+          <FormPesawat hariIni={hariIni} kodeBandara={kodeBandara} />
         </div>
         <div role="tabpanel" id="panel-excel" aria-labelledby="tab-excel" hidden={tab !== 'excel'}>
-          <UnggahPesawat />
+          <UnggahPesawat kodeBandara={kodeBandara} />
         </div>
       </div>
     </div>

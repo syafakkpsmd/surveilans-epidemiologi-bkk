@@ -131,14 +131,16 @@ export async function getRingkasanBulanan(
 export interface FilterKategoriMingguan<K extends string = string> {
   tahun_epid: number;
   minggu_epid?: number;
-  wilayah_kerja?: Wilayah;
+  /** Satu nilai (.eq) atau beberapa ejaan sekaligus (.in), mis. variants dari lib/wilayah-kerja/kapal. */
+  wilayah_kerja?: Wilayah | readonly Wilayah[];
   kategori?: K;
 }
 
 export interface FilterKategoriBulanan<K extends string = string> {
   tahun: number;
   bulan?: number;
-  wilayah_kerja?: Wilayah;
+  /** Satu nilai (.eq) atau beberapa ejaan sekaligus (.in), mis. variants dari lib/wilayah-kerja/kapal. */
+  wilayah_kerja?: Wilayah | readonly Wilayah[];
   kategori?: K;
 }
 
@@ -232,13 +234,13 @@ export async function getKategoriBreakdown(
     const f = filter as FilterKategoriMingguan;
     query = query.eq('tahun_epid', f.tahun_epid);
     if (f.minggu_epid !== undefined) query = query.eq('minggu_epid', f.minggu_epid);
-    if (f.wilayah_kerja) query = query.eq('wilayah_kerja', f.wilayah_kerja);
+    if (f.wilayah_kerja) query = Array.isArray(f.wilayah_kerja) ? query.in('wilayah_kerja', [...f.wilayah_kerja]) : query.eq('wilayah_kerja', f.wilayah_kerja as string);
     if (f.kategori) query = query.eq('kategori', f.kategori);
   } else {
     const f = filter as FilterKategoriBulanan;
     query = query.eq('tahun', f.tahun);
     if (f.bulan !== undefined) query = query.eq('bulan', f.bulan);
-    if (f.wilayah_kerja) query = query.eq('wilayah_kerja', f.wilayah_kerja);
+    if (f.wilayah_kerja) query = Array.isArray(f.wilayah_kerja) ? query.in('wilayah_kerja', [...f.wilayah_kerja]) : query.eq('wilayah_kerja', f.wilayah_kerja as string);
     if (f.kategori) query = query.eq('kategori', f.kategori);
   }
 
@@ -262,7 +264,8 @@ export async function getKategoriBreakdown(
 // ============================================================
 
 export interface FilterKegiatan {
-  wilayah_kerja?: Wilayah;
+  /** Satu nilai (.eq) atau beberapa ejaan sekaligus (.in), mis. variants dari lib/wilayah-kerja/kapal. */
+  wilayah_kerja?: Wilayah | readonly Wilayah[];
   tahun_epid?: number;
   minggu_epid?: number;
   rba?: 'Hijau' | 'Kuning' | 'Merah';
@@ -275,7 +278,7 @@ export async function getKegiatanCopEnriched(
   const supabase = await createDbClient();
   let query = supabase.from('view_kegiatan_cop_enriched').select('*');
 
-  if (filter.wilayah_kerja) query = query.eq('wilayah_kerja', filter.wilayah_kerja);
+  if (filter.wilayah_kerja) query = Array.isArray(filter.wilayah_kerja) ? query.in('wilayah_kerja', [...filter.wilayah_kerja]) : query.eq('wilayah_kerja', filter.wilayah_kerja as string);
   if (filter.tahun_epid !== undefined) query = query.eq('tahun_epid', filter.tahun_epid);
   if (filter.minggu_epid !== undefined) query = query.eq('minggu_epid', filter.minggu_epid);
   if (filter.rba) query = query.eq('rba', filter.rba);
@@ -301,7 +304,7 @@ export async function getKegiatanPhqcEnriched(
   const supabase = await createDbClient();
   let query = supabase.from('view_kegiatan_phqc_enriched').select('*');
 
-  if (filter.wilayah_kerja) query = query.eq('wilayah_kerja', filter.wilayah_kerja);
+  if (filter.wilayah_kerja) query = Array.isArray(filter.wilayah_kerja) ? query.in('wilayah_kerja', [...filter.wilayah_kerja]) : query.eq('wilayah_kerja', filter.wilayah_kerja as string);
   if (filter.tahun_epid !== undefined) query = query.eq('tahun_epid', filter.tahun_epid);
   if (filter.minggu_epid !== undefined) query = query.eq('minggu_epid', filter.minggu_epid);
   if (filter.rba) query = query.eq('rba', filter.rba);

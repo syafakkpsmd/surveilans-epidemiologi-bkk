@@ -1,13 +1,15 @@
 "use client";
 
-import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
-import { useEffect, useState, useCallback } from "react";
+import { opsiWilkerPeta } from '@/lib/wilayah-kerja/peta';
+import type { Wilayah } from '@/lib/wilayah-kerja';
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { getFasilitas, hapusFasilitas, Fasilitas } from "@/lib/data/fasilitas";
 import FormFasilitas from "./FormFasilitas";
 
-const WILKER_LIST = OPSI_WILKER_PETA;
-
-export default function KelolaFasilitasClient() {
+export default function KelolaFasilitasClient({ wilayah }: { wilayah: Wilayah[] }) {
+  const opsiWilker = useMemo(() => opsiWilkerPeta(wilayah), [wilayah]);
+  // Halaman kelola mendaftar wilayah operasional saja (kantor induk tidak punya fasilitas yang dikelola di sini).
+  const WILKER_LIST = useMemo(() => opsiWilker.filter((w) => w.jenis !== "Kantor"), [opsiWilker]);
   const [fasilitasList, setFasilitasList] = useState<Fasilitas[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -116,6 +118,7 @@ export default function KelolaFasilitasClient() {
 
       {showForm && (
         <FormFasilitas
+          opsiWilker={opsiWilker}
           kodeWilkerAktif={editTarget ? editTarget.kode_wilker : wilkerUntukTambah}
           fasilitasEdit={editTarget}
           onClose={() => setShowForm(false)}

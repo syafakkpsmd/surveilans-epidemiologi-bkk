@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { getPengguna } from "@/lib/auth/session";
 import PetaWilkerClient from "@/components/peta/PetaWilkerClient";
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
 
 export default async function PetaPage() {
   const user = await getPengguna();
 
   const isAdmin = user?.role === "admin";
+  const wilayah = await getDaftarWilker();
 
   return (
     <div className="p-6 space-y-4">
@@ -25,7 +27,7 @@ export default async function PetaPage() {
           </Link>
         )}
       </div>
-      <PetaWilkerClient isAdmin={isAdmin} />
+      <PetaWilkerClient isAdmin={isAdmin} wilayah={wilayah} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { requireCkg } from '@/lib/klinik/ckg/auth';
-import { KODE_WILAYAH } from '@/lib/klinik/ckg/config';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { validasiBaris, type BarisCkg } from '@/lib/klinik/ckg/validasi';
 import { simpanBanyak } from '@/lib/klinik/ckg/server';
 
@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
 
   if (!(file instanceof File)) return NextResponse.json({ error: 'File belum dipilih' }, { status: 400 });
   if (file.size > MAKS_BYTE) return NextResponse.json({ error: 'File lebih dari 5 MB' }, { status: 400 });
-  if (!KODE_WILAYAH.includes(wilayah)) return NextResponse.json({ error: 'Pilih wilayah kerja' }, { status: 400 });
+  const kamus = await getKamusWilker();
+  if (!kamus.daftarKodeAktif.includes(wilayah)) return NextResponse.json({ error: 'Pilih wilayah kerja' }, { status: 400 });
 
   let baris: Record<string, any>[];
   try {
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
       if (f) raw[f] = v;
     }
     if (Object.values(raw).every((v) => v === '' || v == null)) return; // baris kosong
-    const h = validasiBaris(raw, { wilayah });
+    const h = validasiBaris(raw, { wilayah, kodeValid: kamus.daftarKodeAktif });
     if (h.ok) valid.push(h.data);
     else {
       gagal++;

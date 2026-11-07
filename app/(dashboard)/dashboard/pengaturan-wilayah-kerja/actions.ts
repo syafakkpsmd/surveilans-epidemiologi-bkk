@@ -42,6 +42,21 @@ function bacaJenis(f: FormData): JenisWilker {
   return ketemu!;
 }
 
+/** Pusat tampilan peta (opsional, harus berpasangan) dan zoom 3-19. */
+function bacaPeta(f: FormData): { petaLat: number | null; petaLng: number | null; zoom: number } {
+  const lat = String(f.get('peta_lat') ?? '').trim().replace(',', '.');
+  const lng = String(f.get('peta_lng') ?? '').trim().replace(',', '.');
+  const zoom = Math.trunc(Number(String(f.get('zoom') ?? '13').trim() || 13));
+  if (!Number.isFinite(zoom) || zoom < 3 || zoom > 19) kembali('Zoom peta harus antara 3 dan 19.');
+  if (!lat && !lng) return { petaLat: null, petaLng: null, zoom };
+  const a = Number(lat);
+  const b = Number(lng);
+  if (!lat || !lng || !Number.isFinite(a) || !Number.isFinite(b) || a < -90 || a > 90 || b < -180 || b > 180) {
+    kembali('Pusat peta harus diisi lintang dan bujur yang valid, atau dikosongkan keduanya.');
+  }
+  return { petaLat: a, petaLng: b, zoom };
+}
+
 function bacaSubLokasi(f: FormData): string[] {
   return String(f.get('sub_lokasi') ?? '')
     .split(/\r?\n/)
@@ -58,6 +73,7 @@ function bacaWarna(f: FormData): string | null {
 
 function pesanGalat(e: unknown, bawaan: string): string {
   const err = e as { code?: string; constraint?: string; message?: string };
+  if (err?.code === '42703') return 'Kolom database belum lengkap. Jalankan migrasi 20, 22, dan 23 (scripts/migrate/).';
   if (err?.code === '23505') {
     if (err.constraint?.includes('nama')) return 'Nama wilayah kerja itu sudah ada.';
     if (err.constraint?.includes('alias')) return 'Penulisan itu sudah terdaftar untuk wilayah kerja lain.';
@@ -77,6 +93,7 @@ export async function tambahWilayahKerja(formData: FormData) {
   const { lat, lng } = bacaKoordinat(formData);
   const subLokasi = bacaSubLokasi(formData);
   const warna = bacaWarna(formData);
+  const peta = bacaPeta(formData);
   const catatan = teks(formData, 'catatan') || null;
 
   if (nama.length < 3) kembali('Nama wilayah kerja minimal 3 karakter.');
@@ -86,12 +103,13 @@ export async function tambahWilayahKerja(formData: FormData) {
   for (let percobaan = 0; percobaan < 3; percobaan++) {
     try {
       await db.execute({
-        sql: `INSERT INTO wilker_ref (kode, nama, jenis, lat, lng, sub_lokasi, catatan, nama_pendek, nama_peta, warna, urutan, aktif)
+        sql: `INSERT INTO wilker_ref (kode, nama, jenis, lat, lng, sub_lokasi, catatan, nama_pendek, nama_peta, warna, peta_lat, peta_lng, zoom, urutan, aktif)
               SELECT 'WK' || lpad((COALESCE(MAX(NULLIF(regexp_replace(kode, '\\D', '', 'g'), '')::int), 0) + 1)::text, 2, '0'),
                      ?::text, ?::text, ?::numeric, ?::numeric, ?::text[], ?::text, ?::text, ?::text, ?::text,
+                     ?::numeric, ?::numeric, ?::smallint,
                      COALESCE(MAX(urutan), 0) + 1, true
                 FROM wilker_ref`,
-        args: [nama, jenis, lat, lng, subLokasi, catatan, namaPendek, namaPeta, warna],
+        args: [nama, jenis, lat, lng, subLokasi, catatan, namaPendek, namaPeta, warna, peta.petaLat, peta.petaLng, peta.zoom],
       });
       selesai();
     } catch (e) {
@@ -114,6 +132,7 @@ export async function perbaruiWilayahKerja(formData: FormData) {
   const jenis = bacaJenis(formData);
   const { lat, lng } = bacaKoordinat(formData);
   const urutan = Math.trunc(Number(teks(formData, 'urutan')) || 0);
+  const peta = bacaPeta(formData);
 
   if (!kode) kembali('Kode wilayah tidak ada.');
   if (nama.length < 3) kembali('Nama wilayah kerja minimal 3 karakter.');
@@ -123,9 +142,10 @@ export async function perbaruiWilayahKerja(formData: FormData) {
     const r = await getDbClient().execute({
       sql: `UPDATE wilker_ref
                SET nama = ?, nama_pendek = ?, nama_peta = ?, jenis = ?, lat = ?, lng = ?,
-                   sub_lokasi = ?, catatan = ?, warna = ?, urutan = ?
+                   sub_lokasi = ?, catatan = ?, warna = ?, urutan = ?,
+                   peta_lat = ?, peta_lng = ?, zoom = ?
              WHERE kode = ?`,
-      args: [nama, namaPendek, namaPeta, jenis, lat, lng, bacaSubLokasi(formData), teks(formData, 'catatan') || null, bacaWarna(formData), urutan, kode],
+      args: [nama, namaPendek, namaPeta, jenis, lat, lng, bacaSubLokasi(formData), teks(formData, 'catatan') || null, bacaWarna(formData), urutan, peta.petaLat, peta.petaLng, peta.zoom, kode],
     });
     if (r.rowsAffected === 0) kembali('Wilayah kerja tidak ditemukan.');
   } catch (e) {

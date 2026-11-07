@@ -4,6 +4,7 @@ import { useState } from 'react';
 import CkgDashboard from './CkgDashboard';
 import CkgForm from './CkgForm';
 import CkgUpload from './CkgUpload';
+import type { OpsiWilayahCkg } from '@/lib/klinik/ckg/config';
 
 const TAB = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -13,7 +14,7 @@ const TAB = [
 
 type TabId = (typeof TAB)[number]['id'];
 
-export default function CkgClient() {
+export default function CkgClient({ opsiWilayah }: { opsiWilayah: OpsiWilayahCkg[] }) {
   const [tab, setTab] = useState<TabId>('dashboard');
 
   return (
@@ -41,9 +42,9 @@ export default function CkgClient() {
       </div>
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'dashboard' && <CkgDashboard />}
-        {tab === 'input' && <CkgForm />}
-        {tab === 'unggah' && <CkgUpload />}
+        {tab === 'dashboard' && <CkgDashboard opsiWilayah={opsiWilayah} />}
+        {tab === 'input' && <CkgForm opsiWilayah={opsiWilayah} />}
+        {tab === 'unggah' && <CkgUpload opsiWilayah={opsiWilayah} />}
       </div>
     </main>
   );

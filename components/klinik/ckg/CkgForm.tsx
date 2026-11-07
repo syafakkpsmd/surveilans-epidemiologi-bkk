@@ -1,7 +1,7 @@
 'use client';
 // components/klinik/ckg/CkgForm.tsx
 import { useState } from 'react';
-import { OPSI_WILAYAH, hitungIMT, kategoriIMT } from '@/lib/klinik/ckg/config';
+import { hitungIMT, kategoriIMT, type OpsiWilayahCkg } from '@/lib/klinik/ckg/config';
 
 type Form = {
   tanggal: string;
@@ -39,7 +39,7 @@ function Isian({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export default function CkgForm() {
+export default function CkgForm({ opsiWilayah }: { opsiWilayah: OpsiWilayahCkg[] }) {
   const [f, setF] = useState<Form>(() => kosong(hariIni(), ''));
   const [pesan, setPesan] = useState<{ jenis: 'ok' | 'galat'; teks: string } | null>(null);
   const [kirim, setKirim] = useState(false);
@@ -77,7 +77,7 @@ export default function CkgForm() {
         <Isian label="Wilayah kerja">
           <select required className={input} value={f.wilayah} onChange={(e) => set('wilayah', e.target.value)}>
             <option value="">Pilih wilayah kerja</option>
-            {OPSI_WILAYAH.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
+            {opsiWilayah.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </Isian>
         <Isian label="Tanggal pemeriksaan">

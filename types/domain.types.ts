@@ -1,12 +1,7 @@
 // Tipe domain custom — TIDAK auto-generated, aman dari regenerate database.types.ts / generated.types.ts
 
-export type Wilayah =
-  | "Samarinda"
-  | "TanjungSantan"
-  | "TanjungLaut"
-  | "Lhoktuan"
-  | "Sangatta"
-  | "Sangkulirang";
+/** Kunci wilayah tanpa spasi (mis. "TanjungSantan"); daftar wilayah dinamis, dikelola di pengaturan wilayah kerja. */
+export type Wilayah = string;
 
 export type KategoriCop =
   | "negara_kedatangan"

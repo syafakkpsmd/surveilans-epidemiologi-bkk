@@ -2,8 +2,14 @@
 // Konfigurasi modul input data + unggah Excel. MURNI (tanpa database / exceljs) sehingga aman
 // dipakai komponen 'use client'. Menambah modul baru = menambah satu entri di MODUL.
 import type { JenisWilker, KamusWilker, Wilayah } from '@/lib/wilayah-kerja';
+import type { KunciModulWilker } from '@/lib/wilayah-kerja/modul';
+import { BUTIR, SEKSI, namaKolomButir } from '@/lib/limbah-b3/butir';
+import { PARAMETER, NAMA_KELOMPOK, kolomDb } from '@/lib/udara-ruang/parameter';
+import { statusEvaluasi } from '@/lib/udara-ruang/hitung';
+import { KOLOM_LAMA, TABEL_UDARA } from '@/lib/udara-ruang/skema';
 
-export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker';
+/** 'ya_tidak' = butir formulir pemeriksaan: Ya / Tidak / N/A (kosong = belum dinilai). */
+export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker' | 'ya_tidak';
 
 export interface KolomModul {
   /** Nama kolom di tabel. */
@@ -22,6 +28,14 @@ export interface KolomModul {
   arsip?: boolean;
   /** Panjang maksimum teks (default 255; harus sesuai kolom di database). */
   maks?: number;
+  /** Teks panjang yang ditampilkan di FORM (mis. kalimat pertanyaan butir); judul kolom Excel tetap `label` yang ringkas. */
+  deskripsi?: string;
+  /** Judul kelompok di form: muncul sebagai subjudul setiap kali kelompok berganti. */
+  kelompok?: string;
+  /** Kolom 'desimal'/'bilangan': rentang yang masuk akal [min, maks]. Di luar rentang ditolak ("periksa satuan/salah ketik"). */
+  batasNilai?: [number, number];
+  /** Kolom TURUNAN: nilainya dihitung dari kolom lain saat validasi (tidak ada di form/Excel). Mis. label Lokasi untuk Karhutla. */
+  turunan?: (n: Record<string, string | number | null>) => string | number | null;
 }
 
 export interface ModulInput {
@@ -45,11 +59,26 @@ export interface ModulInput {
   peranBoleh: ('admin' | 'petugas' | 'petugas_klinik')[];
   /** Isi negara_kedatangan dari master pelabuhan (hanya COP). */
   negaraDariMaster?: boolean;
+
+  // ---- opsi untuk modul sanitasi (TPP/TTU/PAB); modul lama tidak perlu mengisinya ----
+  /** Kunci di wilker_modul (lib/wilayah-kerja/modul.ts). Bila diisi, wilayah yang boleh = yang dicentang admin untuk modul ini,
+   *  jadi BKK lain cukup mengubah centang di pengaturan wilayah kerja, tanpa menyentuh kode. */
+  kunciWilker?: KunciModulWilker;
+  /** DIISI SAAT RUNTIME oleh route (modulEfektif) dari wilker_modul. Jangan ditulis di MODUL. */
+  kodeWilkerBoleh?: string[];
+  /** Baca kolom tanggal Excel lewat parseTanggal + tentukanUrutanKolom (dd/mm/yyyy, serial Excel, "9 Januari 2026", dst.). */
+  pakaiParseTanggal?: boolean;
+  /** Simpan wilayah_kerja = nama pendek APA ADANYA ("Tanjung Santan"), sama dengan filter di dasbor. Bawaan: tanpa spasi. */
+  wilayahDenganSpasi?: boolean;
+  /** Sebutan kolom kunci untuk teks di layar ("nama kapal" bila kosong). */
+  namaKunci?: string;
 }
 
 /** Modul kapal (COP/PHQC): hanya pelabuhan. Modul lain: pelabuhan dan bandara. */
 const JENIS_KAPAL: JenisWilker[] = ['Pelabuhan'];
 const JENIS_SEMUA: JenisWilker[] = ['Pelabuhan', 'Bandara'];
+/** Modul sanitasi: semua jenis. Pembatas sebenarnya adalah centang wilker_modul (kunciWilker), bukan jenis. */
+const JENIS_LENGKAP: JenisWilker[] = ['Pelabuhan', 'Bandara', 'Kantor'];
 /** Judul kolom wilayah yang diterima pada ekspor Sinkarkes (isinya nama wilayah kerja). */
 const ALIAS_WILKER = ['Wilayah Kerja', 'Wilker', 'Pelabuhan', 'Nama KKP', 'KKP', 'Nama Balai Karkes', 'KKP Induk/Wilker', 'KKP Induk'];
 
@@ -260,6 +289,200 @@ export const MODUL: Record<string, ModulInput> = {
       { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', alias: ['Jumlah', 'PNBP'] },
     ],
   },
+
+  // ------------------------------------------------------------------------------------------
+  // Modul sanitasi. Tabel: schema/postgres/08_modul_tpp_ttu_pab.sql.
+  // Judul kolom Excel diterima dalam bentuk label, nama kolom (snake_case, "hy-rise" = "hy_rise"), atau alias.
+  // ------------------------------------------------------------------------------------------
+  tpp: {
+    kunci: 'tpp',
+    label: 'TPP (Tempat Pengolahan Pangan)',
+    tabel: 'tpp',
+    kolomTanggal: 'tanggal_kegiatan',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_tpp',
+    namaKunci: 'nama TPP',
+    kunciWilker: 'tpp',
+    pakaiParseTanggal: true,
+    wilayahDenganSpasi: true,
+    jenisWilayahBoleh: JENIS_LENGKAP,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tanggal_kegiatan', 'wilayah_kerja', 'nama_tpp', 'jumlah_sampel', 'inspeksi_kesehatan_lingkungan', 'formaldehyde', 'borax', 'metyl_yellow', 'rodamin_b', 'bakteriologis', 'hy_rise'],
+    kolom: [
+      { nama: 'tanggal_kegiatan', label: 'Tanggal Kegiatan', tipe: 'tanggal', wajib: true, alias: ['Tanggal', 'Tgl Kegiatan'] },
+      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      T('nama_tpp', 'Nama TPP', ['Nama Tempat Pengolahan Pangan', 'TPP'], { wajib: true }),
+      { nama: 'jumlah_sampel', label: 'Jumlah Sampel', tipe: 'bilangan', alias: ['Sampel'] },
+      T('inspeksi_kesehatan_lingkungan', 'Inspeksi Kesehatan Lingkungan', ['IKL']),
+      T('formaldehyde', 'Formaldehyde', ['Formalin'], { maks: 100 }),
+      T('borax', 'Borax', ['Boraks'], { maks: 100 }),
+      T('metyl_yellow', 'Metyl Yellow', ['Methanyl Yellow'], { maks: 100 }),
+      T('rodamin_b', 'Rodamin B', ['Rhodamin B'], { maks: 100 }),
+      T('bakteriologis', 'Bakteriologis', undefined, { maks: 100 }),
+      T('hy_rise', 'Hy-Rise', ['Hyrise', 'Hy Rise'], { maks: 100 }),
+      T('keterangan', 'Keterangan', undefined, { maks: 5000 }),
+    ],
+  },
+  ttu: {
+    kunci: 'ttu',
+    label: 'TTU (Tempat-Tempat Umum)',
+    tabel: 'ttu',
+    kolomTanggal: 'tanggal',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_ttu',
+    namaKunci: 'nama TTU',
+    kunciWilker: 'ttu',
+    pakaiParseTanggal: true,
+    wilayahDenganSpasi: true,
+    jenisWilayahBoleh: JENIS_LENGKAP,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tanggal', 'wilayah_kerja', 'nama_ttu', 'hasil'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      // "nata_ttu" = salah ketik judul pada sheet contoh; diterima agar berkas lama tetap terbaca.
+      T('nama_ttu', 'Nama TTU', ['nata_ttu', 'Nama Tempat Umum', 'TTU'], { wajib: true }),
+      { nama: 'tanggal', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tgl', 'Tanggal Kegiatan'] },
+      T('lingkungan_luar_halaman', 'Lingkungan Luar/Halaman', ['Lingkungan Luar Halaman']),
+      T('ruang_bangunan', 'Ruang Bangunan'),
+      T('penyehatan_air', 'Penyehatan Air'),
+      T('penyehatan_udara_ruang', 'Penyehatan Udara Ruang'),
+      T('pengelolaan_limbah', 'Pengelolaan Limbah'),
+      T('pencahayaan', 'Pencahayaan'),
+      T('kebisingan', 'Kebisingan'),
+      T('getaran_diruang_kerja', 'Getaran di Ruang Kerja', ['Getaran', 'Getaran Ruang Kerja']),
+      T('pengendalian_vektor_penyakit', 'Pengendalian Vektor Penyakit', ['Pengendalian Vektor']),
+      T('instalasi', 'Instalasi'),
+      T('pemeliharaan_jamban_kamar_mandi', 'Pemeliharaan Jamban & Kamar Mandi', ['Jamban dan Kamar Mandi', 'Jamban Kamar Mandi']),
+      T('hasil', 'Hasil', ['Kesimpulan', 'Status']),
+    ],
+  },
+  pab: {
+    kunci: 'pab',
+    label: 'PAB (Penyediaan Air Bersih)',
+    tabel: 'pab',
+    kolomTanggal: 'tanggal',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_ttu',
+    namaKunci: 'nama PAB',
+    kunciWilker: 'pab',
+    pakaiParseTanggal: true,
+    wilayahDenganSpasi: true,
+    jenisWilayahBoleh: JENIS_LENGKAP,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tanggal', 'wilayah_kerja', 'nama_ttu', 'jumlah_pab_diperiksa', 'fisik', 'kimia', 'bakteriologis', 'status'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      T('nama_ttu', 'Nama PAB', ['nata_ttu', 'Nama TTU', 'Nama Tempat Penyediaan Air', 'PAB'], { wajib: true }),
+      { nama: 'tanggal', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tgl', 'Tanggal Kegiatan'] },
+      { nama: 'jumlah_pab_diperiksa', label: 'Jumlah PAB Diperiksa', tipe: 'bilangan', alias: ['Jumlah PAB', 'Jml PAB Diperiksa'] },
+      T('fisik', 'Fisik', undefined, { maks: 100 }),
+      T('kimia', 'Kimia', undefined, { maks: 100 }),
+      T('bakteriologis', 'Bakteriologis', undefined, { maks: 100 }),
+      T('status', 'Status', ['Hasil'], { maks: 100 }),
+      T('keterangan', 'Keterangan', undefined, { maks: 5000 }),
+    ],
+  },
+
+  // ------------------------------------------------------------------------------------------
+  // Pemeriksaan pengelolaan limbah B3 klinik. Isi formulir (33 butir, 5 seksi) ada di lib/limbah-b3/butir.ts.
+  // Tabel: schema/postgres/09_modul_limbah_b3.sql. Satu baris = satu pemeriksaan satu klinik pada satu tanggal.
+  // ------------------------------------------------------------------------------------------
+  limbah_b3: {
+    kunci: 'limbah_b3',
+    label: 'Limbah B3 Klinik',
+    tabel: 'limbah_b3',
+    kolomTanggal: 'tanggal_pemeriksaan',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_klinik',
+    namaKunci: 'nama klinik',
+    kunciWilker: 'limbah_b3',
+    pakaiParseTanggal: true,
+    wilayahDenganSpasi: true,
+    jenisWilayahBoleh: JENIS_LENGKAP,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tanggal_pemeriksaan', 'wilayah_kerja', 'nama_klinik', 'jenis_layanan', 'nama_pemeriksa', 'batas_waktu_tindak_lanjut'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER, kelompok: 'Identitas pemeriksaan' },
+      T('nama_klinik', 'Nama Klinik', ['Klinik'], { wajib: true }),
+      T('alamat', 'Alamat/Lokasi', ['Alamat', 'Lokasi'], { maks: 500 }),
+      { nama: 'tanggal_pemeriksaan', label: 'Tanggal Pemeriksaan', tipe: 'tanggal', wajib: true, alias: ['Tanggal', 'Tgl Pemeriksaan'] },
+      T('nama_penanggung_jawab', 'Nama Penanggung Jawab', ['Penanggung Jawab']),
+      T('nama_pemeriksa', 'Nama Pemeriksa', ['Pemeriksa']),
+      T('jenis_layanan', 'Jenis Layanan Klinik', ['Jenis Layanan']),
+      // ---- 33 butir: item_01 ... item_33. Judul Excel "Butir 1" (alias: nama kolom, B1, "Butir 01", kalimat pertanyaan) ----
+      ...BUTIR.map((b): KolomModul => ({
+        nama: namaKolomButir(b.no),
+        label: `Butir ${b.no}`,
+        tipe: 'ya_tidak',
+        alias: [`Butir ${String(b.no).padStart(2, '0')}`, `B${b.no}`, b.teks],
+        deskripsi: `${b.no}. ${b.teks}`,
+        kelompok: `${b.seksi}. ${SEKSI.find((s) => s.huruf === b.seksi)?.nama ?? ''}`,
+      })),
+      { nama: 'catatan_item', label: 'Catatan/Bukti', tipe: 'teks', maks: 5000, alias: ['Catatan', 'Bukti', 'Catatan Bukti'], kelompok: 'Ringkasan temuan dan rekomendasi',
+        deskripsi: 'Catatan/bukti per butir (tulis nomor butirnya, mis. "12: APD tidak lengkap; 27: manifest belum ada")' },
+      T('temuan_utama', 'Temuan Utama', undefined, { maks: 5000 }),
+      T('rekomendasi', 'Rekomendasi/Tindakan Perbaikan', ['Rekomendasi', 'Tindakan Perbaikan'], { maks: 5000 }),
+      { nama: 'batas_waktu_tindak_lanjut', label: 'Batas Waktu Tindak Lanjut', tipe: 'tanggal', alias: ['Batas Waktu'] },
+      // ---- diisi manual petugas setelah data masuk (dropdown di daftar) ----
+      T('status_tindak_lanjut', 'Status Tindak Lanjut', ['Status'], { manual: true, pilihan: ['Belum', 'Dalam proses', 'Selesai'], maks: 50 }),
+    ],
+  },
+
+  // ------------------------------------------------------------------------------------------
+  // Pemeriksaan udara dalam ruang. Menulis LANGSUNG ke tabel Karhutla (TABEL_UDARA), jadi satu kali entri tampil di Karhutla juga.
+  // Kolom Karhutla yang sudah ada dipakai apa adanya; kolom baru ditambahkan oleh schema/postgres/10_modul_udara_ruang.sql.
+  // Nama tabel/kolom lama: lib/udara-ruang/skema.ts. Parameter dan baku mutu: lib/udara-ruang/parameter.ts.
+  // ------------------------------------------------------------------------------------------
+  udara_ruang: {
+    kunci: 'udara_ruang',
+    label: 'Udara Dalam Ruang',
+    tabel: TABEL_UDARA,
+    kolomTanggal: KOLOM_LAMA.tanggal,
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'nama_ruangan',
+    namaKunci: 'nama ruangan',
+    kunciWilker: 'udara_ruang',
+    pakaiParseTanggal: true,
+    wilayahDenganSpasi: true,
+    jenisWilayahBoleh: JENIS_LENGKAP,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: [KOLOM_LAMA.tanggal, 'wilayah_kerja', 'nama_pelabuhan', 'nama_gedung', 'nama_ruangan', KOLOM_LAMA.pm25, KOLOM_LAMA.pm10, KOLOM_LAMA.suhu, KOLOM_LAMA.kelembapan, KOLOM_LAMA.hcho, KOLOM_LAMA.tvoc],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Wilayah Kerja BKK', tipe: 'wilker', wajib: true, alias: ['Wilayah Kerja', 'Wilker', 'Wilayah Kerja BKK', 'Induk/Wilker'], kelompok: 'A. Identitas pemeriksaan' },
+      T('nama_pelabuhan', 'Nama Pelabuhan/Bandara', ['Nama Pelabuhan', 'Nama Bandara']),
+      T('nama_gedung', 'Nama Gedung/Bangunan', ['Nama Gedung', 'Gedung']),
+      T('nama_ruangan', 'Nama Ruangan', ['Ruangan'], { wajib: true }),
+      T('fungsi_ruangan', 'Fungsi Ruangan'),
+      { nama: KOLOM_LAMA.tanggal, label: 'Tanggal Pemeriksaan', tipe: 'tanggal', wajib: true, alias: ['Tanggal', 'Tgl Pemeriksaan'] },
+      { nama: 'waktu_pemeriksaan', label: 'Waktu Pemeriksaan', tipe: 'waktu', alias: ['Waktu', 'Jam'] },
+      T('nama_pemeriksa', 'Petugas Pemeriksa', ['Nama Pemeriksa', 'Pemeriksa']),
+      T('penanggung_jawab', 'Penanggung Jawab Lokasi', ['Penanggung Jawab']),
+      T('kondisi_ruangan', 'Kondisi Ruangan Saat Pemeriksaan', ['Kondisi Ruangan']),
+      // ---- parameter (hasil ukur). Judul Excel = "Nama (satuan)"; nama polos, kunci, dan nama kolom juga diterima ----
+      ...PARAMETER.map((p): KolomModul => ({
+        nama: kolomDb(p.kunci),
+        label: `${p.nama} (${p.satuan})`,
+        tipe: 'desimal',
+        alias: [p.nama, p.kunci, ...(p.aliasTambahan ?? [])],
+        deskripsi: `${p.nama} (${p.satuan}) — acuan: ${p.acuan}`,
+        kelompok: NAMA_KELOMPOK[p.kelompok],
+        batasNilai: p.rentangWajar,
+      })),
+      { nama: 'keterangan_parameter', label: 'Keterangan Parameter', tipe: 'teks', maks: 5000, alias: ['Keterangan'], kelompok: 'D. Kesimpulan dan rekomendasi' },
+      { nama: 'kesimpulan', label: 'Kesimpulan Pemeriksaan', tipe: 'teks', maks: 5000, alias: ['Kesimpulan'] },
+      { nama: 'rekomendasi', label: 'Rekomendasi/Tindak Lanjut', tipe: 'teks', maks: 5000, alias: ['Rekomendasi', 'Tindak Lanjut'] },
+      { nama: 'catatan', label: 'Catatan Tambahan', tipe: 'teks', maks: 5000, alias: ['Catatan'] },
+      // Label "Lokasi" yang dibaca dasbor Karhutla ("Samarinda (Pelabuhan Umum)", dst.): diturunkan, tidak diketik dua kali.
+      {
+        nama: KOLOM_LAMA.lokasi, label: 'Lokasi (label Karhutla)', tipe: 'teks', arsip: true,
+        turunan: (n) => (n.nama_pelabuhan as string | null) || (n.wilayah_kerja as string | null) || null,
+      },
+      {
+        nama: 'status_evaluasi', label: 'Status Evaluasi (otomatis)', tipe: 'teks', arsip: true,
+        turunan: (n) => statusEvaluasi(n),
+      },
+    ],
+  },
 };
 
 export const DAFTAR_MODUL = Object.values(MODUL);
@@ -270,12 +493,16 @@ export function dapatkanModul(kunci: string): ModulInput | undefined {
 
 /** Wilayah kerja AKTIF yang boleh dipakai modul ini (menurut jenisnya). Wilayah nonaktif tidak menerima input baru. */
 export function wilayahBolehModul(modul: ModulInput, kamus: KamusWilker): Wilayah[] {
-  return kamus.aktif.filter((w) => modul.jenisWilayahBoleh.includes(w.jenis));
+  return kamus.aktif.filter(
+    (w) => modul.jenisWilayahBoleh.includes(w.jenis) && (!modul.kodeWilkerBoleh || modul.kodeWilkerBoleh.includes(w.kode)),
+  );
 }
 
-/** Bentuk penyimpanan wilayah di tabel kegiatan_* saat ini: nama pendek tanpa spasi ("TanjungSantan"). */
-export function wilayahTersimpan(kode: string, kamus: KamusWilker): string {
-  return (kamus.dapatkan(kode)?.namaPendek ?? kode).replace(/\s+/g, '');
+/** Bentuk penyimpanan wilayah di tabel kegiatan_* saat ini: nama pendek tanpa spasi ("TanjungSantan").
+ *  Modul sanitasi (wilayahDenganSpasi) menyimpan apa adanya ("Tanjung Santan"), sama dengan yang dibaca dasbor. */
+export function wilayahTersimpan(kode: string, kamus: KamusWilker, denganSpasi = false): string {
+  const pendek = kamus.dapatkan(kode)?.namaPendek ?? kode;
+  return denganSpasi ? pendek.trim() : pendek.replace(/\s+/g, '');
 }
 
 /** Kebalikannya, untuk filter di daftar; teks tak dikenal -> null. */

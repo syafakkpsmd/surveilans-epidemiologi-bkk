@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { bacaExcelPesawat, MAKS_BYTE_EXCEL } from '@/lib/db/modul/excelPesawat';
-import { WILKER_BANDARA, periksaBanyak } from '@/lib/db/modul/inputPesawat';
+import { getWilkerBandara, periksaBanyak, pilihKodeBandara } from '@/lib/db/modul/inputPesawat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,7 +34,10 @@ export async function POST(req: Request) {
   if (!baca.ok) return galat(baca.galatFile, 422);
 
   const hariIni = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Makassar' });
-  const hasil = await periksaBanyak(baca.baris, hariIni, WILKER_BANDARA[0].kode);
+  const bandara = await getWilkerBandara();
+  const kodeWilker = pilihKodeBandara(bandara, String(form.get('wilker') ?? '') || null);
+  if (!kodeWilker) return galat(bandara.length === 0 ? 'Belum ada bandara aktif di pengaturan wilayah kerja.' : 'Pilih bandara terlebih dahulu.', 400);
+  const hasil = await periksaBanyak(baca.baris, hariIni, kodeWilker, bandara);
 
   return NextResponse.json({
     peringatan: baca.peringatan,

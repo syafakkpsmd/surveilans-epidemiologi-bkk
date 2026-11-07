@@ -1,32 +1,3 @@
-import { NAMA_PENDEK_BY_KODE } from '@/lib/wilayah-kerja';
-export const DAFTAR_WILAYAH_KARHUTLA = [
-  { label: 'Palaran', kode_wilker: 'WK01', zona: 'Palaran' },
-  { label: 'Sidomulyo', kode_wilker: 'WK01', zona: 'Sidomulyo' },
-  { label: 'Klinik Pelabuhan Samarinda', kode_wilker: 'WK01', zona: 'Klinik Pelabuhan Samarinda' },
-
-  { label: 'Bandara APT Pranoto', kode_wilker: 'WK07', zona: null },
-  { label: 'Klinik APT Pranoto', kode_wilker: 'WK07', zona: 'Klinik APT Pranoto' },
-
-  { label: 'Tanjung Santan', kode_wilker: 'WK02', zona: null },
-
-  { label: 'Tanjung Laut', kode_wilker: 'WK03', zona: null },
-  { label: 'Klinik Pelabuhan Tanjung Laut', kode_wilker: 'WK03', zona: 'Klinik Pelabuhan Tanjung Laut' },
-
-  { label: 'Lhoktuan', kode_wilker: 'WK04', zona: null },
-  { label: 'Klinik Pelabuhan Lhoktuan', kode_wilker: 'WK04', zona: 'Klinik Pelabuhan Lhoktuan' },
-
-  { label: 'Sangatta', kode_wilker: 'WK05', zona: null },
-  { label: 'Klinik Pelabuhan Sangatta', kode_wilker: 'WK05', zona: 'Klinik Pelabuhan Sangatta' },
-
-  { label: 'Sangkulirang', kode_wilker: 'WK06', zona: null },
-] as const;
-
-export const LOKASI_KUALITAS_UDARA = [
-  'Samarinda', 'Tanjung Laut', 'Sangatta', 'Lhoktuan',
-  'Sangkulirang', 'APT Pranoto (Keberangkatan)',
-  'APT Pranoto (Kedatangan)', 'Tanjung Santan',
-] as const;
-
 export const BAKU_MUTU_UDARA = {
   pm25: { max: 25 },
   pm10: { max: 70 },
@@ -68,15 +39,13 @@ export const LABEL_STATUS: Record<StatusEvaluasi, string> = {
   TIDAK_LENGKAP: 'Data Belum Lengkap',
 };
 
-export const NAMA_WILKER: Record<string, string> = NAMA_PENDEK_BY_KODE;
-
 export function buatOpsiWilayahIspa(
-  daftarWilayah: { label: string; kode_wilker: string; zona: string | null }[]
+  daftarWilayah: { label: string; kode_wilker: string; zona: string | null; induk: string }[]
 ) {
   return daftarWilayah.map((w) => ({
     key: w.zona ? `${w.kode_wilker}::${w.zona}` : w.kode_wilker,
     label: w.label,
-    induk: NAMA_WILKER[w.kode_wilker] ?? w.kode_wilker,
+    induk: w.induk,
   }));
 }
 

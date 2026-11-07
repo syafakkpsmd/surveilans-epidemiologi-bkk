@@ -1,4 +1,5 @@
 // app/api/ckg/route.ts
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireCkg } from '@/lib/klinik/ckg/auth';
 import { validasiBaris } from '@/lib/klinik/ckg/validasi';
@@ -14,7 +15,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Data tidak terbaca' }, { status: 400 });
 
-  const h = validasiBaris(body, { wilayah: String(body.wilayah ?? '') });
+  const kamus = await getKamusWilker();
+  const h = validasiBaris(body, { wilayah: String(body.wilayah ?? ''), kodeValid: kamus.daftarKodeAktif });
   if (!h.ok) return NextResponse.json({ error: h.error }, { status: 400 });
 
   const r = await simpanBanyak([h.data], user.nama, 'input');
@@ -34,6 +36,6 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const limit = Math.min(Number(sp.get('limit')) || 100, 500);
   const offset = Number(sp.get('offset')) || 0;
-  const data = await daftarPemeriksaan(filterDariQuery(sp), limit, offset);
+  const data = await daftarPemeriksaan(filterDariQuery(sp, (await getKamusWilker()).daftarKode), limit, offset);
   return NextResponse.json({ data });
 }

@@ -14,8 +14,7 @@ import { daftarData, hapusBatch, hitungRencana, simpanUnggahan, tambahSatu } fro
 import { getDbClient, tutupDb } from '../../lib/db/client';
 
 import { wilayahBolehModul } from '../../lib/input-data/modul';
-import { buatKamus, WILAYAH_KERJA } from '../../lib/wilayah-kerja';
-const KAMUS = buatKamus(WILAYAH_KERJA); // daftar bawaan BKK Samarinda untuk uji
+import { KAMUS_UJI as KAMUS } from './fixtures-wilker'; // daftar contoh BKK Samarinda untuk uji
 
 const BARU = ['sscec', 'p3k', 'air', 'buku_kesehatan'].map((k) => MODUL[k]);
 

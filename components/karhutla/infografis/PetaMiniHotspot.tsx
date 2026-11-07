@@ -1,5 +1,4 @@
-import { WILKER_LOKASI } from '@/lib/data/wilker-lokasi';
-import { NAMA_WILKER } from '@/lib/karhutla/constants';
+import type { WilkerPeta } from '@/lib/wilayah-kerja/peta';
 
 /**
  * Peta mini titik panas -- PETA ASLI (mosaik tile raster OpenStreetMap),
@@ -59,9 +58,9 @@ function lat2pxY(lat: number, zoom: number): number {
   return ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * UKURAN_TILE * 2 ** zoom;
 }
 
-function hitungBounds(titik: TitikHotspotMini[]) {
-  const semuaLat = [...WILKER_LOKASI.map((w) => w.pusat.lat), ...titik.map((t) => t.latitude)];
-  const semuaLng = [...WILKER_LOKASI.map((w) => w.pusat.lng), ...titik.map((t) => t.longitude)];
+function hitungBounds(titik: TitikHotspotMini[], wilayah: WilkerPeta[]) {
+  const semuaLat = [...wilayah.map((w) => w.pusat.lat), ...titik.map((t) => t.latitude)];
+  const semuaLng = [...wilayah.map((w) => w.pusat.lng), ...titik.map((t) => t.longitude)];
   return {
     latMin: Math.min(...semuaLat),
     latMax: Math.max(...semuaLat),
@@ -80,8 +79,8 @@ function pilihZoom(bounds: ReturnType<typeof hitungBounds>, lebarTarget: number,
   return ZOOM_MIN;
 }
 
-export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMini[] }) {
-  const bounds = hitungBounds(hotspots);
+export default function PetaMiniHotspot({ hotspots, wilayah }: { hotspots: TitikHotspotMini[]; wilayah: WilkerPeta[] }) {
+  const bounds = hitungBounds(hotspots, wilayah);
   const zoom = pilihZoom(bounds, LEBAR - PADDING * 2, TINGGI - PADDING * 2);
 
   const bboxXMin = lng2pxX(bounds.lngMin, zoom);
@@ -158,9 +157,9 @@ export default function PetaMiniHotspot({ hotspots }: { hotspots: TitikHotspotMi
           return <circle key={i} cx={x} cy={y} r={3.5} fill="#ff8a72" fillOpacity={0.95} stroke="#fff1ee" strokeWidth={0.5} />;
         })}
 
-        {WILKER_LOKASI.map((w) => {
+        {wilayah.map((w) => {
           const { x, y } = proyeksi(w.pusat.lat, w.pusat.lng);
-          const nama = NAMA_WILKER[w.kode] ?? w.kode;
+          const nama = w.namaPendek;
           const dekatTepiKanan = x > LEBAR - 130;
           return (
             <g key={w.kode}>

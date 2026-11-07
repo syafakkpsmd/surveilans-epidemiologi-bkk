@@ -1,15 +1,12 @@
 "use client";
-import { OPSI_WILKER_PETA } from '@/lib/wilayah-kerja';
-
-const WILKER_LIST = [
-  { kode: "INDUK", nama: "🏢 Kantor Induk BKK Kelas I Samarinda" },
-  ...OPSI_WILKER_PETA,
-];
+import type { WilkerPeta } from '@/lib/wilayah-kerja/peta';
 
 export default function WilkerSelector({
+  opsi,
   selected,
   onSelect,
 }: {
+  opsi: WilkerPeta[];
   selected: string | null;
   onSelect: (kode: string | null) => void;
 }) {
@@ -23,7 +20,7 @@ export default function WilkerSelector({
       >
         Semua Wilker
       </button>
-      {WILKER_LIST.map((w) => (
+      {opsi.map((w) => (
         <button
           key={w.kode}
           onClick={() => onSelect(w.kode)}
@@ -31,7 +28,7 @@ export default function WilkerSelector({
             selected === w.kode ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 hover:bg-gray-50"
           }`}
         >
-          {w.nama}
+          {w.jenis === "Kantor" ? `🏢 ${w.nama}` : w.nama}
         </button>
       ))}
     </div>

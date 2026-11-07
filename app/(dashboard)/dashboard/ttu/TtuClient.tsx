@@ -31,13 +31,6 @@ const KOMPONEN_TTU = [
 ] as const;
 
 interface HasilAwalInisial {
-  // Kunci kombinasi (konteks|periodeKey|wilayahKerja) yang DI-PREFETCH
-  // server di page.tsx, format SAMA PERSIS seperti bangunComboKeyDasar()
-  // di bawah. Cuma valid untuk kombinasi filter DEFAULT (granularitas
-  // "bulanan", rentangBulan default {awal:1, akhir: bulanBerjalan},
-  // wilayah dari wilayahParam). Begitu user ganti granularitas/rentang/
-  // wilayah, comboKeyAktif tidak akan cocok lagi dan Box otomatis balik
-  // fetch sendiri.
   comboKeyDasar: string;
   analisis: HasilAIStruktur | null;
   prediksi: HasilAIStruktur | null;
@@ -51,11 +44,12 @@ type TtuClientProps = {
   role: string;
   tahunBerjalan: number;
   bulanBerjalan: number;
-  tahunEpidBerjalan: number;   // <-- FIX: sebelumnya hilang dari tipe
-  mingguEpidBerjalan: number;  // <-- FIX: sebelumnya hilang dari tipe
+  tahunEpidBerjalan: number;
+  mingguEpidBerjalan: number;
   wilayahParam?: string;
-  /** Opsional: kalau tidak dioper, kedua Box otomatis fetch sendiri seperti biasa. */
   hasilAwalInisial?: HasilAwalInisial | null;
+  /** Tombol aksi di header (mis. Input/Unggah Data); dibuat di page.tsx server. */
+  aksiHeader?: React.ReactNode;
 };
 
 // Helper untuk mengecek status TMS
@@ -82,6 +76,7 @@ export default function TtuClient({
   bulanBerjalan,
   wilayahParam,
   hasilAwalInisial,
+  aksiHeader,
 }: TtuClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("bulanan");
@@ -107,18 +102,17 @@ export default function TtuClient({
     if (granularitas === "bulanan") {
       let awal = tempBulanAwal;
       let akhir = tempBulanAkhir;
-      if (awal > akhir) [awal, akhir] = [akhir, awal]; // Swap jika terbalik
+      if (awal > akhir) [awal, akhir] = [akhir, awal];
       setRentangBulan({ awal, akhir });
     } else {
       let awal = tempMingguAwal;
       let akhir = tempMingguAkhir;
-      if (awal > akhir) [awal, akhir] = [akhir, awal]; // Swap jika terbalik
+      if (awal > akhir) [awal, akhir] = [akhir, awal];
       setRentangMinggu({ awal, akhir });
     }
   };
 
   // 1. OLAH DATA UNTUK GRAFIK BERDASARKAN RENTANG TERAPKAN
-  // FIX: diubah dari useEffect+setState (extra render/flicker) ke useMemo
   const chartData = useMemo(() => {
     const sumberData = granularitas === "bulanan" ? dataBulanan : dataMingguan;
     const kolomPeriode = granularitas === "bulanan" ? "bulan" : "minggu";
@@ -184,17 +178,12 @@ export default function TtuClient({
   const konteksAI = granularitas === "bulanan" ? "ttu-bulanan" : "ttu-mingguan";
   const wilayahKerjaAktif = selectedWilayah !== "semua" ? selectedWilayah : undefined;
 
-  // Kombinasi filter AKTIF di client, format sama seperti comboKeyDasar
-  // dari server. Cocok -> boleh pakai hasil prefetch. Tidak cocok (user
-  // sudah ganti granularitas/rentang/wilayah) -> hasilAwal jadi undefined,
-  // Box otomatis fetch sendiri.
   const comboKeyAktif = bangunComboKeyDasar(konteksAI, periodeKey, wilayahKerjaAktif);
   const cocokDenganPrefetch = hasilAwalInisial?.comboKeyDasar === comboKeyAktif;
   const hasilAwalAnalisis = cocokDenganPrefetch ? hasilAwalInisial!.analisis : undefined;
   const hasilAwalPrediksi = cocokDenganPrefetch ? hasilAwalInisial!.prediksi : undefined;
 
   // 2. FILTER DATA DETAIL UNTUK TABEL TMS
-  // FIX: dibungkus useMemo supaya tidak dihitung ulang setiap render
   const daftarTmsDetail = useMemo(() => {
     const sumberDataDetail = dataDetailTtu.length > 0
       ? dataDetailTtu
@@ -237,6 +226,8 @@ export default function TtuClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {aksiHeader}
+
           {/* Switcher Granularitas */}
           <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
             <button
@@ -344,6 +335,71 @@ export default function TtuClient({
             >
               Terapkan
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* KARTU RINGKASAN STATISTIK */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Diperiksa</p>
+            <h4 className="text-2xl font-bold text-[#0F2A38] mt-1">
+              {chartData.reduce((acc, curr) => acc + Number(curr.jumlah_diperiksa || 0), 0)}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-teal-50 p-3 text-[#0F4C5C]">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-600">Memenuhi Syarat (MS)</p>
+            <h4 className="text-2xl font-bold text-green-700 mt-1">
+              {chartData.reduce((acc, curr) => acc + Number(curr.jumlah_ms || 0), 0)}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-green-50 p-3 text-green-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Tidak Memenuhi Syarat (TMS)</p>
+            <h4 className="text-2xl font-bold text-red-700 mt-1">
+              {chartData.reduce((acc, curr) => acc + Number(curr.jumlah_tms || 0), 0)}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-red-50 p-3 text-red-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Tingkat Kepatuhan</p>
+            <h4 className="text-2xl font-bold text-blue-700 mt-1">
+              {(() => {
+                const totalMs = chartData.reduce((acc, curr) => acc + Number(curr.jumlah_ms || 0), 0);
+                const totalTms = chartData.reduce((acc, curr) => acc + Number(curr.jumlah_tms || 0), 0);
+                const total = totalMs + totalTms;
+                if (total === 0) return "0%";
+                return `${((totalMs / total) * 100).toFixed(1)}%`;
+              })()}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-blue-50 p-3 text-blue-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
           </div>
         </div>
       </div>

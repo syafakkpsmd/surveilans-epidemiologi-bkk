@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { unduhCsv } from '@/lib/karhutla/csv';
 import {
-  DAFTAR_WILAYAH_KARHUTLA,
-  NAMA_WILKER,
   hitungStatusEvaluasi,
   LABEL_STATUS,
   type StatusEvaluasi,
@@ -21,11 +19,10 @@ import type {
 
 const STATUS_ISPU = ['Baik', 'Sedang', 'Tidak Sehat', 'Sangat Tidak Sehat', 'Berbahaya'] as const;
 
-function labelWilayah(kodeWilker: string, zona: string | null): string {
-  const entri = DAFTAR_WILAYAH_KARHUTLA.find((w) =>
-    zona ? w.kode_wilker === kodeWilker && w.zona === zona : w.kode_wilker === kodeWilker && !w.zona
-  );
-  return entri?.label ?? `${kodeWilker}${zona ? ` (${zona})` : ''}`;
+/** Label tampilan wilayah ISPA dari daftar wilayah_ispa (dikelola di halaman pengaturan lokasi karhutla). */
+function labelWilayah(kodeWilker: string, zona: string | null, daftar: readonly WilayahIspaRow[]): string {
+  const entri = daftar.find((w) => w.kode_wilker === kodeWilker && (w.zona ?? null) === (zona ?? null));
+  return entri?.label ?? `${daftar.find((w) => w.kode_wilker === kodeWilker)?.induk ?? kodeWilker}${zona ? ` (${zona})` : ''}`;
 }
 
 function formatTanggal(tanggal: string): string {
@@ -73,7 +70,7 @@ function ModalEditIspa({
   const [pesanError, setPesanError] = useState<string | null>(null);
 
   const wilayahTerkelompok = daftarWilayah.reduce<Record<string, WilayahIspaRow[]>>((acc, w) => {
-    const namaInduk = NAMA_WILKER[w.kode_wilker] ?? w.kode_wilker;
+    const namaInduk = w.induk;
     (acc[namaInduk] ??= []).push(w);
     return acc;
   }, {});
@@ -158,7 +155,7 @@ function ModalEditIspa({
           {tanggalOrWilayahBerubah && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
               Tanggal/wilayah diubah -- ini akan membuat baris baru, baris lama (
-              {formatTanggal(baris.tanggal)}, {labelWilayah(baris.kode_wilker, baris.zona)}) tetap ada dan perlu
+              {formatTanggal(baris.tanggal)}, {labelWilayah(baris.kode_wilker, baris.zona, daftarWilayah)}) tetap ada dan perlu
               dihapus manual jika memang salah input.
             </p>
           )}
@@ -461,7 +458,7 @@ export default function TabelDataKarhutla({
       ],
       dataIspa.map((d) => ({
         tanggal: d.tanggal,
-        wilayah: labelWilayah(d.kode_wilker, d.zona),
+        wilayah: labelWilayah(d.kode_wilker, d.zona, daftarWilayah),
         kasus_ispa_anak: d.kasus_ispa_anak,
         kasus_ispa_dewasa: d.kasus_ispa_dewasa,
         keterangan: d.keterangan ?? '',
@@ -514,7 +511,7 @@ export default function TabelDataKarhutla({
       ],
       dataIspa.map((d) => ({
         tanggal: formatTanggal(d.tanggal),
-        wilayah: labelWilayah(d.kode_wilker, d.zona),
+        wilayah: labelWilayah(d.kode_wilker, d.zona, daftarWilayah),
         kasus_ispa_anak: d.kasus_ispa_anak,
         kasus_ispa_dewasa: d.kasus_ispa_dewasa,
         keterangan: d.keterangan ?? '',
@@ -601,7 +598,7 @@ export default function TabelDataKarhutla({
                 dataIspa.map((d) => (
                   <tr key={d.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 whitespace-nowrap">{formatTanggal(d.tanggal)}</td>
-                    <td className="px-3 py-2">{labelWilayah(d.kode_wilker, d.zona)}</td>
+                    <td className="px-3 py-2">{labelWilayah(d.kode_wilker, d.zona, daftarWilayah)}</td>
                     <td className="px-3 py-2 text-right">{d.kasus_ispa_anak}</td>
                     <td className="px-3 py-2 text-right">{d.kasus_ispa_dewasa}</td>
                     <td className="px-3 py-2 text-gray-500 max-w-xs truncate">{d.keterangan ?? '-'}</td>
@@ -747,7 +744,7 @@ export default function TabelDataKarhutla({
       {hapusIspaAktif && (
         <ModalKonfirmasiHapus
           judul="Hapus Data Kasus ISPA?"
-          keterangan={`${formatTanggal(hapusIspaAktif.tanggal)} · ${labelWilayah(hapusIspaAktif.kode_wilker, hapusIspaAktif.zona)} · Anak: ${hapusIspaAktif.kasus_ispa_anak}, Dewasa: ${hapusIspaAktif.kasus_ispa_dewasa}`}
+          keterangan={`${formatTanggal(hapusIspaAktif.tanggal)} · ${labelWilayah(hapusIspaAktif.kode_wilker, hapusIspaAktif.zona, daftarWilayah)} · Anak: ${hapusIspaAktif.kasus_ispa_anak}, Dewasa: ${hapusIspaAktif.kasus_ispa_dewasa}`}
           onClose={() => setHapusIspaAktif(null)}
           onKonfirmasi={konfirmasiHapusIspa}
         />

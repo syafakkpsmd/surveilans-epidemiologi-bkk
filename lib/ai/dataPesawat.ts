@@ -26,6 +26,7 @@
 //       "2026-W1_W9" (minggu 1 s.d. 9) atau "2026-7_9" (bulan 7 s.d. 9)
 // ================================================================
 
+import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 import {
   getRingkasanPesawatMingguan,
   getRingkasanPesawatBulanan,
@@ -155,7 +156,7 @@ function nomorBulan(row: RingkasanBulananPesawat): number {
 }
 
 async function namaWilker(kodeWilker: string | undefined): Promise<string> {
-  if (!kodeWilker) return 'Seluruh Bandara (BKK Kelas I Samarinda)';
+  if (!kodeWilker) return `Seluruh Bandara (${NAMA_BKK})`;
   const daftar = await getWilkerRef();
   return daftar.find((w) => w.kode === kodeWilker)?.nama ?? kodeWilker;
 }

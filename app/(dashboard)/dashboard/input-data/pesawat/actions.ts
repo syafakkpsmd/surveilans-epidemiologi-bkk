@@ -8,7 +8,8 @@ import { revalidatePath } from 'next/cache';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { getPengguna } from '@/lib/auth/session';
 import {
-  WILKER_BANDARA,
+  getWilkerBandara,
+  pilihKodeBandara,
   barisMentahDariForm,
   hitungIdentitasDiDb,
   naikkanRencanaKeFinal,
@@ -29,7 +30,7 @@ export type HasilSimpanUnggah =
 
 const PESAN_DITOLAK = 'Hanya Petugas atau Admin yang boleh menginput data.';
 const PESAN_GAGAL = 'Gagal menyimpan ke database. Coba lagi; bila terus berulang, hubungi admin.';
-const KODE_WILKER = WILKER_BANDARA[0].kode; // satu-satunya bandara: WK07
+const PESAN_BANDARA = 'Pilih bandara yang valid (atur bandara di pengaturan wilayah kerja).';
 
 async function bolehInput(): Promise<boolean> {
   const { sudahLogin, role } = await getStatusAkses();
@@ -48,7 +49,10 @@ export async function simpanPesawatSatuan(formData: FormData): Promise<HasilSimp
   if (!(await bolehInput())) return { sukses: false, error: PESAN_DITOLAK };
 
   const hariIni = hariIniKantor();
-  const v = validasiBarisPesawat(barisMentahDariForm(formData), hariIni, KODE_WILKER);
+  const bandara = await getWilkerBandara();
+  const kodeWilker = pilihKodeBandara(bandara, String(formData.get('wilker') ?? '') || null);
+  if (!kodeWilker) return { sukses: false, error: PESAN_BANDARA };
+  const v = validasiBarisPesawat(barisMentahDariForm(formData), hariIni, kodeWilker, bandara);
   if ('galat' in v) return { sukses: false, error: v.galat.join(' ') };
 
   try {
@@ -75,7 +79,7 @@ export async function simpanPesawatSatuan(formData: FormData): Promise<HasilSimp
 }
 
 /** `baris` = data hasil pratinjau; tetap divalidasi ulang di sini. */
-export async function simpanUnggahPesawat(baris: unknown): Promise<HasilSimpanUnggah> {
+export async function simpanUnggahPesawat(baris: unknown, kodeBandara?: string): Promise<HasilSimpanUnggah> {
   if (!(await bolehInput())) return { sukses: false, error: PESAN_DITOLAK };
   if (!Array.isArray(baris) || baris.length === 0) return { sukses: false, error: 'Tidak ada baris untuk disimpan.' };
   if (baris.length > MAKS_BARIS_EXCEL) return { sukses: false, error: `Maksimum ${MAKS_BARIS_EXCEL} baris per penyimpanan.` };
@@ -85,7 +89,10 @@ export async function simpanUnggahPesawat(baris: unknown): Promise<HasilSimpanUn
     nomor: i + 1,
     mentah: b && typeof b === 'object' ? (b as Record<string, unknown>) : {},
   }));
-  const hasil = await periksaBanyak(masukan, hariIni, KODE_WILKER);
+  const bandara = await getWilkerBandara();
+  const kodeWilker = pilihKodeBandara(bandara, kodeBandara || null);
+  if (!kodeWilker) return { sukses: false, error: PESAN_BANDARA };
+  const hasil = await periksaBanyak(masukan, hariIni, kodeWilker, bandara);
 
   const galat = hasil.find((h) => h.status === 'galat');
   if (galat) {

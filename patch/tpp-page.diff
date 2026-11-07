@@ -1,0 +1,46 @@
+@@ -1,9 +1,10 @@
++import Link from "next/link";
+ import {
+   getRingkasanTppBulanan,
+   getRingkasanTppMingguan,
+-  getDaftarWilayahKerjaSanitasi,
+   getDetailPemeriksaanTpp,
+ } from "@/lib/db/queries/umum";
++import { getNamaWilkerModul } from "@/lib/wilayah-kerja/server";
+ import { getUserRole } from "@/lib/auth/get-user-role";
+ import TppClient from "./TppClient";
+ import { hitungMingguEpidemiologi } from "@/lib/epi-week";
+@@ -33,13 +34,14 @@
+ 
+   const [role, daftarWilayah, dataBulanan, dataMingguan, dataDetailTpp] = await Promise.all([
+     getUserRole(),
+-    getDaftarWilayahKerjaSanitasi(),
++    getNamaWilkerModul("tpp"), // wilayah yang dicentang admin untuk modul TPP
+     getRingkasanTppBulanan(tahun, wilayah),
+     getRingkasanTppMingguan(tahun, wilayah),
+     getDetailPemeriksaanTpp(tahun, wilayah),
+   ]);
+ 
+   const bulanBerjalan = new Date().getMonth() + 1;
++  const bolehInput = role === "admin" || role === "petugas";
+ 
+   // Untuk TAMPILAN saja: minggu epid dimundurkan 1 minggu dari minggu
+   // berjalan sebenarnya. Sengaja TIDAK memakai getMingguEpidSaatIni()
+@@ -111,6 +113,16 @@
+       mingguEpidBerjalan={mingguEpidBerjalan}
+       wilayahParam={wilayah}
+       hasilAI={hasilAI}
++      aksiHeader={
++        bolehInput ? (
++          <Link
++            href="/dashboard/tpp/input"
++            className="rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
++          >
++            + Input / Unggah Data
++          </Link>
++        ) : null
++      }
+     />
+   );
+ }
+\ No newline at end of file

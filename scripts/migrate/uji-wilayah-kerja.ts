@@ -5,8 +5,8 @@
 // Tanpa DB_USER/DB_NAME, pemeriksaan database dilewati.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { WILAYAH_KERJA, NAMA_PENDEK_BY_KODE, NAMA_PANJANG_BY_KODE, OPSI_WILKER_PETA, kodeDariTeks, namaDariKode, isKodeWilker, buatKamus, normalisasiWilayah } from '@/lib/wilayah-kerja';
-import { NAMA_WILKER as NAMA_KARHUTLA } from '@/lib/karhutla/constants';
+import { buatKamus, normalisasiWilayah } from '@/lib/wilayah-kerja';
+import { WILAYAH_KERJA, NAMA_PENDEK_BY_KODE, NAMA_PANJANG_BY_KODE, OPSI_WILKER_PETA, kodeDariTeks, namaDariKode, isKodeWilker } from './fixtures-wilker';
 import { daftarWilkerMatriks } from '@/lib/status-laporan/core';
 import { getDbClient, tutupDb } from '@/lib/db/client';
 
@@ -19,7 +19,6 @@ function cek(nama: string, fn: () => void) {
 
 async function main() {
   console.log('--- A. nilai turunan == nilai lama (tulisan tangan) ---');
-  cek('karhutla/constants NAMA_WILKER (modul asli)', () => assert.deepEqual({ ...NAMA_KARHUTLA }, lama.karhutla_NAMA_WILKER));
   cek('status-laporan/core daftarWilkerMatriks (dari bawaan)', () => assert.deepEqual(JSON.parse(JSON.stringify(daftarWilkerMatriks(buatKamus(WILAYAH_KERJA)))), lama.core_DAFTAR_WILKER));
   cek('ai/data NAMA_WILKER (nama panjang)', () => assert.deepEqual({ ...NAMA_PANJANG_BY_KODE }, lama.ai_NAMA_WILKER));
   cek('malaria KODE_KE_KATA_KUNCI_WILKER (nama pendek)', () => assert.deepEqual({ ...NAMA_PENDEK_BY_KODE }, lama.malaria_KATA_KUNCI));

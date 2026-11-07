@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getPengguna } from "@/lib/auth/session";
 import KelolaFasilitasClient from "@/components/peta/KelolaFasilitasClient";
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
 
 export default async function KelolaPelabuhanPage() {
   const user = await getPengguna();
@@ -17,7 +18,7 @@ export default async function KelolaPelabuhanPage() {
           Tambah, edit, atau hapus data fasilitas per wilayah kerja.
         </p>
       </div>
-      <KelolaFasilitasClient />
+      <KelolaFasilitasClient wilayah={await getDaftarWilker()} />
     </div>
   );
 }

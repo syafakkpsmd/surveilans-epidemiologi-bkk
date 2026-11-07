@@ -31,10 +31,12 @@ type TppClientProps = {
   role: string;
   tahunBerjalan: number;
   bulanBerjalan: number;
-  tahunEpidBerjalan: number;   // <-- TAMBAH
-  mingguEpidBerjalan: number;  // <-- TAMBAH
+  tahunEpidBerjalan: number;
+  mingguEpidBerjalan: number;
   wilayahParam?: string;
-  hasilAI?: Record<string, HasilAIStruktur | null>; // <-- TAMBAH (batch AI)
+  hasilAI?: Record<string, HasilAIStruktur | null>;
+  /** Tombol aksi di header (mis. Input/Unggah Data); dibuat di page.tsx server. */
+  aksiHeader?: React.ReactNode;
 };
 
 // 1. Helper untuk mengecek apakah data bernilai MS / Memenuhi Syarat
@@ -77,10 +79,11 @@ export default function TppClient({
   role,
   tahunBerjalan,
   bulanBerjalan,
-  tahunEpidBerjalan,   // <-- FIX: sebelumnya tidak di-destructure, menyebabkan
-  mingguEpidBerjalan,  // <-- FIX: ReferenceError saat dipakai di periodeKey
+  tahunEpidBerjalan,
+  mingguEpidBerjalan,
   wilayahParam,
-  hasilAI = {},        // <-- TAMBAH (batch AI, default objek kosong)
+  hasilAI = {},
+  aksiHeader,
 }: TppClientProps) {
   const [selectedWilayah, setSelectedWilayah] = useState<string>(wilayahParam || "semua");
   const [granularitas, setGranularitas] = useState<"bulanan" | "mingguan">("mingguan");
@@ -159,7 +162,6 @@ export default function TppClient({
 
   // ==========================================
   // 2. OLAH DATA CHART
-  // FIX: diubah dari useEffect+setState (extra render/flicker) ke useMemo
   // ==========================================
   const chartData = useMemo(() => {
     const sumberData = granularitas === "bulanan" ? dataBulanan : dataMingguan;
@@ -300,18 +302,14 @@ export default function TppClient({
   ];
 
   // ==========================================
-  // KONTEKS & PERIODE KEY UNTUK AI (FIXED)
+  // KONTEKS & PERIODE KEY UNTUK AI
   // ==========================================
   const konteksAI = granularitas === "bulanan" ? "tpp-bulanan" : "tpp-mingguan";
 
-  // periodeKey Box AI SELALU periode tunggal berbasis periode berjalan
-  // (bulan sekarang / minggu epid sekarang) -- TIDAK ikut rentang filter
-  // grafik (appliedMingguAwal/Akhir dkk itu murni untuk tampilan chart).
   const periodeKey = granularitas === "bulanan"
   ? `${tahunBerjalan}-${appliedBulanAkhir}`
   : `${tahunBerjalan}-W${appliedMingguAkhir}`;
 
-  // Check ketersediaan data MS/TMS
   const adaTms = useMemo(() => {
     return chartData.some((d) =>
       Number(d.jumlah_tms || 0) > 0 ||
@@ -328,7 +326,6 @@ export default function TppClient({
 
   // ==========================================
   // 3. FILTERING DETAIL UNTUK TABEL TMS
-  // FIX: dibungkus useMemo supaya tidak dihitung ulang setiap render
   // ==========================================
   const daftarTmsDetail = useMemo(() => {
     const sumberDataDetail = dataDetailTpp.length > 0
@@ -366,14 +363,6 @@ export default function TppClient({
     appliedMingguAkhir,
   ]);
 
-  // ==========================================
-  // LOOKUP HASIL AI (TAMBAH)
-  // Kalau kombinasi konteks/periode/wilayah saat ini persis sama
-  // dengan yang di-prefetch server (state landing awal), Box langsung
-  // dapat hasilnya tanpa fetch GET. Kalau user sudah ganti
-  // granularitas/wilayah/rentang, kunci ini tidak ketemu di hasilAI
-  // -> undefined -> Box fallback fetch sendiri seperti biasa.
-  // ==========================================
   const wilayahKerjaAktif = selectedWilayah !== "semua" ? selectedWilayah : undefined;
   const hasilAwalAnalisis = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilayahKerjaAktif, tipe: "analisis" })];
   const hasilAwalPrediksi = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilayahKerjaAktif, tipe: "prediksi" })];
@@ -390,6 +379,8 @@ export default function TppClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {aksiHeader}
+
           <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
             <button
               type="button"
@@ -502,6 +493,71 @@ export default function TppClient({
             >
               Terapkan
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* KARTU RINGKASAN STATISTIK */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Total Diperiksa</p>
+            <h4 className="text-2xl font-bold text-[#0F2A38] mt-1">
+              {chartData.reduce((acc, curr) => acc + Number(curr.jumlah_tpp_diperiksa || 0), 0)}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-teal-50 p-3 text-[#0F4C5C]">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-600">Memenuhi Syarat (MS)</p>
+            <h4 className="text-2xl font-bold text-green-700 mt-1">
+              {chartData.reduce((acc, curr) => acc + Number(curr.jumlah_ms || 0), 0)}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-green-50 p-3 text-green-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-red-600">Tidak Memenuhi Syarat (TMS)</p>
+            <h4 className="text-2xl font-bold text-red-700 mt-1">
+              {chartData.reduce((acc, curr) => acc + Number(curr.jumlah_tms || 0), 0)}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-red-50 p-3 text-red-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-white p-5 shadow-xs border border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Tingkat Kepatuhan</p>
+            <h4 className="text-2xl font-bold text-blue-700 mt-1">
+              {(() => {
+                const totalMs = chartData.reduce((acc, curr) => acc + Number(curr.jumlah_ms || 0), 0);
+                const totalTms = chartData.reduce((acc, curr) => acc + Number(curr.jumlah_tms || 0), 0);
+                const total = totalMs + totalTms;
+                if (total === 0) return "0%";
+                return `${((totalMs / total) * 100).toFixed(1)}%`;
+              })()}
+            </h4>
+          </div>
+          <div className="rounded-lg bg-blue-50 p-3 text-blue-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
           </div>
         </div>
       </div>

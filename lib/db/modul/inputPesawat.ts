@@ -10,10 +10,23 @@
 //  - kolom `keberangkatan` = kota TUJUAN pesawat yang berangkat; `kedatangan` = kota ASAL pesawat yang datang.
 //  - sertifikat = jumlah orang yang diterbitkan sertifikatnya, dipisah laki-laki/perempuan.
 import { getDbClient } from '@/lib/db/client';
-import { WILAYAH_KERJA } from '@/lib/wilayah-kerja';
+import { muatDaftarWilayahLangsung } from '@/lib/wilayah-kerja/db';
 
 /** Wilayah kerja yang menerima data pesawat: hanya jenis Bandara (saat ini WK07 Bandara APT Pranoto). */
-export const WILKER_BANDARA = WILAYAH_KERJA.filter((w) => w.jenis === 'Bandara');
+export type WilkerBandara = { kode: string; nama: string };
+
+/** Bandara AKTIF di wilker_ref (kantor/pelabuhan tidak ikut). Wilayah baru dari pengaturan langsung tersedia. */
+export async function getWilkerBandara(): Promise<WilkerBandara[]> {
+  return (await muatDaftarWilayahLangsung())
+    .filter((w) => w.aktif && w.jenis === 'Bandara')
+    .map((w) => ({ kode: w.kode, nama: w.nama }));
+}
+
+/** Pilih bandara untuk satu permintaan: yang diminta bila sah; bila hanya ada satu bandara, itu otomatis; selain itu null. */
+export function pilihKodeBandara(bandara: readonly WilkerBandara[], diminta?: string | null): string | null {
+  if (diminta && bandara.some((b) => b.kode === diminta)) return diminta;
+  return !diminta && bandara.length === 1 ? bandara[0].kode : null;
+}
 
 export type StatusData = 'final' | 'rencana';
 
@@ -212,10 +225,11 @@ export function validasiBarisPesawat(
   mentah: Record<string, unknown>,
   hariIni: string,
   kodeWilker: string,
+  bandaraValid: readonly { kode: string }[],
 ): HasilValidasi {
   const galat: string[] = [];
 
-  if (!WILKER_BANDARA.some((w) => w.kode === kodeWilker)) galat.push('Wilayah kerja bukan bandara yang valid.');
+  if (!bandaraValid.some((w) => w.kode === kodeWilker)) galat.push('Wilayah kerja bukan bandara yang valid.');
 
   const tanggal = parseTanggal(mentah.tanggal);
   if (!tanggal) {
@@ -453,9 +467,10 @@ export async function periksaBanyak(
   masukan: { nomor: number; mentah: Record<string, unknown> }[],
   hariIni: string,
   kodeWilker: string,
+  bandaraValid: readonly { kode: string }[],
 ): Promise<HasilBaris[]> {
   const hasil: HasilBaris[] = masukan.map(({ nomor, mentah }) => {
-    const v = validasiBarisPesawat(mentah, hariIni, kodeWilker);
+    const v = validasiBarisPesawat(mentah, hariIni, kodeWilker, bandaraValid);
     return 'data' in v ? { nomor, status: 'siap' as const, data: v.data } : { nomor, status: 'galat' as const, galat: v.galat };
   });
 

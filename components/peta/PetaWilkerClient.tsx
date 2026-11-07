@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { Wilayah } from "@/lib/wilayah-kerja";
 
 const PetaWilker = dynamic(() => import("@/components/peta/PetaWilker"), {
   ssr: false,
@@ -11,6 +12,6 @@ const PetaWilker = dynamic(() => import("@/components/peta/PetaWilker"), {
   ),
 });
 
-export default function PetaWilkerClient({ isAdmin }: { isAdmin: boolean }) {
-  return <PetaWilker isAdmin={isAdmin} />;
+export default function PetaWilkerClient({ isAdmin, wilayah }: { isAdmin: boolean; wilayah: Wilayah[] }) {
+  return <PetaWilker isAdmin={isAdmin} wilayah={wilayah} />;
 }

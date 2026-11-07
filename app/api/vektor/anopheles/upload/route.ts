@@ -1,5 +1,6 @@
 // app/api/vektor/anopheles/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { requireVektor } from '@/lib/vektor/auth';
 import { tentukanUrutanKolom } from '@/lib/tanggal/parse-tanggal';
 import { bacaTabel } from '@/lib/vektor/tikus/sheet';
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const o = { urutanAmbigu: urutan.urutan ?? ('dmy' as const) };
+  const wk = await getKamusWilker();
+  const o = { wk, urutanAmbigu: urutan.urutan ?? ('dmy' as const) };
 
   const galat: { baris: number; pesan: string }[] = [];
   let gagal = 0;

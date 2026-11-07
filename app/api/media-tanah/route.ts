@@ -1,5 +1,6 @@
 // app/api/media-tanah/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { requireStaf } from '@/lib/media-tanah/auth';
 import { validasiPemeriksaan } from '@/lib/media-tanah/validasi';
 import { simpanPemeriksaan, daftarPemeriksaan, filterDariQuery } from '@/lib/media-tanah/server';
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Data tidak terbaca' }, { status: 400 });
 
-  const h = validasiPemeriksaan(body, { wilayah: String(body.wilayah ?? '') });
+  const h = validasiPemeriksaan(body, { wilayah: String(body.wilayah ?? ''), wk: await getKamusWilker() });
   if (!h.ok) return NextResponse.json({ error: h.error }, { status: 400 });
 
   const id = await simpanPemeriksaan(h.data, user.nama, 'input');
@@ -34,6 +35,6 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const limit = Math.min(Number(sp.get('limit')) || 50, 200);
   const offset = Math.max(Number(sp.get('offset')) || 0, 0);
-  const data = await daftarPemeriksaan(filterDariQuery(sp), limit, offset);
+  const data = await daftarPemeriksaan(filterDariQuery(sp, await getKamusWilker()), limit, offset);
   return NextResponse.json({ data });
 }

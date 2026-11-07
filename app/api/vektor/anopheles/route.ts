@@ -1,5 +1,6 @@
 // app/api/vektor/anopheles/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import { requireVektor } from '@/lib/vektor/auth';
 import type { Tipe } from '@/lib/vektor/anopheles/config';
 import { validasiDewasa, validasiLarva } from '@/lib/vektor/anopheles/validasi';
@@ -17,7 +18,7 @@ const tipeValid = (v: unknown): v is Tipe => v === 'larva' || v === 'dewasa';
 export async function GET(req: NextRequest) {
   if (!(await requireVektor())) return tolak();
   const sp = req.nextUrl.searchParams;
-  const f = filterDariQuery(sp);
+  const f = filterDariQuery(sp, await getKamusWilker());
   if (!f) return salah('Jenis survei harus larva atau dewasa');
   const data = await daftarSurvei(f, Number(sp.get('limit')) || 100, Number(sp.get('offset')) || 0);
   return NextResponse.json({ data });
@@ -30,12 +31,12 @@ export async function POST(req: NextRequest) {
   if (!body || !tipeValid(body.tipe)) return salah('Jenis survei harus larva atau dewasa');
 
   if (body.tipe === 'larva') {
-    const h = validasiLarva(body);
+    const h = validasiLarva(body, { wk: await getKamusWilker() });
     if (!h.ok) return salah(h.error);
     const r = await simpanLarva([h.data]);
     if (r.masuk === 0) return salah('Survei larva yang sama persis sudah ada', 409);
   } else {
-    const h = validasiDewasa(body);
+    const h = validasiDewasa(body, { wk: await getKamusWilker() });
     if (!h.ok) return salah(h.error);
     const r = await simpanDewasa([h.data]);
     if (r.masuk === 0) return salah('Survei nyamuk dewasa yang sama persis sudah ada', 409);
@@ -52,11 +53,11 @@ export async function PATCH(req: NextRequest) {
 
   let r: 'ok' | 'duplikat' | 'tidak_ada';
   if (body.tipe === 'larva') {
-    const h = validasiLarva(body);
+    const h = validasiLarva(body, { wk: await getKamusWilker() });
     if (!h.ok) return salah(h.error);
     r = await ubahLarva(id, h.data);
   } else {
-    const h = validasiDewasa(body);
+    const h = validasiDewasa(body, { wk: await getKamusWilker() });
     if (!h.ok) return salah(h.error);
     r = await ubahDewasa(id, h.data);
   }

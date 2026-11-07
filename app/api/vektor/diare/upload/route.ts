@@ -1,5 +1,6 @@
 // app/api/vektor/diare/upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import * as XLSX from 'xlsx';
 import { requireVektor } from '@/lib/vektor/auth';
 import { JENIS, type Jenis } from '@/lib/vektor/diare/config';
@@ -53,7 +54,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const o = { jenis: jenis as Jenis, urutanAmbigu: urutan.urutan ?? ('dmy' as const) };
+  const wk = await getKamusWilker();
+  const o = { wk, jenis: jenis as Jenis, urutanAmbigu: urutan.urutan ?? ('dmy' as const) };
 
   const galat: { baris: number; pesan: string }[] = [];
   let gagal = 0;

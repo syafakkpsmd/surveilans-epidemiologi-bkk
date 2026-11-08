@@ -11,6 +11,7 @@ import {
 import { getUserRole } from '@/lib/auth/get-user-role';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
+import { getWilayahSubLokasiVektor } from '@/lib/wilayah-kerja/server';
 import PanelTrenPeriode from '@/components/vektor/PanelTrenPeriode';
 import DonutChart from '@/components/vektor/DonutChart';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
@@ -60,6 +61,7 @@ export default async function LarvaPage({
   const hasilAnalisis = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'analisis' })];
   const hasilPrediksi = hasilAI[kunciAI({ konteks: konteksAI, periodeKey, wilayahKerja: wilker, tipe: 'prediksi' })];
 
+  const wilayahSubLokasi = await getWilayahSubLokasiVektor();
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -71,7 +73,7 @@ export default async function LarvaPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FilterWilker daftarWilker={daftarWilker} />
-          <FilterZonaSubLokasi />
+          <FilterZonaSubLokasi wilayahSubLokasi={wilayahSubLokasi} />
           <FilterRentangMinggu />
         </div>
       </div>

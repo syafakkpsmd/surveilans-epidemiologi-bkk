@@ -17,14 +17,26 @@ type Klinik = {
   latitude: number | null;
   longitude: number | null;
   spreadsheet_id: string | null;
+  kode_wilker?: string | null;
 };
+
+type OpsiWilayah = { kode: string; nama: string };
 
 type KlinikBelumTerdaftar = {
   spreadsheetId: string;
   namaKlinik: string;
 };
 
-export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Klinik[] }) {
+export default function KelolaKlinikClient({
+  daftarKlinik,
+  saranKabKota,
+  opsiWilayah,
+}: {
+  daftarKlinik: Klinik[];
+  saranKabKota: string[];
+  opsiWilayah: OpsiWilayah[];
+}) {
+  const namaWilayah = (kode?: string | null) => opsiWilayah.find((w) => w.kode === kode)?.nama ?? null;
   const [formTerbuka, setFormTerbuka] = useState<'tambah' | string | null>(null);
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
@@ -192,17 +204,32 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
             <option value="Klinik">Klinik</option>
             <option value="Rumah Sakit">Rumah Sakit</option>
           </select>
-          <select
+          <input
             name="kabupaten_kota"
-            defaultValue={klinikSedangDiedit?.kabupaten_kota ?? 'Samarinda'}
+            list="saran-kab-kota"
+            required
+            maxLength={100}
+            placeholder="Kabupaten/Kota (pilih atau ketik baru)"
+            defaultValue={klinikSedangDiedit?.kabupaten_kota ?? saranKabKota[0] ?? ''}
+            className="border rounded px-3 py-2 w-full"
+          />
+          <select
+            name="kode_wilker"
+            defaultValue={klinikSedangDiedit?.kode_wilker ?? ''}
             className="border rounded px-3 py-2 w-full"
           >
-            <option value="Samarinda">Samarinda</option>
-            <option value="Bontang">Bontang</option>
-            <option value="Kutai Timur">Kutai Timur</option>
-            <option value="Kutai Barat">Kutai Barat</option>
-            <option value="Kutai Kartanegara">Kutai Kartanegara</option>
+            <option value="">Wilayah kerja BKK (opsional)</option>
+            {opsiWilayah.map((w) => (
+              <option key={w.kode} value={w.kode}>
+                {w.nama}
+              </option>
+            ))}
           </select>
+          <datalist id="saran-kab-kota">
+            {saranKabKota.map((k) => (
+              <option key={k} value={k} />
+            ))}
+          </datalist>
           <input
             name="telepon"
             placeholder="No. Telepon"
@@ -274,6 +301,11 @@ export default function KelolaKlinikClient({ daftarKlinik }: { daftarKlinik: Kli
                       {dataBelumLengkap && (
                         <span className="ml-2 text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">
                           Data belum lengkap
+                        </span>
+                      )}
+                      {namaWilayah(k.kode_wilker) && (
+                        <span className="ml-2 text-xs text-teal-700 bg-teal-50 px-2 py-0.5 rounded">
+                          {namaWilayah(k.kode_wilker)}
                         </span>
                       )}
                       {belumAdaSheet && (

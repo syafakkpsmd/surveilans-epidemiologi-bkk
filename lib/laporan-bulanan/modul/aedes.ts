@@ -4,6 +4,7 @@ import { BULAN, fmtAngka, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { deretDariLabel, desimal, indeksBulanDariLabel, jumlah } from "./_bantu";
 import { getWilkerRef } from "@/lib/db/queries/umum";
+import { wilkerSurveilans } from "@/lib/wilayah-kerja/surveilans";
 import { seriPerWilker } from "./_perWilker";
 
 const BATAS_HI = 1; // standar: HI tidak boleh lebih dari 1%
@@ -23,8 +24,8 @@ export const modulAedes: ModulLaporan = {
       getRingkasanVektorDbdBulanan({ tahun, bulanDari, bulanSampai }),
       getRingkasanVektorAktivitasBulanan({ tahun, bulanDari, bulanSampai }),
     ]);
-    // HI per wilayah kerja (7 wilker aktif: WK01 sampai WK07)
-    const daftarWilker = (await getWilkerRef().catch(() => [])).filter((w) => w.kode <= "WK07");
+    // HI per wilayah kerja aktif (bukan kantor induk; wilayah baru dari pengaturan ikut otomatis)
+    const daftarWilker = (await getWilkerRef().catch(() => [])).filter(wilkerSurveilans);
     const hiPerWilker = await Promise.all(
       daftarWilker.map(async (w) => {
         const rows = await getRingkasanVektorDbdBulanan({ tahun, bulanDari, bulanSampai, kodeWilker: w.kode }).catch(() => []);

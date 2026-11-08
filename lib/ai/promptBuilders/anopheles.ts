@@ -20,8 +20,8 @@ export function buildPromptAnopheles(
   const s = bersihkanTeks;
 
   const zonaTeks =
-    wilker.kode === 'WK01'
-      ? 'Perimeter/Buffer Pelabuhan Umum & TPK Palaran'
+    konteks.subLokasiVektor.length > 0
+      ? `Perimeter/Buffer ${konteks.subLokasiVektor.join(' & ')}`
       : 'Perimeter, Buffer';
 
   if (tipeAno === 'larva') {

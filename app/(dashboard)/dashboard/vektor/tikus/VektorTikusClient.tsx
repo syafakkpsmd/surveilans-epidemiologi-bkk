@@ -314,7 +314,7 @@ export default function VektorTikusClient({
           >
             <option value="semua">Semua Wilayah Kerja</option>
             {daftarWilker
-              .filter((w) => !/bontang|tanjung bara/i.test(w.nama))
+              .filter((w) => (w as { aktif?: boolean | null }).aktif !== false)
               .map((w) => (
                 <option key={w.kode} value={w.kode}>{w.nama}</option>
               ))}

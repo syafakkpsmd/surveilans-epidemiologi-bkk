@@ -16,6 +16,8 @@ type NamaTabelValid =
 export interface KonteksWilker {
   wilker: WilkerRef;
   musim: string;
+  /** Sub-lokasi vektor bila wilayah ini memakai modul "vektor_sub_lokasi"; kosong bila tidak. */
+  subLokasiVektor: string[];
 }
 
 export interface FilterTambahan {

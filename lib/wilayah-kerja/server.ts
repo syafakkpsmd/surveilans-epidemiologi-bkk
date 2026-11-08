@@ -48,3 +48,13 @@ export async function getWilkerModul(modul: KunciModulWilker): Promise<Wilayah[]
 export async function getNamaWilkerModul(modul: KunciModulWilker): Promise<string[]> {
   return (await getWilkerModul(modul)).map((w) => w.namaPendek);
 }
+
+/**
+ * Wilayah AKTIF yang memakai filter Zona & Sub-lokasi di halaman Vektor (modul "vektor_sub_lokasi") beserta
+ * daftar sub-lokasinya (kolom wilker_ref.sub_lokasi). Menggantikan aturan yang dulu terkunci ke WK01.
+ */
+export async function getWilayahSubLokasiVektor(): Promise<{ kode: string; subLokasi: string[] }[]> {
+  return (await getWilkerModul('vektor_sub_lokasi'))
+    .filter((w) => w.subLokasi.length > 0)
+    .map((w) => ({ kode: w.kode, subLokasi: w.subLokasi }));
+}

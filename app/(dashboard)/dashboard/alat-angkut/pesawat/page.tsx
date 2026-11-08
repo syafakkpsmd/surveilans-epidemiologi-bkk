@@ -1,3 +1,4 @@
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 import Link from 'next/link';
 import {
   getKotaPesawatBulanan,
@@ -67,7 +68,8 @@ export default async function AlatAngkutPesawatPage({
   }>;
 }) {
   const { wilker: wilkerParam, tahun: tahunParam, mgDari, mgSampai, bulanDari, bulanSampai } = await searchParams;
-  const wilker = wilkerParam ?? 'WK07'; // default: Bandara APT Pranoto
+  // Default: bandara aktif pertama dari pengaturan wilayah kerja
+  const wilker = wilkerParam ?? (await getKamusWilker()).aktif.find((w) => w.jenis === 'Bandara')?.kode ?? '';
   const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
 
   // Normalisasi filter rentang bulan agar selalu YYYY-MM

@@ -15,6 +15,7 @@ import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import { periodeMingguanSebelumnya } from '@/lib/ai/periode';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
+import { getWilayahSubLokasiVektor } from '@/lib/wilayah-kerja/server';
 import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
 import FilterRentangBulan from '@/components/vektor/FilterRentangBulan';
 import ToggleGranularitas from '@/components/vektor/ToggleGranularitas';
@@ -237,6 +238,7 @@ export default async function VektorAedesPage({
   // sebenarnya di-query untuk granularitas aktif.
   const dataKosong = butuhMingguan ? ringkasanMingguan.length === 0 : dataBulanan.length === 0;
 
+  const wilayahSubLokasi = await getWilayahSubLokasiVektor();
   return (
     <div className="space-y-6">
   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -244,7 +246,10 @@ export default async function VektorAedesPage({
       <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Aedes Aegypti (DBD)</h1>
       <p className="text-sm text-gray-500">
         HI, CI, ABJ per zona (Perimeter/Buffer)
-        {wilker === 'WK01' ? ' & sub-lokasi (Pelabuhan Umum/TPK Palaran)' : ''}.
+        {(() => {
+          const sub = wilayahSubLokasi.find((w) => w.kode === wilker)?.subLokasi;
+          return sub && sub.length > 0 ? ` & sub-lokasi (${sub.join('/')})` : '';
+        })()}.
       </p>
     </div>
     
@@ -252,7 +257,7 @@ export default async function VektorAedesPage({
     <div className="flex flex-wrap items-center gap-2 ml-auto">
       <ToggleGranularitas granularitasAktif={granularitas} />
       <FilterWilker daftarWilker={daftarWilker} />
-      <FilterZonaSubLokasi />
+      <FilterZonaSubLokasi wilayahSubLokasi={wilayahSubLokasi} />
       {butuhMingguan ? <FilterRentangMinggu /> : <FilterRentangBulan />}
     </div>
   </div>

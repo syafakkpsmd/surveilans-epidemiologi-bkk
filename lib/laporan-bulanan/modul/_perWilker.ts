@@ -1,17 +1,18 @@
 import "server-only";
 import { getWilkerRef } from "@/lib/db/queries/umum";
 import type { SeriTren } from "../types";
+import { wilkerSurveilans } from "@/lib/wilayah-kerja/surveilans";
 
 const WARNA_WILKER = ["0A7A78", "C9781F", "10293A", "6B8E9B", "2A7A4B", "7A5C99", "3F6FB5"];
 const namaPendek = (n: string) => n.replace(/^(Pelabuhan|Bandara)\s+/i, "");
 
-/** Satu seri per wilayah kerja aktif (WK01 sampai WK07). Wilayah tanpa data sama sekali dilewati. */
+/** Satu seri per wilayah kerja aktif (bukan kantor induk). Wilayah tanpa data sama sekali dilewati. */
 export async function seriPerWilker<T>(
   ambilBaris: (kodeWilker: string) => Promise<T[]>,
   ekstrak: (baris: T[]) => (number | null)[],
 ): Promise<SeriTren[]> {
   const semua = await getWilkerRef().catch(() => [] as Awaited<ReturnType<typeof getWilkerRef>>);
-  const daftar = semua.filter((w) => w.kode <= "WK07");
+  const daftar = semua.filter(wilkerSurveilans);
     const hasil = await Promise.all(
     daftar.map(async (w, idx) => {
       const baris = await ambilBaris(w.kode).catch((e: unknown) => {
@@ -25,13 +26,13 @@ export async function seriPerWilker<T>(
 }
 /** Seri per wilayah kerja dari baris yang sudah dimuat (tanpa query tambahan). Warna konsisten dengan seriPerWilker. */
 export function seriDariWilker<T>(
-  daftarWilker: { kode: string; nama: string }[],
+  daftarWilker: { kode: string; nama: string; aktif?: boolean | null; jenis?: string | null }[],
   baris: T[],
   kodeDari: (b: T) => string | null,
   ekstrak: (barisWilker: T[]) => (number | null)[],
 ): SeriTren[] {
   return daftarWilker
-    .filter((w) => w.kode <= "WK07")
+    .filter(wilkerSurveilans)
     .map((w, idx) => ({
       nama: namaPendek(w.nama),
       nilai: ekstrak(baris.filter((b) => kodeDari(b) === w.kode)),

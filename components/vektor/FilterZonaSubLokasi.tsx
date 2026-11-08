@@ -2,15 +2,15 @@
 
 // ================================================================
 // SEGMEN 11 — components/vektor/FilterZonaSubLokasi.tsx
-// KHUSUS modul Aedes/DBD. Sub-Lokasi (Pelabuhan Umum / TPK Palaran)
-// hanya tampil kalau wilker aktif = WK01, sesuai KONTEKS PROYEK.
+// KHUSUS modul Aedes/DBD/Anopheles. Dropdown Sub-Lokasi hanya tampil untuk wilayah yang dicentang pada modul
+// "vektor_sub_lokasi" di pengaturan wilayah kerja; pilihannya diambil dari wilker_ref.sub_lokasi wilayah itu.
 // ================================================================
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
-const SUB_LOKASI_WK01 = ['Pelabuhan Umum', 'TPK Palaran'];
+export type WilayahSubLokasi = { kode: string; subLokasi: string[] };
 
-export default function FilterZonaSubLokasi() {
+export default function FilterZonaSubLokasi({ wilayahSubLokasi }: { wilayahSubLokasi: WilayahSubLokasi[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -18,7 +18,7 @@ export default function FilterZonaSubLokasi() {
   const wilkerAktif = searchParams.get('wilker') ?? '';
   const zonaAktif = searchParams.get('zona') ?? '';
   const subLokasiAktif = searchParams.get('subLokasi') ?? '';
-  const isWK01 = wilkerAktif === 'WK01';
+  const daftarSubLokasi = wilayahSubLokasi.find((w) => w.kode === wilkerAktif)?.subLokasi ?? [];
 
   function ubahParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -47,16 +47,16 @@ export default function FilterZonaSubLokasi() {
         <option value="Buffer">🟢 Buffer</option>
       </select>
 
-      {isWK01 && (
+      {daftarSubLokasi.length > 0 && (
         <select
           value={subLokasiAktif}
           onChange={(e) => ubahParam('subLokasi', e.target.value)}
           className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
         >
           <option value="">Semua Sub-Lokasi</option>
-          {SUB_LOKASI_WK01.map((s) => (
+          {daftarSubLokasi.map((s) => (
             <option key={s} value={s}>
-              {s === 'Pelabuhan Umum' ? '⚓' : '🏭'} {s}
+              {/pelabuhan|dermaga/i.test(s) ? '⚓' : '🏭'} {s}
             </option>
           ))}
         </select>

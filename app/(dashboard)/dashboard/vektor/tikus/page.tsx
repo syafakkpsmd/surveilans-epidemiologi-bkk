@@ -48,11 +48,8 @@ export default async function VektorTikusPage({
       getBanyakHasilAI(permintaanAI),
     ]);
 
-  // Saring daftar wilker untuk menyembunyikan Kantor Induk
-  // (menyesuaikan dengan pola filter Bontang/Tanjung Bara yang sudah ada di client)
-  const daftarWilker = wilkerRefRaw.filter(
-    (w: any) => !/kantor induk|bontang|tanjung bara/i.test(w.nama) && w.kode !== "INDUK"
-  );
+  // Wilayah yang ditampilkan: aktif dan bukan kantor induk (bandara privat dinonaktifkan di pengaturan wilayah kerja)
+  const daftarWilker = wilkerRefRaw.filter((w: any) => w.aktif !== false && w.jenis !== "Kantor");
 
   const dataMingguan = ringkasanMingguan.map((r: any) => ({
     minggu_epid: r.minggu_epid || 0,

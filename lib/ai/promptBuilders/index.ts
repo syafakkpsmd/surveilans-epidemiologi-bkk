@@ -5,6 +5,7 @@
 // + 1 entry di REGISTRY, TIDAK perlu ubah route handler.
 // ================================================================
 
+import { getPetaModulWilker } from '@/lib/wilayah-kerja/server';
 import { buildPromptDbd } from './dbd';
 import { buildPromptTikus } from './tikus';
 import { buildPromptAnopheles } from './anopheles';
@@ -44,7 +45,10 @@ export async function susunPromptKegiatan(
   const wilker = await getWilkerByKode(kodeWilker);
   if (!wilker) throw new Error(`Wilker ${kodeWilker} tidak ditemukan.`);
   const musim = getMusimBerjalan();
-  const konteksWilker = { wilker, musim };
+  const subLokasiVektor = (await getPetaModulWilker()).vektor_sub_lokasi.includes(kodeWilker)
+    ? (Array.isArray((wilker as { sub_lokasi?: unknown }).sub_lokasi) ? ((wilker as { sub_lokasi: unknown[] }).sub_lokasi.map(String)) : [])
+    : [];
+  const konteksWilker = { wilker, musim, subLokasiVektor };
 
   if (konteks.startsWith('vektor-aedes')) {
     const baris = await ambil12BarisTerakhir({

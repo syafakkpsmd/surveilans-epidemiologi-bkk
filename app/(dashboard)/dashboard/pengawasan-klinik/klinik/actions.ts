@@ -4,6 +4,7 @@
 import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { revalidatePath } from 'next/cache';
+import { getKamusWilker } from '@/lib/wilayah-kerja/server';
 
 type HasilAksi = { error?: string; success?: boolean };
 
@@ -40,7 +41,15 @@ function bangunPayload(formData: FormData, namaKlinik: string) {
     latitude: getNumber(formData, 'latitude'),
     longitude: getNumber(formData, 'longitude'),
     spreadsheet_id: getString(formData, 'spreadsheet_id'),
+    // Wilayah kerja BKK yang membawahi klinik ini (opsional; tabel wilker_ref).
+    kode_wilker: getString(formData, 'kode_wilker'),
   };
+}
+
+/** Kode wilayah kerja harus dikenal di wilker_ref (wilayah nonaktif tetap boleh agar klinik lama bisa diedit). */
+async function galatWilker(kode: string | null): Promise<string | null> {
+  if (!kode) return null;
+  return (await getKamusWilker()).isKode(kode) ? null : 'Wilayah kerja tidak valid.';
 }
 
 export async function tambahKlinikBaru(formData: FormData): Promise<HasilAksi> {
@@ -51,9 +60,12 @@ export async function tambahKlinikBaru(formData: FormData): Promise<HasilAksi> {
   if (!namaKlinik) return { error: 'Nama klinik wajib diisi.' };
 
   const payload = bangunPayload(formData, namaKlinik);
+  const galat = await galatWilker(payload.kode_wilker);
+  if (galat) return { error: galat };
 
   const supabase = createDbServiceClient();
-  const { error } = await supabase.from('klinik_binaan').insert(payload);
+  // `as never`: types/generated.types.ts belum memuat kolom kode_wilker (hasil migrasi 24); hapus setelah tipe diregenerasi.
+  const { error } = await supabase.from('klinik_binaan').insert(payload as never);
 
   if (error) return { error: error.message };
   revalidatePath('/dashboard/pengawasan-klinik/klinik');
@@ -68,9 +80,11 @@ export async function updateKlinik(id: string, formData: FormData): Promise<Hasi
   if (!namaKlinik) return { error: 'Nama klinik wajib diisi.' };
 
   const payload = bangunPayload(formData, namaKlinik);
+  const galat = await galatWilker(payload.kode_wilker);
+  if (galat) return { error: galat };
 
   const supabase = createDbServiceClient();
-  const { error } = await supabase.from('klinik_binaan').update(payload).eq('id', id);
+  const { error } = await supabase.from('klinik_binaan').update(payload as never).eq('id', id);
 
   if (error) return { error: error.message };
   revalidatePath('/dashboard/pengawasan-klinik/klinik');

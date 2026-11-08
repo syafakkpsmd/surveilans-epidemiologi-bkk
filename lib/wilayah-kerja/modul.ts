@@ -18,6 +18,7 @@ export const MODUL_WILKER = [
   { kunci: 'pab', label: 'Sanitasi PAB (Penyediaan Air Bersih)' },
   { kunci: 'limbah_b3', label: 'Pemeriksaan Limbah B3 Klinik' },
   { kunci: 'udara_ruang', label: 'Pemeriksaan Udara Dalam Ruang' },
+  { kunci: 'vektor_sub_lokasi', label: 'Vektor Aedes/Anopheles: filter Zona & Sub-lokasi' },
 ] as const;
 
 export type KunciModulWilker = (typeof MODUL_WILKER)[number]['kunci'];

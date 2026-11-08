@@ -15,7 +15,7 @@ export default function FilterWilker({
   sembunyikanNonAktif = true,
 }: {
   daftarWilker: WilkerRef[];
-  /** Sembunyikan Bandara Badak LNG Bontang & Tanjung Bara Sangatta (dipakai halaman Vektor). Set false untuk halaman yang justru butuh 2 bandara ini, mis. Alat Angkut Pesawat. */
+  /** Sembunyikan wilayah yang dinonaktifkan di pengaturan wilayah kerja, mis. bandara privat Badak LNG & Tanjung Bara (dipakai halaman Vektor). Set false untuk halaman yang justru butuh 2 bandara ini, mis. Alat Angkut Pesawat. */
   sembunyikanNonAktif?: boolean;
 }) {
   const router = useRouter();
@@ -43,8 +43,8 @@ export default function FilterWilker({
       // Sesudah
       <option value="">Semua Wilayah Kerja</option>
       {daftarWilker
-        .filter((w) => !/kantor induk/i.test(w.nama))
-        .filter((w) => !sembunyikanNonAktif || !/bontang|tanjung bara/i.test(w.nama))
+        .filter((w) => w.jenis !== 'Kantor')
+        .filter((w) => !sembunyikanNonAktif || w.aktif !== false)
         .map((w) => (
           <option key={w.kode} value={w.kode}>
             {w.jenis === 'Bandara' ? '✈️' : '⚓'} {w.nama}

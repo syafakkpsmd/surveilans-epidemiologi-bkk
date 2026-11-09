@@ -58,8 +58,13 @@ export function ubahBilangan(v: unknown): Hasil<number | null> {
   return ok(n);
 }
 
-function tanggalValid(t: number, b: number, h: number): string | null {
-  if (t < 1990 || t > 2100) return null;
+/** Rentang tahun yang dianggap wajar untuk sebuah kolom tanggal. Bawaan 1990-2100. */
+export interface RentangTahun { min: number; maks: number }
+/** TANGGAL LAHIR: tahun 1920 sampai tahun ini. Tanggal lahir di masa depan tidak masuk akal. */
+export const rentangTanggalLahir = (): RentangTahun => ({ min: 1920, maks: new Date().getFullYear() });
+
+function tanggalValid(t: number, b: number, h: number, rentang: RentangTahun = { min: 1990, maks: 2100 }): string | null {
+  if (t < rentang.min || t > rentang.maks) return null;
   const d = new Date(Date.UTC(t, b - 1, h));
   if (d.getUTCFullYear() !== t || d.getUTCMonth() !== b - 1 || d.getUTCDate() !== h) return null;
   return `${t}-${String(b).padStart(2, '0')}-${String(h).padStart(2, '0')}`;
@@ -74,26 +79,28 @@ const NAMA_BULAN: Record<string, number> = {
 
 /** Terima: Date (sel tanggal Excel), nomor seri Excel, 'YYYY-MM-DD', 'DD/MM/YYYY', 'DD-MM-YYYY', 'DD.MM.YYYY'.
  *  Urutan hari-bulan (Indonesia); 'MM/DD/YYYY' TIDAK ditebak. Hasil 'YYYY-MM-DD'. */
-export function ubahTanggal(v: unknown): Hasil<string | null> {
+export function ubahTanggal(v: unknown, rentang?: RentangTahun): Hasil<string | null> {
   const m = selMentah(v);
   if (m === null) return ok(null);
   if (m instanceof Date) {
     if (Number.isNaN(m.getTime())) return gagal('tanggal tidak valid');
     // exceljs memberi Date pada 00:00 UTC untuk sel tanggal murni; ambil komponen UTC.
-    const r = tanggalValid(m.getUTCFullYear(), m.getUTCMonth() + 1, m.getUTCDate());
+    const r = tanggalValid(m.getUTCFullYear(), m.getUTCMonth() + 1, m.getUTCDate(), rentang);
     return r ? ok(r) : gagal('tanggal tidak valid');
   }
   if (typeof m === 'number') {
-    if (m < 30000 || m > 80000) return gagal('tanggal tidak dikenal');
+    const serialMin = rentang ? Math.floor(Date.UTC(rentang.min, 0, 1) / 86400000) + 25569 : 30000; // batas bawah mengikuti rentang tahun
+    if (m < serialMin || m > 80000) return gagal('tanggal tidak dikenal');
     const d = new Date(Math.round((m - 25569) * 86400000)); // nomor seri Excel (sistem 1900)
-    const r = tanggalValid(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    const r = tanggalValid(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), rentang);
     return r ? ok(r) : gagal('tanggal tidak valid');
   }
   const s = m.trim();
   if (s === '') return ok(null);
   let g = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T ].*)?$/.exec(s);
   if (g) {
-    const r = tanggalValid(+g[1], +g[2], +g[3]);
+    const r = tanggalValid(+g[1], +g[2], +g[3], rentang);
+    if (!r && rentang && (+g[1] < rentang.min || +g[1] > rentang.maks)) return gagal(`tahun ${+g[1]} di luar rentang wajar (${rentang.min}-${rentang.maks})`);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender');
   }
   // Bulan dengan nama (Indonesia atau Inggris, lengkap atau singkatan): "23 Oktober 2026", "23-Oct-2026", "Oct 23, 2026", "Jumat, 23 Okt 2026".
@@ -102,19 +109,19 @@ export function ubahTanggal(v: unknown): Hasil<string | null> {
   if (g) {
     const b = NAMA_BULAN[g[2].toLowerCase()];
     if (!b) return gagal('nama bulan tidak dikenal');
-    const r = tanggalValid(+g[3], b, +g[1]);
+    const r = tanggalValid(+g[3], b, +g[1], rentang);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender');
   }
   g = /^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(nama);
   if (g) {
     const b = NAMA_BULAN[g[1].toLowerCase()];
     if (!b) return gagal('nama bulan tidak dikenal');
-    const r = tanggalValid(+g[3], b, +g[2]);
+    const r = tanggalValid(+g[3], b, +g[2], rentang);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender');
   }
   g = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})(?:[T ,].*)?$/.exec(s);
   if (g) {
-    const r = tanggalValid(+g[3], +g[2], +g[1]);
+    const r = tanggalValid(+g[3], +g[2], +g[1], rentang);
     return r ? ok(r) : gagal('tanggal tidak ada di kalender (format hari/bulan/tahun)');
   }
   return gagal('format tanggal tidak dikenal (pakai TTTT-BB-HH atau HH/BB/TTTT)');

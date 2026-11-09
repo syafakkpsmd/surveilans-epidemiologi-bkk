@@ -7,7 +7,7 @@
 import ExcelJS from 'exceljs';
 import { kunciJudul, type ModulInput, type KolomModul } from './modul';
 import { kunciBaris, validasiBaris, type NilaiBaris } from './validasi';
-import { selMentah, teksKosong } from './nilai';
+import { rentangTanggalLahir, selMentah, teksKosong } from './nilai';
 import { buatPenyiapTanggal, type PenyiapTanggal } from './tanggal-kolom';
 import type { KamusWilker } from '@/lib/wilayah-kerja';
 
@@ -188,6 +188,7 @@ export async function bacaExcel(
   let penyiap: PenyiapTanggal | null = null;
   const kolomTanggal = new Set(modul.kolom.filter((k) => k.tipe === 'tanggal').map((k) => k.nama));
   const labelTanggal: Record<string, string> = Object.fromEntries(modul.kolom.filter((k) => k.tipe === 'tanggal').map((k) => [k.nama, k.label]));
+  const kolomLahir = new Set(modul.kolom.filter((k) => k.tipe === 'tanggal' && k.tanggalLahir).map((k) => k.nama));
   if (modul.pakaiParseTanggal) {
     const nilaiPerKolom: Record<string, unknown[]> = {};
     for (const nama of kolomKe.values()) if (kolomTanggal.has(nama)) nilaiPerKolom[nama] = [];
@@ -208,7 +209,11 @@ export async function bacaExcel(
       let v = selMentah(row[n]);
       if (!teksKosong(v)) isi = true;
       if (penyiap && kolomTanggal.has(nama)) {
-        const s = penyiap.siapkan(nama, v, { masaDepanBoleh: nama !== modul.kolomTanggal });
+        const lahir = kolomLahir.has(nama);
+        const rl = rentangTanggalLahir();
+        const s = penyiap.siapkan(nama, v, lahir
+          ? { masaDepanBoleh: false, tahunMin: rl.min, tahunMaks: rl.maks }
+          : { masaDepanBoleh: nama !== modul.kolomTanggal });
         if (s.galat) galatTanggal.push(`${labelTanggal[nama]}: ${s.galat}`);
         else v = s.nilai as typeof v; // nilai hasil siapkan() bertipe unknown; divalidasi ulang oleh validasiBaris
         if (s.peringatan) peringatanTanggal.push(`${labelTanggal[nama]}: ${s.peringatan}`);

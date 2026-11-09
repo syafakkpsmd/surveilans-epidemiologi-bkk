@@ -30,7 +30,8 @@ import GrafikTotalMaskapaiPesawat from '@/components/pesawat/GrafikTotalMaskapai
 import GrafikTrenMaskapaiPesawat from '@/components/pesawat/GrafikTrenMaskapaiPesawat';
 import GrafikSertifikatGenderBulanan from '@/components/pesawat/GrafikSertifikatGenderBulanan';
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
-
+import FilterTahun from '@/components/FilterTahun';
+import { bacaTahun } from '@/lib/tahun';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -70,7 +71,7 @@ export default async function AlatAngkutPesawatPage({
   const { wilker: wilkerParam, tahun: tahunParam, mgDari, mgSampai, bulanDari, bulanSampai } = await searchParams;
   // Default: bandara aktif pertama dari pengaturan wilayah kerja
   const wilker = wilkerParam ?? (await getKamusWilker()).aktif.find((w) => w.jenis === 'Bandara')?.kode ?? '';
-  const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
+  const tahun = bacaTahun(tahunParam);
 
   // Normalisasi filter rentang bulan agar selalu YYYY-MM
   const formatBulanDari = bulanDari ? (bulanDari.includes('-') ? bulanDari : `${tahun}-${bulanDari.padStart(2, '0')}`) : undefined;
@@ -95,12 +96,7 @@ export default async function AlatAngkutPesawatPage({
   const periodeKeyBulanan = `${tahun}-${bulanDariNum}_${bulanSampaiNum}`;
 
   // ============================================================
-  // BATCH-FETCH HASIL AI -- menggantikan pola lama di mana setiap
-  // <BoxAnalisisAI>/<BoxPrediksiAI> di halaman ini fetch GET sendiri
-  // saat mount (11 request client-side terpisah). Diambil sekaligus
-  // lewat 1 Promise.all di server (getBanyakHasilAI), digabung ke
-  // Promise.all utama di bawah supaya jalan paralel dengan query
-  // data chart, tidak menambah waktu tunggu.
+  // BATCH-FETCH HASIL AI
   // ============================================================
   const permintaanAI: PermintaanHasilAI[] = [
     { konteks: 'pesawat-mingguan', periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'analisis' },
@@ -166,7 +162,6 @@ export default async function AlatAngkutPesawatPage({
   const bulanBerjalan = new Date().getMonth() + 1;
 
   const sudahLogin = !!role;
-  // roleAI menentukan siapa yang boleh menekan "Generate" di dalam Box — GET (baca hasil) tidak butuh auth sama sekali
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
   const konteksMingguan = 'pesawat-mingguan';
   const konteksBulanan = 'pesawat-bulanan';
@@ -181,9 +176,7 @@ export default async function AlatAngkutPesawatPage({
   const totalPesawatBerangkat = ringkasanMingguan.reduce((a, r) => a + r.pesawat_berangkat, 0);
 
   // ============================================================
-  // LOOKUP HASIL AI -- 1 pasang variabel per kombinasi yang dipakai
-  // di JSX di bawah. Kalau kombinasinya tidak ada di hasilAI,
-  // nilainya undefined -- Box otomatis fallback ke fetch sendiri.
+  // LOOKUP HASIL AI
   // ============================================================
   const hasilAnalisisMingguanCrewPenumpang = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'analisis' })];
   const hasilPrediksiMingguanCrewPenumpang = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilker, metrik: 'crew-penumpang', tipe: 'prediksi' })];
@@ -220,12 +213,13 @@ export default async function AlatAngkutPesawatPage({
         <span className="text-sm font-medium text-[#0F4C5C]">Lihat selengkapnya →</span>
       </Link>
 
-      {/* 3. Baris Filter */}
+      {/* 3. Baris Filter (Ditambahkan FilterTahun sebelum FilterWilker) */}
       <div className="flex flex-wrap items-center justify-between uppercase gap-3 border-t border-gray-100 pt-4">
         <div className="text-sm font-medium text-gray-500">
           Distribusi Pengasawan Alat Angkut Pesawat dalam Mingguan Tahun {tahun}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <FilterTahun />
           <FilterWilker daftarWilker={daftarWilker} sembunyikanNonAktif={false} />
           <FilterRentangMinggu />
         </div>

@@ -12,7 +12,6 @@ import {
 } from '@/lib/db/queries/queriesVektorBreakdown';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
-import { periodeMingguanSebelumnya } from '@/lib/ai/periode';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
 import { getWilayahSubLokasiVektor } from '@/lib/wilayah-kerja/server';
@@ -28,6 +27,8 @@ import RingkasanKartuVektor from '@/components/vektor/RingkasanKartuVektor';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
+import FilterTahun from '@/components/FilterTahun';
+import { bacaTahun, jumlahMingguEpid } from '@/lib/tahun';
 
 export default async function VektorAedesPage({
   searchParams,
@@ -46,7 +47,7 @@ export default async function VektorAedesPage({
 }) {
   const { wilker, tahun: tahunParam, zona, subLokasi, mgDari, mgSampai, bulanDari, bulanSampai, granularitas: granularitasParam } =
     await searchParams;
-  const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
+  const tahun = bacaTahun(tahunParam);
 
   // BARU: toggle granularitas -- default "mingguan". Cuma section yang
   // aktif yang dirender DAN di-query datanya, jadi request Supabase +
@@ -59,27 +60,24 @@ export default async function VektorAedesPage({
   const tahunBerjalan = epiSaatIni.tahunEpid;
   const mingguBerjalan = Math.max(1, epiSaatIni.mingguEpid - 1); // minggu epid di kurangi 1
   const bulanBerjalan = new Date().getMonth() + 1;
+  const tahunIni = tahun === tahunBerjalan; // tahun yang dipilih = tahun berjalan?
 
   const konteksMingguan = 'vektor-dbd-mingguan';
   const konteksBulanan = 'vektor-dbd-bulanan';
   const wilayahKerjaAi = wilker ?? undefined;
 
-  // Rentang minggu yang dipilih user (fallback: minggu berjalan saja kalau belum pilih apa-apa)
-  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
-  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
+  // Rentang minggu yang dipilih user (fallback: tahun berjalan pakai minggu berjalan, tahun lampau pakai seluruh minggu)
+  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : tahunIni ? mingguBerjalan : 1;
+  const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : tahunIni ? mingguBerjalan : jumlahMingguEpid(tahun);
   const periodeKeyMingguan = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
 
-  // Rentang bulan yang dipilih user (fallback: bulan berjalan saja kalau belum pilih apa-apa)
-  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari, 10) : bulanBerjalan;
-  const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai, 10) : bulanBerjalan;
+  // Rentang bulan yang dipilih user (fallback: tahun berjalan pakai bulan berjalan, tahun lampau pakai 1-12)
+  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari, 10) : tahunIni ? bulanBerjalan : 1;
+  const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai, 10) : tahunIni ? bulanBerjalan : 12;
   const periodeKeyBulanan = `${tahun}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
 
   // ============================================================
   // BATCH-FETCH HASIL AI -- SEKARANG KONDISIONAL per granularitas aktif.
-  // Dulu semua 12 kombinasi (4 mingguan + 6 bulanan + 2 prediksi)
-  // di-prefetch tiap kali halaman dibuka meski cuma satu granularitas
-  // yang tampil. Sekarang cuma kombinasi granularitas AKTIF yang masuk
-  // permintaanAI -- separuh query AI langsung tidak pernah dijalankan.
   // ============================================================
   const permintaanAI: PermintaanHasilAI[] = [];
   if (butuhMingguan) {
@@ -105,12 +103,7 @@ export default async function VektorAedesPage({
   const hasilAIPromise = getBanyakHasilAI(permintaanAI);
 
   // ============================================================
-  // DATA CHART -- juga kondisional. Query mingguan (ringkasanMingguan,
-  // dataAktivitasMingguan) cuma dijalankan kalau granularitas="mingguan",
-  // query bulanan (dataBulanan, dataAktivitasBulanan) cuma kalau
-  // granularitas="bulanan". Breakdown Zona & Donut Tindakan Pengendalian
-  // TETAP selalu dijalankan (independen dari toggle, selalu berbasis
-  // minggu berjalan -- sama seperti sebelumnya).
+  // DATA CHART
   // ============================================================
   const [role, daftarWilker, penggunaInput, wilayahKamus] = await Promise.all([
     getUserRole(),
@@ -152,8 +145,11 @@ export default async function VektorAedesPage({
     ]);
   }
 
-  // Rentang tanggal minggu berjalan
-  const { mulai, selesai } = getRentangMingguEpid(tahunBerjalan, mingguBerjalan);
+  // Rentang tanggal minggu berjalan atau tahun terpilih
+  const { mulai, selesai } = tahunIni
+    ? getRentangMingguEpid(tahunBerjalan, mingguBerjalan)
+    : { mulai: `${tahun}-01-01`, selesai: `${tahun}-12-31` };
+  const labelBreakdown = tahunIni ? `Minggu Epid ke-${mingguBerjalan}` : `Tahun ${tahun}`;
 
   const filterTambahanBreakdown: Record<string, string> = {};
   if (zona) filterTambahanBreakdown.zona = zona;
@@ -172,8 +168,8 @@ export default async function VektorAedesPage({
       tabel: 'vektor_dbd',
       kolomTanggal: 'tgl_survei',
       kolomKategori: 'tindakan_pengendalian',
-      tglMulai: mulai, // <-- Menggunakan 'mulai' minggu berjalan
-      tglSelesai: selesai, // <-- Menggunakan 'selesai' minggu berjalan
+      tglMulai: mulai, // <-- Menggunakan 'mulai' minggu berjalan/tahun terpilih
+      tglSelesai: selesai, // <-- Menggunakan 'selesai' minggu berjalan/tahun terpilih
       kodeWilker: wilker,
       filterTambahan: filterTambahanBreakdown,
     }),
@@ -181,8 +177,8 @@ export default async function VektorAedesPage({
       tabel: 'vektor_dbd',
       kolomTanggal: 'tgl_survei',
       kolomKategori: 'tindakan_pengendalian',
-      tglMulai: '2000-01-01',
-      tglSelesai: '2100-12-31',
+      tglMulai: `${tahun}-01-01`,
+      tglSelesai: `${tahun}-12-31`,
       kodeWilker: wilker,
       filterTambahan: filterTambahanBreakdown,
     }),
@@ -200,9 +196,7 @@ export default async function VektorAedesPage({
   const roleAI = role === 'admin' || role === 'petugas' ? role : null;
 
   // ============================================================
-  // KARTU RINGKASAN -- data & label mengikuti granularitas aktif.
-  // Tidak ada query tambahan: memakai data aktivitas yang sudah di-fetch.
-  // Sesuaikan 'kode' / 'nama' dengan field hasil getWilkerRef() kalau berbeda.
+  // KARTU RINGKASAN
   // ============================================================
   const dataKartu = butuhMingguan ? dataAktivitasMingguan : dataAktivitasBulanan;
   const labelPeriodeKartu = butuhMingguan
@@ -216,7 +210,7 @@ export default async function VektorAedesPage({
     ? ((daftarWilker as any[])?.find((w) => w.kode === wilker || w.kode_wilker === wilker)?.nama ?? wilker)
     : 'Semua Wilayah Kerja';
 
-  // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
+  // Ambil hasil batch AI
   const hasilAI = await hasilAIPromise;
 
   const hasilAnalisisMingguanHiCiAbj = hasilAI[kunciAI({ konteks: konteksMingguan, periodeKey: periodeKeyMingguan, wilayahKerja: wilayahKerjaAi, metrik: 'hi-ci-abj', tipe: 'analisis' })];
@@ -233,9 +227,6 @@ export default async function VektorAedesPage({
   const hasilAnalisisBulananLarvasida = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'larvasida', tipe: 'analisis' })];
   const hasilAnalisisBulananLuasInsektisida = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'luas-insektisida', tipe: 'analisis' })];
 
-  // Cek "kosong" berdasarkan granularitas aktif -- dulu selalu pakai
-  // ringkasanMingguan.length, sekarang tergantung data mana yang
-  // sebenarnya di-query untuk granularitas aktif.
   const dataKosong = butuhMingguan ? ringkasanMingguan.length === 0 : dataBulanan.length === 0;
 
   const wilayahSubLokasi = await getWilayahSubLokasiVektor();
@@ -253,8 +244,9 @@ export default async function VektorAedesPage({
       </p>
     </div>
     
-    {/* Tambahkan ml-auto di sini agar kelompok filter otomatis bergeser ke kanan */}
+    {/* Tambahkan FilterTahun sebelum FilterWilker */}
     <div className="flex flex-wrap items-center gap-2 ml-auto">
+      <FilterTahun />
       <ToggleGranularitas granularitasAktif={granularitas} />
       <FilterWilker daftarWilker={daftarWilker} />
       <FilterZonaSubLokasi wilayahSubLokasi={wilayahSubLokasi} />
@@ -508,21 +500,21 @@ export default async function VektorAedesPage({
             </>
           )}
 
-          {/* ================= BREAKDOWN & DONUT (selalu tampil, independen dari toggle) ================= */}
+          {/* ================= BREAKDOWN & DONUT ================= */}
 
           <BreakdownList
-            judul={`Breakdown Zona — Minggu Epid ke-${mingguBerjalan}`}
+            judul={`Breakdown Zona — ${labelBreakdown}`}
             data={breakdownZona}
             warna="#B71C1C"
           />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <DonutChart
-              judul={`Tindakan Pengendalian (Minggu Epid ke-${mingguBerjalan})`}
+              judul={`Tindakan Pengendalian (${labelBreakdown})`}
               data={breakdownTindakanMingguIni}
             />
             <DonutChart
-              judul="Tindakan Pengendalian (Keseluruhan Data)"
+              judul={`Tindakan Pengendalian (Tahun ${tahun})`}
               data={breakdownTindakanTotal}
             />
           </div>

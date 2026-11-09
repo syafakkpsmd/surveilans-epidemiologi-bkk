@@ -16,6 +16,7 @@ import {
   BellRing, Package, PersonStanding, CalendarDays, FilePlus2, FileCheck2, BriefcaseMedical, BookHeart,
   HeartPulse,
   Mountain,
+  Search,
 } from "lucide-react";
 
 export type NavChild = { label: string; href: string; prefetch?: boolean };
@@ -52,8 +53,8 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: "Surveilans Penyakit",
-    singkat: "Penyakit",
+    title: "Surveilans Faktor Risiko dan Penyakit pada Orang",
+    singkat: "Pengawasan Orang",
     items: [
       { label: "Migrasi Malaria", href: "/dashboard/malaria", icon: Plane, prefetch: false },
       { label: "Surveilans TB", href: "/dashboard/tb", icon: Wind, prefetch: false },
@@ -61,13 +62,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "PIE Nasional", href: "/dashboard/nasional-emerging", icon: ShieldAlert, prefetch: false },
       { label: "PIE Global", href: "/dashboard/global-emerging", icon: ShieldAlert, prefetch: false },
       { label: "SKDR BKK SMD", href: "/dashboard/skdr", icon: BellRing, prefetch: false },
-      { label: "KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: Siren },
-    ],
-  },
-  {
-    title: "Pelaku Perjalanan",
-    singkat: "Travelers",
-    items: [
       { label: "Lalu Lintas Orang", href: "/dashboard/abk-crew-penumpang", icon: Users, prefetch: false },
       { label: "Kunjungan Poliklinik", href: "/dashboard/poliklinik", icon: Building2, prefetch: false },
       { label: "Ijin Angkut Orang Sakit", href: "/dashboard/siaos", icon: PersonStanding, prefetch: false },
@@ -77,8 +71,8 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: "Surveilans Vektor",
-    singkat: "Vektor",
+    title: "Surveilans Faktor Risiko pada Lingkungan",
+    singkat: "Pengawasan Lingkungan",
     items: [
       {
         label: "Vektor Anopheles",
@@ -98,12 +92,6 @@ export const NAV_GROUPS: NavGroup[] = [
       },
       { label: "Vektor Aedes", href: "/dashboard/vektor/aedes", icon: Bug, prefetch: false },
       { label: "Vektor Tikus", href: "/dashboard/vektor/tikus", icon: Rat, prefetch: false },
-    ],
-  },
-  {
-    title: "Surveilans Lingkungan",
-    singkat: "Lingkungan",
-    items: [
       { label: "Surveilans TPP", href: "/dashboard/tpp", icon: Building2, prefetch: false },
       { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon, prefetch: false },
       { label: "Surveilans PAB", href: "/dashboard/pab", icon: Droplet, prefetch: false },
@@ -185,6 +173,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "SINKARKES", href: "https://sinkarkes.kemkes.go.id/", icon: Database },
       { label: "Penyakit Infeksi Emerging", href: "https://infeksiemerging.kemkes.go.id/", icon: Microscope },
       { label: "SKDR", href: "https://skdr.kemkes.go.id/auth/", icon: Database },
+      { label: "Investigasi KLB", href: "https://epic-outbreak-ai.vercel.app/", icon: ShieldAlert },
       { label: "Kementerian Kesehatan", href: "https://www.kemkes.go.id/", icon: Building2 },
       { label: "TEPHINET", href: "https://www.tephinet.org/", icon: Globe },
       { label: "CDC", href: "https://www.cdc.gov", icon: ShieldAlert },
@@ -227,6 +216,7 @@ export const ADMIN_GROUP: NavGroup = {
   singkat: "Admin",
   items: [
     { label: "Verifikasi User", href: "/admin/users", icon: Users, prefetch: false },
+    { label: "Pengaturan Wilker", href: "dashboard/pengaturan-wilayah-kerja", icon: MapPin, prefetch: false },
     { label: "Laporan Bulanan", href: "/dashboard/laporan-bulanan", icon: Ship },
     { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3, prefetch: false },
   ],

@@ -27,7 +27,8 @@ export interface HasilSiapTanggal {
 
 export interface PenyiapTanggal {
   /** opsi.masaDepanBoleh: kolom yang wajar berisi tanggal ke depan (mis. batas waktu tindak lanjut): tidak diberi peringatan. */
-  siapkan(namaKolom: string, nilai: unknown, opsi?: { masaDepanBoleh?: boolean }): HasilSiapTanggal;
+  siapkan(namaKolom: string, nilai: unknown, opsi?: { masaDepanBoleh?: boolean; tahunMin?: number; tahunMaks?: number }): HasilSiapTanggal;
+  // opsi.tahunMin/tahunMaks: rentang tahun wajar kolom ini (bawaan parseTanggal: 2000 sampai tahun depan). Tanggal lahir memakai rentangTanggalLahir().
   /** Catatan untuk seluruh berkas, mis. kolom bercampur dua gaya tanggal. */
   peringatanUmum: string[];
 }
@@ -60,7 +61,7 @@ export function buatPenyiapTanggal(
         nilai = new Date(nilai.getUTCFullYear(), nilai.getUTCMonth(), nilai.getUTCDate());
       }
       const urutan = urutanKolom.get(namaKolom) ?? null;
-      const r = parseTanggal(nilai, { urutanAmbigu: urutan ?? 'dmy' });
+      const r = parseTanggal(nilai, { urutanAmbigu: urutan ?? 'dmy', tahunMin: opsi.tahunMin, tahunMaks: opsi.tahunMaks });
       if (!r.iso) return { nilai, galat: r.pesan ?? 'tanggal tidak terbaca' };
 
       const peringatan: string[] = [];

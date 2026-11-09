@@ -10,6 +10,7 @@ import { getMingguEpidSaatIni } from "@/lib/epi-week";
 import VektorTikusClient from "./VektorTikusClient";
 import { getBanyakHasilAI } from "@/lib/ai/getBanyakHasilAI";
 import type { PermintaanHasilAI } from "@/lib/ai/hasilAiTypes";
+import { bacaTahun, jumlahMingguEpid } from "@/lib/tahun";
 
 export default async function VektorTikusPage({
   searchParams,
@@ -17,17 +18,18 @@ export default async function VektorTikusPage({
   searchParams: Promise<{ wilker?: string; tahun?: string }>;
 }) {
   const { wilker, tahun: tahunParam } = await searchParams;
-  const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
+  const tahun = bacaTahun(tahunParam);
 
   const { sudahLogin, role } = await getStatusAkses();
 
   const { tahunEpid, mingguEpid } = getMingguEpidSaatIni();
-  const mingguBerjalan = Math.max(1, mingguEpid - 1);
-  const bulanBerjalan = new Date().getMonth() + 1;
+  const tahunIni = tahun === tahunEpid;
+  const mingguBerjalan = tahunIni ? Math.max(1, mingguEpid - 1) : jumlahMingguEpid(tahun);
+  const bulanBerjalan = tahunIni ? new Date().getMonth() + 1 : 12;
 
   const wilayahKerjaAI = wilker && wilker !== "semua" ? wilker : undefined;
-  const periodeKeyMingguanDefault = `${tahunEpid}-W1_W${mingguBerjalan}`;
-  const periodeKeyBulananDefault = `${tahunEpid}-M1_M${bulanBerjalan}`;
+  const periodeKeyMingguanDefault = `${tahun}-W1_W${mingguBerjalan}`;
+  const periodeKeyBulananDefault = `${tahun}-M1_M${bulanBerjalan}`;
 
   const permintaanAI: PermintaanHasilAI[] = [
     { konteks: "vektor-tikus-mingguan", periodeKey: periodeKeyMingguanDefault, wilayahKerja: wilayahKerjaAI, tipe: "analisis" },
@@ -113,6 +115,7 @@ export default async function VektorTikusPage({
 
   return (
     <VektorTikusClient
+      key={tahun}
       daftarWilker={daftarWilker}
       dataMingguan={dataMingguan}
       dataBulanan={dataBulanan}
@@ -120,7 +123,7 @@ export default async function VektorTikusPage({
       labBulanan={labBulanan}
       sudahLogin={sudahLogin}
       role={role ?? ""}
-      tahunBerjalan={tahunEpid}
+      tahunBerjalan={tahun}
       mingguBerjalan={mingguBerjalan}
       bulanBerjalan={bulanBerjalan}
       wilkerParam={wilker}

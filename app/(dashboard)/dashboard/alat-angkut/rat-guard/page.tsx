@@ -7,6 +7,8 @@ import { getUserRole } from "@/lib/auth/get-user-role";
 import RatGuardClient from "./RatGuardClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getBanyakHasilAI, type PermintaanHasilAI } from "@/lib/ai/getBanyakHasilAI";
+import FilterTahun from "@/components/FilterTahun";
+import { bacaTahun } from "@/lib/tahun";
 
 type RatGuardPageProps = {
   searchParams: Promise<{
@@ -26,8 +28,7 @@ export default async function RatGuardPage({ searchParams }: RatGuardPageProps) 
     ? resolvedParams.tahun[0]
     : resolvedParams.tahun;
 
-  const tahunParsed = tahunParam ? parseInt(tahunParam, 10) : NaN;
-  const tahun = Number.isFinite(tahunParsed) ? tahunParsed : new Date().getFullYear();
+  const tahun = bacaTahun(tahunParam);
 
   const [role, daftarWilayah, dataBulanan, dataMingguan] = await Promise.all([
     getUserRole(),
@@ -38,30 +39,11 @@ export default async function RatGuardPage({ searchParams }: RatGuardPageProps) 
 
   const bulanBerjalan = new Date().getMonth() + 1;
 
-  // Sama seperti TPP/TTU: minggu epid dimundurkan 1 minggu khusus untuk
-  // tampilan, tanpa mengubah lib/epi-week.ts (harus tetap sinkron dgn SQL mmwr_week)
   const tanggalMundurSatuMinggu = new Date();
   tanggalMundurSatuMinggu.setDate(tanggalMundurSatuMinggu.getDate() - 7);
   const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalan } =
     hitungMingguEpidemiologi(tanggalMundurSatuMinggu);
 
-  // ============================================================
-  // BATCH-FETCH HASIL AI -- menggantikan pola lama di mana setiap
-  // <BoxAnalisisAI>/<BoxPrediksiAI> fetch GET sendiri saat mount.
-  //
-  // RatGuardClient.tsx defaultnya buka di tab "Bulanan" dengan
-  // rentang akhir = bulanBerjalan, dan tab "Mingguan" defaultnya
-  // rentang akhir = 52 (lihat state awal di RatGuardClient.tsx).
-  // Jadi 2 kombinasi periodeKey INI yang paling mungkin dilihat
-  // user pertama kali -- keduanya diambil sekaligus di sini.
-  //
-  // Kalau user nanti ganti rentang tanggal/tab lewat tombol
-  // "Terapkan" di client, periodeKey berubah jadi kombinasi yang
-  // TIDAK ada di hasil prefetch ini -- BoxAnalisisAI/BoxPrediksiAI
-  // otomatis balik fetch sendiri untuk kombinasi baru itu saja
-  // (lihat komentar hasilAwal di BoxAnalisisAI.tsx), jadi tidak
-  // akan pernah nampilkan hasil yang salah periode.
-  // ============================================================
   const wilayahKerjaAi = wilayah && wilayah !== "semua" ? wilayah : undefined;
 
   const permintaanAI: PermintaanHasilAI[] = [
@@ -74,17 +56,32 @@ export default async function RatGuardPage({ searchParams }: RatGuardPageProps) 
   const hasilAI = await getBanyakHasilAI(permintaanAI);
 
   return (
-    <RatGuardClient
-      daftarWilayah={daftarWilayah ?? []}
-      dataBulanan={dataBulanan ?? []}
-      dataMingguan={dataMingguan ?? []}
-      role={role ?? ""}
-      tahunBerjalan={tahun}
-      bulanBerjalan={bulanBerjalan}
-      tahunEpidBerjalan={tahunEpidBerjalan}
-      mingguEpidBerjalan={mingguEpidBerjalan}
-      wilayahParam={wilayah}
-      hasilAI={hasilAI}
-    />
+    <div className="space-y-6 p-4 md:p-6">
+      {/* BARIS HEADER UTAMA DENGAN FILTER TAHUN */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl shadow-xs border border-gray-100">
+        <div>
+          <h1 className="text-xl font-bold text-[#0F2A38]">Pengawasan Rat Guard</h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Monitoring Kepatuhan Pemasangan Rat Guard Alat Angkut Kapal Tahun {tahun}
+          </p>
+        </div>
+        <div>
+          <FilterTahun />
+        </div>
+      </div>
+
+      <RatGuardClient
+        daftarWilayah={daftarWilayah ?? []}
+        dataBulanan={dataBulanan ?? []}
+        dataMingguan={dataMingguan ?? []}
+        role={role ?? ""}
+        tahunBerjalan={tahun}
+        bulanBerjalan={bulanBerjalan}
+        tahunEpidBerjalan={tahunEpidBerjalan}
+        mingguEpidBerjalan={mingguEpidBerjalan}
+        wilayahParam={wilayah}
+        hasilAI={hasilAI}
+      />
+    </div>
   );
 }

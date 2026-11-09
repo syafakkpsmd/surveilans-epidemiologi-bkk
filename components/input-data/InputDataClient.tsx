@@ -322,7 +322,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                       ) : (
                         <input className={`${kls.input} w-full`}
                           type={k.tipe === 'tanggal' ? 'date' : k.tipe === 'bilangan' || k.tipe === 'desimal' ? 'number' : k.tipe === 'waktu' ? 'time' : 'text'}
-                          min={k.tipe === 'bilangan' || k.tipe === 'desimal' ? 0 : undefined} step={k.tipe === 'desimal' ? 'any' : undefined}
+                          min={k.tipe === 'bilangan' || k.tipe === 'desimal' ? 0 : k.tanggalLahir ? '1920-01-01' : undefined} max={k.tanggalLahir ? new Date().toISOString().slice(0, 10) : undefined} step={k.tipe === 'desimal' ? 'any' : undefined}
                           title={k.deskripsi} placeholder={k.tipe === 'desimal' ? k.deskripsi?.split(' — acuan: ')[1] : undefined} value={isian[k.nama] ?? ''}
                           onChange={(e) => setIsian({ ...isian, [k.nama]: e.target.value })} />
                       )}

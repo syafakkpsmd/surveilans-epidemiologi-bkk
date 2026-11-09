@@ -6,8 +6,6 @@ import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
 import { PeranUser } from "@/types/database.types";
 import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -26,12 +24,6 @@ type RatGuardClientProps = {
   tahunEpidBerjalan: number;
   mingguEpidBerjalan: number;
   wilayahParam?: string;
-  /**
-   * Peta hasil Analisis/Prediksi AI yang sudah diambil di server
-   * (lib/ai/getBanyakHasilAI.ts, dipanggil dari page.tsx). Dicari
-   * lagi di sini pakai kunciAI() sesuai kombinasi granularitas +
-   * rentang + wilayah yang sedang aktif di client.
-   */
   hasilAI: Record<string, HasilAIStruktur | null>;
 };
 
@@ -78,7 +70,6 @@ export default function RatGuardClient({
     }
   };
 
-  // Agregasi data untuk chart (sum jumlah_kapal/pasang/tidak_pasang, hitung ulang persentase)
   const chartData = useMemo(() => {
     const sumberData = granularitas === "bulanan" ? dataBulanan : dataMingguan;
     const kolomPeriode = granularitas === "bulanan" ? "bulan" : "minggu";
@@ -135,12 +126,6 @@ export default function RatGuardClient({
   const konteksAktif = granularitas === "bulanan" ? "rat-guard-bulanan" : "rat-guard-mingguan";
   const wilayahAi = selectedWilayah !== "semua" ? selectedWilayah : undefined;
 
-  // Cari hasil AI yang sudah diprefetch server untuk kombinasi
-  // granularitas+rentang+wilayah yang sedang aktif SEKARANG. Kalau
-  // kombinasi ini bukan salah satu dari 2 default yang diprefetch
-  // page.tsx (mis. user sudah ganti rentang tanggal), key ini tidak
-  // ada di peta -> nilainya undefined -> BoxAnalisisAI/BoxPrediksiAI
-  // otomatis fetch sendiri untuk kombinasi baru itu.
   const hasilAnalisis = hasilAI[
     kunciAI({ konteks: konteksAktif, periodeKey, tipe: "analisis", wilayahKerja: wilayahAi })
   ];
@@ -148,32 +133,12 @@ export default function RatGuardClient({
     kunciAI({ konteks: konteksAktif, periodeKey, tipe: "prediksi", wilayahKerja: wilayahAi })
   ];
 
-  // sudahLogin ditentukan dari ada/tidaknya role (sebelumnya di-hardcode
-  // true, yang bikin guest yang belum login malah dikasih pesan "hanya
-  // Petugas/Admin" alih-alih ajakan login).
   const sudahLogin = !!role;
 
   return (
     <div className="space-y-6">
-          {/* TOMBOL KEMBALI */}
-    <div className="flex justify-end">
-      <Link
-        href="/dashboard/alat-angkut/"
-        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Dashboard Alat Angkut Kapal
-      </Link>
-    </div>
-      {/* HEADER & FILTERS */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-5 shadow-sm border border-gray-100">
-        <div>
-          <h1 className="text-xl font-bold text-[#0F2A38]">Pengawasan Rat Guard</h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Pengawasan pemasangan Rat Guard pada kapal Tahun {tahunBerjalan}
-          </p>
-        </div>
-
+      {/* FILTER & KONTROL */}
+      <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl bg-white p-4 shadow-xs border border-gray-100">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
             <button

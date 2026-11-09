@@ -64,8 +64,7 @@ export async function tambahKlinikBaru(formData: FormData): Promise<HasilAksi> {
   if (galat) return { error: galat };
 
   const supabase = createDbServiceClient();
-  // `as never`: types/generated.types.ts belum memuat kolom kode_wilker (hasil migrasi 24); hapus setelah tipe diregenerasi.
-  const { error } = await supabase.from('klinik_binaan').insert(payload as never);
+  const { error } = await supabase.from('klinik_binaan').insert(payload);
 
   if (error) return { error: error.message };
   revalidatePath('/dashboard/pengawasan-klinik/klinik');
@@ -84,7 +83,7 @@ export async function updateKlinik(id: string, formData: FormData): Promise<Hasi
   if (galat) return { error: galat };
 
   const supabase = createDbServiceClient();
-  const { error } = await supabase.from('klinik_binaan').update(payload as never).eq('id', id);
+  const { error } = await supabase.from('klinik_binaan').update(payload).eq('id', id);
 
   if (error) return { error: error.message };
   revalidatePath('/dashboard/pengawasan-klinik/klinik');

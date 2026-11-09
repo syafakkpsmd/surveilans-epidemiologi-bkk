@@ -34,6 +34,8 @@ export interface KolomModul {
   kelompok?: string;
   /** Kolom 'desimal'/'bilangan': rentang yang masuk akal [min, maks]. Di luar rentang ditolak ("periksa satuan/salah ketik"). */
   batasNilai?: [number, number];
+  /** Kolom 'tanggal' berisi TANGGAL LAHIR: dibaca dengan tahun 1920 sampai tahun ini (kolom tanggal biasa: 2000 sampai tahun depan). Tanggal lahir di masa depan ditolak. */
+  tanggalLahir?: boolean;
   /** Kolom TURUNAN: nilainya dihitung dari kolom lain saat validasi (tidak ada di form/Excel). Mis. label Lokasi untuk Karhutla. */
   turunan?: (n: Record<string, string | number | null>) => string | number | null;
 }

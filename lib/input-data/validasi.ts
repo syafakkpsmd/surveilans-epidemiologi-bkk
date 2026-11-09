@@ -4,7 +4,7 @@
 import type { ModulInput, KolomModul } from './modul';
 import { wilayahBolehModul, wilayahTersimpan } from './modul';
 import type { KamusWilker } from '@/lib/wilayah-kerja';
-import { teksKosong, ubahBilangan, ubahDesimal, ubahRba, ubahTanggal, ubahTanggalWaktu, ubahTeks, ubahWaktu, ubahWilker } from './nilai';
+import { rentangTanggalLahir, teksKosong, ubahBilangan, ubahDesimal, ubahRba, ubahTanggal, ubahTanggalWaktu, ubahTeks, ubahWaktu, ubahWilker } from './nilai';
 import { ubahYaTidak } from './nilai-pemeriksaan';
 
 export type NilaiBaris = Record<string, string | number | null>;
@@ -22,7 +22,7 @@ function ubah(k: KolomModul, v: unknown, modul: ModulInput, kamus: KamusWilker):
     case 'tanggalwaktu': return ubahTanggalWaktu(v);
     case 'waktu': return ubahWaktu(v);
     case 'bilangan': return ubahBilangan(v);
-    case 'tanggal': return ubahTanggal(v);
+    case 'tanggal': return ubahTanggal(v, k.tanggalLahir ? rentangTanggalLahir() : undefined);
     case 'rba': return ubahRba(v);
     case 'ya_tidak': return ubahYaTidak(v);
     case 'wilker': {

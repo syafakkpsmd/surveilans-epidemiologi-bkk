@@ -34,7 +34,14 @@ function hitungMingguEpidSaatIni(): { tahunEpid: number; mingguEpid: number } {
   return { tahunEpid: yr, mingguEpid };
 }
 
-export default function FilterRentangMinggu() {
+type FilterRentangMingguProps = {
+  /** Minggu akhir bawaan bila alamat belum punya mgSampai. Tanpa ini: minggu epid hari ini (perilaku lama). */
+  mingguAkhirDefault?: number;
+  /** Jumlah minggu pada pilihan (52 atau 53). Bawaan 52. */
+  jumlahMinggu?: number;
+};
+
+export default function FilterRentangMinggu({ mingguAkhirDefault, jumlahMinggu = 52 }: FilterRentangMingguProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -44,7 +51,7 @@ export default function FilterRentangMinggu() {
 
   const { mingguEpid: mingguSaatIni } = hitungMingguEpidSaatIni();
   const defaultDari = '1';
-  const defaultSampai = String(mingguSaatIni);
+  const defaultSampai = String(mingguAkhirDefault ?? mingguSaatIni);
 
   const urlDari = searchParams.get('mgDari') || defaultDari;
   const urlSampai = searchParams.get('mgSampai') || defaultSampai;
@@ -57,7 +64,7 @@ export default function FilterRentangMinggu() {
     setMgSampai(urlSampai);
   }, [urlDari, urlSampai]);
 
-  const daftarMinggu = Array.from({ length: 52 }, (_, i) => i + 1);
+  const daftarMinggu = Array.from({ length: jumlahMinggu }, (_, i) => i + 1);
 
   const handleTerapkan = () => {
     const params = new URLSearchParams(searchParams.toString());

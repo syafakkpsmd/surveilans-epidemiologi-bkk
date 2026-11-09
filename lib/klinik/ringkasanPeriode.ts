@@ -15,11 +15,18 @@ function deteksiJenis(nama: string) {
   return null;
 }
 
-async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan', opsi?: OpsiDataset) {
+// tahun: tahun yang dirangkum (default tahun ini, sehingga pemanggil lama tidak berubah).
+async function ringkasanPerKlinikPerPeriode(
+  granularitas: 'mingguan' | 'bulanan',
+  opsi?: OpsiDataset,
+  tahun: number = new Date().getUTCFullYear(),
+) {
   const standarHari = await getStandarHariVaksin(); // <-- tambah, sekali saja
-  const dataset = await getDatasetKlinik(opsi);
+  // Sengaja TANPA opsi.tahun: penyaringan tahun dilakukan di bawah menurut periode (minggu epid bisa
+  // "milik" tahun lain di pergantian tahun), jadi semua baris harus tersedia dulu.
+  const dataset = await getDatasetKlinik({ klinikIds: opsi?.klinikIds });
   const peta = new Map<string, any>();
-  const tahunBerjalan = new Date().getUTCFullYear(); // <-- BARU: untuk filter baris lintas-tahun
+  const tahunBerjalan = tahun; // untuk filter baris lintas-tahun
 
   for (const d of dataset) {
     const hasilKepatuhan = hitungKepatuhanVaksin(d.icv, standarHari); 
@@ -78,5 +85,5 @@ async function ringkasanPerKlinikPerPeriode(granularitas: 'mingguan' | 'bulanan'
   return Array.from(peta.values());
 }
 
-export const getRingkasanKlinikMingguan = (opsi?: OpsiDataset) => ringkasanPerKlinikPerPeriode('mingguan', opsi);
-export const getRingkasanKlinikBulanan = (opsi?: OpsiDataset) => ringkasanPerKlinikPerPeriode('bulanan', opsi);
+export const getRingkasanKlinikMingguan = (opsi?: OpsiDataset, tahun?: number) => ringkasanPerKlinikPerPeriode('mingguan', opsi, tahun);
+export const getRingkasanKlinikBulanan = (opsi?: OpsiDataset, tahun?: number) => ringkasanPerKlinikPerPeriode('bulanan', opsi, tahun);

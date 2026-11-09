@@ -10,6 +10,7 @@ import { Download } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 import { bangunBarisExcel } from '@/lib/pengawasan-klinik/labelKolomExport';
 import GrafikPengawasanKlinik, { type RiwayatPengawasan } from './GrafikPengawasanKlinik';
+import FilterTahun from '@/components/FilterTahun';
 
 type RingkasanStatus = {
   memenuhi_syarat: number;
@@ -55,6 +56,7 @@ type TitikKlinik = {
 };
 
 type Props = {
+  tahun: number;
   ringkasanStatus: RingkasanStatus;
   rataRataKategori: BreakdownKategori[];
   tabelKlinik: BarisKlinik[];
@@ -70,6 +72,7 @@ function formatTanggal(nilai: string) {
 }
 
 export default function PengawasanKlinikClient({
+  tahun,
   ringkasanStatus,
   rataRataKategori,
   tabelKlinik,
@@ -122,7 +125,7 @@ export default function PengawasanKlinikClient({
 
   function handleDownloadSemua() {
     const tanggalFile = new Date().toISOString().split('T')[0];
-    unduhExcel(dataLengkapUntukExport, `pengawasan-klinik-semua-${tanggalFile}.xlsx`);
+    unduhExcel(dataLengkapUntukExport, `pengawasan-klinik-semua-${tahun}-${tanggalFile}.xlsx`);
   }
 
   function handleDownloadPerKlinik(klinikId: string, namaKlinik: string) {
@@ -134,8 +137,9 @@ export default function PengawasanKlinikClient({
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Pengawasan Klinik Binaan</h1>
-        <div className="flex gap-2">
+        <h1 className="text-xl font-semibold">Pengawasan Klinik Binaan Tahun {tahun}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterTahun />
           <button
             onClick={handleDownloadSemua}
             className="flex items-center gap-1.5 border px-4 py-2 rounded text-sm hover:bg-gray-50"

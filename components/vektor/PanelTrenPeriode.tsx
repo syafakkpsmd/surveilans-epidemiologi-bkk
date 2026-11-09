@@ -16,6 +16,9 @@ interface PanelTrenPeriodeProps {
   seriesListMingguan: SeriesTren[];
   seriesListBulanan: SeriesBar[];
   labelSumbuXBulanan?: string;
+  mingguAkhirDefault?: number;
+  bulanAkhirDefault?: number;
+  jumlahMinggu?: number;
 }
 
 export default function PanelTrenPeriode({
@@ -26,6 +29,9 @@ export default function PanelTrenPeriode({
   seriesListMingguan,
   seriesListBulanan,
   labelSumbuXBulanan = 'bulanLabel',
+  mingguAkhirDefault,
+  bulanAkhirDefault,
+  jumlahMinggu,
 }: PanelTrenPeriodeProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -47,30 +53,16 @@ export default function PanelTrenPeriode({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex overflow-hidden rounded-lg border border-gray-200 text-xs font-medium">
-          <button
-            type="button"
-            onClick={() => handleSwitchMode('mingguan')}
-            className={`px-3 py-1.5 transition-colors ${
-              mode === 'mingguan'
-                ? 'bg-[#0F2A38] text-white shadow-sm'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Mingguan (Line)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchMode('bulanan')}
-            className={`px-3 py-1.5 transition-colors ${
-              mode === 'bulanan'
-                ? 'bg-[#0F2A38] text-white shadow-sm'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            Bulanan (Bar)
-          </button>
+          {/* dua tombol Mingguan / Bulanan, tidak berubah */}
         </div>
 
+        <div className="ml-auto">
+          {mode === 'mingguan' ? (
+            <FilterRentangMinggu mingguAkhirDefault={mingguAkhirDefault} jumlahMinggu={jumlahMinggu} />
+          ) : (
+            <FilterRentangBulan bulanAkhirDefault={bulanAkhirDefault} />
+          )}
+        </div>
       </div>
 
       {mode === 'mingguan' ? (

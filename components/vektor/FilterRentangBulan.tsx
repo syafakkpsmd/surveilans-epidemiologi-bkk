@@ -1,13 +1,18 @@
 'use client';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 const NAMA_BULAN = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
-export default function FilterRentangBulan() {
+type FilterRentangBulanProps = {
+  /** Bulan akhir bawaan bila alamat belum punya bulanSampai (1-12). Tanpa ini: 12 (perilaku lama). */
+  bulanAkhirDefault?: number;
+};
+
+export default function FilterRentangBulan({ bulanAkhirDefault }: FilterRentangBulanProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -15,15 +20,24 @@ export default function FilterRentangBulan() {
 
   const tahunAktif = searchParams.get('tahun') ?? new Date().getFullYear().toString();
 
-  const [bulanDari, setBulanDari] = useState(searchParams.get('bulanDari')?.split('-')[1] ?? '1');
-  const [bulanSampai, setBulanSampai] = useState(searchParams.get('bulanSampai')?.split('-')[1] ?? '12');
+  const urlDari = searchParams.get('bulanDari')?.split('-')[1] ?? '1';
+  const urlSampai = searchParams.get('bulanSampai')?.split('-')[1] ?? String(bulanAkhirDefault ?? 12);
+
+  const [bulanDari, setBulanDari] = useState(urlDari);
+  const [bulanSampai, setBulanSampai] = useState(urlSampai);
+
+  // Ikuti alamat (mis. saat tahun diganti dan rentang direset)
+  useEffect(() => {
+    setBulanDari(urlDari);
+    setBulanSampai(urlSampai);
+  }, [urlDari, urlSampai]);
 
   function terapkan() {
     const params = new URLSearchParams(searchParams.toString());
     params.set('bulanDari', `${tahunAktif}-${bulanDari.padStart(2, '0')}`);
     params.set('bulanSampai', `${tahunAktif}-${bulanSampai.padStart(2, '0')}`);
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
     });
   }
 

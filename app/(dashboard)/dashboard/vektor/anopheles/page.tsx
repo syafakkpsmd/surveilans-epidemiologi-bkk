@@ -1,24 +1,22 @@
-// ================================================================
-// app/(dashboard)/dashboard/vektor/anopheles/page.tsx (VERSI BARU)
-// ================================================================
-
+// app/(dashboard)/dashboard/vektor/anopheles/page.tsx
 import { getWilkerRef } from '@/lib/db/queries/umum';
-import {
-  getTrenAnophelesDewasa,
-  getMetodeTangkap,
-} from '@/lib/db/queries/umum'; // sudah digabung ke queries.ts
+import { getTrenAnophelesDewasa, getMetodeTangkap } from '@/lib/db/queries/umum';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
 import { getWilayahSubLokasiVektor } from '@/lib/wilayah-kerja/server';
 import PanelTrenPeriode from '@/components/vektor/PanelTrenPeriode';
 import DonutChart from '@/components/vektor/DonutChart';
+import KartuRingkasAnopheles, { hitungRingkasAnopheles } from '@/components/vektor/KartuRingkasAnopheles';
 import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
+import FilterTahun from '@/components/FilterTahun';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
-import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
+import { bacaTahun } from '@/lib/tahun';
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
 import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
+
+const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 export default async function AnophelesDewasaPage({
   searchParams,
@@ -34,38 +32,33 @@ export default async function AnophelesDewasaPage({
   }>;
 }) {
   const { wilker, tahun: tahunParam, mgDari, mgSampai, bulanDari, bulanSampai, mode } = await searchParams;
-  const tahun = tahunParam ? parseInt(tahunParam, 10) : new Date().getFullYear();
-  const { mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
-  const bulanBerjalanNum = new Date().getMonth() + 1;
+
+  // ---------- Tahun ----------
+  const tahunBerjalan = new Date().getFullYear();
+  const tahun = tahunParam ? bacaTahun(tahunParam, 0) : tahunBerjalan; // 0 = sama dengan maju di FilterTahun
+  const { mingguEpid: mingguSekarang } = getMingguEpidSaatIni();
 
   const modeAktif: 'mingguan' | 'bulanan' = mode === 'bulanan' ? 'bulanan' : 'mingguan';
 
-  // Rentang Mingguan (dari FilterRentangMinggu: angka polos "1".."52")
-  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : mingguBerjalan;
+  // Tahun lampau: default sampai akhir tahun. Tahun berjalan: minggu/bulan sekarang.
+  const mingguBerjalan = tahun < tahunBerjalan ? 52 : mingguSekarang;
+  const bulanBerjalanNum = tahun < tahunBerjalan ? 12 : new Date().getMonth() + 1;
+
+  // ---------- Rentang ----------
+  // Mingguan: angka polos "1".."52"; default Mg 1 s/d minggu berjalan
+  const mgAwalDipilih = mgDari ? parseInt(mgDari, 10) : 1;
   const mgAkhirDipilih = mgSampai ? parseInt(mgSampai, 10) : mingguBerjalan;
   const periodeKeyMingguan = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
 
-  // Rentang Bulanan (dari FilterRentangBulan: format "2026-01" -- tahun
-  // digabung dengan bulan, jadi tahun rentang diambil dari string ini,
-  // bukan dari param `tahun` biasa)
-  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari.split('-')[1], 10) : bulanBerjalanNum;
+  // Bulanan: format "2026-01", hanya bagian bulan dipakai; default Jan s/d bulan berjalan
+  const bulanAwalDipilih = bulanDari ? parseInt(bulanDari.split('-')[1], 10) : 1;
   const bulanAkhirDipilih = bulanSampai ? parseInt(bulanSampai.split('-')[1], 10) : bulanBerjalanNum;
-  const tahunBulan = bulanDari ? parseInt(bulanDari.split('-')[0], 10) : tahun;
-  const periodeKeyBulanan = `${tahunBulan}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
+  const periodeKeyBulanan = `${tahun}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
 
   const konteksMingguan = 'anopheles-dewasa-mingguan';
   const konteksBulanan = 'anopheles-dewasa-bulanan';
 
-  // ============================================================
-  // BATCH-FETCH HASIL AI -- Box AI di halaman ini mengikuti tab
-  // (Mingguan/Bulanan) yang lagi aktif, jadi cuma SATU pasang
-  // (analisis + prediksi) yang benar-benar dirender & dibutuhkan
-  // per render server -- bukan 4 kombinasi sekaligus (beda dari
-  // PHQC/Vektor Aedes yang semua boxnya tampil bersamaan). Konteks
-  // & periodeKey dipilih sesuai modeAktif, lalu getBanyakHasilAI
-  // dipanggil sedini mungkin & di-await belakangan bareng query
-  // chart, supaya jalan PARALEL.
-  // ============================================================
+  // ---------- Batch AI: hanya sepasang yang sesuai mode aktif ----------
   const konteksAktif = modeAktif === 'mingguan' ? konteksMingguan : konteksBulanan;
   const periodeKeyAktif = modeAktif === 'mingguan' ? periodeKeyMingguan : periodeKeyBulanan;
   const permintaanAI: PermintaanHasilAI[] = [
@@ -74,22 +67,35 @@ export default async function AnophelesDewasaPage({
   ];
   const hasilAIPromise = getBanyakHasilAI(permintaanAI);
 
-  const [role, daftarWilker, dataMingguan, dataBulanan, metodeTangkap] = await Promise.all([
+  // ---------- Data ----------
+  const [role, daftarWilker, dataMingguan, dataBulanan, metodeTangkap, wilayahSubLokasi] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
-    getTrenAnophelesDewasa(tahun, wilker, 'mingguan'),
-    getTrenAnophelesDewasa(tahun, wilker, 'bulanan'),
+    getTrenAnophelesDewasa(tahun, wilker, 'mingguan', { awal: mgAwalDipilih, akhir: mgAkhirDipilih }),
+    getTrenAnophelesDewasa(tahun, wilker, 'bulanan', { awal: bulanAwalDipilih, akhir: bulanAkhirDipilih }),
     getMetodeTangkap(tahun, wilker),
+    getWilayahSubLokasiVektor(),
   ]);
 
-  // Ambil hasil batch AI yang sudah jalan di background sejak awal fungsi ini.
   const hasilAI = await hasilAIPromise;
-  const hasilAnalisisAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'analisis' })];
-  const hasilPrediksiAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'prediksi' })];
+  const hasilAnalisisAktif =
+    hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'analisis' })];
+  const hasilPrediksiAktif =
+    hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, tipe: 'prediksi' })];
 
-  const wilayahSubLokasi = await getWilayahSubLokasiVektor();
+  // ---------- Kartu ringkas ----------
+  const dataAktif = modeAktif === 'mingguan' ? dataMingguan : dataBulanan;
+  const ringkas = hitungRingkasAnopheles(dataAktif, modeAktif);
+  const labelRentang =
+    modeAktif === 'mingguan'
+      ? `Mg ${Math.min(mgAwalDipilih, mgAkhirDipilih)}–${Math.max(mgAwalDipilih, mgAkhirDipilih)} ${tahun}`
+      : `${NAMA_BULAN[Math.min(bulanAwalDipilih, bulanAkhirDipilih) - 1]}–${NAMA_BULAN[Math.max(bulanAwalDipilih, bulanAkhirDipilih) - 1]} ${tahun}`;
+
+  const roleAI = role === 'tamu' ? null : role;
+
   return (
     <div className="space-y-6">
+      {/* Header + filter */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-[#0F2A38]">🦟 Surveilans Vektor Anopheles — Dewasa</h1>
@@ -97,17 +103,24 @@ export default async function AnophelesDewasaPage({
             MHD, MBR, korelasi cuaca/suhu/kelembaban, dan metode tangkap.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <FilterTahun maju={0} />
           <FilterWilker daftarWilker={daftarWilker} />
           <FilterZonaSubLokasi wilayahSubLokasi={wilayahSubLokasi} />
         </div>
       </div>
 
+      {/* Kartu ringkas */}
+      <KartuRingkasAnopheles ringkas={ringkas} mode={modeAktif} labelRentang={labelRentang} />
+
+      {/* Grafik tren + filter rentang (di dalam panel) */}
       <PanelTrenPeriode
         judulBulanan={`Distribusi Hasil Survei Nyamuk Anopheles di Wilayah Kerja ${NAMA_BKK}`}
         judulMingguan={`Tren Mingguan Hasil Survei Nyamuk Anopheles di Wilayah Kerja ${NAMA_BKK}`}
         dataMingguan={dataMingguan}
         dataBulanan={dataBulanan}
+        mingguAkhirDefault={mingguBerjalan}
+        bulanAkhirDefault={bulanBerjalanNum}
         seriesListMingguan={[
           { key: 'mhd', label: 'MHD', warna: '#0F2A38' },
           { key: 'mbr', label: 'MBR (per jam)', warna: '#1B5E20' },
@@ -122,47 +135,25 @@ export default async function AnophelesDewasaPage({
         ]}
       />
 
-      {/* Kotak AI mengikuti tab (Mingguan/Bulanan) yang sedang aktif di
-         PanelTrenPeriode -- hanya SATU pasang yang tampil di satu waktu */}
-      {modeAktif === 'mingguan' ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <BoxAnalisisAI
-            konteks={konteksMingguan}
-            periodeKey={periodeKeyMingguan}
-            wilayahKerja={wilker}
-            sudahLogin={!!role}
-            role={role === 'tamu' ? null : role}
-            hasilAwal={hasilAnalisisAktif}
-          />
-          <BoxPrediksiAI
-            konteks={konteksMingguan}
-            periodeKey={periodeKeyMingguan}
-            wilayahKerja={wilker}
-            sudahLogin={!!role}
-            role={role === 'tamu' ? null : role}
-            hasilAwal={hasilPrediksiAktif}
-          />
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <BoxAnalisisAI
-            konteks={konteksBulanan}
-            periodeKey={periodeKeyBulanan}
-            wilayahKerja={wilker}
-            sudahLogin={!!role}
-            role={role === 'tamu' ? null : role}
-            hasilAwal={hasilAnalisisAktif}
-          />
-          <BoxPrediksiAI
-            konteks={konteksBulanan}
-            periodeKey={periodeKeyBulanan}
-            wilayahKerja={wilker}
-            sudahLogin={!!role}
-            role={role === 'tamu' ? null : role}
-            hasilAwal={hasilPrediksiAktif}
-          />
-        </div>
-      )}
+      {/* Kotak AI mengikuti mode aktif */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <BoxAnalisisAI
+          konteks={konteksAktif}
+          periodeKey={periodeKeyAktif}
+          wilayahKerja={wilker}
+          sudahLogin={!!role}
+          role={roleAI}
+          hasilAwal={hasilAnalisisAktif}
+        />
+        <BoxPrediksiAI
+          konteks={konteksAktif}
+          periodeKey={periodeKeyAktif}
+          wilayahKerja={wilker}
+          sudahLogin={!!role}
+          role={roleAI}
+          hasilAwal={hasilPrediksiAktif}
+        />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <DonutChart judul="Metode Tangkap" data={metodeTangkap} />

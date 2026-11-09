@@ -6,19 +6,27 @@ import { getStandarHariVaksin } from '@/lib/klinik/pengaturan';
 import { getAksesKlinik, opsiDariAkses } from '@/lib/klinik/akses';
 import { getDbClient } from '@/lib/db/client';
 import { periodeMingguanDariTanggal, periodeBulananDariTanggal } from '@/lib/ai/periode';
+import { bacaTahun, jumlahMingguEpid } from '@/lib/tahun';
 
 const kategoriEfektif = (k: any) => k.kategori ?? 'klinik';
 
-export default async function KlinikPage() {
+export default async function KlinikPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tahun?: string | string[] }>;
+}) {
+  const { tahun: tahunParam } = await searchParams;
+  const tahun = bacaTahun(Array.isArray(tahunParam) ? tahunParam[0] : tahunParam);
+
   const akses = await getAksesKlinik();
   const user = akses.pengguna;
   const opsi = opsiDariAkses(akses); // petugas_klinik: hanya klinik yang ditautkan ke akunnya
 
   const [dataMingguanAll, dataBulananAll, { rows: daftarKlinikRow }, dataset, standarHariVaksin] = await Promise.all([
-    getRingkasanKlinikMingguan(opsi),
-    getRingkasanKlinikBulanan(opsi),
+    getRingkasanKlinikMingguan(opsi, tahun),
+    getRingkasanKlinikBulanan(opsi, tahun),
     getDbClient().execute('SELECT id, nama_klinik, kategori FROM klinik_binaan ORDER BY nama_klinik'),
-    getDatasetKlinik(opsi),
+    getDatasetKlinik({ ...opsi, tahun }), // kartu dan donat hanya untuk tahun terpilih
     getStandarHariVaksin(),
   ]);
 
@@ -46,8 +54,14 @@ export default async function KlinikPage() {
   const periodeMingguSekarang = periodeMingguanDariTanggal(sekarang);
   const periodeBulanSekarang = periodeBulananDariTanggal(sekarang);
 
+  // Tahun yang dipilih bukan tahun ini: tampilkan seluruh bulan/minggu tahun itu.
+  const tahunIni = tahun === periodeBulanSekarang.tahun;
+  const bulanBerjalan = tahunIni ? periodeBulanSekarang.bulan : 12;
+  const mingguEpidBerjalan = tahun === periodeMingguSekarang.tahun ? periodeMingguSekarang.minggu : jumlahMingguEpid(tahun);
+
   return (
     <KlinikDashboardClient
+      key={tahun}
       dataMingguanAll={dataMingguanAll}
       dataBulananAll={dataBulananAll}
       daftarKlinikNama={daftarKlinikNama}
@@ -55,10 +69,10 @@ export default async function KlinikPage() {
       rekapGabungan={rekapGabungan}
       klinikGagalDimuat={klinikGagalDimuat}
       role={user?.role ?? 'publik'}
-      tahunBerjalan={periodeBulanSekarang.tahun}
-      bulanBerjalan={periodeBulanSekarang.bulan}
-      tahunEpidBerjalan={periodeMingguSekarang.tahun}
-      mingguEpidBerjalan={periodeMingguSekarang.minggu}
+      tahunBerjalan={tahun}
+      bulanBerjalan={bulanBerjalan}
+      tahunEpidBerjalan={tahun}
+      mingguEpidBerjalan={mingguEpidBerjalan}
       standarHariVaksin={standarHariVaksin}
     />
   );

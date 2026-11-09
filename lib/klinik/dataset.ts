@@ -2,15 +2,25 @@
 import { createDbServiceClient } from '@/lib/db/serviceRole';
 import { getDbClient } from '@/lib/db/client';
 import { kunciSumberApp } from './akses';
+import { parseTanggalSheet } from './tanggal';
+import { periodeBulananDariTanggal } from '@/lib/ai/periode';
 
 export type BarisIcv = Record<string, string | number | null>;
 
 export interface OpsiDataset {
   /** Batasi ke klinik tertentu (id klinik_binaan). undefined = semua. Array kosong = tidak ada klinik. */
   klinikIds?: string[];
+  /** Batasi baris ICV ke satu tahun menurut "Tanggal Terbit". undefined = semua tahun (perilaku lama).
+   *  Baris yang tanggalnya tidak terbaca ikut dibuang bila tahun diisi. */
+  tahun?: number;
 }
 
-
+function barisDalamTahun(baris: BarisIcv[], tahun: number): BarisIcv[] {
+  return baris.filter((r) => {
+    const tgl = parseTanggalSheet(r['Tanggal Terbit']);
+    return !!tgl && periodeBulananDariTanggal(tgl).tahun === tahun;
+  });
+}
 
 export async function getDatasetKlinik(opsi?: OpsiDataset) {
   const supabase = createDbServiceClient();
@@ -52,14 +62,17 @@ export async function getDatasetKlinik(opsi?: OpsiDataset) {
     }
   }
 
-  return daftarDipakai.map((klinik) => ({
-    klinik,
-    icv: [
+  return daftarDipakai.map((klinik) => {
+    const icv = [
       ...(klinik.spreadsheet_id ? (grouped[klinik.spreadsheet_id] ?? []) : []),
       ...(klinik.spreadsheet_id === kunciSumberApp(klinik.id as string) ? [] : (grouped[kunciSumberApp(klinik.id as string)] ?? [])),
-    ],
-    gagalDimuat: gagalTotal,
-  }));
+    ];
+    return {
+      klinik,
+      icv: opsi?.tahun !== undefined ? barisDalamTahun(icv, opsi.tahun) : icv,
+      gagalDimuat: gagalTotal,
+    };
+  });
 }
 
 // Diturunkan langsung dari return type getDatasetKlinik — bukan didefinisikan

@@ -3,8 +3,22 @@ import { createDbClient } from '@/lib/db/server';
 import { hitungBreakdownKategori, hitungStatusKepatuhan } from '@/lib/pengawasan-klinik/hitungKepatuhan';
 import PengawasanKlinikClient from './PengawasanKlinikClient';
 import BannerAntrianOffline from '@/components/pengawasan-klinik/BannerAntrianOffline';
+import { bacaTahun } from '@/lib/tahun';
 
-export default async function PengawasanKlinikPage() {
+// Tahun dari kolom tanggal (string 'YYYY-MM-DD' atau objek Date dari driver database).
+function tahunDari(v: unknown): number {
+  if (v instanceof Date) return v.getFullYear();
+  return Number(String(v ?? '').slice(0, 4));
+}
+
+export default async function PengawasanKlinikPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tahun?: string | string[] }>;
+}) {
+  const { tahun: tahunParam } = await searchParams;
+  const tahun = bacaTahun(Array.isArray(tahunParam) ? tahunParam[0] : tahunParam);
+
   const supabase = await createDbClient();
 
   const { data: rows } = await supabase
@@ -19,7 +33,8 @@ export default async function PengawasanKlinikPage() {
     // .eq('kategori', 'klinik')   // aktifkan kalau baris kategori 'bkk' tidak boleh ikut tampil
     .order('nama_klinik');
 
-  const semuaDataMentah = rows ?? [];
+  // Hanya pengawasan pada tahun terpilih. Klinik tanpa pengawasan di tahun itu tetap tampil sebagai "Belum Diperiksa".
+  const semuaDataMentah = (rows ?? []).filter((r) => tahunDari(r.tanggal_kegiatan) === tahun);
 
   // Keterangan "item bermasalah" DIHITUNG ULANG dari kolom checklist mentah tiap baris
   // (bukan dipercaya dari kolom item_bermasalah yang tersimpan), supaya perbaikan
@@ -130,6 +145,8 @@ export default async function PengawasanKlinikPage() {
         <BannerAntrianOffline />
       </div>
       <PengawasanKlinikClient
+        key={tahun}
+        tahun={tahun}
         ringkasanStatus={ringkasanStatus}
         rataRataKategori={rataRataKategori}
         tabelKlinik={tabelKlinik}

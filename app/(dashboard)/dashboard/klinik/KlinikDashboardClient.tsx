@@ -10,6 +10,7 @@ import { DonutChart } from "@/components/klinik/DonutChart";
 import { PencarianIcv } from "@/components/klinik/PencarianIcv";
 import { PengaturanStandarVaksin } from "@/components/klinik/PengaturanStandarVaksin";
 import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
+import FilterTahun from '@/components/FilterTahun';
 
 const kategoriEfektif = (k: any) => k.kategori ?? 'klinik';
 
@@ -64,6 +65,7 @@ export default function KlinikDashboardClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+        <FilterTahun />
         {(role === 'admin' || role === 'petugas' || role === 'petugas_klinik' || role === 'klinik_binaan') && (
           <Link href="/dashboard/klinik/input"
             className="rounded-lg bg-[#0F4C5C] px-3 py-2 text-xs font-medium text-white shadow-xs hover:bg-[#0c3d4a]">

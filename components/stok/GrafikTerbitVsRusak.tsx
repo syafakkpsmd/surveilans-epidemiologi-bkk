@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { daftarTahun, tahunBerjalanWita } from '@/lib/tahun';
 
 type OpsiKlinik = { id: string; nama_klinik: string; kategori: string | null };
 type BarisChart = { jenis: string; label: string; Terbit: number; Rusak: number };
@@ -15,6 +16,16 @@ function tanggalOffset(hari: number) {
 export function GrafikTerbitVsRusak({ daftarKlinikOpsi }: { daftarKlinikOpsi: OpsiKlinik[] }) {
   const [mulai, setMulai] = useState(tanggalOffset(-30));
   const [akhir, setAkhir] = useState(tanggalOffset(0));
+  // '' = rentang bebas (30 hari terakhir / tanggal yang diketik); angka = seluruh tahun itu (tahun ini: sampai hari ini)
+  const [tahun, setTahun] = useState<string>('');
+
+  function pilihTahun(nilai: string) {
+    setTahun(nilai);
+    if (!nilai) { setMulai(tanggalOffset(-30)); setAkhir(tanggalOffset(0)); return; }
+    const t = Number(nilai);
+    setMulai(`${t}-01-01`);
+    setAkhir(t === tahunBerjalanWita() ? tanggalOffset(0) : `${t}-12-31`);
+  }
   const [klinikTerpilih, setKlinikTerpilih] = useState<string[]>([]); // kosong = semua
   const [data, setData] = useState<BarisChart[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,17 +61,26 @@ export function GrafikTerbitVsRusak({ daftarKlinikOpsi }: { daftarKlinikOpsi: Op
         <p className="text-sm font-semibold text-[#0F2A38]">Pemakaian vs Kerusakan</p>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
+          <select
+            aria-label="Pilih tahun"
+            value={tahun}
+            onChange={(e) => pilihTahun(e.target.value)}
+            className="rounded-md border border-gray-200 bg-white px-2 py-1"
+          >
+            <option value="">30 hari terakhir</option>
+            {daftarTahun().map((t) => <option key={t} value={t}>Tahun {t}</option>)}
+          </select>
           <input
             type="date"
             value={mulai}
-            onChange={(e) => setMulai(e.target.value)}
+            onChange={(e) => { setTahun(''); setMulai(e.target.value); }}
             className="rounded-md border border-gray-200 px-2 py-1"
           />
           <span className="text-gray-400">s/d</span>
           <input
             type="date"
             value={akhir}
-            onChange={(e) => setAkhir(e.target.value)}
+            onChange={(e) => { setTahun(''); setAkhir(e.target.value); }}
             className="rounded-md border border-gray-200 px-2 py-1"
           />
 

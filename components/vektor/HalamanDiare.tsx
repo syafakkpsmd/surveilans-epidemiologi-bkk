@@ -12,6 +12,10 @@ import { getBreakdownKategori, getRentangMingguEpid } from '@/lib/db/queries/que
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterWilker from '@/components/vektor/FilterWilker';
+import FilterTahun from '@/components/FilterTahun';
+import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
+import FilterRentangBulan from '@/components/vektor/FilterRentangBulan';
+import { bacaTahun, bulanTampil, jumlahMingguEpid } from '@/lib/tahun';
 import BreakdownList from '@/components/vektor/BreakdownList';
 import { GrafikHasilPengamatanWilker } from '@/components/vektor/GrafikHasilPengamatanWilker';
 import GrafikInsektisidaVsLuas from '@/components/vektor/GrafikInsektisidaVsLuas';
@@ -20,6 +24,19 @@ import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import PanelTrenDiareLingkungan from '@/components/vektor/PanelTrenDiareLingkungan';
 import DaftarLokasiTidakMemenuhi from '@/components/vektor/DaftarLokasiTidakMemenuhi';
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
+
+// Nomor bulan (1-12) sebuah baris data bulanan; null bila tidak bisa dikenali (baris itu tidak disaring).
+const BULAN_PENDEK = ['jan', 'feb', 'mar', 'apr', 'mei', 'jun', 'jul', 'agu', 'sep', 'okt', 'nov', 'des'];
+function nomorBulan(r: Record<string, any>): number | null {
+  const v = r.bulan ?? r.periode ?? r.bulanLabel ?? r.bulan_label;
+  if (typeof v === 'number') return v >= 1 && v <= 12 ? v : null;
+  if (typeof v !== 'string') return null;
+  const ym = v.match(/^\d{4}-(\d{1,2})$/);
+  if (ym) return Number(ym[1]);
+  if (/^\d{1,2}$/.test(v)) return Number(v);
+  const i = BULAN_PENDEK.indexOf(v.trim().slice(0, 3).toLowerCase());
+  return i >= 0 ? i + 1 : null;
+}
 
 const KONFIG = {
   lalat: {
@@ -68,7 +85,6 @@ export default async function HalamanDiare({
   const { wilker, tahun: tahunParam, mode, mgDari, mgSampai, bulanDari, bulanSampai } = resolvedParams;
 
   const { tahunEpid, mingguEpid: mingguEpidAsli } = getMingguEpidSaatIni();
-  const bulanBerjalan = new Date().getMonth() + 1;
 
   let tahunDefault = tahunEpid;
   let mingguBerjalan = mingguEpidAsli - 1;
@@ -78,7 +94,11 @@ export default async function HalamanDiare({
     mingguBerjalan = 52;
   }
 
-  const tahun = tahunParam ? parseInt(tahunParam, 10) : tahunDefault;
+  const tahun = tahunParam ? bacaTahun(tahunParam) : tahunDefault;
+
+  // Tahun yang dipilih bukan tahun berjalan: tampilkan seluruh minggu/bulan tahun itu (default rentang Mg-1 s.d. akhir tahun).
+  if (tahun !== tahunDefault) mingguBerjalan = jumlahMingguEpid(tahun);
+  const bulanBerjalan = bulanTampil(tahun); // 12 untuk tahun selain tahun ini
 
   const paramsAny = resolvedParams as Record<string, string | undefined>;
   const mgDariParam = mgDari || paramsAny.mgAwal;
@@ -94,7 +114,7 @@ export default async function HalamanDiare({
 
   const isModeBulanan = mode === 'bulanan';
 
-  const periodeKeyMingguan = `${tahunEpid}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
+  const periodeKeyMingguan = `${tahun}-W${mgAwalDipilih}_W${mgAkhirDipilih}`;
   const periodeKeyBulanan = `${tahunBulanDipilih}-M${bulanAwalDipilih}_M${bulanAkhirDipilih}`;
   const konteksMingguan = `${cfg.konteks}`;
   const konteksBulanan = cfg.konteks.replace('-mingguan', '-bulanan');
@@ -139,6 +159,12 @@ export default async function HalamanDiare({
     getBanyakHasilAI(permintaanAI),
   ]);
 
+  // Data bulanan diambil setahun penuh; saring ke rentang bulan terpilih (baris yang bulannya tak dikenali dibiarkan).
+  const dataBulananTampil = dataBulanan.filter((r) => {
+    const b = nomorBulan(r as Record<string, any>);
+    return b === null || (b >= bulanAwalDipilih && b <= bulanAkhirDipilih);
+  });
+
   const hasilAnalisisAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'analisis' })];
   const hasilPrediksiAktif = hasilAI[kunciAI({ konteks: konteksAktif, periodeKey: periodeKeyAktif, wilayahKerja: wilker, metrik: cfg.metrikUtama.key, tipe: 'prediksi' })];
 
@@ -159,7 +185,7 @@ export default async function HalamanDiare({
             {cfg.ikon} {cfg.judul}
           </h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <Link
             href={`/dashboard/data/vektor/${jenis}`}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[#0b3844] transition-colors"
@@ -167,6 +193,12 @@ export default async function HalamanDiare({
             <span>+ Input &amp; Kelola Data {jenis === 'lalat' ? 'Lalat' : 'Kecoa'}</span>
           </Link>
 
+          <FilterTahun />
+          {isModeBulanan ? (
+            <FilterRentangBulan key={`bln-${tahun}`} bulanAkhirDefault={bulanBerjalan} />
+          ) : (
+            <FilterRentangMinggu key={`mg-${tahun}`} mingguAkhirDefault={mingguBerjalan} jumlahMinggu={jumlahMingguEpid(tahun)} />
+          )}
           <FilterWilker daftarWilker={daftarWilker} />
         </div>
       </div>
@@ -202,10 +234,11 @@ export default async function HalamanDiare({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
           <PanelTrenDiareLingkungan
+            key={tahun}
             judulMingguan={`Tren Mingguan ${cfg.labelMingguan} ${namaWilkerLengkap ? ` di ${namaWilkerLengkap}` : ''} Tahun ${tahun}`}
             judulBulanan={`Distribusi ${cfg.metrikUtama.label} ${namaWilkerLengkap ? ` di ${namaWilkerLengkap}` : ''} Tahun ${tahun}`}
             dataMingguan={dataMingguan}
-            dataBulanan={dataBulanan}
+            dataBulanan={dataBulananTampil}
             metrikUtama={cfg.metrikUtama}
             seriTambahan={SERI_LINGKUNGAN}
           />
@@ -225,7 +258,7 @@ export default async function HalamanDiare({
             Jumlah Insektisida & Luas Area
           </h2>
           <GrafikInsektisidaVsLuas
-            data={isModeBulanan ? dataBulanan : dataMingguan}
+            data={isModeBulanan ? dataBulananTampil : dataMingguan}
             warna={cfg.metrikUtama.warna}
             isBulanan={isModeBulanan}
           />

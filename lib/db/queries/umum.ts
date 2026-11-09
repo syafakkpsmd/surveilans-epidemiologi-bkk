@@ -817,8 +817,13 @@ export async function getTrenAnophelesDewasa(
   tahun: number,
   wilker: string | undefined,
   granularitas: 'mingguan' | 'bulanan',
+  rentang?: { awal: number; akhir: number },
 ): Promise<Record<string, unknown>[]> {
   const supabase = await createDbClient();
+
+  // Antisipasi urutan terbalik (mis. awal 10, akhir 3)
+  const awal = rentang ? Math.min(rentang.awal, rentang.akhir) : undefined;
+  const akhir = rentang ? Math.max(rentang.awal, rentang.akhir) : undefined;
 
   if (granularitas === 'mingguan') {
     let query = supabase
@@ -827,6 +832,9 @@ export async function getTrenAnophelesDewasa(
       .eq('tahun_epid', tahun)
       .eq('tipe_pengamatan', 'dewasa');
 
+    if (awal !== undefined && akhir !== undefined) {
+      query = query.gte('minggu_epid', awal).lte('minggu_epid', akhir);
+    }
     if (wilker) query = query.eq('kode_wilker', wilker);
 
     const { data, error } = await query;
@@ -842,11 +850,18 @@ export async function getTrenAnophelesDewasa(
     }));
   }
 
+  // Bulanan: batas tanggal dihitung dari rentang bulan
+  const tglAwal = awal !== undefined ? `${tahun}-${String(awal).padStart(2, '0')}-01` : `${tahun}-01-01`;
+  const tglAkhir =
+    akhir !== undefined
+      ? `${tahun}-${String(akhir).padStart(2, '0')}-${String(new Date(tahun, akhir, 0).getDate()).padStart(2, '0')}`
+      : `${tahun}-12-31`;
+
   let query = supabase
     .from('vektor_anopheles')
     .select('tgl_survei, mhd, mbr, suhu_c, kelembapan_pct')
-    .gte('tgl_survei', `${tahun}-01-01`)
-    .lte('tgl_survei', `${tahun}-12-31`)
+    .gte('tgl_survei', tglAwal)
+    .lte('tgl_survei', tglAkhir)
     .eq('tipe_pengamatan', 'dewasa');
 
   if (wilker) query = query.eq('kode_wilker', wilker);

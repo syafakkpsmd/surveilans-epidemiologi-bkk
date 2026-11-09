@@ -214,7 +214,7 @@ export default async function AlatAngkutPesawatPage({
       </Link>
 
       {/* 3. Baris Filter (Ditambahkan FilterTahun sebelum FilterWilker) */}
-      <div className="flex flex-wrap items-center justify-between uppercase gap-3 border-t border-gray-100 pt-4">
+      <div className="flex flex-wrap items-center justify-center uppercase gap-3 border-t border-gray-100 pt-4">
         <div className="text-sm font-medium text-gray-500">
           Distribusi Pengasawan Alat Angkut Pesawat dalam Mingguan Tahun {tahun}
         </div>

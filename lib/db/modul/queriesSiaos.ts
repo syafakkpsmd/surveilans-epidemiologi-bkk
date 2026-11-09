@@ -56,11 +56,18 @@ function keObjekBiasa(row: unknown): SiaosRow {
   };
 }
 
-export async function ambilDataSiaos(): Promise<SiaosRow[]> {
+export async function ambilDataSiaos(tahun?: number): Promise<SiaosRow[]> {
   const turso = getDbClient();
-  const result = await turso.execute(
-    `SELECT ${DAFTAR_KOLOM} FROM siaos ORDER BY tanggal DESC`
-  );
+  if (tahun === undefined) {
+    const result = await turso.execute(
+      `SELECT ${DAFTAR_KOLOM} FROM siaos ORDER BY tanggal DESC`
+    );
+    return result.rows.map(keObjekBiasa);
+  }
+  const result = await turso.execute({
+    sql: `SELECT ${DAFTAR_KOLOM} FROM siaos WHERE tanggal >= ? AND tanggal < ? ORDER BY tanggal DESC`,
+    args: [`${tahun}-01-01`, `${tahun + 1}-01-01`],
+  });
   return result.rows.map(keObjekBiasa);
 }
 

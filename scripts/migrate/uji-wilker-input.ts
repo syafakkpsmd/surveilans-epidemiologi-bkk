@@ -15,7 +15,7 @@ const baris = (wilayah: string) => ({ wilayah_kerja: wilayah, nama_kapal: 'KM A'
 
 const wilayahBaru = (o: Partial<Wilayah>): Wilayah => ({
   kode: 'WK08', nama: 'Pelabuhan Balikpapan', namaPendek: 'Balikpapan', namaPeta: 'Balikpapan', jenis: 'Pelabuhan',
-  urutan: 8, aktif: true, lat: -1.26, lng: 116.82, petaLat: null, petaLng: null, zoom: 13, subLokasi: [], warna: null, catatan: null, alias: [], ...o,
+  urutan: 8, aktif: true, lat: -1.26, lng: 116.82, petaLat: null, petaLng: null, zoom: 13, subLokasi: [], unitSkdr: [], warna: null, catatan: null, alias: [], ...o,
 });
 
 test('kamus bawaan: COP menerima pelabuhan, menolak bandara; modul lain menerima keduanya', () => {

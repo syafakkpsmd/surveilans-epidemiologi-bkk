@@ -13,6 +13,7 @@ export async function bacaDariDb(): Promise<{ baris: BarisMentah[]; alias: { tek
   const db = getDbClient();
   // Tingkat kolom dari yang terbaru ke yang lama. 42703 = kolom belum ada (migrasi 20/23 belum dijalankan).
   const tingkat = [
+    'kode, nama, jenis, lat, lng, sub_lokasi, catatan, nama_pendek, nama_peta, warna, urutan, aktif, peta_lat, peta_lng, zoom, skdr_unit',
     'kode, nama, jenis, lat, lng, sub_lokasi, catatan, nama_pendek, nama_peta, warna, urutan, aktif, peta_lat, peta_lng, zoom',
     'kode, nama, jenis, lat, lng, sub_lokasi, catatan, nama_pendek, nama_peta, warna, urutan, aktif',
     'kode, nama, jenis, lat, lng, sub_lokasi, catatan',
@@ -20,8 +21,8 @@ export async function bacaDariDb(): Promise<{ baris: BarisMentah[]; alias: { tek
   let baris: BarisMentah[] | null = null;
   for (let i = 0; i < tingkat.length && !baris; i++) {
     try {
-      baris = (await db.execute(`SELECT ${tingkat[i]} FROM wilker_ref ORDER BY ${i < 2 ? 'urutan ASC, ' : ''}kode ASC`)).rows as BarisMentah[];
-      if (i > 0) console.error(`[wilayah-kerja] Kolom wilker_ref belum lengkap (tingkat ${i}); jalankan scripts/migrate/20_ dan 23_*.sql`);
+      baris = (await db.execute(`SELECT ${tingkat[i]} FROM wilker_ref ORDER BY ${i < 3 ? 'urutan ASC, ' : ''}kode ASC`)).rows as BarisMentah[];
+      if (i > 0) console.error(`[wilayah-kerja] Kolom wilker_ref belum lengkap (tingkat ${i}); jalankan scripts/migrate/20_, 23_, dan 25_*.sql`);
     } catch (e: unknown) {
       if ((e as { code?: string })?.code !== '42703' || i === tingkat.length - 1) throw e;
     }

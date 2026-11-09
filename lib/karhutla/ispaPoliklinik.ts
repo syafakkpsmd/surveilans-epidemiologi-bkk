@@ -10,14 +10,40 @@
 //  - Tanggal yang ADA kunjungan poliklinik: data ISPA zona itu diambil dari poliklinik (0 bila tidak
 //    ada kasus ISPA). Tanggal tanpa kunjungan sama sekali: tetap memakai input manual ispa_harian.
 import { getDbClient } from '@/lib/db/client';
+import { muatDaftarWilayahSingkat } from '@/lib/wilayah-kerja/db';
 
 /** Anak = usia di bawah angka ini (tahun). UBAH di sini bila batas anak/dewasa Karhutla berbeda. */
 export const BATAS_UMUR_ANAK = 15;
 
-/** Zona Karhutla yang datanya diambil dari poliklinik. Tambahkan baris lain bila ingin diperluas. */
-export const ZONA_ISPA_DARI_POLIKLINIK = [
-  { kode_wilker: 'WK01', zona: 'Klinik Pelabuhan Samarinda', wilayahPoliklinik: 'samarinda' },
-] as const;
+/** Zona Karhutla yang datanya diambil dari poliklinik. Diatur di wilayah_ispa.dari_poliklinik (halaman pengaturan lokasi karhutla). */
+export type ZonaIspaPoliklinik = { kode_wilker: string; zona: string; wilayahPoliklinik: string };
+
+/**
+ * Zona yang ditandai "dari poliklinik" di wilayah_ispa. `wilayahPoliklinik` = nama pendek wilayah kerja tanpa spasi,
+ * huruf kecil (cocok dengan REPLACE(LOWER(wilayah_kerja), ' ', '') di tabel kunjungan_poliklinik).
+ */
+export async function muatZonaIspaPoliklinik(): Promise<ZonaIspaPoliklinik[]> {
+  try {
+    const { rows } = await getDbClient().execute(
+      `SELECT kode_wilker, zona FROM wilayah_ispa WHERE dari_poliklinik = true AND zona IS NOT NULL`
+    );
+    if (rows.length === 0) return [];
+    const daftar = await muatDaftarWilayahSingkat();
+    return rows.flatMap((r) => {
+      const w = daftar.find((x) => x.kode === String(r.kode_wilker));
+      return w
+        ? [{ kode_wilker: w.kode, zona: String(r.zona), wilayahPoliklinik: w.namaPendek.replace(/\s+/g, '').toLowerCase() }]
+        : [];
+    });
+  } catch (e: unknown) {
+    // 42703 = kolom dari_poliklinik belum ada (migrasi 25_ belum dijalankan): ISPA poliklinik nonaktif, input manual dipakai.
+    if ((e as { code?: string })?.code === '42703') {
+      console.error('[karhutla] Kolom wilayah_ispa.dari_poliklinik belum ada; jalankan scripts/migrate/25_ispa_dari_poliklinik_dan_skdr_unit.sql');
+      return [];
+    }
+    throw e;
+  }
+}
 
 export type BarisIspaPoliklinik = {
   tanggal: string;
@@ -55,7 +81,7 @@ export async function ambilIspaDariPoliklinik(
 ): Promise<HasilIspaPoliklinik> {
   try {
     const baris: BarisIspaPoliklinik[] = [];
-    for (const z of ZONA_ISPA_DARI_POLIKLINIK) {
+    for (const z of await muatZonaIspaPoliklinik()) {
       const hasil = await getDbClient().execute({
         sql: SQL_ISPA_POLIKLINIK,
         args: [z.wilayahPoliklinik, tanggalAwal, tanggalAkhir],

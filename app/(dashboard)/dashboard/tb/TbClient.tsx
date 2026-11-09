@@ -31,6 +31,7 @@ import type {
   DemografiTb,
 } from '@/lib/db/modul/tb';
 import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
+import FilterTahun from '@/components/FilterTahun';
 
 // Palet warna modern untuk chart & visualisasi
 const WARNA_PIE = ['#6366F1', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -333,6 +334,10 @@ export default function TbClient({
 
         {/* Baris 2: Toolbar Filter (Rata Kanan) */}
         <div className="flex flex-wrap items-end justify-end gap-2.5">
+          <div className="pb-1.5">
+            <FilterTahun maju={0} />
+          </div>
+
           <FieldSelect
             label="Wilayah Kerja"
             value={tempWilayah}

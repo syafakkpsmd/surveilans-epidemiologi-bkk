@@ -34,6 +34,8 @@ export interface Wilayah {
   petaLng: number | null;
   zoom: number;
   subLokasi: string[];
+  /** Unit pelapor SKDR (mis. Puskesmas) yang SEMUANYA harus melapor agar wilayah dianggap "Sudah"; kosong = cukup 1 laporan. */
+  unitSkdr: string[];
   warna: string | null;
   catatan: string | null;
   /** Penulisan lain yang pernah dipakai di data lama (tabel wilker_nama_alias). */
@@ -118,6 +120,7 @@ export function normalisasiWilayah(b: Record<string, unknown>, alias: string[] =
     petaLat: angka(b.peta_lat ?? b.petaLat),
     petaLng: angka(b.peta_lng ?? b.petaLng),
     zoom: Number(b.zoom ?? 13) || 13,
+    unitSkdr: Array.isArray(b.skdr_unit ?? b.unitSkdr) ? ((b.skdr_unit ?? b.unitSkdr) as unknown[]).map(String) : [],
     subLokasi: Array.isArray(b.sub_lokasi ?? b.subLokasi) ? ((b.sub_lokasi ?? b.subLokasi) as unknown[]).map(String) : [],
     warna: (b.warna as string | null) ?? null,
     catatan: (b.catatan as string | null) ?? null,

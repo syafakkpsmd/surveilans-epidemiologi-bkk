@@ -7,6 +7,7 @@ type WilayahIspa = {
   label: string;
   kode_wilker: string;
   zona: string | null;
+  dari_poliklinik?: boolean | null;
 };
 
 export function BarisWilayahIspa({
@@ -35,6 +36,10 @@ export function BarisWilayahIspa({
           className="rounded-control border border-border px-2 py-1 text-sm" />
         <input name="zona" defaultValue={wilayah.zona ?? ''} placeholder="Zona (opsional)"
           className="rounded-control border border-border px-2 py-1 text-sm" />
+        <label className="sm:col-span-3 flex items-center gap-2 text-xs text-ink">
+          <input type="checkbox" name="dari_poliklinik" defaultChecked={!!wilayah.dari_poliklinik} />
+          Kasus ISPA dihitung otomatis dari Kunjungan Poliklinik (wajib mengisi zona)
+        </label>
         <div className="sm:col-span-3 flex justify-end gap-3">
           <button type="button" onClick={() => setEditing(false)}
             className="text-xs font-medium text-muted hover:underline">
@@ -55,6 +60,9 @@ export function BarisWilayahIspa({
         <span className="text-xs text-muted">
           ({wilayah.kode_wilker}{wilayah.zona ? `::${wilayah.zona}` : ''})
         </span>
+        {wilayah.dari_poliklinik && (
+          <span className="ml-2 rounded bg-teal/10 px-2 py-0.5 text-xs text-teal">data dari poliklinik</span>
+        )}
       </span>
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => setEditing(true)}

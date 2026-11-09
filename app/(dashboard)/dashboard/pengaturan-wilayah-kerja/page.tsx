@@ -73,6 +73,10 @@ function Isian({ w }: { w?: Wilayah }) {
         <textarea name="sub_lokasi" rows={3} defaultValue={w?.subLokasi.join('\n') ?? ''} className={kotak} />
       </div>
       <div className="sm:col-span-2">
+        <label className={label}>Unit pelapor SKDR <span className="font-normal">(satu per baris; semuanya harus melapor agar wilayah "Sudah"; kosong = cukup 1 laporan)</span></label>
+        <textarea name="skdr_unit" rows={2} defaultValue={w?.unitSkdr.join('\n') ?? ''} placeholder="mis. Palaran" className={kotak} />
+      </div>
+      <div className="sm:col-span-2">
         <label className={label}>Catatan</label>
         <input name="catatan" maxLength={300} defaultValue={w?.catatan ?? ''} className={kotak} />
       </div>

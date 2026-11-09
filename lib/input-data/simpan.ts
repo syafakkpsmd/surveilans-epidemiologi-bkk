@@ -177,7 +177,7 @@ export async function daftarData(modul: ModulInput, f: FilterDaftar) {
     where.push(`${kolT} >= ? AND ${kolT} < ?`); args.push(`${f.tahun}-01-01`, `${f.tahun + 1}-01-01`);
   }
   if (f.wilayah) { where.push(`LOWER(REPLACE(${q(modul.kolomWilayah)},' ','')) = ?`); args.push(f.wilayah.toLowerCase().replace(/\s+/g, '')); }
-  if (f.sumber && ['migrasi', 'input', 'upload'].includes(f.sumber)) { where.push('`sumber` = ?'); args.push(f.sumber); }
+  if (f.sumber && ['migrasi', 'input', 'upload'].includes(f.sumber)) { where.push(`${q('sumber')} = ?`); args.push(f.sumber); }
   const manual = modul.kolom.filter((k) => k.manual).map((k) => k.nama);
   if (f.belumLengkap && manual.length) where.push('(' + manual.map((c) => `(${q(c)} IS NULL OR ${q(c)} = '')`).join(' OR ') + ')');
   const w = where.length ? 'WHERE ' + where.join(' AND ') : '';

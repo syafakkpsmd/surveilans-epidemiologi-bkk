@@ -160,6 +160,7 @@ export default async function CopPage({
 }: {
   searchParams: Promise<{
     mode?: string;
+    tahun?: string;
     wilayah?: string;
     minggu_awal?: string;
     minggu_akhir?: string;
@@ -182,14 +183,24 @@ export default async function CopPage({
   const roleAI = role === "admin" || role === "petugas" || role === "petugas_klinik" ? role : null;
 
   const sekarang = new Date();
-  // 1. Ambil minggu & tahun epidemiologi saat ini
-  const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIniRaw } =
-    hitungMingguEpidemiologi(sekarang);
+const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalanRaw } =
+  hitungMingguEpidemiologi(sekarang);
+const tahunKalender = sekarang.getFullYear();
 
-  // 2. Kurangi 1 minggu (dengan proteksi jika minggu ke-1, batas minimal tetap 1)
-  const mingguEpidSaatIni = mingguEpidSaatIniRaw - 1 > 0 ? mingguEpidSaatIniRaw - 1 : 1;
+const tParam = Number(sp.tahun);
+const tahunDipilih =
+  Number.isInteger(tParam) && tParam >= 2000 && tParam <= tahunKalender
+    ? tParam
+    : mode === "mingguan" ? tahunEpidBerjalan : tahunKalender;
 
-  const tahun = mode === "mingguan" ? tahunEpidSaatIni : sekarang.getFullYear();
+const tahunEpidSaatIni = tahunDipilih; // nama lama dipertahankan
+const tahun = tahunDipilih;
+
+// Tahun lampau: default minggu akhir = 52. Tahun berjalan: minggu lalu.
+const mingguEpidSaatIni =
+  tahunDipilih < tahunEpidBerjalan
+    ? 52
+    : mingguEpidBerjalanRaw - 1 > 0 ? mingguEpidBerjalanRaw - 1 : 1;
 
 // Rentang minggu/bulan untuk Section 5 & 5B -- HARUS dihitung SEBELUM
 // periodeKey, karena periodeKey memakai mingguAkhir/bulanAkhir.
@@ -198,7 +209,9 @@ let mingguAkhir = sp.minggu_akhir ? parseInt(sp.minggu_akhir, 10) : mingguEpidSa
 if (mingguAwal > mingguAkhir) [mingguAwal, mingguAkhir] = [mingguAkhir, mingguAwal];
 
 let bulanAwal = sp.bulan_awal ? parseInt(sp.bulan_awal, 10) : 1;
-let bulanAkhir = sp.bulan_akhir ? parseInt(sp.bulan_akhir, 10) : sekarang.getMonth() + 1;
+let bulanAkhir = sp.bulan_akhir
+  ? parseInt(sp.bulan_akhir, 10)
+  : tahunDipilih < tahunKalender ? 12 : sekarang.getMonth() + 1;
 if (bulanAwal > bulanAkhir) [bulanAwal, bulanAkhir] = [bulanAkhir, bulanAwal];
 
 const batasAwal = mode === "mingguan" ? mingguAwal : bulanAwal;
@@ -207,7 +220,7 @@ const batasAkhir = mode === "mingguan" ? mingguAkhir : bulanAkhir;
 const periodeKey =
   mode === "mingguan"
     ? `${tahunEpidSaatIni}-W${mingguAkhir}`
-    : `${sekarang.getFullYear()}-${bulanAkhir}`;
+    : `${tahunDipilih}-${bulanAkhir}`;
 
 // periodeKey khusus section 3 & 4, yang SELALU mingguan tahun epid dipilih
 const periodeKeyMingguanSelalu = `${tahunEpidSaatIni}-W${mingguAkhir}`;
@@ -281,7 +294,7 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
     // sudah independen dari 2 query lain, jadi tidak menambah waktu tunggu.
     [ringkasanMingguanSemuaWilker, ringkasanBulananSemuaWilker, hasilAI] = await Promise.all([
       getRingkasanMingguan("cop", tahunEpidSaatIni),
-      getRingkasanBulanan("cop", sekarang.getFullYear()),
+      getRingkasanBulanan("cop", tahunDipilih),
       getBanyakHasilAI(permintaanAI),
     ]);
 
@@ -685,16 +698,19 @@ const wilayahKerjaAi = wilayah === "Semua" ? undefined : wilayah;
         </Link>
         </div>
 
-      <FilterPeriodeWilayah
-        mode={mode}
-        wilayah={wilayah}
-        daftarWilayah={WILAYAH_URUTAN}
-        tampilkanRentang
-        mingguAwal={mingguAwal}
-        mingguAkhir={mingguAkhir}
-        bulanAwal={bulanAwal}
-        bulanAkhir={bulanAkhir}
-      />
+      <div className="flex justify-end">
+        <FilterPeriodeWilayah
+          mode={mode}
+          wilayah={wilayah}
+          daftarWilayah={WILAYAH_URUTAN}
+          tahun={tahunDipilih}
+          tampilkanRentang
+          mingguAwal={mingguAwal}
+          mingguAkhir={mingguAkhir}
+          bulanAwal={bulanAwal}
+          bulanAkhir={bulanAkhir}
+        />
+      </div>
 
       {errorMuat && (
         <div className="rounded-card border border-risiko-merah/30 bg-surface p-6 text-sm text-risiko-merah">

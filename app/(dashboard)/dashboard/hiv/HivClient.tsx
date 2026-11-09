@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import type { RingkasanHiv } from '@/lib/db/modul/hiv';
 import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from '@/lib/db/modul/hivKonstanta';
+import FilterTahun from '@/components/FilterTahun';
 
 const WARNA_DONUT = ['#0d9488', '#f59e0b', '#3b82f6', '#dc2626', '#6366f1', '#64748b', '#be185d'];
 const PALET_WILAYAH = ['#0d9488', '#dc2626', '#f59e0b', '#6366f1', '#0f766e', '#64748b', '#be185d'];
@@ -248,20 +249,24 @@ export default function HivClient(props: Props) {
 
   return (
     <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-8">
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-bold text-teal-900">Surveilans HIV</h1>
-        <select
-          value={wilayahParam || ''}
-          onChange={e => {
-            const url = new URL(window.location.href);
-            e.target.value ? url.searchParams.set('wilayah', e.target.value) : url.searchParams.delete('wilayah');
-            window.location.href = url.toString();
-          }}
-          className="border rounded-lg px-3 py-1.5 text-sm"
-        >
-          <option value="">Semua Wilayah Kerja</option>
-          {daftarWilayah.map(w => <option key={w} value={w}>{w}</option>)}
-        </select>
+
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <FilterTahun maju={0} />
+          <select
+            value={wilayahParam || ''}
+            onChange={e => {
+              const url = new URL(window.location.href);
+              e.target.value ? url.searchParams.set('wilayah', e.target.value) : url.searchParams.delete('wilayah');
+              window.location.href = url.toString();
+            }}
+            className="border rounded-lg px-3 py-1.5 text-sm"
+          >
+            <option value="">Semua Wilayah Kerja</option>
+            {daftarWilayah.map(w => <option key={w} value={w}>{w}</option>)}
+          </select>
+        </div>
       </div>
 
       <KartuRingkasan ringkasan={props.ringkasan} />

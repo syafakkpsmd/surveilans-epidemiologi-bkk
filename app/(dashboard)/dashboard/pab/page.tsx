@@ -9,6 +9,8 @@ import { getUserRole } from "@/lib/auth/get-user-role";
 import PabClient from "./PabClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getBanyakHasilAI, kunciAI } from "@/lib/ai/getBanyakHasilAI";
+import FilterTahun from "@/components/FilterTahun";
+import { bacaTahun, bulanTampil, jumlahMingguEpid, TAHUN_MAJU_SANITASI } from "@/lib/tahun";
 
 type PabPageProps = {
   searchParams: Promise<{
@@ -28,11 +30,13 @@ export default async function PabPage({ searchParams }: PabPageProps) {
     ? resolvedParams.tahun[0]
     : resolvedParams.tahun;
 
-  const tahunParsed = tahunParam ? parseInt(tahunParam, 10) : NaN;
-  const tahun = Number.isFinite(tahunParsed) ? tahunParsed : new Date().getFullYear();
+  // Tahun berjalan sampai TAHUN_MAJU_SANITASI tahun ke depan; nilai di luar itu jatuh ke tahun berjalan.
+  const tahun = bacaTahun(tahunParam, TAHUN_MAJU_SANITASI);
+
+  const bulanBerjalan = bulanTampil(tahun); // 12 untuk tahun selain tahun ini
 
   const konteksAiDefault = "pab-bulanan";
-  const periodeKeyDefault = `${tahun}-12`;
+  const periodeKeyDefault = `${tahun}-${bulanBerjalan}`;
   const wilayahKerjaDefault = wilayah || undefined;
   const comboKeyDasar = `${konteksAiDefault}|${periodeKeyDefault}|${wilayahKerjaDefault ?? ""}`;
 
@@ -48,16 +52,21 @@ export default async function PabPage({ searchParams }: PabPageProps) {
     ]),
   ]);
 
-  const bulanBerjalan = new Date().getMonth() + 1;
   const bolehInput = role === "admin" || role === "petugas";
 
   const tanggalMundurSatuMinggu = new Date();
   tanggalMundurSatuMinggu.setDate(tanggalMundurSatuMinggu.getDate() - 7);
-  const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalan } =
+  const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIni } =
     hitungMingguEpidemiologi(tanggalMundurSatuMinggu);
+  
+  // Tahun lain: tampilkan seluruh minggu tahun itu (52/53), bukan minggu hari ini.
+  const tahunIni = tahun === tahunEpidSaatIni;
+  const tahunEpidBerjalan = tahun;
+  const mingguEpidBerjalan = tahunIni ? mingguEpidSaatIni : jumlahMingguEpid(tahun);
 
   return (
     <PabClient
+      key={tahun}
       daftarWilayah={daftarWilayah ?? []}
       dataBulanan={dataBulanan ?? []}
       dataMingguan={dataMingguan ?? []}
@@ -69,14 +78,17 @@ export default async function PabPage({ searchParams }: PabPageProps) {
       mingguEpidBerjalan={mingguEpidBerjalan}
       wilayahParam={wilayah}
       aksiHeader={
-        bolehInput ? (
-          <Link
-            href="/dashboard/pab/input"
-            className="rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 shadow-xs transition-all"
-          >
-            + Input / Unggah Data
-          </Link>
-        ) : null
+        <>
+          <FilterTahun maju={TAHUN_MAJU_SANITASI} />
+          {bolehInput ? (
+            <Link
+              href="/dashboard/pab/input"
+              className="rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 shadow-xs transition-all"
+            >
+              + Input / Unggah Data
+            </Link>
+          ) : null}
+        </>
       }
       hasilAwalInisial={{
         comboKeyDasar,

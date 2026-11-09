@@ -1,12 +1,13 @@
 'use client';
 // components/media-tanah/TanahDashboard.tsx
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { KamusWilker } from '@/lib/wilayah-kerja';
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-
+import FilterTahun from '@/components/FilterTahun';
+import { TAHUN_MAJU_SANITASI } from '@/lib/tahun';
 
 type Item = { label: string; n: number };
 type Seri = { periode: string; n: number };
@@ -34,15 +35,21 @@ const labelMinggu = (p: string) =>
 const labelBulan = (p: string) =>
   new Date(p + '-01T00:00:00Z').toLocaleDateString('id-ID', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 
-// Kartu Ringkasan Interaktif dengan variasi warna
-function Kartu({ 
-  judul, 
-  nilai, 
-  total, 
-  variant = 'default' 
-}: { 
-  judul: string; 
-  nilai: number; 
+// Batas akhir default rentang: hari ini bila tahun berjalan, selain itu 31 Desember
+const akhirDefault = (tahun: number) => {
+  const sekarang = new Date();
+  return tahun === sekarang.getFullYear() ? tglLokal(sekarang) : `${tahun}-12-31`;
+};
+
+// Kartu ringkasan dengan variasi warna
+function Kartu({
+  judul,
+  nilai,
+  total,
+  variant = 'default',
+}: {
+  judul: string;
+  nilai: number;
   total?: number;
   variant?: 'default' | 'emerald' | 'rose' | 'amber' | 'sky' | 'teal';
 }) {
@@ -111,9 +118,17 @@ function BarH({ judul, data, kosong }: { judul: string; data: Item[]; kosong: st
   );
 }
 
-export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
-  const [dari, setDari] = useState(() => `${new Date().getFullYear()}-01-01`);
-  const [sampai, setSampai] = useState(() => tglLokal(new Date()));
+export default function TanahDashboard({ wk, tahun }: { wk: KamusWilker; tahun: number }) {
+  // Rentang tanggal mengikuti tahun yang dipilih di FilterTahun
+  const [dari, setDari] = useState(() => `${tahun}-01-01`);
+  const [sampai, setSampai] = useState(() => akhirDefault(tahun));
+
+  // Reset rentang ketika tahun berubah
+  useEffect(() => {
+    setDari(`${tahun}-01-01`);
+    setSampai(akhirDefault(tahun));
+  }, [tahun]);
+
   const [wilayah, setWilayah] = useState('');
   const [mode, setMode] = useState<'mingguan' | 'bulanan'>('mingguan');
   const [data, setData] = useState<Data | null>(null);
@@ -137,15 +152,25 @@ export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
     return () => ac.abort();
   }, [dari, sampai, wilayah]);
 
+  // Grafik bulanan: selalu 12 bulan pada tahun terpilih (bulan tanpa data = 0)
+  const bulanan = useMemo(() => {
+    const map = new Map((data?.bulanan ?? []).map((b) => [b.periode, b.n]));
+    return Array.from({ length: 12 }, (_, i) => {
+      const p = `${tahun}-${String(i + 1).padStart(2, '0')}`;
+      return { periode: p, n: map.get(p) ?? 0 };
+    });
+  }, [data, tahun]);
+
   const r = data?.ringkas;
-  const seri = data ? (mode === 'mingguan' ? data.mingguan : data.bulanan) : [];
+  const seri = data ? (mode === 'mingguan' ? data.mingguan : bulanan) : [];
+
   const tombol = (m: 'mingguan' | 'bulanan', teks: string) => (
     <button
       type="button"
       aria-pressed={mode === m}
       onClick={() => setMode(m)}
       className={`px-3 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${
-        mode === m ? 'bg-teal-700 text-white font-medium' : 'bg-white text-slate-700 hover:bg-slate-50'
+        mode === m ? 'bg-teal-700 font-medium text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
       }`}
     >
       {teks}
@@ -154,31 +179,52 @@ export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
 
   return (
     <div className="space-y-6">
-      {/* Filter digeser ke kanan menggunakan justify-end */}
-      <div className="flex flex-wrap items-end justify-end gap-3 rounded-xl bg-white p-4 shadow-xs border border-slate-100">
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-700">Dari</span>
-          <input type="date" className={input} value={dari} max={sampai} onChange={(e) => setDari(e.target.value)} />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-700">Sampai</span>
-          <input type="date" className={input} value={sampai} min={dari} onChange={(e) => setSampai(e.target.value)} />
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block text-slate-700">Wilayah kerja</span>
-          <select className={input} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
-            <option value="">Semua wilayah</option>
-            {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
-          </select>
-        </label>
-        {memuat && <p className="pb-2 text-sm text-slate-500" role="status">Memuat...</p>}
+      {/* Filter: Tahun (kiri) + Dari / Sampai / Wilayah (kanan) */}
+      <div className="flex flex-wrap items-end justify-end gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-xs">
+        <div className="flex items-end gap-2">
+          <FilterTahun maju={TAHUN_MAJU_SANITASI} />
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-700">Dari</span>
+            <input
+              type="date"
+              className={input}
+              value={dari}
+              min={`${tahun}-01-01`}
+              max={sampai}
+              onChange={(e) => setDari(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-700">Sampai</span>
+            <input
+              type="date"
+              className={input}
+              value={sampai}
+              min={dari}
+              max={`${tahun}-12-31`}
+              onChange={(e) => setSampai(e.target.value)}
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-700">Wilayah kerja</span>
+            <select className={input} value={wilayah} onChange={(e) => setWilayah(e.target.value)}>
+              <option value="">Semua wilayah</option>
+              {wk.aktif.map((w) => (
+                <option key={w.kode} value={w.kode}>{w.nama}</option>
+              ))}
+            </select>
+          </label>
+          {memuat && <p className="pb-2 text-sm text-slate-500" role="status">Memuat...</p>}
+        </div>
       </div>
 
       {galat && <p role="alert" className="text-sm text-rose-700">{galat}</p>}
 
       {data && r && (
         <>
-          {/* Kartu Ringkas dengan Warna Interaktif */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <Kartu judul="Total pemeriksaan" nilai={r.total} variant="default" />
             <Kartu judul="Memenuhi" nilai={r.memenuhi} total={r.total} variant="emerald" />
@@ -195,7 +241,9 @@ export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={data.kesimpulan} dataKey="n" nameKey="label" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                        {data.kesimpulan.map((_, i) => <Cell key={i} fill={WARNA_KES[i % WARNA_KES.length]} />)}
+                        {data.kesimpulan.map((_, i) => (
+                          <Cell key={i} fill={WARNA_KES[i % WARNA_KES.length]} />
+                        ))}
                       </Pie>
                       <Tooltip />
                       <Legend />
@@ -209,7 +257,9 @@ export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
 
             <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-xs lg:col-span-2">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-medium">Jumlah pemeriksaan per {mode === 'mingguan' ? 'minggu' : 'bulan'}</h3>
+                <h3 className="text-sm font-medium">
+                  Jumlah pemeriksaan per {mode === 'mingguan' ? 'minggu' : 'bulan'} ({tahun})
+                </h3>
                 <div className="inline-flex overflow-hidden rounded-md border border-slate-300">
                   {tombol('mingguan', 'Mingguan')}
                   {tombol('bulanan', 'Bulanan')}
@@ -225,11 +275,14 @@ export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="periode" tickFormatter={labelMinggu} fontSize={12} />
                         <YAxis allowDecimals={false} fontSize={12} />
-                        <Tooltip labelFormatter={(p) => `Minggu mulai ${labelMinggu(String(p))}`} formatter={(v) => [v, 'Pemeriksaan']} />
+                        <Tooltip
+                          labelFormatter={(p) => `Minggu mulai ${labelMinggu(String(p))}`}
+                          formatter={(v) => [v, 'Pemeriksaan']}
+                        />
                         <Line type="monotone" dataKey="n" stroke={TEAL} strokeWidth={2} dot={{ r: 3 }} />
                       </LineChart>
                     ) : (
-                      <BarChart data={data.bulanan}>
+                      <BarChart data={bulanan}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis dataKey="periode" tickFormatter={labelBulan} fontSize={12} />
                         <YAxis allowDecimals={false} fontSize={12} />
@@ -244,10 +297,22 @@ export default function TanahDashboard({ wk }: { wk: KamusWilker }) {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <BarH judul="Persyaratan tanah yang tidak terpenuhi (bagian B)" data={data.temuanB} kosong="Tidak ada persyaratan yang terlanggar pada rentang ini" />
-            <BarH judul="Potensi sumber pencemaran yang ditemukan (bagian D)" data={data.temuanD} kosong="Tidak ada sumber pencemaran yang ditemukan pada rentang ini" />
+            <BarH
+              judul="Persyaratan tanah yang tidak terpenuhi (bagian B)"
+              data={data.temuanB}
+              kosong="Tidak ada persyaratan yang terlanggar pada rentang ini"
+            />
+            <BarH
+              judul="Potensi sumber pencemaran yang ditemukan (bagian D)"
+              data={data.temuanD}
+              kosong="Tidak ada sumber pencemaran yang ditemukan pada rentang ini"
+            />
           </div>
-          <BarH judul="Parameter laboratorium melebihi SBMKL (bagian E)" data={data.temuanE} kosong="Tidak ada parameter laboratorium yang melebihi SBMKL pada rentang ini" />
+          <BarH
+            judul="Parameter laboratorium melebihi SBMKL (bagian E)"
+            data={data.temuanE}
+            kosong="Tidak ada parameter laboratorium yang melebihi SBMKL pada rentang ini"
+          />
         </>
       )}
     </div>

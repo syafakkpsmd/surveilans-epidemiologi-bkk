@@ -62,6 +62,10 @@ export default async function PengaturanLokasiKarhutlaPage() {
             className="rounded-control border border-border px-3 py-2 text-sm" />
           <input name="zona" placeholder="Zona (opsional)"
             className="rounded-control border border-border px-3 py-2 text-sm" />
+          <label className="sm:col-span-3 flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" name="dari_poliklinik" />
+            Kasus ISPA dihitung otomatis dari Kunjungan Poliklinik (wajib mengisi zona)
+          </label>
           <button type="submit" className="sm:col-span-3 rounded-control bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-teal">
             Tambah Wilayah ISPA
           </button>

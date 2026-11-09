@@ -96,6 +96,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Surveilans TTU", href: "/dashboard/ttu", icon: BuildingIcon, prefetch: false },
       { label: "Surveilans PAB", href: "/dashboard/pab", icon: Droplet, prefetch: false },
       { label: "Media Tanah", href: "/dashboard/media-tanah", icon: Mountain, prefetch: false },
+      { label: "Media limbah B3", href: "/dashboard/limbah-b3", icon: Wind, prefetch: false },
+      { label: "Udara Ruang", href: "/dashboard/udara-ruang", icon: Search, prefetch: false },
       { label: "ISPA KARHUTLA", href: "/dashboard/karhutla", icon: Flame, prefetch: false },
     ],
   },
@@ -129,6 +131,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Klinik Binaan", href: "/dashboard/klinik", icon: Building2, prefetch: false },
       { label: "Pengawasan Klinik", href: "/dashboard/pengawasan-klinik", icon: ClipboardCheck, prefetch: false },
+      { label: "Klinik per Wilayah Kerja", href: "/dashboard/klinik/wilayah", icon: MapPin, prefetch: false },
       { label: "Stok Vaksin", href: "/dashboard/stok-vaksin", icon: Package, prefetch: false },
     ],
   },

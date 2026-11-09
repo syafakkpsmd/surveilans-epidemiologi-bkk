@@ -2,6 +2,7 @@
 import Link from 'next/link';
 
 import { useEffect, useMemo, useState } from 'react';
+import { tahunBerjalanWita } from '@/lib/tahun';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer
@@ -28,7 +29,9 @@ const NasionalEmergingPeta = dynamic(
 
 // ==== Konfigurasi ====
 const DAFTAR_PENYAKIT = DAFTAR_PENYAKIT_NASIONAL;
-const DAFTAR_TAHUN = [2026, 2025, 2024];
+
+/** Tiga tahun terakhir, tahun berjalan paling atas. Dipanggil saat render, bukan di level modul. */
+const daftarTahunNasional = () => [0, 1, 2].map((i) => tahunBerjalanWita() - i);
 
 const RENTANG_BULAN: { label: string; dari: number; sampai: number }[] = [
   { label: 'Januari', dari: 1, sampai: 4 },
@@ -62,12 +65,6 @@ type Baris = {
 };
 
 interface HasilAwalInisial {
-  // Kunci kombinasi (konteks|periodeKey|metrik) yang DI-PREFETCH server,
-  // dibangun di page.tsx dengan format yang SAMA PERSIS seperti
-  // bangunComboKeyDasar() di bawah. Cuma valid untuk kombinasi filter
-  // DEFAULT (nilai awal useState) -- begitu user ganti penyakit/tahun/
-  // rentang, comboKeyDasar hasil hitungan client tidak akan cocok lagi
-  // dan Box otomatis balik fetch sendiri (lihat pemakaian di JSX).
   comboKeyDasar: string;
   analisis: HasilAIStruktur | null;
   prediksi: HasilAIStruktur | null;
@@ -92,8 +89,10 @@ export default function DashboardNasionalEmerging({
   penyakitTambahan = [],
   hasilAwalInisial,
 }: Props) {
+  const tahunList = useMemo(() => daftarTahunNasional(), []);
+
   const [penyakit, setPenyakit] = useState<string>(DAFTAR_PENYAKIT[0]);
-  const [tahun, setTahun] = useState(DAFTAR_TAHUN[0]);
+  const [tahun, setTahun] = useState(tahunList[0]);
   const [penyakitPeta, setPenyakitPeta] = useState<string>('Semua Penyakit');
   const [dataPeta, setDataPeta] = useState<Baris[]>([]);
   const [tampilkanLabelPeta, setTampilkanLabelPeta] = useState(true);
@@ -129,10 +128,6 @@ export default function DashboardNasionalEmerging({
 
   const konteksAI = `nasional-emerging-${modeRentang}`;
 
-  // Kombinasi filter yang SEDANG AKTIF di client, dibangun dengan format
-  // sama seperti comboKeyDasar dari server. Kalau cocok dengan
-  // hasilAwalInisial.comboKeyDasar, berarti user belum ganti apa pun
-  // dari kondisi awal -- boleh pakai hasil prefetch server.
   const comboKeyAktif = bangunComboKeyDasar(konteksAI, periodeKey, penyakit);
   const cocokDenganPrefetch = hasilAwalInisial?.comboKeyDasar === comboKeyAktif;
   const hasilAwalAnalisis = cocokDenganPrefetch ? hasilAwalInisial!.analisis : undefined;
@@ -249,7 +244,7 @@ export default function DashboardNasionalEmerging({
             <label className="block text-xs font-medium text-slate-500 mb-1">Tahun</label>
             <select value={tahun} onChange={e => setTahun(Number(e.target.value))}
               className="border border-slate-300 rounded-lg px-3 py-1.5 text-sm">
-              {DAFTAR_TAHUN.map(t => <option key={t} value={t}>{t}</option>)}
+              {tahunList.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div>

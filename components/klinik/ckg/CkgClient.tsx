@@ -14,7 +14,7 @@ const TAB = [
 
 type TabId = (typeof TAB)[number]['id'];
 
-export default function CkgClient({ opsiWilayah }: { opsiWilayah: OpsiWilayahCkg[] }) {
+export default function CkgClient({ opsiWilayah, tahun }: { opsiWilayah: OpsiWilayahCkg[]; tahun: number }) {
   const [tab, setTab] = useState<TabId>('dashboard');
 
   return (
@@ -42,7 +42,7 @@ export default function CkgClient({ opsiWilayah }: { opsiWilayah: OpsiWilayahCkg
       </div>
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        {tab === 'dashboard' && <CkgDashboard opsiWilayah={opsiWilayah} />}
+        {tab === 'dashboard' && <CkgDashboard opsiWilayah={opsiWilayah} tahun={tahun} />}
         {tab === 'input' && <CkgForm opsiWilayah={opsiWilayah} />}
         {tab === 'unggah' && <CkgUpload opsiWilayah={opsiWilayah} />}
       </div>

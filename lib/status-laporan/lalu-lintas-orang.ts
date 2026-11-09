@@ -11,6 +11,7 @@
 
 import type { KodeWilker, SelStatus, WilkerMatriks } from './core';
 import type { PetaModulWilker } from '@/lib/wilayah-kerja/modul';
+import { kunciNama, type Wilayah } from '@/lib/wilayah-kerja';
 
 /** 'gagal' = sumber data tidak bisa dibaca (BUKAN berarti belum lapor). */
 export type SelStatusLlo = SelStatus | 'gagal';
@@ -45,47 +46,67 @@ const MODUL_TINGKAT_BKK: readonly KunciMingguan[] = ['pie_nasional', 'pie_global
 
 // ------------------------------------------------- Pencocokan nama wilker
 
-const POLA_WILKER: { kode: KodeWilker; pola: RegExp }[] = [
-  { kode: 'WK07', pola: /pranoto/ },
-  { kode: 'WK02', pola: /tanjung\s*santan/ },
-  { kode: 'WK03', pola: /tanjung\s*laut/ },
-  { kode: 'WK04', pola: /lhok\s*tuan/ },
-  { kode: 'WK05', pola: /sangatta/ },
-  { kode: 'WK06', pola: /sangkulirang/ },
-  { kode: 'WK01', pola: /samarinda/ },
-];
-
-const normalisasi = (s: string) => s.toLowerCase().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').trim();
-
-/** Kolom wilayah_kerja berisi teks bebas ("Samarinda", "Pelabuhan Samarinda",
- * "APT_Pranoto", ...), jadi dicocokkan lewat kata kunci, bukan sama-persis. */
-export function petakanKeKode(namaMentah: string | null | undefined): KodeWilker | null {
-  if (!namaMentah) return null;
-  const n = normalisasi(namaMentah);
-  for (const { kode, pola } of POLA_WILKER) if (pola.test(n)) return kode;
-  return null;
-}
-
-export function kumpulkanKode(namaMentah: (string | null | undefined)[]): Set<KodeWilker> {
-  const hasil = new Set<KodeWilker>();
-  for (const n of namaMentah) {
-    const k = petakanKeKode(n);
-    if (k) hasil.add(k);
+/** Kunci pencocok satu wilayah: nama pendek/resmi/peta dan alias (tanpa spasi/tanda baca), ditambah kata terakhir nama pendek
+ *  bila khas (>= 5 huruf dan tidak memuat/dimuat kunci wilayah lain; mis. "pranoto" untuk "APT Pranoto"). */
+function kunciPencocok(w: Wilayah, semua: readonly Wilayah[]): string[] {
+  const dasar = (x: Wilayah) => [x.namaPendek, x.nama, x.namaPeta, ...x.alias].map(kunciNama).filter((k) => k.length >= 3);
+  const milik = dasar(w);
+  const kata = w.namaPendek.trim().split(/\s+/);
+  const ekstra = kata.length > 1 ? kunciNama(kata[kata.length - 1]) : '';
+  if (ekstra.length >= 5) {
+    const lain = semua.filter((x) => x.kode !== w.kode).flatMap(dasar);
+    if (!lain.some((k) => k.includes(ekstra) || ekstra.includes(k))) milik.push(ekstra);
   }
-  return hasil;
+  return [...new Set(milik)];
 }
 
 /**
- * SKDR: Samarinda dipecah jadi 2 puskesmas (Palaran & Sidomulyo). WK01
- * dianggap Sudah hanya kalau KEDUANYA sudah masuk; wilker lain cukup 1 baris.
+ * Pemeta nama wilayah (teks bebas di kolom wilayah_kerja: "Samarinda", "Pelabuhan Laut Sangatta", "APT_Pranoto", ...)
+ * menjadi kode wilayah kerja, berdasarkan daftar wilayah dari wilker_ref (bukan pola tertulis di kode).
+ * Teks yang memuat nama beberapa wilayah dipetakan ke nama TERPANJANG. Tidak dikenal -> null.
+ * SKDR: wilayah yang punya `unitSkdr` baru "Sudah" bila SEMUA unitnya muncul; selain itu cukup 1 baris.
  */
-export function kumpulkanKodeSkdr(namaMentah: (string | null | undefined)[]): Set<KodeWilker> {
-  const hasil = kumpulkanKode(namaMentah.filter((n) => !/samarinda/.test(normalisasi(n ?? ''))));
-  const samarinda = namaMentah.map((n) => normalisasi(n ?? '')).filter((n) => /samarinda/.test(n));
-  const adaPalaran = samarinda.some((n) => /palaran/.test(n));
-  const adaSidomulyo = samarinda.some((n) => /sidomulyo/.test(n));
-  if (adaPalaran && adaSidomulyo) hasil.add('WK01');
-  return hasil;
+export function buatPemetaWilker(daftar: readonly Wilayah[]) {
+  const kandidat = [...daftar]
+    .filter((w) => w.jenis !== 'Kantor')
+    .sort((a, b) => a.urutan - b.urutan || a.kode.localeCompare(b.kode))
+    .map((w) => ({ w, kunci: kunciPencocok(w, daftar) }));
+
+  function petakanKeKode(namaMentah: string | null | undefined): KodeWilker | null {
+    if (!namaMentah) return null;
+    const n = kunciNama(namaMentah);
+    let terbaik: { kode: string; panjang: number } | null = null;
+    for (const { w, kunci } of kandidat) {
+      const panjang = Math.max(0, ...kunci.filter((k) => n.includes(k)).map((k) => k.length));
+      if (panjang > 0 && (!terbaik || panjang > terbaik.panjang)) terbaik = { kode: w.kode, panjang };
+    }
+    return terbaik?.kode ?? null;
+  }
+
+  function kumpulkanKode(namaMentah: (string | null | undefined)[]): Set<KodeWilker> {
+    const hasil = new Set<KodeWilker>();
+    for (const n of namaMentah) {
+      const k = petakanKeKode(n);
+      if (k) hasil.add(k);
+    }
+    return hasil;
+  }
+
+  function kumpulkanKodeSkdr(namaMentah: (string | null | undefined)[]): Set<KodeWilker> {
+    const teksPerKode = new Map<string, string[]>();
+    for (const n of namaMentah) {
+      const k = petakanKeKode(n);
+      if (k) teksPerKode.set(k, [...(teksPerKode.get(k) ?? []), kunciNama(n ?? '')]);
+    }
+    const hasil = new Set<KodeWilker>();
+    for (const [kode, teks] of teksPerKode) {
+      const unit = (daftar.find((w) => w.kode === kode)?.unitSkdr ?? []).map(kunciNama).filter(Boolean);
+      if (unit.every((u) => teks.some((t) => t.includes(u)))) hasil.add(kode);
+    }
+    return hasil;
+  }
+
+  return { petakanKeKode, kumpulkanKode, kumpulkanKodeSkdr };
 }
 
 // ----------------------------------------------------------- Tipe sumber

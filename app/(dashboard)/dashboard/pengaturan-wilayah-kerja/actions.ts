@@ -57,6 +57,14 @@ function bacaPeta(f: FormData): { petaLat: number | null; petaLng: number | null
   return { petaLat: a, petaLng: b, zoom };
 }
 
+/** Unit pelapor SKDR (satu per baris): semuanya harus melapor agar wilayah dianggap "Sudah"; kosong = cukup 1 laporan. */
+function bacaUnitSkdr(f: FormData): string[] {
+  return String(f.get('skdr_unit') ?? '')
+    .split(/\r?\n/)
+    .map((s) => s.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
 function bacaSubLokasi(f: FormData): string[] {
   return String(f.get('sub_lokasi') ?? '')
     .split(/\r?\n/)
@@ -73,7 +81,7 @@ function bacaWarna(f: FormData): string | null {
 
 function pesanGalat(e: unknown, bawaan: string): string {
   const err = e as { code?: string; constraint?: string; message?: string };
-  if (err?.code === '42703') return 'Kolom database belum lengkap. Jalankan migrasi 20, 22, dan 23 (scripts/migrate/).';
+  if (err?.code === '42703') return 'Kolom database belum lengkap. Jalankan migrasi 20, 22, 23, 24, dan 25 (scripts/migrate/).';
   if (err?.code === '23505') {
     if (err.constraint?.includes('nama')) return 'Nama wilayah kerja itu sudah ada.';
     if (err.constraint?.includes('alias')) return 'Penulisan itu sudah terdaftar untuk wilayah kerja lain.';
@@ -103,13 +111,13 @@ export async function tambahWilayahKerja(formData: FormData) {
   for (let percobaan = 0; percobaan < 3; percobaan++) {
     try {
       await db.execute({
-        sql: `INSERT INTO wilker_ref (kode, nama, jenis, lat, lng, sub_lokasi, catatan, nama_pendek, nama_peta, warna, peta_lat, peta_lng, zoom, urutan, aktif)
+        sql: `INSERT INTO wilker_ref (kode, nama, jenis, lat, lng, sub_lokasi, catatan, nama_pendek, nama_peta, warna, peta_lat, peta_lng, zoom, skdr_unit, urutan, aktif)
               SELECT 'WK' || lpad((COALESCE(MAX(NULLIF(regexp_replace(kode, '\\D', '', 'g'), '')::int), 0) + 1)::text, 2, '0'),
                      ?::text, ?::text, ?::numeric, ?::numeric, ?::text[], ?::text, ?::text, ?::text, ?::text,
-                     ?::numeric, ?::numeric, ?::smallint,
+                     ?::numeric, ?::numeric, ?::smallint, ?::text[],
                      COALESCE(MAX(urutan), 0) + 1, true
                 FROM wilker_ref`,
-        args: [nama, jenis, lat, lng, subLokasi, catatan, namaPendek, namaPeta, warna, peta.petaLat, peta.petaLng, peta.zoom],
+        args: [nama, jenis, lat, lng, subLokasi, catatan, namaPendek, namaPeta, warna, peta.petaLat, peta.petaLng, peta.zoom, bacaUnitSkdr(formData)],
       });
       selesai();
     } catch (e) {
@@ -143,9 +151,9 @@ export async function perbaruiWilayahKerja(formData: FormData) {
       sql: `UPDATE wilker_ref
                SET nama = ?, nama_pendek = ?, nama_peta = ?, jenis = ?, lat = ?, lng = ?,
                    sub_lokasi = ?, catatan = ?, warna = ?, urutan = ?,
-                   peta_lat = ?, peta_lng = ?, zoom = ?
+                   peta_lat = ?, peta_lng = ?, zoom = ?, skdr_unit = ?
              WHERE kode = ?`,
-      args: [nama, namaPendek, namaPeta, jenis, lat, lng, bacaSubLokasi(formData), teks(formData, 'catatan') || null, bacaWarna(formData), urutan, peta.petaLat, peta.petaLng, peta.zoom, kode],
+      args: [nama, namaPendek, namaPeta, jenis, lat, lng, bacaSubLokasi(formData), teks(formData, 'catatan') || null, bacaWarna(formData), urutan, peta.petaLat, peta.petaLng, peta.zoom, bacaUnitSkdr(formData), kode],
     });
     if (r.rowsAffected === 0) kembali('Wilayah kerja tidak ditemukan.');
   } catch (e) {

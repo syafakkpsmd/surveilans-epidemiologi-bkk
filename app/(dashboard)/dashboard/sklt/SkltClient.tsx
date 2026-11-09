@@ -168,7 +168,7 @@ function BagianTren({
 
   return (
     <Kartu judul={judul}>
-      <div className="mb-4 flex flex-wrap items-end justify-center gap-3">
+      <div className="mb-4 flex flex-wrap items-end justify-end gap-3">
         <Pilih label="Dari" value={a} onChange={(v) => setA(Number(v))}>
           {opsi.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
         </Pilih>
@@ -351,7 +351,7 @@ export default function SkltClient({
       </section>
 
       {/* ── Filter ── */}
-      <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+      <section className="flex flex-wrap justify-end items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
         <Pilih label="Tahun" value={tahun} onChange={(v) => router.push(`?tahun=${v}`)}>
           {tahunOpsi.map((t) => <option key={t} value={t}>{t}</option>)}
         </Pilih>

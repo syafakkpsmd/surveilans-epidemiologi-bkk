@@ -116,13 +116,14 @@ export default async function PhqcPage({
   searchParams,
 }: {
   searchParams: Promise<{
-  mode?: string;
-  wilayah?: string;
-  minggu_awal?: string;
-  minggu_akhir?: string;
-  bulan_awal?: string;
-  bulan_akhir?: string;
-}>;
+    mode?: string;
+    tahun?: string;
+    wilayah?: string;
+    minggu_awal?: string;
+    minggu_akhir?: string;
+    bulan_awal?: string;
+    bulan_akhir?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const isMingguan = sp.mode !== "bulanan";
@@ -138,19 +139,29 @@ export default async function PhqcPage({
   const { sudahLogin, role } = await getStatusAkses();
 
   // Waktu & Periode
+    // Waktu & Periode
   const sekarang = new Date();
-  const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIni } = hitungMingguEpidemiologi(sekarang);
+  const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalan } =
+    hitungMingguEpidemiologi(sekarang);
+  const tahunKalender = sekarang.getFullYear();
 
-  const mingguEpidTampilan = mingguEpidSaatIni - 1 > 0 ? mingguEpidSaatIni - 1 : 1;
-  let bulanTampilan = sekarang.getMonth() + 1; 
-  let tahunTampilanBulanan = sekarang.getFullYear();
+  const tParam = Number(sp.tahun);
+  const tahunDipilih =
+    Number.isInteger(tParam) && tParam >= 2000 && tParam <= tahunKalender
+      ? tParam
+      : isMingguan ? tahunEpidBerjalan : tahunKalender;
 
-  if (bulanTampilan <= 0) {
-    bulanTampilan = 12 + bulanTampilan; 
-    tahunTampilanBulanan = tahunTampilanBulanan - 1; 
-  }
+  // Nama lama dipertahankan supaya sisa kode tidak perlu diubah
+  const tahunEpidSaatIni = tahunDipilih;
+  const tahunTampilanBulanan = tahunDipilih;
+  const tahun = tahunDipilih;
 
-  const tahun = isMingguan ? tahunEpidSaatIni : tahunTampilanBulanan;
+  // Tahun lampau: minggu akhir 52 dan bulan akhir 12. Tahun berjalan: minggu lalu dan bulan ini.
+  const mingguEpidTampilan =
+    tahunDipilih < tahunEpidBerjalan
+      ? 52
+      : mingguEpidBerjalan - 1 > 0 ? mingguEpidBerjalan - 1 : 1;
+  const bulanTampilan = tahunDipilih < tahunKalender ? 12 : sekarang.getMonth() + 1;
 
   let mingguAwal = sp.minggu_awal ? parseInt(sp.minggu_awal, 10) : 1;
   let mingguAkhir = sp.minggu_akhir ? parseInt(sp.minggu_akhir, 10) : mingguEpidTampilan;
@@ -479,6 +490,7 @@ export default async function PhqcPage({
         daftarWilayah={DAFTAR_WILAYAH}
         mode={mode}
         wilayah={wilayah}
+        tahun={tahunDipilih}
         tampilkanRentang
         mingguAwal={mingguAwal}
         mingguAkhir={mingguAkhir}

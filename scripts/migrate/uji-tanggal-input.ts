@@ -13,7 +13,7 @@ import { buatKamus, type Wilayah } from '@/lib/wilayah-kerja';
 
 const wil = (kode: string, nama: string, jenis: Wilayah['jenis'], urutan: number): Wilayah => ({
   kode, nama: `${jenis} ${nama}`, namaPendek: nama, namaPeta: nama, jenis, urutan, aktif: true,
-  lat: null, lng: null, petaLat: null, petaLng: null, zoom: 13, subLokasi: [], warna: null, catatan: null, alias: [],
+  lat: null, lng: null, petaLat: null, petaLng: null, zoom: 13, subLokasi: [], unitSkdr: [], warna: null, catatan: null, alias: [],
 });
 const kamus = buatKamus([wil('WK01', 'Samarinda', 'Pelabuhan', 1), wil('WK02', 'APT Pranoto', 'Bandara', 2)]);
 

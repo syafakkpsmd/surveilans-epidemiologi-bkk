@@ -7,6 +7,7 @@
 //
 // Hasil "OK (n)" berarti query jalan dan mengembalikan n baris/entri. "OK (0)" tidak selalu salah:
 // bisa saja memang tidak ada data pada filter itu. "GALAT" berarti ada yang harus diperbaiki.
+import { muatDaftarWilayahLangsung } from '@/lib/wilayah-kerja/db';
 import { tutupDb } from '@/lib/db/client';
 import * as hiv from '@/lib/db/modul/hiv';
 import * as kier from '@/lib/db/modul/kier';
@@ -114,8 +115,8 @@ async function main() {
   await uji('posko.ambilDaftarPeriode[idul_fitri]', () => posko.ambilDaftarPeriode('idul_fitri', []));
   await uji('posko.ambilInputHarianPosko', () => posko.ambilInputHarianPosko('nataru', T, `${T}-12-25`, 'Samarinda'));
   // Status laporan lalu lintas orang
-  await uji('llo.ambilStatusMingguanLlo', () => llo.ambilStatusMingguanLlo(T, 40));
-  await uji('llo.ambilStatusBulananLlo', () => llo.ambilStatusBulananLlo(T, 10));
+  await uji('llo.ambilStatusMingguanLlo', async () => llo.ambilStatusMingguanLlo(T, 40, await muatDaftarWilayahLangsung()));
+  await uji('llo.ambilStatusBulananLlo', async () => llo.ambilStatusBulananLlo(T, 10, await muatDaftarWilayahLangsung()));
   // Karhutla (ISPA dari poliklinik)
   await uji('karhutla.ambilIspaDariPoliklinik', () => ispa.ambilIspaDariPoliklinik(`${T}-10-01`, `${T}-10-31`));
   // Klinik: stok vaksin & ICV

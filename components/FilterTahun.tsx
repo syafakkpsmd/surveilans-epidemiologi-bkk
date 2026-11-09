@@ -3,13 +3,17 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { bacaTahun, daftarTahun } from '@/lib/tahun';
 
-const PARAM_RENTANG = ['mgDari', 'mgSampai', 'bulanDari', 'bulanSampai'];
+const PARAM_RENTANG = [
+  'mgDari', 'mgSampai', 'bulanDari', 'bulanSampai',            // malaria & lainnya
+  'minggu_awal', 'minggu_akhir', 'bulan_awal', 'bulan_akhir',  // COP/PHQC
+  'minggu_mulai', 'bulan_mulai',                               // TB (minggu_akhir & bulan_akhir sudah tercakup)
+];
 
-export default function FilterTahun() {
+export default function FilterTahun({ maju = 0 }: { maju?: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
-  const tahun = bacaTahun(sp.get('tahun'));
+  const tahun = bacaTahun(sp.get('tahun'), maju);
 
   function ganti(nilai: string) {
     const params = new URLSearchParams(sp.toString());
@@ -27,7 +31,7 @@ export default function FilterTahun() {
         onChange={(e) => ganti(e.target.value)}
         className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:outline-hidden"
       >
-        {daftarTahun().map((t) => <option key={t} value={t}>{t}</option>)}
+        {daftarTahun(maju).map((t) => <option key={t} value={t}>{t}</option>)}
       </select>
     </label>
   );

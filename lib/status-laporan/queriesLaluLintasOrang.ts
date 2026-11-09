@@ -11,9 +11,9 @@
 import { getDbClient } from '@/lib/db/client';
 import { createDbClient } from '@/lib/db/server';
 import { rentangTanggalMingguEpid } from './rentang';
+import type { Wilayah } from '@/lib/wilayah-kerja';
 import {
-  kumpulkanKode,
-  kumpulkanKodeSkdr,
+  buatPemetaWilker,
   type SumberBkk,
   type SumberBulanan,
   type SumberMingguan,
@@ -27,7 +27,7 @@ async function daftarNamaTurso(sql: string, args: string[], kolom: string): Prom
 
 async function bungkusWilker(
   ambil: () => Promise<string[]>,
-  petakan: typeof kumpulkanKode = kumpulkanKode,
+  petakan: (nama: (string | null | undefined)[]) => Set<string>,
 ): Promise<SumberWilker> {
   try {
     return { ok: true, kode: petakan(await ambil()) };
@@ -46,7 +46,9 @@ async function bungkusBkk(ambil: () => Promise<boolean>): Promise<SumberBkk> {
   }
 }
 
-export async function ambilStatusMingguanLlo(tahun: number, minggu: number): Promise<SumberMingguan> {
+export async function ambilStatusMingguanLlo(tahun: number, minggu: number, daftarWilayah: readonly Wilayah[]): Promise<SumberMingguan> {
+  const { kumpulkanKode, kumpulkanKodeSkdr } = buatPemetaWilker(daftarWilayah);
+  const bungkus = (ambil: () => Promise<string[]>, petakan = kumpulkanKode) => bungkusWilker(ambil, petakan);
   const { awal, akhir } = rentangTanggalMingguEpid(tahun, minggu);
   const rentang = [awal, akhir];
 
@@ -59,11 +61,11 @@ export async function ambilStatusMingguanLlo(tahun: number, minggu: number): Pro
     );
 
   const [poliklinik, penumpang_kapal, siaos, kier, skdr, pie_nasional, pie_global] = await Promise.all([
-    bungkusWilker(() => turso('kunjungan_poliklinik', 'tanggal_pemeriksaan')),
-    bungkusWilker(() => turso('data_penumpang_kapal', 'tanggal_tiba', 'wilker')),
-    bungkusWilker(() => turso('siaos', 'tanggal')),
-    bungkusWilker(() => turso('kier_kesehatan', 'tanggal_pemeriksaan')),
-    bungkusWilker(async () => {
+    bungkus(() => turso('kunjungan_poliklinik', 'tanggal_pemeriksaan')),
+    bungkus(() => turso('data_penumpang_kapal', 'tanggal_tiba', 'wilker')),
+    bungkus(() => turso('siaos', 'tanggal')),
+    bungkus(() => turso('kier_kesehatan', 'tanggal_pemeriksaan')),
+    bungkus(async () => {
       const supabase = await createDbClient();
       const { data, error } = await supabase
         .from('skdr_mingguan')
@@ -101,7 +103,9 @@ export async function ambilStatusMingguanLlo(tahun: number, minggu: number): Pro
   return { poliklinik, penumpang_kapal, siaos, kier, skdr, pie_nasional, pie_global };
 }
 
-export async function ambilStatusBulananLlo(tahun: number, bulan: number): Promise<SumberBulanan> {
+export async function ambilStatusBulananLlo(tahun: number, bulan: number, daftarWilayah: readonly Wilayah[]): Promise<SumberBulanan> {
+  const { kumpulkanKode } = buatPemetaWilker(daftarWilayah);
+  const bungkus = (ambil: () => Promise<string[]>, petakan = kumpulkanKode) => bungkusWilker(ambil, petakan);
   const periode = `${tahun}-${String(bulan).padStart(2, '0')}`;
 
   const turso = (tabel: string, kolomTanggal: string) =>
@@ -113,9 +117,9 @@ export async function ambilStatusBulananLlo(tahun: number, bulan: number): Promi
     );
 
   const [tb, hiv, malaria] = await Promise.all([
-    bungkusWilker(() => turso('tb_data', 'tanggal_pelaksanaan')),
-    bungkusWilker(() => turso('hiv_data', 'tanggal_kegiatan')),
-    bungkusWilker(() => turso('migrasi_malaria', 'tanggal_kegiatan')),
+    bungkus(() => turso('tb_data', 'tanggal_pelaksanaan')),
+    bungkus(() => turso('hiv_data', 'tanggal_kegiatan')),
+    bungkus(() => turso('migrasi_malaria', 'tanggal_kegiatan')),
   ]);
 
   return { tb, hiv, malaria };

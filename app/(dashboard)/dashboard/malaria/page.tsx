@@ -11,6 +11,8 @@ import {
 } from '@/lib/db/modul/queriesMigrasiMalaria';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
+import { bacaTahun } from '@/lib/tahun';
+import FilterTahun from '@/components/FilterTahun';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
 import FilterRentangBulan from '@/components/vektor/FilterRentangBulan';
@@ -23,6 +25,9 @@ import DonutChart from '@/components/vektor/DonutChart';
 import KpiCard from '@/components/vektor/KpiCard';
 import { AnalisisPrediksiMalaria } from '@/components/AnalisisPrediksiMalaria';
 import { NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
+
+// Berapa tahun ke depan yang boleh dipilih. Harus sama dengan prop `maju` di <FilterTahun />.
+const TAHUN_MAJU = 0;
 
 type SearchParams = {
   wilker?: string;
@@ -41,12 +46,18 @@ export default async function MalariaPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
-  const tahun = sp.tahun ? parseInt(sp.tahun, 10) : new Date().getFullYear();
-  const kodeWilker = sp.wilker && sp.wilker !== 'Semua' ? sp.wilker : undefined;
 
   const { mingguEpid: mingguBerjalan } = getMingguEpidSaatIni();
+  const tahunBerjalan = new Date().getFullYear();
+
+  const tahun = sp.tahun ? bacaTahun(sp.tahun, TAHUN_MAJU) : tahunBerjalan;
+  const kodeWilker = sp.wilker && sp.wilker !== 'Semua' ? sp.wilker : undefined;
+
   const mgDari = sp.mgDari ? parseInt(sp.mgDari, 10) : 1;
-  const mgSampai = sp.mgSampai ? parseInt(sp.mgSampai, 10) : mingguBerjalan;
+  // Tahun lampau: sampai minggu 52. Tahun berjalan: sampai minggu berjalan.
+  const mgSampai = sp.mgSampai
+    ? parseInt(sp.mgSampai, 10)
+    : tahun < tahunBerjalan ? 52 : mingguBerjalan;
 
   const bulanDari = sp.bulanDari ? parseInt(sp.bulanDari.split('-')[1], 10) : 1;
   const bulanSampai = sp.bulanSampai ? parseInt(sp.bulanSampai.split('-')[1], 10) : 12;
@@ -102,11 +113,13 @@ export default async function MalariaPage({
             Deteksi dini kasus malaria impor serta pemetaan pengetahuan, sikap, dan perilaku
             berisiko pada penumpang/ABK migran di wilayah kerja {NAMA_BKK_SINGKAT}.
           </p>
+          </div>
+
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <FilterTahun maju={TAHUN_MAJU} />
+            <FilterWilker daftarWilker={daftarWilker} />
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterWilker daftarWilker={daftarWilker} />
-        </div>
-      </div>
 
       {ringkasan.totalResponden === 0 ? (
         <div className="rounded-xl bg-white p-8 text-center text-sm text-gray-500 shadow-sm">

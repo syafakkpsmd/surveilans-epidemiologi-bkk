@@ -12,6 +12,7 @@ import { PeranUser, type WilkerRef } from "@/types/database.types";
 import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 import type { TitikGabungan, TitikLuarDalamNegeri } from "./page";
 import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
+import FilterTahun from "@/components/FilterTahun";
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -303,6 +304,7 @@ export default function AbkCrewPenumpangClient({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
+          <FilterTahun maju={0} />
           <FilterWilker daftarWilker={daftarWilker} sembunyikanNonAktif={false} />
 
           <Link

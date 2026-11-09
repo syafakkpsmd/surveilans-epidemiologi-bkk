@@ -69,6 +69,9 @@ export const KATEGORI_INPUT: KategoriInput[] = [
         href: '/dashboard/global-emerging/input',
         cara: ['form', 'csv'],
       },
+      { judul: 'HIV (VCT)', deskripsi: 'Kunjungan layanan konseling dan tes HIV: input satu per satu atau unggah Excel (berbagai model tanggal).', href: '/dashboard/input-data/penyakit/hiv', cara: ['form', 'excel'] },
+      { judul: 'TB (Skrining)', deskripsi: 'Skrining dan diagnosis TB: input satu per satu atau unggah Excel (berbagai model tanggal).', href: '/dashboard/input-data/penyakit/tb', cara: ['form', 'excel'] },
+      { judul: 'Migrasi Malaria', deskripsi: 'Survei migrasi malaria pada penumpang kapal dan pesawat: input satu per satu atau unggah Excel.', href: '/dashboard/input-data/penyakit/migrasi_malaria', cara: ['form', 'excel'] },
     ],
   },
   {

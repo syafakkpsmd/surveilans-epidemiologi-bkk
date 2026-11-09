@@ -147,21 +147,21 @@ export default function KierClient({
         <div className="flex items-center gap-2">
           <select
             className="border rounded-lg px-3 py-2 text-sm bg-white shadow-sm"
+            value={tahun}
+            onChange={(e) => gantiTahun(Number(e.target.value))}
+          >
+            {daftarTahun.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            className="border rounded-lg px-3 py-2 text-sm bg-white shadow-sm"
             value={wilker}
             onChange={(e) => gantiWilker(e.target.value)}
           >
             <option value="">Semua Wilayah Kerja</option>
             {daftarWilker.map((w) => (
               <option key={w} value={w}>{w}</option>
-            ))}
-          </select>
-          <select
-            className="border rounded-lg px-3 py-2 text-sm bg-white shadow-sm"
-            value={tahun}
-            onChange={(e) => gantiTahun(Number(e.target.value))}
-          >
-            {daftarTahun.map((t) => (
-              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>

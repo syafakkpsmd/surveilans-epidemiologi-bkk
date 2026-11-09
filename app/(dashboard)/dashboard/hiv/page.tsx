@@ -7,6 +7,7 @@ import {
   hitungTrenBulananHasilPerWilayah, hitungTrenBulananHubunganBerisikoPerWilayah
 } from '@/lib/db/modul/hiv';
 import HivClient from './HivClient';
+import { bacaTahun } from '@/lib/tahun';
 
 export default async function HalamanHiv({
   searchParams
@@ -14,7 +15,7 @@ export default async function HalamanHiv({
   searchParams: Promise<{ tahun?: string; wilayah?: string }>;
 }) {
   const { tahun: tahunParam, wilayah: wilayahParam } = await searchParams;
-  const tahun = Number(tahunParam) || new Date().getFullYear();
+  const tahun = tahunParam ? bacaTahun(tahunParam, 0) : new Date().getFullYear();
   const wilayahFilter = wilayahParam || undefined;
 
   const [role, daftarWilayah, semuaRow] = await Promise.all([
@@ -48,5 +49,5 @@ export default async function HalamanHiv({
     trenBulananHubunganBerisikoPerWilayah: hitungTrenBulananHubunganBerisikoPerWilayah(semuaRow, tahun, daftarWilayah)
   };
 
-  return <HivClient {...props} />;
+  return <HivClient key={tahun} {...props} />;
 }

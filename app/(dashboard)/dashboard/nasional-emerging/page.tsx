@@ -6,6 +6,7 @@ import { getBanyakHasilAI, kunciAI } from '@/lib/ai/getBanyakHasilAI';
 import { DAFTAR_PENYAKIT_NASIONAL } from '@/lib/ai/konstanta-penyakit';
 import DashboardNasionalEmerging from '@/components/nasional-emerging/DashboardNasionalEmerging';
 import { getPenyakitTambahan } from '@/lib/db/modul/nasionalEmerging';
+import { tahunBerjalanWita } from '@/lib/tahun';
 
 export default async function NasionalEmergingPage() {
   const { sudahLogin, role } = await getStatusAkses();
@@ -15,7 +16,7 @@ export default async function NasionalEmergingPage() {
   // PENTING: kombinasi di bawah HARUS PERSIS SAMA dengan nilai default useState di
   // DashboardNasionalEmerging.tsx (penyakit, tahun, modeRentang, mgDari, mgSampai).
   const penyakitDefault = DAFTAR_PENYAKIT_NASIONAL[0];
-  const tahunDefault = 2026;
+  const tahunDefault = tahunBerjalanWita(); // Dinamis berdasarkan waktu WITA server
   const periodeKeyDefault = `${tahunDefault}-W1_W53`; // mingguan, mgDari=1, mgSampai=53
 
   const permintaanDefault = [

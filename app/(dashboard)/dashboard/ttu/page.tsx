@@ -8,6 +8,8 @@ import { getUserRole } from "@/lib/auth/get-user-role";
 import TtuClient from "./TtuClient";
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getBanyakHasilAI, kunciAI } from "@/lib/ai/getBanyakHasilAI";
+import FilterTahun from "@/components/FilterTahun";
+import { bacaTahun, bulanTampil, jumlahMingguEpid, TAHUN_MAJU_SANITASI } from "@/lib/tahun";
 
 type TtuPageProps = {
   searchParams: Promise<{
@@ -27,10 +29,10 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
     ? resolvedParams.tahun[0]
     : resolvedParams.tahun;
 
-  const tahunParsed = tahunParam ? parseInt(tahunParam, 10) : NaN;
-  const tahun = Number.isFinite(tahunParsed) ? tahunParsed : new Date().getFullYear();
+  // Tahun berjalan sampai TAHUN_MAJU_SANITASI tahun ke depan; nilai di luar itu jatuh ke tahun berjalan.
+  const tahun = bacaTahun(tahunParam, TAHUN_MAJU_SANITASI);
 
-  const bulanBerjalan = new Date().getMonth() + 1;
+  const bulanBerjalan = bulanTampil(tahun); // 12 untuk tahun selain tahun ini
 
   // ============================================================
   // PENTING: kombinasi ini HARUS PERSIS SAMA dengan default state di
@@ -60,11 +62,16 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
   // Minggu epid dimundurkan 1 minggu khusus untuk tampilan
   const tanggalMundurSatuMinggu = new Date();
   tanggalMundurSatuMinggu.setDate(tanggalMundurSatuMinggu.getDate() - 7);
-  const { tahunEpid: tahunEpidBerjalan, mingguEpid: mingguEpidBerjalan } =
+  const { tahunEpid: tahunEpidSaatIni, mingguEpid: mingguEpidSaatIni } =
     hitungMingguEpidemiologi(tanggalMundurSatuMinggu);
+  // Tahun lain: tampilkan seluruh minggu tahun itu (52/53), bukan minggu hari ini.
+  const tahunIni = tahun === tahunEpidSaatIni;
+  const tahunEpidBerjalan = tahun;
+  const mingguEpidBerjalan = tahunIni ? mingguEpidSaatIni : jumlahMingguEpid(tahun);
 
   return (
     <TtuClient
+      key={tahun}
       daftarWilayah={daftarWilayah ?? []}
       dataBulanan={dataBulanan ?? []}
       dataMingguan={dataMingguan ?? []}
@@ -75,14 +82,17 @@ export default async function TtuPage({ searchParams }: TtuPageProps) {
       mingguEpidBerjalan={mingguEpidBerjalan}
       wilayahParam={wilayah}
       aksiHeader={
-        bolehInput ? (
-          <Link
-            href="/dashboard/ttu/input"
-            className="rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 shadow-xs transition-all"
-          >
-            + Input / Unggah Data
-          </Link>
-        ) : null
+        <>
+          <FilterTahun maju={TAHUN_MAJU_SANITASI} />
+          {bolehInput ? (
+            <Link
+              href="/dashboard/ttu/input"
+              className="rounded-lg bg-[#0F4C5C] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 shadow-xs transition-all"
+            >
+              + Input / Unggah Data
+            </Link>
+          ) : null}
+        </>
       }
       hasilAwalInisial={{
         comboKeyDasar,

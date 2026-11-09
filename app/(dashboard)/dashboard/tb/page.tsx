@@ -18,6 +18,7 @@ import {
   type TbRow,
 } from '@/lib/db/modul/tb';
 import TbClient from './TbClient';
+import { bacaTahun } from '@/lib/tahun';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export default async function HalamanTb({
   const sp = await searchParams;
 
   const tahunBerjalan = new Date().getFullYear();
-  const tahun = sp.tahun ? parseInt(sp.tahun, 10) : tahunBerjalan;
+  const tahun = sp.tahun ? bacaTahun(sp.tahun, 0) : tahunBerjalan;
   const wilayahKerja = sp.wilayah && sp.wilayah !== 'semua' ? sp.wilayah : undefined;
   const granularitas: 'mingguan' | 'bulanan' = sp.granularitas === 'bulanan' ? 'bulanan' : 'mingguan';
 

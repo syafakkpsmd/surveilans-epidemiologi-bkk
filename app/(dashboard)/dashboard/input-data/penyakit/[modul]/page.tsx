@@ -1,0 +1,30 @@
+// Surveilans penyakit (HIV/VCT, TB, Migrasi Malaria): unggah, form, dan daftar berfilter.
+// Satu rute per modul (/penyakit/{modul}); pemilih modul di dalam halaman tetap bisa berpindah. HANYA Petugas/Admin.
+import { notFound, redirect } from 'next/navigation';
+import Link from 'next/link';
+import { getStatusAkses } from '@/lib/auth/getStatusAkses';
+import { dapatkanModul, type ModulInput } from '@/lib/input-data/modul';
+import { getDaftarWilker } from '@/lib/wilayah-kerja/server';
+import InputDataClient from '@/components/input-data/InputDataClient';
+
+export const dynamic = 'force-dynamic';
+
+const URUTAN = ['hiv', 'tb', 'migrasi_malaria'];
+
+export default async function Page({ params }: { params: Promise<{ modul: string }> }) {
+  const { modul: awal } = await params;
+  if (!URUTAN.includes(awal)) notFound();
+
+  const { sudahLogin, role } = await getStatusAkses();
+  if (!sudahLogin || (role !== 'petugas' && role !== 'admin')) redirect('/dashboard');
+
+  const modul = URUTAN.map(dapatkanModul).filter((m): m is ModulInput => !!m);
+  return (
+    <div className="min-h-screen bg-[#EEF1F4]">
+      <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6">
+        <Link href="/dashboard/input-data" className="text-sm text-[#0F4C5C] underline">&larr; Kembali ke Input Data</Link>
+      </div>
+      <InputDataClient wilayah={await getDaftarWilker()} modul={modul} role={role} awal={awal} judul="HIV, TB, dan Migrasi Malaria" />
+    </div>
+  );
+}

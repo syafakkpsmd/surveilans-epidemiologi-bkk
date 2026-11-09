@@ -4,11 +4,11 @@ import { buatKamus, type JenisWilker, type Wilayah } from '../../lib/wilayah-ker
 
 const w = (kode: string, nama: string, namaPendek: string, namaPeta: string, jenis: JenisWilker, urutan: number): Wilayah => ({
   kode, nama, namaPendek, namaPeta, jenis, urutan, aktif: true, lat: null, lng: null, petaLat: null, petaLng: null, zoom: 13,
-  subLokasi: [], warna: null, catatan: null, alias: [],
+  subLokasi: [], unitSkdr: [], warna: null, catatan: null, alias: [],
 });
 
 export const WILAYAH_KERJA: readonly Wilayah[] = [
-  w('WK01', 'Pelabuhan Samarinda', 'Samarinda', 'Samarinda', 'Pelabuhan', 1),
+  { ...w('WK01', 'Pelabuhan Samarinda', 'Samarinda', 'Samarinda', 'Pelabuhan', 1), unitSkdr: ['Palaran', 'Sidomulyo'] },
   w('WK02', 'Pelabuhan Tanjung Santan', 'Tanjung Santan', 'Tanjung Santan', 'Pelabuhan', 2),
   w('WK03', 'Pelabuhan Tanjung Laut', 'Tanjung Laut', 'Tanjung Laut', 'Pelabuhan', 3),
   w('WK04', 'Pelabuhan Lhoktuan', 'Lhoktuan', 'Lhoktuan', 'Pelabuhan', 4),

@@ -6,6 +6,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import type { OpsiWilayahCkg } from '@/lib/klinik/ckg/config';
+import FilterTahun from '@/components/FilterTahun';
 
 type Item = { label: string; n: number };
 type Seri = { periode: string; n: number };
@@ -18,14 +19,20 @@ type Data = {
   bulanan: Seri[];
 };
 
+const tglLokal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// Batas akhir default: hari ini bila tahun berjalan, selain itu 31 Desember
+const akhirDefault = (tahun: number) => {
+  const sekarang = new Date();
+  return tahun === sekarang.getFullYear() ? tglLokal(sekarang) : `${tahun}-12-31`;
+};
+
 const WARNA = ['#0f766e', '#d97706', '#4f46e5', '#be123c'];
 const GARIS = '#0f766e';
 
 const input =
   'rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600';
-
-const tglLokal = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const labelMinggu = (p: string) =>
   new Date(p + 'T00:00:00Z').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'UTC' });
@@ -68,21 +75,29 @@ function Donut({ judul, data }: { judul: string; data: Item[] }) {
   );
 }
 
-export default function CkgDashboard({ opsiWilayah }: { opsiWilayah: OpsiWilayahCkg[] }) {
-  const [dari, setDari] = useState(() => `${new Date().getFullYear()}-01-01`);
-  const [sampai, setSampai] = useState(() => tglLokal(new Date()));
+export default function CkgDashboard({ opsiWilayah, tahun }: { opsiWilayah: OpsiWilayahCkg[]; tahun: number }) {
+  const [dari, setDari] = useState(() => `${tahun}-01-01`);
+  const [sampai, setSampai] = useState(() => akhirDefault(tahun));
   const [wilayah, setWilayah] = useState('');
   const [mode, setMode] = useState<'mingguan' | 'bulanan'>('mingguan');
   const [data, setData] = useState<Data | null>(null);
   const [memuat, setMemuat] = useState(true);
   const [galat, setGalat] = useState<string | null>(null);
 
+  // Reset rentang ketika tahun berubah dari FilterTahun
+  useEffect(() => {
+    setDari(`${tahun}-01-01`);
+    setSampai(akhirDefault(tahun));
+  }, [tahun]);
+
+  // Fetch data berdasarkan rentang tanggal dan wilayah
   useEffect(() => {
     const ac = new AbortController();
     setMemuat(true);
     setGalat(null);
     const q = new URLSearchParams({ dari, sampai });
     if (wilayah) q.set('wilayah', wilayah);
+    
     fetch(`/api/ckg/dashboard?${q}`, { signal: ac.signal })
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'Gagal memuat data');
@@ -91,6 +106,7 @@ export default function CkgDashboard({ opsiWilayah }: { opsiWilayah: OpsiWilayah
       .then(setData)
       .catch((e) => e.name !== 'AbortError' && setGalat(e.message))
       .finally(() => !ac.signal.aborted && setMemuat(false));
+      
     return () => ac.abort();
   }, [dari, sampai, wilayah]);
 
@@ -110,14 +126,31 @@ export default function CkgDashboard({ opsiWilayah }: { opsiWilayah: OpsiWilayah
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-end justify-end gap-3">
+        <div className="pb-2">
+          <FilterTahun maju={0} />
+        </div>
         <label className="text-sm">
           <span className="mb-1 block text-slate-700">Dari</span>
-          <input type="date" className={input} value={dari} max={sampai} onChange={(e) => setDari(e.target.value)} />
+          <input
+            type="date"
+            className={input}
+            value={dari}
+            min={`${tahun}-01-01`}
+            max={sampai}
+            onChange={(e) => setDari(e.target.value)}
+          />
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-slate-700">Sampai</span>
-          <input type="date" className={input} value={sampai} min={dari} onChange={(e) => setSampai(e.target.value)} />
+          <input
+            type="date"
+            className={input}
+            value={sampai}
+            min={dari}
+            max={`${tahun}-12-31`}
+            onChange={(e) => setSampai(e.target.value)}
+          />
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-slate-700">Wilayah kerja</span>

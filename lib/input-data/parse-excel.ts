@@ -236,7 +236,7 @@ export async function bacaExcel(
     if (!h.nilai) { hasil.galat.push({ baris: nomor, pesan: h.galat }); continue; }
     const kd = kunciBaris(modul, h.nilai);
     if (kd) {
-      if (terlihat.has(kd)) { hasil.galat.push({ baris: nomor, pesan: ['Duplikat: wilayah, nama kapal, dan tanggal sama dengan baris lain di berkas'] }); continue; }
+      if (terlihat.has(kd)) { hasil.galat.push({ baris: nomor, pesan: [`Duplikat: wilayah, ${modul.namaKunci ?? 'nama kapal'}, dan tanggal sama dengan baris lain di berkas`] }); continue; }
       terlihat.add(kd);
     }
     hasil.sah.push({ baris: nomor, nilai: h.nilai });

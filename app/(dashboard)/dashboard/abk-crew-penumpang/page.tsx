@@ -21,6 +21,7 @@ import {
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getBanyakHasilAI, type PermintaanHasilAI } from "@/lib/ai/getBanyakHasilAI";
 import AbkCrewPenumpangClient from "./AbkCrewPenumpangClient";
+import { bacaTahun } from "@/lib/tahun";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -188,17 +189,29 @@ function normalisasiNamaWilker(nama: string): string {
 export default async function AbkCrewPenumpangPage({
   searchParams,
 }: {
-  searchParams: Promise<{ wilker?: string }>;
+  searchParams: Promise<{ wilker?: string; tahun?: string }>;
 }) {
-  const { wilker: wilkerParam } = await searchParams;
+  const { wilker: wilkerParam, tahun: tahunParam } = await searchParams;
   const { sudahLogin, role } = await getStatusAkses();
   const roleAI = role === "admin" || role === "petugas" ? role : null;
 
   const sekarang = new Date();
-  const { tahunEpid, mingguEpid: mingguEpidRaw } = hitungMingguEpidemiologi(sekarang);
-  const mingguEpidBerjalan = mingguEpidRaw - 1 > 0 ? mingguEpidRaw - 1 : 1;
-  const tahunKalender = sekarang.getFullYear();
-  const bulanBerjalan = sekarang.getMonth() + 1;
+  const { tahunEpid: tahunEpidSekarang, mingguEpid: mingguEpidRaw } = hitungMingguEpidemiologi(sekarang);
+  const tahunKalenderSekarang = sekarang.getFullYear();
+
+  const tahunDipilih = tahunParam ? bacaTahun(tahunParam, 0) : tahunEpidSekarang;
+
+  // Nama lama dipertahankan supaya query, permintaan AI, dan props di bawahnya tidak perlu diubah
+  const tahunEpid = tahunDipilih;
+  const tahunKalender = tahunDipilih;
+
+  // Tahun lampau: minggu 52 dan bulan 12. Tahun berjalan: minggu lalu dan bulan ini.
+  const mingguEpidBerjalan =
+    tahunDipilih < tahunEpidSekarang
+      ? 52
+      : mingguEpidRaw - 1 > 0 ? mingguEpidRaw - 1 : 1;
+  const bulanBerjalan =
+    tahunDipilih < tahunKalenderSekarang ? 12 : sekarang.getMonth() + 1;
 
   // ============================================================
   // Dashboard ini menggabungkan beberapa sumber data (COP, PHQC, Pesawat,
@@ -379,6 +392,7 @@ export default async function AbkCrewPenumpangPage({
 
   return (
     <AbkCrewPenumpangClient
+      key={tahunDipilih}  
       role={roleAI}
       sudahLogin={sudahLogin}
       tahunEpid={tahunEpid}

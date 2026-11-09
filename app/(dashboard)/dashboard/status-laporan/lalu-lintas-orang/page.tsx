@@ -17,7 +17,7 @@ import {
   buildMatriksBulananLlo,
 } from '@/lib/status-laporan/lalu-lintas-orang';
 import { daftarWilkerMatriks } from '@/lib/status-laporan/core';
-import { getKamusWilker, getPetaModulWilker } from '@/lib/wilayah-kerja/server';
+import { getDaftarWilker, getKamusWilker, getPetaModulWilker } from '@/lib/wilayah-kerja/server';
 import {
   ambilStatusMingguanLlo,
   ambilStatusBulananLlo,
@@ -56,9 +56,10 @@ export default async function StatusLaluLintasOrangPage({
   const tahunBl = angka(sp.tahun_bl, bulanLalu.getFullYear(), 2020, 2100);
   const bulan = angka(sp.bulan, bulanLalu.getMonth() + 1, 1, 12);
 
+  const daftarWilayahSemua = await getDaftarWilker();
   const [srcMingguan, srcBulanan, kamusWilker, petaModul] = await Promise.all([
-    ambilStatusMingguanLlo(tahunMg, minggu),
-    ambilStatusBulananLlo(tahunBl, bulan),
+    ambilStatusMingguanLlo(tahunMg, minggu, daftarWilayahSemua),
+    ambilStatusBulananLlo(tahunBl, bulan, daftarWilayahSemua),
     getKamusWilker(),
     getPetaModulWilker(),
   ]);

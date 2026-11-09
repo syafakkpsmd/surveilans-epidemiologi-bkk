@@ -7,6 +7,7 @@ import { BUTIR, SEKSI, namaKolomButir } from '@/lib/limbah-b3/butir';
 import { PARAMETER, NAMA_KELOMPOK, kolomDb } from '@/lib/udara-ruang/parameter';
 import { statusEvaluasi } from '@/lib/udara-ruang/hitung';
 import { KOLOM_LAMA, TABEL_UDARA } from '@/lib/udara-ruang/skema';
+import { MODUL_KLINIK } from './modul-klinik';
 
 /** 'ya_tidak' = butir formulir pemeriksaan: Ya / Tidak / N/A (kosong = belum dinilai). */
 export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker' | 'ya_tidak';
@@ -91,6 +92,7 @@ export const LABEL_RBA: Record<string, string> = { Hijau: 'Rendah (Hijau)', Kuni
 const T = (nama: string, label: string, alias?: string[], extra: Partial<KolomModul> = {}): KolomModul => ({ nama, label, tipe: 'teks', alias, ...extra });
 
 export const MODUL: Record<string, ModulInput> = {
+  ...MODUL_KLINIK, // HIV (VCT), TB (skrining), Migrasi Malaria: lib/input-data/modul-klinik.ts
   cop: {
     kunci: 'cop',
     label: 'COP (kedatangan kapal)',

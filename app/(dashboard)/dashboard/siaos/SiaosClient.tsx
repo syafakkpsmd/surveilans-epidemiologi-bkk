@@ -17,6 +17,7 @@ import {
   Legend,
 } from 'recharts';
 import type { SiaosRow } from '@/lib/db/modul/queriesSiaos';
+import FilterTahun from '@/components/FilterTahun';
 
 /** Wilayah yang menjalankan SIAOS (dari pengaturan wilayah kerja, modul "siaos") beserta warna garis/batangnya. */
 export type LokasiSiaos = { nama: string; warna: string };
@@ -416,18 +417,21 @@ export default function SiaosClient({ data, lokasi }: { data: SiaosRow[]; lokasi
             Surat Ijin Angkut Orang Sakit
           </p>
         </div>
-        <select
-          value={filterLokasi}
-          onChange={(e) => setFilterLokasi(e.target.value)}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-        >
-          <option value="ALL">Semua Lokasi</option>
-          {namaLokasi.map((nama) => (
-            <option key={nama} value={nama}>
-              {nama}
-            </option>
-          ))}
-        </select>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <FilterTahun maju={0} />
+          <select
+            value={filterLokasi}
+            onChange={(e) => setFilterLokasi(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+          >
+            <option value="ALL">Semua Lokasi</option>
+            {namaLokasi.map((nama) => (
+              <option key={nama} value={nama}>
+                {nama}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">

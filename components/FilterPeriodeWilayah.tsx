@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import type { Wilayah } from "@/types/database.types";
+import FilterTahun from "@/components/FilterTahun";
 
 const NAMA_BULAN = [
   "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -18,15 +19,22 @@ interface FilterPeriodeWilayahProps {
   daftarWilayah: readonly string[];
 
   /**
-   * Filter rentang minggu/bulan -- OPSIONAL. Kalau tidak diisi (mis.
-   * halaman PHQC yang belum pakai fitur ini), picker rentang tidak
-   * dirender sama sekali dan perilaku komponen ini PERSIS seperti
-   * sebelumnya (hanya toggle mode + dropdown wilayah).
+   * Tahun terpilih (dari page.tsx). OPSIONAL. Kalau diisi, FilterTahun
+   * dirender di kiri tombol Mingguan/Bulanan dan tahun dibawa ke semua
+   * navigasi (ganti mode, ganti wilayah, Terapkan rentang). Kalau tidak
+   * diisi (mis. halaman PHQC), perilaku sama seperti sebelumnya.
+   */
+  tahun?: number;
+  /** Berapa tahun ke depan yang boleh dipilih (diteruskan ke FilterTahun). */
+  tahunMaju?: number;
+
+  /**
+   * Filter rentang minggu/bulan -- OPSIONAL. Kalau tidak diisi, picker
+   * rentang tidak dirender sama sekali.
    *
    * Pemanggil (page.tsx) bertanggung jawab menghitung nilai default
-   * awal/akhir (mis. minggu-1 s.d. minggu epid berjalan) dan membaca
-   * balik query param `minggu_awal`/`minggu_akhir`/`bulan_awal`/
-   * `bulan_akhir` dari searchParams.
+   * awal/akhir dan membaca balik query param `minggu_awal`/`minggu_akhir`/
+   * `bulan_awal`/`bulan_akhir` dari searchParams.
    */
   tampilkanRentang?: boolean;
   mingguAwal?: number;
@@ -36,17 +44,16 @@ interface FilterPeriodeWilayahProps {
 }
 
 /**
- * Filter toggle Mingguan/Bulanan + dropdown wilayah kerja, dipakai
- * bersama oleh halaman COP (Segmen 6) dan PHQC (Segmen 7). Sejak
- * penambahan filter rentang minggu/bulan (opsional lewat
- * tampilkanRentang), komponen ini TETAP generik -- tidak ada teks
- * spesifik satu modul, hanya field rentang yang bisa dinyalakan per
- * pemanggil.
+ * Filter Tahun + toggle Mingguan/Bulanan + dropdown wilayah kerja,
+ * dipakai bersama oleh halaman COP dan PHQC. Seluruh baris filter rata
+ * kanan. Filter rentang minggu/bulan dan filter tahun sama-sama opsional.
  */
 export function FilterPeriodeWilayah({
   mode,
   wilayah,
   daftarWilayah,
+  tahun,
+  tahunMaju,
   tampilkanRentang = false,
   mingguAwal,
   mingguAkhir,
@@ -57,15 +64,14 @@ export function FilterPeriodeWilayah({
   const pathname = usePathname();
 
   // State sementara untuk pilihan rentang, sebelum tombol "Terapkan"
-  // ditekan -- supaya ganti dropdown minggu/bulan tidak langsung
-  // navigasi per klik (sama pola dengan TppClient/TtuClient/PabClient).
+  // ditekan -- supaya ganti dropdown minggu/bulan tidak langsung navigasi.
   const [tempMingguAwal, setTempMingguAwal] = useState<number>(mingguAwal ?? 1);
   const [tempMingguAkhir, setTempMingguAkhir] = useState<number>(mingguAkhir ?? 1);
   const [tempBulanAwal, setTempBulanAwal] = useState<number>(bulanAwal ?? 1);
   const [tempBulanAkhir, setTempBulanAkhir] = useState<number>(bulanAkhir ?? 1);
 
   // Sinkronkan ulang state sementara kalau nilai dari URL berubah
-  // (mis. setelah navigasi selesai, atau load pertama kali).
+  // (mis. setelah navigasi selesai, ganti tahun, atau load pertama kali).
   useEffect(() => {
     if (mingguAwal !== undefined) setTempMingguAwal(mingguAwal);
     if (mingguAkhir !== undefined) setTempMingguAkhir(mingguAkhir);
@@ -84,6 +90,7 @@ export function FilterPeriodeWilayah({
     const params = new URLSearchParams();
     params.set("mode", modeBaru);
     params.set("wilayah", wilayahBaru);
+    if (tahun !== undefined) params.set("tahun", String(tahun));
 
     if (tampilkanRentang) {
       const mgAwal = override?.mingguAwal ?? mingguAwal;
@@ -116,7 +123,9 @@ export function FilterPeriodeWilayah({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      {tahun !== undefined && <FilterTahun maju={tahunMaju} />}
+
       <div className="flex gap-2">
         <button
           type="button"

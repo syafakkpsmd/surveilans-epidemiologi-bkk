@@ -1,29 +1,25 @@
 'use server';
 
-// app/buletin/actions.ts  (sesuaikan lokasi dengan folder page.tsx buletin Anda,
-// lalu samakan path import di BuletinInteraktif.tsx)
 import { revalidatePath } from 'next/cache';
 import { getUserRole } from '@/lib/auth/get-user-role';
-// TODO: kalau proyek Anda sudah punya pool pg (mis. '@/lib/db'), pakai itu
-// dan hapus blok Pool di bawah.
-import { Pool } from 'pg';
+import { getDbClient } from '@/lib/db/client';
 
-const globalForPg = globalThis as unknown as { __pgPool?: Pool };
+// Memakai koneksi database yang SAMA dengan seluruh aplikasi (lib/db/client.ts), yang juga mendukung
+// DB_USER/DB_NAME/DB_SOCKET. Sebelumnya file ini membuat Pool sendiri yang hanya membaca DATABASE_URL.
+const pool = {
+  query: async (teks: string, nilai: unknown[] = []) => {
+    const hasil = await getDbClient().execute({ sql: teks, args: nilai as never[] });
+    return { rows: hasil.rows, rowCount: hasil.rowsAffected };
+  },
+};
 
-function getPool(): Pool {
-  if (globalForPg.__pgPool) return globalForPg.__pgPool;
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error('DATABASE_URL belum diatur di .env.local (restart `npm run dev` setelah mengubahnya).');
-  }
-  globalForPg.__pgPool = new Pool({
-    connectionString: url,
-    // ssl: { rejectUnauthorized: false }, // aktifkan jika server PostgreSQL mewajibkan SSL
-  });
-  return globalForPg.__pgPool;
+/** Pesan untuk pengguna; kolom hilang (kode 42703) dijelaskan jelas karena bisa diperbaiki dengan migrasi 27. */
+function pesanGagal(e: unknown, bawaan: string): string {
+  const kode = (e as { code?: string })?.code;
+  if (kode === '42703') return 'Kolom buletin belum ada di database. Minta admin menjalankan scripts/migrate/27_buletin_kolom_ringkasan.sql.';
+  if (kode === '42P01') return 'Tabel buletin tidak ditemukan di database.';
+  return bawaan;
 }
-
-const pool = { query: (teks: string, nilai?: any[]) => getPool().query(teks, nilai) };
 
 type InputBuletin = {
   tahun: number;
@@ -62,15 +58,15 @@ export async function simpanRingkasanBuletin(id: string, ringkasan: string): Pro
   const teks = (ringkasan ?? '').trim().slice(0, 1200);
   try {
     const res = await pool.query(
-      'UPDATE buletin SET ringkasan_eksekutif = $1 WHERE id = $2', // TODO: sesuaikan nama tabel
+      'UPDATE buletin SET ringkasan_eksekutif = ? WHERE id = ?',
       [teks || null, id],
     );
     if (res.rowCount === 0) return { ok: false, error: 'Buletin tidak ditemukan.' };
-    revalidatePath('/buletin');
+    revalidatePath('/dashboard/buletin');
     return { ok: true };
   } catch (e) {
     console.error('Gagal menyimpan ringkasan buletin:', e);
-    return { ok: false, error: 'Terjadi kesalahan saat menyimpan.' };
+    return { ok: false, error: pesanGagal(e, 'Terjadi kesalahan saat menyimpan.') };
   }
 }
 
@@ -83,7 +79,7 @@ export async function tambahBuletin(i: InputBuletin): Promise<Hasil> {
     // Kolom id diasumsikan punya DEFAULT (uuid / serial). Kalau tidak, tambahkan id secara manual.
     const res = await pool.query(
       `INSERT INTO buletin (tahun, minggu_ke, nama_kegiatan, tipe_link, link_url, ringkasan_eksekutif)
-       VALUES ($1, $2, $3, $4, $5, $6)
+       VALUES (?, ?, ?, ?, ?, ?)
        RETURNING ${KOLOM}`,
       [
         i.tahun,
@@ -94,11 +90,11 @@ export async function tambahBuletin(i: InputBuletin): Promise<Hasil> {
         (i.ringkasan_eksekutif ?? '').trim().slice(0, 1200) || null,
       ],
     );
-    revalidatePath('/buletin');
+    revalidatePath('/dashboard/buletin');
     return { ok: true, data: res.rows[0] };
   } catch (e) {
     console.error('Gagal menambah buletin:', e);
-    return { ok: false, error: 'Gagal menambah buletin.' };
+    return { ok: false, error: pesanGagal(e, 'Gagal menambah buletin.') };
   }
 }
 
@@ -110,17 +106,17 @@ export async function ubahBuletin(id: string, i: InputBuletin): Promise<Hasil> {
   try {
     const res = await pool.query(
       `UPDATE buletin
-          SET tahun = $1, minggu_ke = $2, nama_kegiatan = $3, tipe_link = $4, link_url = $5
-        WHERE id = $6
+          SET tahun = ?, minggu_ke = ?, nama_kegiatan = ?, tipe_link = ?, link_url = ?
+        WHERE id = ?
         RETURNING ${KOLOM}`,
       [i.tahun, i.minggu_ke, i.nama_kegiatan.trim(), i.tipe_link.trim(), i.link_url.trim(), id],
     );
     if (res.rowCount === 0) return { ok: false, error: 'Buletin tidak ditemukan.' };
-    revalidatePath('/buletin');
+    revalidatePath('/dashboard/buletin');
     return { ok: true, data: res.rows[0] };
   } catch (e) {
     console.error('Gagal mengubah buletin:', e);
-    return { ok: false, error: 'Gagal mengubah buletin.' };
+    return { ok: false, error: pesanGagal(e, 'Gagal mengubah buletin.') };
   }
 }
 
@@ -129,7 +125,7 @@ export async function hapusBuletin(id: string): Promise<Hasil> {
   try {
     const res = await pool.query('DELETE FROM buletin WHERE id = $1', [id]);
     if (res.rowCount === 0) return { ok: false, error: 'Buletin tidak ditemukan.' };
-    revalidatePath('/buletin');
+    revalidatePath('/dashboard/buletin');
     return { ok: true };
   } catch (e) {
     console.error('Gagal menghapus buletin:', e);

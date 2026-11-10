@@ -351,29 +351,42 @@ export default function SkltClient({
       </section>
 
       {/* ── Filter ── */}
-      <section className="flex flex-wrap justify-end items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-        <Pilih label="Tahun" value={tahun} onChange={(v) => router.push(`?tahun=${v}`)}>
-          {tahunOpsi.map((t) => <option key={t} value={t}>{t}</option>)}
-        </Pilih>
-        <Pilih label="Rute (tujuan)" value={fRute} onChange={setFRute}>
-          <option value="">Semua rute</option>
-          {daftarRute.map((r) => <option key={r} value={r}>{r}</option>)}
-        </Pilih>
-        <Pilih label="Maskapai" value={fMaskapai} onChange={setFMaskapai}>
-          <option value="">Semua maskapai</option>
-          {daftarMaskapai.map((m) => <option key={m} value={m}>{m}</option>)}
-        </Pilih>
-        <Pilih label="Status kelaikan" value={fLaik} onChange={setFLaik}>
-          <option value="">Semua status</option>
-          <option value="Laik">Laik</option>
-          <option value="Tidak Laik">Tidak Laik</option>
-        </Pilih>
-        {(fRute || fMaskapai || fLaik) && (
-          <button type="button" onClick={() => { setFRute(''); setFMaskapai(''); setFLaik(''); }}
-            className="rounded-lg px-3 py-2 text-sm text-slate-600 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
-            Atur ulang filter
+      {/* ── Filter & Tombol Input ── */}
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/input-data/sklt')}
+            className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+          >
+            + Input Data SKLT
           </button>
-        )}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <Pilih label="Tahun" value={tahun} onChange={(v) => router.push(`?tahun=${v}`)}>
+            {tahunOpsi.map((t) => <option key={t} value={t}>{t}</option>)}
+          </Pilih>
+          <Pilih label="Rute (tujuan)" value={fRute} onChange={setFRute}>
+            <option value="">Semua rute</option>
+            {daftarRute.map((r) => <option key={r} value={r}>{r}</option>)}
+          </Pilih>
+          <Pilih label="Maskapai" value={fMaskapai} onChange={setFMaskapai}>
+            <option value="">Semua maskapai</option>
+            {daftarMaskapai.map((m) => <option key={m} value={m}>{m}</option>)}
+          </Pilih>
+          <Pilih label="Status kelaikan" value={fLaik} onChange={setFLaik}>
+            <option value="">Semua status</option>
+            <option value="Laik">Laik</option>
+            <option value="Tidak Laik">Tidak Laik</option>
+          </Pilih>
+          {(fRute || fMaskapai || fLaik) && (
+            <button type="button" onClick={() => { setFRute(''); setFMaskapai(''); setFLaik(''); }}
+              className="rounded-lg px-3 py-2 text-sm text-slate-600 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">
+              Atur ulang filter
+            </button>
+          )}
+        </div>
       </section>
 
       {rows.length === 0 ? (

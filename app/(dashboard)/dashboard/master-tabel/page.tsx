@@ -1,9 +1,10 @@
 // ================================================================
 // app/(dashboard)/dashboard/master-tabel/page.tsx
 //
-// Hub "Master Tabel": rekap gabungan Sanitasi (TTU/PAB/TPP/Rat Guard)
-// & Vektor (Tikus-Pes/DBD Perimeter-Buffer/Larvasida/Pengasapan/
-// Diare Lalat-Kecoa) per wilayah kerja x bulan, dalam satu halaman.
+// Hub "Master Tabel": rekap gabungan Sanitasi (TTU/PAB/TPP/Rat Guard),
+// Vektor (Tikus-Pes/DBD Perimeter-Buffer/Larvasida/Pengasapan/
+// Diare Lalat-Kecoa) & Media Lingkungan (Tanah/Limbah B3/Udara Ruang)
+// per wilayah kerja x bulan, dalam satu halaman.
 //
 // Semua fetch dijalankan paralel & masing-masing dibungkus fallback
 // array kosong -- supaya satu dataset yang gagal/kosong tidak
@@ -21,6 +22,9 @@ import {
 import {
   getMasterVektorDbdAktivitasBulanan,
   getMasterVektorDiareBulananPerWilker,
+  getMasterMediaTanahBulanan,
+  getMasterLimbahB3Bulanan,
+  getMasterUdaraRuangBulanan,
 } from "@/lib/db/queries/queriesMasterTabel";
 import MasterTabelClient from "@/components/master-tabel/MasterTabelClient";
 
@@ -49,6 +53,9 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
     dbdAktivitas,
     diareLalat,
     diareKecoa,
+    mediaTanah,
+    limbahB3,
+    udaraRuang,
   ] = await Promise.all([
     getWilkerRef().catch(() => []),
     aman(getRingkasanTtuBulanan(tahun)),
@@ -59,14 +66,17 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
     aman(getMasterVektorDbdAktivitasBulanan(tahun)),
     aman(getMasterVektorDiareBulananPerWilker(tahun, "lalat")),
     aman(getMasterVektorDiareBulananPerWilker(tahun, "kecoa")),
+    aman(getMasterMediaTanahBulanan(tahun)),
+    aman(getMasterLimbahB3Bulanan(tahun)),
+    aman(getMasterUdaraRuangBulanan(tahun)),
   ]);
 
   return (
     <div className="mx-auto max-w-350 space-y-5 px-4 py-6 md:px-6 md:py-8">
       <div>
-        <h1 className="text-xl font-bold text-navy">Master Tabel — Sanitasi &amp; Vektor</h1>
+        <h1 className="text-xl font-bold text-navy">Master Tabel — Sanitasi, Vektor &amp; Media Lingkungan</h1>
         <p className="text-sm text-muted">
-          Rekap bulanan seluruh kegiatan sanitasi dan pengendalian vektor per wilayah kerja dalam satu tampilan.
+          Rekap bulanan seluruh kegiatan sanitasi, pengendalian vektor, dan pemeriksaan media lingkungan per wilayah kerja dalam satu tampilan.
         </p>
       </div>
 
@@ -84,6 +94,9 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
         dbdAktivitas={dbdAktivitas}
         diareLalat={diareLalat}
         diareKecoa={diareKecoa}
+        mediaTanah={mediaTanah}
+        limbahB3={limbahB3}
+        udaraRuang={udaraRuang}
       />
     </div>
   );

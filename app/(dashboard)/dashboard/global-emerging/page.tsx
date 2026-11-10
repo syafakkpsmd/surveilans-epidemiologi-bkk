@@ -15,6 +15,7 @@ import { BoxAnalisisAI } from '@/components/BoxAnalisisAI';
 import { BoxPrediksiAI } from '@/components/BoxPrediksiAI';
 import GlobalEmergingNegaraMap from '@/components/global-emerging/GlobalEmergingNegaraMapClient';
 import { getBanyakHasilAI, kunciAI, type PermintaanHasilAI } from '@/lib/ai/getBanyakHasilAI';
+import GlobalEmergingKartuRingkas, { hitungRingkasEmerging } from '@/components/global-emerging/GlobalEmergingKartuRingkas';
 
 interface GlobalEmergingPageProps {
   searchParams: Promise<{
@@ -137,6 +138,12 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
     const batasAkhir = jenis === 'mingguan' ? mgAkhir : bulanAkhir;
     return urutan >= batasAwal && urutan <= batasAkhir;
   });
+  const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const ringkas = hitungRingkasEmerging(ringkasanTerfilter, jenis);
+  const labelRentang =
+    jenis === 'mingguan'
+      ? `Mg ${mgAwal}–${mgAkhir} ${tahunAktif}`
+      : `${NAMA_BULAN[bulanAwal - 1]}–${NAMA_BULAN[bulanAkhir - 1]} ${tahunAktif}`;
 
   return (
     <div className="min-h-screen bg-[#EEF1F4] p-6">
@@ -170,18 +177,19 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
           </div>
         </div>
 
-        <GlobalEmergingFilterBar
-          jenisAktif={jenis}
-          penyakitAktif={filter.penyakit}
-          negaraAktif={filter.negara}
-          tahunAktif={filter.tahunEpid}
-          mgAwal={mgAwal}
-          mgAkhir={mgAkhir}
-          bulanAwal={bulanAwal}
-          bulanAkhir={bulanAkhir}
-          mingguMaks={53}
-        />
-
+        <div className="flex justify-end">
+  <GlobalEmergingFilterBar
+    jenisAktif={jenis}
+    penyakitAktif={filter.penyakit}
+    negaraAktif={filter.negara}
+    tahunAktif={filter.tahunEpid}
+    mgAwal={mgAwal}
+    mgAkhir={mgAkhir}
+    bulanAwal={bulanAwal}
+    bulanAkhir={bulanAkhir}
+    mingguMaks={53}
+  />
+</div>
         {ringkasanTerfilter.length === 0 ? (
           <div className="rounded-[10px] bg-white p-8 text-center shadow-sm">
             <p className="text-sm text-gray-600">
@@ -191,6 +199,7 @@ export default async function GlobalEmergingPage({ searchParams }: GlobalEmergin
           </div>
         ) : (
           <>
+            <GlobalEmergingKartuRingkas ringkas={ringkas} jenis={jenis} labelRentang={labelRentang} />
             <GlobalEmergingTrendChart data={ringkasanTerfilter} jenis={jenis} />
             <GlobalEmergingBreakdownCards data={ringkasanTerfilter} />
           </>

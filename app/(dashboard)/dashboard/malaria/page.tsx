@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { getWilkerRef } from '@/lib/db/queries/umum';
 import {
   getRingkasanUtamaMigrasi,
@@ -64,6 +65,7 @@ export default async function MalariaPage({
 
   const [role, daftarWilker] = await Promise.all([getUserRole(), getWilkerRef()]);
   const sudahLogin = role !== null;
+  const bolehInput = (['admin', 'petugas', 'petugas_klinik'] as string[]).includes(role ?? '');
   const labelWilayahTerpilih = kodeWilker
     ? daftarWilker.find((w) => w.kode === kodeWilker)?.nama ?? kodeWilker
     : 'Semua Wilayah Kerja';
@@ -118,6 +120,16 @@ export default async function MalariaPage({
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <FilterTahun maju={TAHUN_MAJU} />
             <FilterWilker daftarWilker={daftarWilker} />
+            {bolehInput && (
+              <>
+                <Link href="/dashboard/input-data/penyakit/migrasi_malaria/input" className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F4C5C] px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0B3A46]">
+                  <span aria-hidden>＋</span> Input Data
+                </Link>
+                <Link href="/dashboard/input-data/penyakit/migrasi_malaria" className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
+                  Unggah Excel
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

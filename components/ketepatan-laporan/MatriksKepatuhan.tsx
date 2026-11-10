@@ -27,8 +27,14 @@ interface InfoTooltip {
   dibawah: boolean;
 }
 
-function susunIsiTooltip(sel: SelEvaluasi): { status: StatusLaporan; baris: string[] } {
+function susunIsiTooltip(sel: SelEvaluasi, terukur: boolean): { status: StatusLaporan; baris: string[] } {
   const deadline = `Deadline: ${formatWaktuWita(sel.deadline)}`;
+  if (!terukur && (sel.status === 'ON_TIME' || sel.status === 'LATE')) {
+    return {
+      status: sel.status,
+      baris: ['Ada data pada periode ini', 'Waktu input tidak tercatat di tabel sumber, jadi ketepatan tidak dinilai', deadline],
+    };
+  }
   const selisih = sel.selisihMs;
   switch (sel.status) {
     case 'ON_TIME':
@@ -75,18 +81,20 @@ const GAYA_TITIK: Record<StatusLaporan, string> = {
 const SelPeriode = memo(function SelPeriode({
   sel,
   namaUnit,
+  terukur,
   lebar,
   onTampil,
   onSembunyi,
 }: {
   sel: SelEvaluasi;
   namaUnit: string;
+  terukur: boolean;
   lebar: string;
-  onTampil: (el: HTMLElement, sel: SelEvaluasi, namaUnit: string) => void;
+  onTampil: (el: HTMLElement, sel: SelEvaluasi, namaUnit: string, terukur: boolean) => void;
   onSembunyi: () => void;
 }) {
   const { kelasSel, Ikon, label } = INFO_STATUS[sel.status];
-  const isi = susunIsiTooltip(sel);
+  const isi = susunIsiTooltip(sel, terukur);
   return (
     <td className="p-0.5 text-center">
       <button
@@ -94,11 +102,11 @@ const SelPeriode = memo(function SelPeriode({
         tabIndex={-1}
         data-sel
         aria-label={`${namaUnit}, ${sel.labelPanjang}: ${label}. ${isi.baris.join(' | ')}`}
-        onMouseEnter={(e) => onTampil(e.currentTarget, sel, namaUnit)}
+        onMouseEnter={(e) => onTampil(e.currentTarget, sel, namaUnit, terukur)}
         onMouseLeave={onSembunyi}
-        onFocus={(e) => onTampil(e.currentTarget, sel, namaUnit)}
+        onFocus={(e) => onTampil(e.currentTarget, sel, namaUnit, terukur)}
         onBlur={onSembunyi}
-        onClick={(e) => onTampil(e.currentTarget, sel, namaUnit)}
+        onClick={(e) => onTampil(e.currentTarget, sel, namaUnit, terukur)}
         className={`mx-auto flex h-8 items-center justify-center rounded-md transition-colors ${lebar} ${kelasSel}`}
       >
         <Ikon className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
@@ -121,14 +129,14 @@ export default function MatriksKepatuhan({
   periodeBerjalan: number | null;
 }) {
   const [tip, setTip] = useState<InfoTooltip | null>(null);
-  const lebarSel = jenis === 'MINGGUAN' ? 'w-8' : 'w-14';
+  const lebarSel = jenis === 'MINGGUAN' ? 'w-8' : jenis === 'SIKLUS' ? 'w-16' : 'w-14';
   const wadah = useRef<HTMLDivElement>(null);
 
   const sembunyi = useCallback(() => setTip(null), []);
 
-  const tampil = useCallback((el: HTMLElement, sel: SelEvaluasi, namaUnit: string) => {
+  const tampil = useCallback((el: HTMLElement, sel: SelEvaluasi, namaUnit: string, terukur: boolean) => {
     const r = el.getBoundingClientRect();
-    const isi = susunIsiTooltip(sel);
+    const isi = susunIsiTooltip(sel, terukur);
     const tengah = r.left + r.width / 2;
     const dibawah = r.top < 120; // tidak cukup ruang di atas
     setTip({
@@ -173,7 +181,7 @@ export default function MatriksKepatuhan({
   if (baris.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-        Tidak ada faskes yang cocok dengan filter yang dipilih.
+        Tidak ada kegiatan yang cocok dengan filter yang dipilih.
       </div>
     );
   }
@@ -193,7 +201,7 @@ export default function MatriksKepatuhan({
                 scope="col"
                 className="sticky left-0 z-30 w-32 min-w-32 max-w-32 border-b border-r border-slate-200 bg-slate-100 px-2 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-600 sm:w-52 sm:min-w-52 sm:max-w-none sm:px-4 sm:text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               >
-                Faskes / Unit Pelapor
+                Kegiatan / Wilayah Kerja
               </th>
               {jadwal.map((p) => {
                 const berjalan = p.periode === periodeBerjalan;
@@ -245,14 +253,15 @@ export default function MatriksKepatuhan({
                   >
                     <div className="truncate">{b.unit.nama}</div>
                     <div className="truncate text-[11px] font-normal text-slate-500 dark:text-slate-400">
-                      {b.unit.jenis} · {b.unit.wilayah}
+                      {b.unit.jenis === 'BKK' ? 'Tingkat BKK' : `${b.unit.jenis} · ${b.unit.wilayah}`}
                     </div>
                   </th>
                   {b.sel.map((s) => (
                     <SelPeriode
                       key={s.periode}
                       sel={s}
-                      namaUnit={b.unit.nama}
+                      namaUnit={`${b.unit.nama} - ${b.unit.wilayah}`}
+                      terukur={b.unit.ketepatanTerukur !== false}
                       lebar={lebarSel}
                       onTampil={tampil}
                       onSembunyi={sembunyi}

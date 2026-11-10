@@ -199,10 +199,10 @@ export const ITEM_INPUT_DATA: NavItem = { label: "Input Data", href: "/dashboard
 /** Modul input sertifikat/dokumen kapal; hanya petugas dan admin (halamannya juga dijaga di server). Satu rute per modul
  *  agar penanda menu aktif tepat satu. */
 export const ITEM_MODUL_SERTIFIKAT: NavItem[] = [
-  { label: "SSCEC", href: "/dashboard/input-data/sertifikat/sscec", icon: FileCheck2, prefetch: false },
-  { label: "P3K Kapal", href: "/dashboard/input-data/sertifikat/p3k", icon: BriefcaseMedical, prefetch: false },
-  { label: "Sertifikat Air", href: "/dashboard/input-data/sertifikat/air", icon: Droplet, prefetch: false },
-  { label: "Buku Kesehatan", href: "/dashboard/input-data/sertifikat/buku_kesehatan", icon: BookHeart, prefetch: false },
+  // { label: "SSCEC", href: "/dashboard/input-data/sertifikat/sscec", icon: FileCheck2, prefetch: false },
+  // { label: "P3K Kapal", href: "/dashboard/input-data/sertifikat/p3k", icon: BriefcaseMedical, prefetch: false },
+  // { label: "Sertifikat Air", href: "/dashboard/input-data/sertifikat/air", icon: Droplet, prefetch: false },
+  // { label: "Buku Kesehatan", href: "/dashboard/input-data/sertifikat/buku_kesehatan", icon: BookHeart, prefetch: false },
 ];
 
 export function grupUntukPeran(peran: string): NavGroup[] {
@@ -220,6 +220,7 @@ export const ADMIN_GROUP: NavGroup = {
   items: [
     { label: "Verifikasi User", href: "/admin/users", icon: Users, prefetch: false },
     { label: "Pengaturan Wilker", href: "dashboard/pengaturan-wilayah-kerja", icon: MapPin, prefetch: false },
+    { label: "Pengaturan Pemantauan Laporan", href: "/dashboard/pengaturan-pemantauan-laporan", icon: ClipboardCheck, prefetch: false },
     { label: "Laporan Bulanan", href: "/dashboard/laporan-bulanan", icon: Ship },
     { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3, prefetch: false },
   ],

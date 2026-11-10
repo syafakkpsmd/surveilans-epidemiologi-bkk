@@ -113,7 +113,8 @@ const migrasiMalaria: ModulInput = {
   namaKunci: 'nama responden',
   pakaiParseTanggal: true,
   wilayahDenganSpasi: true,
-  jenisWilayahBoleh: JENIS_LENGKAP,
+  jenisWilayahBoleh: ['Pelabuhan', 'Bandara'],
+  kolomKunciTambahan: ['tanggal_lahir', 'nama_kapal_pesawat'],
   peranBoleh: ['admin', 'petugas', 'petugas_klinik'],
   kolomDaftar: ['tanggal_kegiatan', 'wilayah_kerja', 'nama_lengkap', 'nama_kapal_pesawat', 'jenis_kelamin', 'umur', 'hasil_rdt'],
   kolom: [

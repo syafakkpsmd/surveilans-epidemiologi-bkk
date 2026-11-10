@@ -81,6 +81,7 @@ export type KolomMultiSelectMigrasi = (typeof KOLOM_MULTI_SELECT_DIIZINKAN)[numb
 const NAMA_BULAN_SINGKAT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
 ];
+const SQL_RDT_POSITIF = "(LOWER(TRIM(hasil_rdt)) = 'reaktif' OR LOWER(hasil_rdt) LIKE 'positif%')";
 
 /**
  * Kamus normalisasi untuk kolom yang datanya sering ditulis manual (typo,
@@ -220,7 +221,7 @@ export async function getRingkasanUtamaMigrasi({
         SUM(CASE
           WHEN hasil_rdt IS NOT NULL AND TRIM(hasil_rdt) != '' AND LOWER(hasil_rdt) NOT LIKE '%tidak%'
           THEN 1 ELSE 0 END) AS total_diperiksa_rdt,
-        SUM(CASE WHEN LOWER(hasil_rdt) LIKE 'positif%' THEN 1 ELSE 0 END) AS total_positif_rdt,
+        SUM(CASE WHEN ${SQL_RDT_POSITIF} THEN 1 ELSE 0 END) AS total_positif_rdt,
         COUNT(DISTINCT wilayah_kerja) AS jumlah_wilker
       FROM migrasi_malaria
       WHERE to_char(tanggal_kegiatan, 'YYYY') = ?${klausa}

@@ -214,14 +214,17 @@ export default async function AlatAngkutPesawatPage({
       </Link>
 
       {/* 3. Baris Filter (Ditambahkan FilterTahun sebelum FilterWilker) */}
-      <div className="flex flex-wrap items-center justify-center uppercase gap-3 border-t border-gray-100 pt-4">
-        <div className="text-sm font-medium text-gray-500">
-          Distribusi Pengasawan Alat Angkut Pesawat dalam Mingguan Tahun {tahun}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="border-t border-gray-100 pt-4 space-y-3">
+        {/* Baris Atas: Semua Filter Rata Kanan */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <FilterTahun />
           <FilterWilker daftarWilker={daftarWilker} sembunyikanNonAktif={false} />
           <FilterRentangMinggu />
+        </div>
+
+        {/* Baris Bawah: Judul Rata Tengah */}
+        <div className="text-sm font-medium text-gray-500 text-left uppercase">
+          Distribusi Pengawasan Alat Angkut Pesawat dalam Mingguan Tahun {tahun}
         </div>
       </div>
 
@@ -321,11 +324,17 @@ export default async function AlatAngkutPesawatPage({
         </div>
 
         {/* ================= BULANAN ================= */}
-        <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-2 text-sm uppercase font-semibold text-gray-700">Distribusi Pengasawan Kegiatan Alat Angkut Pesawat dalam  Bulanan Tahun {tahun}</h2>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="rounded-xl bg-white p-4 shadow-sm lg:col-span-2 space-y-3">
+          {/* Baris Atas: Filter Rata Kanan */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <FilterRentangBulan />
           </div>
+
+          {/* Baris Bawah: Judul Rata Tengah */}
+          <h2 className="text-sm uppercase font-semibold text-gray-700 text-left mb-3">
+            Distribusi Pengawasan Kegiatan Alat Angkut Pesawat dalam Bulanan Tahun {tahun}
+          </h2>
+
           <GrafikBarBulanan
             judul="DISTRIBUSI KEDATANGAN DAN KEBERANGKATAN PENUMPANG PESAWAT"
             data={ringkasanBulananBerlabel}

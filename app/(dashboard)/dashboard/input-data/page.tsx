@@ -29,7 +29,7 @@ export default async function InputDataPage() {
                   key={m.href}
                   href={m.href}
                   prefetch={false}
-                  className="block rounded-[10px] bg-white p-5 shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0F4C5C]"
+                  className="block rounded-[10px] bg-white p-5 shadow-sm transition hover:shadow-md focus-visible:outline-2 focus-visible:outline-[#0F4C5C]"
                 >
                   <h3 className="text-base font-bold text-[#0F2A38]">{m.judul}</h3>
                   <p className="mt-1 text-sm text-gray-500">{m.deskripsi}</p>

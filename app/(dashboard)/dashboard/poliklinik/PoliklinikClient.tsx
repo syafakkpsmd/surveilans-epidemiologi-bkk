@@ -92,43 +92,48 @@ export default function PoliklinikClient({
   return (
     <div className="space-y-6 p-4 md:p-6">
       {/* Header + filter */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-teal-900">{judul}</h1>
-          <p className="text-sm text-gray-500">{subjudul}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <select
-            value={tahunBerjalan}
-            onChange={(e) => gantiFilter(parseInt(e.target.value, 10), wilayahTerpilih)}
-            className="rounded border px-3 py-1.5 text-sm"
-          >
-            {Array.from({ length: 5 }).map((_, i) => {
-              const th = new Date().getFullYear() - i;
-              return (
-                <option key={th} value={th}>
-                  {th}
-                </option>
-              );
-            })}
-          </select>
-          {mode === 'bkk' && (
-            <select
-              value={wilayahTerpilih}
-              onChange={(e) => gantiFilter(tahunBerjalan, e.target.value)}
-              className="rounded border px-3 py-1.5 text-sm"
-            >
-              <option value="semua">Semua Wilayah Kerja</option>
-              {daftarWilker.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-          )}
-          {aksiHeader}
-        </div>
+      <div className="flex flex-col gap-4">
+      {/* Baris Atas: Judul & Subjudul (Rata Kiri) */}
+      <div>
+        <h1 className="text-xl font-semibold text-teal-900">{judul}</h1>
+        <p className="text-sm text-gray-500">{subjudul}</p>
       </div>
+
+      {/* Baris Bawah: Filter & Tombol Aksi (Rata Kanan) */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <select
+          value={tahunBerjalan}
+          onChange={(e) => gantiFilter(parseInt(e.target.value, 10), wilayahTerpilih)}
+          className="rounded border px-3 py-1.5 text-sm bg-white"
+        >
+          {Array.from({ length: 5 }).map((_, i) => {
+            const th = new Date().getFullYear() - i;
+            return (
+              <option key={th} value={th}>
+                {th}
+              </option>
+            );
+          })}
+        </select>
+        
+        {mode === 'bkk' && (
+          <select
+            value={wilayahTerpilih}
+            onChange={(e) => gantiFilter(tahunBerjalan, e.target.value)}
+            className="rounded border px-3 py-1.5 text-sm bg-white"
+          >
+            <option value="semua">Semua Wilayah Kerja</option>
+            {daftarWilker.map((w) => (
+              <option key={w} value={w}>
+                {w}
+              </option>
+            ))}
+          </select>
+        )}
+        
+        {aksiHeader}
+      </div>
+    </div>
 
       {/* KPI cards */}
       <div className={mode === 'bkk' ? 'grid grid-cols-2 gap-3 md:grid-cols-4' : 'grid grid-cols-2 gap-3 md:grid-cols-3'}>

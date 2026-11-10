@@ -3,7 +3,8 @@
  * Tipe data modul "Dashboard Ketepatan dan Kelengkapan Laporan Surveilans".
  */
 
-export type JenisLaporan = 'MINGGUAN' | 'BULANAN';
+/** SIKLUS = kegiatan bertarget per tahun (mis. 6 siklus x 40 hari kerja); jadwalnya dibuat per kegiatan (lib/pemantauan-laporan/periode.ts). */
+export type JenisLaporan = 'MINGGUAN' | 'BULANAN' | 'SIKLUS';
 
 /**
  * ON_TIME   : sudah dikirim, submittedAt <= deadline
@@ -17,7 +18,7 @@ export type StatusLaporan = 'ON_TIME' | 'LATE' | 'MISSING' | 'UPCOMING';
 /** Tingkat kinerja untuk pewarnaan. NETRAL = belum ada periode yang bisa dinilai. */
 export type Tingkat = 'HIJAU' | 'KUNING' | 'MERAH' | 'NETRAL';
 
-export type JenisFaskes = 'Pelabuhan' | 'Bandara' | 'Puskesmas' | 'Klinik Binaan';
+export type JenisFaskes = 'Pelabuhan' | 'Bandara' | 'Puskesmas' | 'Klinik Binaan' | 'BKK';
 
 export interface UnitFaskes {
   id: string;
@@ -25,6 +26,14 @@ export interface UnitFaskes {
   /** Wilayah kerja BKK tempat unit berada (mis. "Samarinda", "APT Pranoto"). */
   wilayah: string;
   jenis: JenisFaskes;
+  /** Unit pelaporan = satu kegiatan di satu wilayah kerja (diisi oleh lib/pemantauan-laporan/server.ts). */
+  kegiatanKunci?: string;
+  kegiatanLabel?: string;
+  kelompok?: string;
+  /** Jenis laporan kegiatan ini menurut pengaturan admin. */
+  periode?: JenisLaporan;
+  /** false = tabel sumber tidak mencatat waktu input, jadi Ketepatan tidak bisa dinilai (Kelengkapan tetap dihitung). */
+  ketepatanTerukur?: boolean;
 }
 
 /** Satu laporan yang masuk. Bentuk inilah yang perlu dihasilkan query data asli. */

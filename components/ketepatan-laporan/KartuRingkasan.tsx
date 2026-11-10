@@ -65,7 +65,7 @@ export default function KartuRingkasan({
   ringkasan: RingkasanAgregat;
   periodeJatuhTempo: number;
   periodeTotal: number;
-  satuan: 'minggu' | 'bulan';
+  satuan: 'minggu' | 'bulan' | 'siklus';
   aktif: boolean;
   onPilih: () => void;
 }) {
@@ -114,8 +114,8 @@ export default function KartuRingkasan({
       <footer className="mt-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
         <span className="inline-flex items-center gap-1.5">
           <Building2 className="h-4 w-4" aria-hidden="true" />
-          <strong className="font-semibold text-slate-700 dark:text-slate-200">{ringkasan.totalUnit}</strong> faskes
-          pelapor
+          <strong className="font-semibold text-slate-700 dark:text-slate-200">{ringkasan.totalUnit}</strong> unit
+          pelapor (kegiatan x wilayah)
           <span className="text-slate-400 dark:text-slate-500">({ringkasan.unitPernahLapor} sudah pernah melapor)</span>
         </span>
         <span>

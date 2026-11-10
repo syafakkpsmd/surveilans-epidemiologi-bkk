@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { LABEL_RBA, type KolomModul, type ModulInput } from '@/lib/input-data/modul';
 import type { Wilayah } from '@/lib/wilayah-kerja';
 import MasterNegara from './MasterNegara';
+import EditBarisDialog from './EditBarisDialog';
 
 type Baris = Record<string, string | number | null>;
 interface Pratinjau {
@@ -97,6 +98,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
   const [bukaForm, setBukaForm] = useState(false);
   const [isian, setIsian] = useState<Record<string, string>>({});
   const [galatForm, setGalatForm] = useState<string[]>([]);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const dasar = `/api/input-data/${m.kunci}`;
   const mode = kunci === 'master' ? 'master' : 'modul';
@@ -135,7 +137,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
 
   function pilihModul(k: string) {
     setKunci(k); setBerkas(null); setPratinjau(null); setPesan(null); setHalaman(1); setIsian({}); setGalatForm([]);
-    setFWilayah(''); setFBulan(''); setFSumber(''); setFBelum(false); setPerluWilayah(false); setWilayahUnggah('');
+    setFWilayah(''); setFBulan(''); setFSumber(''); setFBelum(false); setPerluWilayah(false); setWilayahUnggah(''); setEditId(null);
   }
 
   async function kirimBerkas(mod: 'pratinjau' | 'simpan') {
@@ -365,7 +367,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                 <thead><tr className="border-b bg-gray-50">
                   {kolomTabel.map((c) => <th key={c} className="whitespace-nowrap px-2 py-1 font-medium">{labelKolom(c)}</th>)}
                   {kolomManual.map((k) => <th key={k.nama} className="whitespace-nowrap bg-amber-50 px-2 py-1 font-medium">{k.label}</th>)}
-                  <th className="px-2 py-1 font-medium">Sumber</th>{admin && <th />}
+                  <th className="px-2 py-1 font-medium">Sumber</th><th />{admin && <th />}
                 </tr></thead>
                 <tbody>
                   {daftar?.baris.map((b) => (
@@ -378,10 +380,13 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                         </td>
                       ))}
                       <td className="px-2 py-1">{b.sumber}</td>
+                      <td className="whitespace-nowrap px-2 py-1">
+                        <button type="button" className="text-blue-600 hover:underline" onClick={() => setEditId(String(b.id))}>Edit</button>
+                      </td>
                       {admin && <td className="px-2 py-1"><button className="text-red-600 hover:underline" onClick={() => hapus('baris', String(b.id), 'Hapus baris ini?')}>Hapus</button></td>}
                     </tr>
                   ))}
-                  {daftar && daftar.baris.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={kolomTabel.length + kolomManual.length + 2}>Belum ada data.</td></tr>}
+                  {daftar && daftar.baris.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={kolomTabel.length + kolomManual.length + 3}>Belum ada data.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -416,6 +421,17 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
             </div>
           </section>
         </>
+      )}
+            {editId && (
+        <EditBarisDialog
+          modul={m}
+          wilayah={wilayahModul.map((w) => ({ kode: w.kode, nama: w.namaPendek }))}
+          id={editId}
+          onSelesai={(disimpan) => {
+            setEditId(null);
+            if (disimpan) { setPesan({ jenis: 'ok', teks: 'Perubahan tersimpan.' }); void muatDaftar(); void muatPilihan(); }
+          }}
+        />
       )}
     </div>
   );

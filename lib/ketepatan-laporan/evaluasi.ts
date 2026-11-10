@@ -40,7 +40,9 @@ import {
   namaBulanPanjang,
 } from './waktu';
 
-export const JUMLAH_PERIODE: Record<JenisLaporan, number> = { MINGGUAN: 52, BULANAN: 12 };
+/** Jenis dengan jadwal tetap. SIKLUS jadwalnya per kegiatan (buatJadwalSiklus). */
+export type JenisJadwalTetap = Exclude<JenisLaporan, 'SIKLUS'>;
+export const JUMLAH_PERIODE: Record<JenisJadwalTetap, number> = { MINGGUAN: 52, BULANAN: 12 };
 
 /** Standar kinerja minimal. */
 export const STANDAR = {
@@ -50,7 +52,7 @@ export const STANDAR = {
 
 // ------------------------------------------------------------------ Jadwal
 
-export function buatJadwal(jenis: JenisLaporan, tahun: number): PeriodeJadwal[] {
+export function buatJadwal(jenis: JenisJadwalTetap, tahun: number): PeriodeJadwal[] {
   return Array.from({ length: JUMLAH_PERIODE[jenis] }, (_, i) => {
     const p = i + 1;
     return jenis === 'MINGGUAN'
@@ -196,34 +198,51 @@ export function evaluasiUnit(
       selisihMs: hitungSelisih(status, submittedAt, p.deadline, now),
     };
   });
-  return { unit, sel, ringkasan: hitungRingkasan(hitungDariStatus(sel.map((s) => s.status))) };
+  const ringkasan = hitungRingkasan(hitungDariStatus(sel.map((s) => s.status)));
+  if (unit.ketepatanTerukur === false) ringkasan.ketepatan = null;
+  return { unit, sel, ringkasan };
 }
 
 export function agregatkan(baris: readonly BarisEvaluasi[]): RingkasanAgregat {
-  const total = baris.reduce((acc, b) => tambahHitung(acc, b.ringkasan), hitungStatusKosong());
+  const jumlah = (b: readonly BarisEvaluasi[]) => b.reduce((acc, x) => tambahHitung(acc, x.ringkasan), hitungStatusKosong());
+  const total = hitungRingkasan(jumlah(baris));
+  // Ketepatan hanya dari unit yang waktu inputnya tercatat; unit lain tidak ikut pembilang maupun penyebut.
+  const terukur = baris.filter((b) => b.unit.ketepatanTerukur !== false);
   return {
-    ...hitungRingkasan(total),
+    ...total,
+    ketepatan: terukur.length === baris.length ? total.ketepatan : hitungRingkasan(jumlah(terukur)).ketepatan,
     totalUnit: baris.length,
     unitPernahLapor: baris.filter((b) => b.ringkasan.onTime + b.ringkasan.late > 0).length,
   };
 }
 
-export function evaluasiMatriks(
+/** Evaluasi satu kelompok unit terhadap jadwal tertentu (dipakai langsung untuk SIKLUS yang jadwalnya per kegiatan). */
+export function evaluasiDenganJadwal(
   units: readonly UnitFaskes[],
   jenis: JenisLaporan,
   tahun: number,
+  jadwal: readonly PeriodeJadwal[],
   indeks: ReadonlyMap<string, Date>,
   now: Date,
 ): HasilEvaluasi {
-  const jadwal = buatJadwal(jenis, tahun);
   const baris = units.map((u) => evaluasiUnit(u, jenis, tahun, jadwal, indeks, now));
   const periodeJatuhTempo = jadwal.filter((p) => now.getTime() > p.deadline.getTime()).length;
   const berjalan = jadwal.find((p) => now.getTime() <= p.deadline.getTime());
   return {
-    jadwal,
+    jadwal: [...jadwal],
     baris,
     agregat: agregatkan(baris),
     periodeJatuhTempo,
     periodeBerjalan: berjalan ? berjalan.periode : null,
   };
+}
+
+export function evaluasiMatriks(
+  units: readonly UnitFaskes[],
+  jenis: JenisJadwalTetap,
+  tahun: number,
+  indeks: ReadonlyMap<string, Date>,
+  now: Date,
+): HasilEvaluasi {
+  return evaluasiDenganJadwal(units, jenis, tahun, buatJadwal(jenis, tahun), indeks, now);
 }

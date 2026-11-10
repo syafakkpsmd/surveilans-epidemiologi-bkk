@@ -57,6 +57,8 @@ export const KATEGORI_INPUT: KategoriInput[] = [
       { judul: 'P3K Kapal', deskripsi: 'Sertifikat pengawasan P3K kapal.', href: '/dashboard/input-data/sertifikat/p3k', cara: ['form', 'excel'] },
       { judul: 'Sertifikat Air', deskripsi: 'Sertifikat hasil pemeriksaan sampel air bersih/air minum.', href: '/dashboard/input-data/sertifikat/air', cara: ['form', 'excel'] },
       { judul: 'Buku Kesehatan', deskripsi: 'Penerbitan buku kesehatan kapal (e-Healthbook).', href: '/dashboard/input-data/sertifikat/buku_kesehatan', cara: ['form', 'excel'] },
+      { judul: 'SKLT (Laik Terbang)', deskripsi: 'Surat Keterangan Laik Terbang (SKLT): unggah ekspor Sinkarkes atau input satu per satu; daftar per wilayah kerja dan bulan.', href: '/dashboard/input-data/sklt', cara: ['form', 'excel'] },
+      { judul: 'KIER Kesehatan', deskripsi: 'Sertifikat pengujian kesehatan kapal.', href: '/dashboard/input-data/kier', cara: ['form', 'excel'] },
     ],
   },
   {

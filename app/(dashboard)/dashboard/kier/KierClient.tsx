@@ -2,6 +2,7 @@
 
 // app/(dashboard)/dashboard/kier/KierClient.tsx
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -144,9 +145,21 @@ export default function KierClient({
         <h1 className="text-xl md:text-2xl font-bold text-[#1e3a5f]">
           KIER Kesehatan
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tombol Input Data & Unggah Excel */}
+          <Link
+            href="/dashboard/input-data/kier"
+            className="inline-flex items-center gap-1.5 bg-[#0d9488] hover:bg-[#0b7d73] text-white text-sm font-medium px-3.5 py-2 rounded-lg shadow-sm transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Input Data / Unggah Excel</span>
+          </Link>
+
+          {/* Filter Tahun */}
           <select
-            className="border rounded-lg px-3 py-2 text-sm bg-white shadow-sm"
+            className="border rounded-lg px-3 py-2 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0d9488]"
             value={tahun}
             onChange={(e) => gantiTahun(Number(e.target.value))}
           >
@@ -154,8 +167,10 @@ export default function KierClient({
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
+
+          {/* Filter Wilker */}
           <select
-            className="border rounded-lg px-3 py-2 text-sm bg-white shadow-sm"
+            className="border rounded-lg px-3 py-2 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#0d9488]"
             value={wilker}
             onChange={(e) => gantiWilker(e.target.value)}
           >

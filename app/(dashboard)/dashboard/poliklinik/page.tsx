@@ -54,7 +54,7 @@ export default async function HalamanPoliklinik({
       wilayahTerpilih={wilayahKerja ?? 'semua'}
       daftarWilker={wilkerPoliklinik}
       basePath={sumber === 'semua' ? '/dashboard/poliklinik?sumber=semua' : '/dashboard/poliklinik'}
-            aksiHeader={
+      aksiHeader={
         bolehLihatNonBkk ? (
           <>
             {bolehInputBkk && (

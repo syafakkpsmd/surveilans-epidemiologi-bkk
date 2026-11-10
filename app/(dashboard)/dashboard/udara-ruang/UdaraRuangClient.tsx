@@ -86,7 +86,8 @@ export default function UdaraRuangClient({ daftarWilayah, rows, tahun, wilayahPa
           <h1 className="text-xl font-bold text-[#0F2A38]">Kualitas Udara Dalam Ruang</h1>
           <p className="mt-1 text-xs text-gray-500">Pemantauan PM2.5, PM10, suhu, kelembapan, HCHO, TVOC, dan parameter pemeriksaan lain — {tahun}.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
           {aksiHeader}
           <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
             {(["mingguan", "bulanan"] as Granularitas[]).map((g) => (
@@ -105,8 +106,8 @@ export default function UdaraRuangClient({ daftarWilayah, rows, tahun, wilayahPa
             <span>s/d</span>
             <input type="date" value={sampai} min={dari} max={`${tahun}-12-31`} onChange={(e) => e.target.value && setSampai(e.target.value)} className={sel} />
           </div>
-        </div>
       </div>
+    </div>
 
       {data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-sm text-gray-500">

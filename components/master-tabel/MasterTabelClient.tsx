@@ -21,9 +21,12 @@ type Props = {
   dbdAktivitas: any[]; // BarisAktivitasDbd[]
   diareLalat: any[]; // BarisDiareWilker[]
   diareKecoa: any[]; // BarisDiareWilker[]
+  mediaTanah: any[]; // BarisMediaTanah[]
+  limbahB3: any[]; // BarisLimbahB3[]
+  udaraRuang: any[]; // BarisUdaraRuang[]
 };
 
-type Kategori = "sanitasi" | "vektor";
+type Kategori = "sanitasi" | "vektor" | "media";
 
 type DatasetId =
   | "ttu"
@@ -36,7 +39,10 @@ type DatasetId =
   | "larvasida"
   | "pengasapan"
   | "diare_lalat"
-  | "diare_kecoa";
+  | "diare_kecoa"
+  | "tanah"
+  | "limbah_b3"
+  | "udara_ruang";
 
 const TAB_SANITASI: { id: DatasetId; label: string; ikon: string }[] = [
   { id: "ttu", label: "TTU (Tempat-Tempat Umum)", ikon: "🏢" },
@@ -54,6 +60,24 @@ const TAB_VEKTOR: { id: DatasetId; label: string; ikon: string }[] = [
   { id: "diare_lalat", label: "Vektor Diare — Lalat", ikon: "🪰" },
   { id: "diare_kecoa", label: "Vektor Diare — Kecoa", ikon: "🪳" },
 ];
+
+const TAB_MEDIA: { id: DatasetId; label: string; ikon: string }[] = [
+  { id: "tanah", label: "Media Tanah", ikon: "🌱" },
+  { id: "limbah_b3", label: "Media Limbah B3 (Klinik)", ikon: "☣️" },
+  { id: "udara_ruang", label: "Media Udara (Dalam Ruang)", ikon: "🌬️" },
+];
+
+const DATASET_PERTAMA: Record<Kategori, DatasetId> = {
+  sanitasi: "ttu",
+  vektor: "tikus",
+  media: "tanah",
+};
+
+const LABEL_KATEGORI: Record<Kategori, string> = {
+  sanitasi: "Sanitasi",
+  vektor: "Vektor",
+  media: "Media",
+};
 
 // ----------------------------------------------------------------
 // Normalisasi nama wilayah kerja.
@@ -128,6 +152,9 @@ export default function MasterTabelClient({
   dbdAktivitas,
   diareLalat,
   diareKecoa,
+  mediaTanah,
+  limbahB3,
+  udaraRuang,
 }: Props) {
   const router = useRouter();
   const [kategori, setKategori] = useState<Kategori>("sanitasi");
@@ -145,12 +172,23 @@ export default function MasterTabelClient({
 
   const namaDariKode = (kode: string) => petaKodeKeNama.get(kode) || kode;
 
+  // Modul Media menyimpan wilayah sebagai KODE (mis. "WK01") ATAU nama
+  // teks. Dua-duanya dipetakan ke label yang sama dengan modul lain.
+  const namaWilayahBebas = (nilai: string) =>
+    petaKodeKeNama.get(nilai) || normalisasiNamaWilayah(String(nilai ?? "—"));
+
   const daftarWilayahGabungan = useMemo(() => {
     const set = new Set<string>();
 
     // Nama dari modul Sanitasi: sudah tanpa prefix, pakai apa adanya.
     [...ttu, ...pab, ...tpp, ...ratGuard].forEach((r) => {
       if (r.wilayah_kerja) set.add(r.wilayah_kerja);
+    });
+
+    // Nama dari modul Media (kode atau nama teks -> label seragam).
+    [...mediaTanah, ...limbahB3, ...udaraRuang].forEach((r) => {
+      const nama = petaKodeKeNama.get(r.wilayah_kerja) || normalisasiNamaWilayah(String(r.wilayah_kerja ?? ""));
+      if (nama && nama !== "—") set.add(nama);
     });
 
     // Nama dari wilker_ref (modul Vektor): normalisasi dulu + buang
@@ -162,11 +200,11 @@ export default function MasterTabelClient({
     });
 
     return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
-  }, [ttu, pab, tpp, ratGuard, daftarWilker]);
+  }, [ttu, pab, tpp, ratGuard, mediaTanah, limbahB3, udaraRuang, daftarWilker, petaKodeKeNama]);
 
   function pilihKategori(k: Kategori) {
     setKategori(k);
-    setDataset(k === "sanitasi" ? "ttu" : "tikus");
+    setDataset(DATASET_PERTAMA[k]);
   }
 
   // -------- Metrik per dataset --------
@@ -216,6 +254,29 @@ export default function MasterTabelClient({
     { key: "jml_memenuhi_syarat", label: "Memenuhi Syarat", singkat: "MS", nada: "baik" },
     { key: "jml_tidak_memenuhi_syarat", label: "Tidak Memenuhi Syarat", singkat: "TMS", nada: "buruk" },
     { key: "indeks_rerata", label: "Rata-rata Indeks", singkat: "Idx.", desimal: 2, agregasi: "avg" },
+  ];
+
+  // ---- Media Lingkungan ----
+  const METRIK_TANAH: MetrikDef[] = [
+    { key: "jumlah_diperiksa", label: "Jumlah Pemeriksaan", singkat: "Periksa" },
+    { key: "jumlah_ms", label: "Memenuhi Syarat", singkat: "MS", nada: "baik" },
+    { key: "jumlah_tms", label: "Tidak Memenuhi Syarat", singkat: "TMS", nada: "buruk" },
+    { key: "jumlah_perlu_lab", label: "Perlu Pemeriksaan Lab Lanjutan", singkat: "Lab" },
+  ];
+
+  const METRIK_LIMBAH_B3: MetrikDef[] = [
+    { key: "jumlah_diperiksa", label: "Jumlah Klinik Diperiksa", singkat: "Periksa" },
+    { key: "jumlah_baik", label: "Skor Kepatuhan Baik (≥ 80%)", singkat: "Baik", nada: "baik" },
+    { key: "jumlah_cukup", label: "Skor Kepatuhan Cukup (60–79%)", singkat: "Cukup" },
+    { key: "jumlah_kurang", label: "Skor Kepatuhan Kurang (< 60%)", singkat: "Kurang", nada: "buruk" },
+    { key: "skor_rerata", label: "Rata-rata Skor Kepatuhan (%)", singkat: "Skor", desimal: 1, agregasi: "avg" },
+  ];
+
+  const METRIK_UDARA: MetrikDef[] = [
+    { key: "jumlah_diperiksa", label: "Jumlah Pengukuran", singkat: "Ukur" },
+    { key: "jumlah_ms", label: "Memenuhi Syarat", singkat: "MS", nada: "baik" },
+    { key: "jumlah_tms", label: "Tidak Memenuhi Syarat", singkat: "TMS", nada: "buruk" },
+    { key: "jumlah_tidak_lengkap", label: "Data Parameter Belum Lengkap", singkat: "Tdk Lkp" },
   ];
 
   // -------- Rakit baris sesuai dataset aktif --------
@@ -365,10 +426,46 @@ export default function MasterTabelClient({
         filterLabel: wilayah,
       }),
     },
+    tanah: {
+      judul: "Pemeriksaan Kesehatan Lingkungan Media Tanah",
+      subjudul: `Hasil kesimpulan pemeriksaan per wilayah kerja — Tahun ${tahun}`,
+      metrik: METRIK_TANAH,
+      baris: susunBaris({
+        raw: mediaTanah,
+        bulanKey: "bulan",
+        labelResolver: (r) => namaWilayahBebas(r.wilayah_kerja),
+        metricKeys: ["jumlah_diperiksa", "jumlah_ms", "jumlah_tms", "jumlah_perlu_lab"],
+        filterLabel: wilayah,
+      }),
+    },
+    limbah_b3: {
+      judul: "Pengelolaan Limbah B3 Klinik",
+      subjudul: `Jumlah klinik diperiksa & skor kepatuhan per wilayah kerja — Tahun ${tahun}`,
+      metrik: METRIK_LIMBAH_B3,
+      baris: susunBaris({
+        raw: limbahB3,
+        bulanKey: "bulan",
+        labelResolver: (r) => namaWilayahBebas(r.wilayah_kerja),
+        metricKeys: ["jumlah_diperiksa", "jumlah_baik", "jumlah_cukup", "jumlah_kurang", "skor_rerata"],
+        filterLabel: wilayah,
+      }),
+    },
+    udara_ruang: {
+      judul: "Pemeriksaan Udara Dalam Ruang",
+      subjudul: `Hasil evaluasi pengukuran per wilayah kerja — Tahun ${tahun}`,
+      metrik: METRIK_UDARA,
+      baris: susunBaris({
+        raw: udaraRuang,
+        bulanKey: "bulan",
+        labelResolver: (r) => namaWilayahBebas(r.wilayah_kerja),
+        metricKeys: ["jumlah_diperiksa", "jumlah_ms", "jumlah_tms", "jumlah_tidak_lengkap"],
+        filterLabel: wilayah,
+      }),
+    },
   };
 
   const aktif = konfigDataset[dataset];
-  const tabAktif = kategori === "sanitasi" ? TAB_SANITASI : TAB_VEKTOR;
+  const tabAktif = kategori === "sanitasi" ? TAB_SANITASI : kategori === "vektor" ? TAB_VEKTOR : TAB_MEDIA;
 
   return (
     <div className="space-y-5">
@@ -406,18 +503,18 @@ export default function MasterTabelClient({
         </div>
 
         <div className="ml-auto flex items-center gap-1 rounded-pill bg-[#f0f2f4] p-1">
-          {(["sanitasi", "vektor"] as Kategori[]).map((k) => (
+          {(["sanitasi", "vektor", "media"] as Kategori[]).map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => pilihKategori(k)}
-              className={`rounded-pill px-4 py-1.5 text-xs font-semibold capitalize transition ${
+              className={`rounded-pill px-4 py-1.5 text-xs font-semibold transition ${
                 kategori === k
                   ? "bg-navy text-white shadow-sm"
                   : "text-muted hover:text-(--color-ink)"
               }`}
             >
-              {k}
+              {LABEL_KATEGORI[k]}
             </button>
           ))}
         </div>

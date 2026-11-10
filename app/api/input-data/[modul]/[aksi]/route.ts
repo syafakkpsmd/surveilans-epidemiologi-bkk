@@ -13,6 +13,7 @@
 //
 // Akses: lihat/tambah/unggah = peran di MODUL[x].peranBoleh (admin selalu boleh); hapus = admin.
 // Rute ini memakai PostgreSQL langsung (tanpa RLS), jadi pemeriksaan peran DI SINI adalah satu-satunya pagar.
+import { ambilBaris, perbaruiBaris } from '@/lib/input-data/perbarui';
 import { NextRequest, NextResponse } from 'next/server';
 import { getStatusAkses } from '@/lib/auth/getStatusAkses';
 import { dapatkanModul, wilayahBolehModul, type ModulInput } from '@/lib/input-data/modul';
@@ -76,6 +77,12 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       }));
     }
     if (aksi === 'pilihan') return NextResponse.json({ pilihan: await daftarPilihan(modul) });
+        if (aksi === 'baris') {
+      const id = sp.get('id') ?? '';
+      if (!/^[0-9a-fA-F-]{1,36}$/.test(id)) return galat('id tidak valid', 400);
+      const b = await ambilBaris(modul, id);
+      return b ? NextResponse.json({ baris: b }) : galat('Data tidak ditemukan', 404);
+    }
     if (aksi === 'tahun') return NextResponse.json({ tahun: await daftarTahun(modul) });
     if (aksi === 'riwayat') return NextResponse.json({ riwayat: await daftarRiwayat(modul.kunci) });
   } catch (e) {
@@ -139,6 +146,20 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       if (!body?.id || !/^[0-9a-fA-F-]{1,36}$/.test(body.id) || !body.nilai || typeof body.nilai !== 'object') return galat('Permintaan tidak valid', 400);
       const r = await ubahManual(modul, body.id, body.nilai, kamus);
       if (!r.ok) return NextResponse.json({ error: r.galat.join('; ') }, { status: 400 });
+      return NextResponse.json({ ok: true });
+    }
+        if (aksi === 'perbarui') {
+      const body = (await req.json().catch(() => null)) as { id?: string; nilai?: Record<string, unknown> } | null;
+      if (!body?.id || !/^[0-9a-fA-F-]{1,36}$/.test(body.id) || !body.nilai || typeof body.nilai !== 'object') return galat('Permintaan tidak valid', 400);
+      const lama = await ambilBaris(modul, body.id);
+      if (!lama) return galat('Data tidak ditemukan (mungkin sudah dihapus)', 404);
+      // Kolom yang tidak tampil di dialog (mis. arsip) tetap memakai nilai lama, tidak ikut terhapus.
+      const h = validasiBaris(modul, { ...lama, ...body.nilai }, kamus);
+      if (!h.nilai) return NextResponse.json({ error: 'Isian belum benar', galat: h.galat }, { status: 400 });
+      if (modul.negaraDariMaster) await isiNegara([h.nilai]);
+      const r = await perbaruiBaris(modul, body.id, h.nilai);
+      if (r === 'tidak_ada') return galat('Data tidak ditemukan (mungkin sudah dihapus)', 404);
+      if (r === 'duplikat') return galat(`Data lain dengan wilayah, ${modul.namaKunci ?? 'nama kapal'}, dan tanggal yang sama sudah ada`, 409);
       return NextResponse.json({ ok: true });
     }
 

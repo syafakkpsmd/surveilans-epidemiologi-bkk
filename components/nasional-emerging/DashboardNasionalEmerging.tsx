@@ -232,7 +232,8 @@ export default function DashboardNasionalEmerging({
 
       {/* ==== FILTER ==== */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-4">
-        <div className="flex flex-wrap gap-4">
+        {/* Tambahkan flex justify-end di sini */}
+        <div className="flex flex-wrap justify-end gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">Penyakit</label>
             <select value={penyakit} onChange={e => setPenyakit(e.target.value)}

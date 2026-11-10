@@ -8,6 +8,8 @@ import { PARAMETER, NAMA_KELOMPOK, kolomDb } from '@/lib/udara-ruang/parameter';
 import { statusEvaluasi } from '@/lib/udara-ruang/hitung';
 import { KOLOM_LAMA, TABEL_UDARA } from '@/lib/udara-ruang/skema';
 import { MODUL_KLINIK } from './modul-klinik';
+import { MODUL_SKLT } from './modul-sklt';
+import { MODUL_KIER } from './modul-kier';
 
 /** 'ya_tidak' = butir formulir pemeriksaan: Ya / Tidak / N/A (kosong = belum dinilai). */
 export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker' | 'ya_tidak';
@@ -93,6 +95,8 @@ const T = (nama: string, label: string, alias?: string[], extra: Partial<KolomMo
 
 export const MODUL: Record<string, ModulInput> = {
   ...MODUL_KLINIK, // HIV (VCT), TB (skrining), Migrasi Malaria: lib/input-data/modul-klinik.ts
+  ...MODUL_SKLT, // SKLT (Surat Keterangan Laik Terbang): lib/input-data/modul-sklt.ts
+  ...MODUL_KIER, // KIER Kesehatan: lib/input-data/modul-kier.ts
   cop: {
     kunci: 'cop',
     label: 'COP (kedatangan kapal)',
@@ -479,7 +483,8 @@ export const MODUL: Record<string, ModulInput> = {
       // Label "Lokasi" yang dibaca dasbor Karhutla ("Samarinda (Pelabuhan Umum)", dst.): diturunkan, tidak diketik dua kali.
       {
         nama: KOLOM_LAMA.lokasi, label: 'Lokasi (label Karhutla)', tipe: 'teks', arsip: true,
-        turunan: (n) => (n.nama_pelabuhan as string | null) || (n.wilayah_kerja as string | null) || null,
+        turunan: (n) => (n.nama_pelabuhan as string | null) || (n.wilayah_kerja as string | null) || null,
+
       },
       {
         nama: 'status_evaluasi', label: 'Status Evaluasi (otomatis)', tipe: 'teks', arsip: true,

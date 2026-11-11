@@ -253,8 +253,10 @@ export function ubahWilker(v: unknown, kamus: KamusWilker): Hasil<string | null>
   if (t.nilai === null) return ok(null);
   // Seluruh teks dulu; lalu bagian di sekitar "/" dari kanan ke kiri. Sinkarkes menulis "KKP Induk/Wilker" sebagai
   // "Samarinda / Pelabuhan Laut Sangkulirang": bagian kanan = wilayah kerja, bagian kiri = KKP induk.
+  // Sinkarkes sering menambahkan kode dalam kurung di belakang nama: "Bandara APT Pranoto (AAP)". Dicoba juga tanpa kurung.
+  const tanpaKurung = (s: string) => s.replace(/\s*\([^)]*\)/g, '').trim();
   for (const calon of [t.nilai, ...t.nilai.split('/').reverse()]) {
-    const k = kamus.kodeDariTeks(calon);
+    const k = kamus.kodeDariTeks(calon) ?? kamus.kodeDariTeks(tanpaKurung(calon));
     if (k) return ok(k);
   }
   return gagal('wilayah kerja tidak dikenal');

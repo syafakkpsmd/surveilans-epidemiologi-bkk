@@ -89,12 +89,14 @@ export async function bacaGrid(buffer: Buffer): Promise<{ grid: Grid } | { fatal
     } catch {
       return { fatal: 'Berkas .xlsx tidak dapat dibaca.' };
     }
-    const ws = wb.worksheets.find((s) => s.rowCount > 0);
+    const ws = wb.worksheets.find((s) => s.actualRowCount > 0); // lembar pertama yang benar-benar berisi nilai
     if (!ws) return { fatal: 'Berkas tidak memiliki lembar yang berisi data.' };
     const grid: Grid = [];
-    ws.eachRow({ includeEmpty: true }, (row, nomor) => {
+    // Hanya baris yang berisi nilai (jarak antarbaris diisi di bawah). Ekspor Sinkarkes sering diformat sampai baris 65536
+    // dan kolom 256 (rowCount 65537): mengulang semua sel itu membuat unggahan puluhan detik sampai kehabisan waktu.
+    ws.eachRow((row, nomor) => {
       const sel: unknown[] = [];
-      for (let k = 1; k <= ws.columnCount; k++) sel.push(selMentah(row.getCell(k).value));
+      for (let k = 1; k <= row.cellCount; k++) sel.push(selMentah(row.getCell(k).value));
       while (grid.length < nomor - 1) grid.push([]);
       grid.push(sel);
     });

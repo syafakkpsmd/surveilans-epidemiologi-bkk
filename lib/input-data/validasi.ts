@@ -17,7 +17,10 @@ export interface HasilBaris {
 
 function ubah(k: KolomModul, v: unknown, modul: ModulInput, kamus: KamusWilker): { ok: true; nilai: string | number | null } | { ok: false; galat: string } {
   switch (k.tipe) {
-    case 'teks': return ubahTeks(v, k.maks ?? 255);
+    case 'teks': {
+      const r = ubahTeks(v, k.maks ?? 255);
+      return r.ok && r.nilai !== null && k.tanpaSpasi ? { ok: true, nilai: r.nilai.replace(/\s+/g, '') } : r;
+    }
     case 'desimal': return ubahDesimal(v);
     case 'tanggalwaktu': return ubahTanggalWaktu(v);
     case 'waktu': return ubahWaktu(v);

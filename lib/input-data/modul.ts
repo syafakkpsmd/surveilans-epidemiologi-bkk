@@ -10,6 +10,7 @@ import { KOLOM_LAMA, TABEL_UDARA } from '@/lib/udara-ruang/skema';
 import { MODUL_KLINIK } from './modul-klinik';
 import { MODUL_SKLT } from './modul-sklt';
 import { MODUL_KIER } from './modul-kier';
+import { MODUL_IZIN_JENAZAH } from './modul-izin-jenazah';
 
 /** 'ya_tidak' = butir formulir pemeriksaan: Ya / Tidak / N/A (kosong = belum dinilai). */
 export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker' | 'ya_tidak';
@@ -31,6 +32,8 @@ export interface KolomModul {
   arsip?: boolean;
   /** Panjang maksimum teks (default 255; harus sesuai kolom di database). */
   maks?: number;
+  /** Kolom 'teks': buang SEMUA spasi (mis. nomor surat Sinkarkes). */
+  tanpaSpasi?: boolean;
   /** Teks panjang yang ditampilkan di FORM (mis. kalimat pertanyaan butir); judul kolom Excel tetap `label` yang ringkas. */
   deskripsi?: string;
   /** Judul kelompok di form: muncul sebagai subjudul setiap kali kelompok berganti. */
@@ -97,6 +100,7 @@ export const MODUL: Record<string, ModulInput> = {
   ...MODUL_KLINIK, // HIV (VCT), TB (skrining), Migrasi Malaria: lib/input-data/modul-klinik.ts
   ...MODUL_SKLT, // SKLT (Surat Keterangan Laik Terbang): lib/input-data/modul-sklt.ts
   ...MODUL_KIER, // KIER Kesehatan: lib/input-data/modul-kier.ts
+  ...MODUL_IZIN_JENAZAH, // Izin Jenazah: lib/input-data/modul-izin-jenazah.ts
   cop: {
     kunci: 'cop',
     label: 'COP (kedatangan kapal)',

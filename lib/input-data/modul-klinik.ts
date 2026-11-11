@@ -8,6 +8,7 @@
 // yang sama (sel kosong tidak menimpa isian lama), bukan menggandakannya.
 import type { JenisWilker } from '@/lib/wilayah-kerja';
 import type { KolomModul, ModulInput } from './modul';
+import { MODUL_SIAOS } from './modul-siaos';
 
 const JENIS_LENGKAP: JenisWilker[] = ['Pelabuhan', 'Bandara', 'Kantor'];
 /** Judul kolom wilayah yang diterima pada berkas (isinya nama wilayah kerja). */
@@ -144,4 +145,9 @@ const migrasiMalaria: ModulInput = {
   ],
 };
 
-export const MODUL_KLINIK: Record<string, ModulInput> = { hiv, tb, migrasi_malaria: migrasiMalaria };
+export const MODUL_KLINIK: Record<string, ModulInput> = { 
+  hiv, 
+  tb, 
+  migrasi_malaria: migrasiMalaria, 
+  ...MODUL_SIAOS // <-- Tambahkan di bawah
+};

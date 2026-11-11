@@ -78,6 +78,10 @@ export interface ModulInput {
   pakaiParseTanggal?: boolean;
   /** Simpan wilayah_kerja = nama pendek APA ADANYA ("Tanjung Santan"), sama dengan filter di dasbor. Bawaan: tanpa spasi. */
   wilayahDenganSpasi?: boolean;
+  siapkanBaris?: (mentah: Record<string, unknown>) => Record<string, unknown>;
+  kolomHasilSiapkan?: Record<string, string[]>;
+  /** Kolom berkas yang hanya DIBACA untuk siapkanBaris (tidak disimpan, tidak ada di form/template): kunci -> judul yang dikenali. */
+  kolomBantu?: Record<string, string[]>;
   /** Sebutan kolom kunci untuk teks di layar ("nama kapal" bila kosong). */
   namaKunci?: string;
 }

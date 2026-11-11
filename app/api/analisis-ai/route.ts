@@ -400,7 +400,7 @@ export async function POST(request: Request) {
   let pengaturanError: { message: string } | null = null;
   try {
     ({ rows: daftarProviderAktif } = await getDbClient().execute(
-      'SELECT * FROM pengaturan_ai WHERE aktif = 1 ORDER BY urutan_prioritas ASC'
+      'SELECT * FROM pengaturan_ai WHERE aktif = TRUE ORDER BY urutan_prioritas ASC'
     ));
   } catch (e: any) {
     pengaturanError = { message: e?.message ?? String(e) };

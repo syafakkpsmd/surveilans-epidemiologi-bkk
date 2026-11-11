@@ -89,14 +89,18 @@ export async function bacaGrid(buffer: Buffer): Promise<{ grid: Grid } | { fatal
     } catch {
       return { fatal: 'Berkas .xlsx tidak dapat dibaca.' };
     }
-    const ws = wb.worksheets.find((s) => s.actualRowCount > 0); // lembar pertama yang benar-benar berisi nilai
+    // Menggunakan ws.rowCount standar untuk menghindari galat properti
+    const ws = wb.worksheets.find((s) => s.rowCount > 0);
     if (!ws) return { fatal: 'Berkas tidak memiliki lembar yang berisi data.' };
     const grid: Grid = [];
-    // Hanya baris yang berisi nilai (jarak antarbaris diisi di bawah). Ekspor Sinkarkes sering diformat sampai baris 65536
-    // dan kolom 256 (rowCount 65537): mengulang semua sel itu membuat unggahan puluhan detik sampai kehabisan waktu.
+    
+    // Menggunakan ws.columnCount agar aman di semua versi ExcelJS
+    const jumlahKolom = ws.columnCount;
     ws.eachRow((row, nomor) => {
       const sel: unknown[] = [];
-      for (let k = 1; k <= row.cellCount; k++) sel.push(selMentah(row.getCell(k).value));
+      for (let k = 1; k <= jumlahKolom; k++) {
+        sel.push(selMentah(row.getCell(k).value));
+      }
       while (grid.length < nomor - 1) grid.push([]);
       grid.push(sel);
     });
@@ -128,6 +132,9 @@ function petaJudul(modul: ModulInput): Map<string, string> {
       const kj = kunciJudul(j);
       if (!peta.has(kj)) peta.set(kj, k.nama); // judul pertama menang; tabrakan dicegah oleh uji
     }
+  }
+  for (const [nama, judul] of Object.entries(modul.kolomBantu ?? {})) {
+    for (const j of judul) { const kj = kunciJudul(j); if (!peta.has(kj)) peta.set(kj, nama); }
   }
   return peta;
 }
@@ -175,6 +182,7 @@ export async function bacaExcel(
   if (!pk) return { ...kosong, fatal: 'Baris judul kolom tidak ditemukan. Gunakan template dari tombol "Unduh template" atau ekspor asli Sinkarkes.' };
   const { barisJudul, kolomKe } = pk;
   const ada = new Set(kolomKe.values());
+  for (const [sumber, hasil] of Object.entries(modul.kolomHasilSiapkan ?? {})) if (ada.has(sumber)) hasil.forEach((h) => ada.add(h));
   const tanpaWilayah = !ada.has(modul.kolomWilayah);
   const hilang = modul.kolom.filter((k) => k.wajib && !ada.has(k.nama) && !(tanpaWilayah && k.nama === modul.kolomWilayah)).map((k) => k.label);
   if (hilang.length) return { ...kosong, kolomDiabaikan: pk.diabaikan, fatal: `Kolom wajib tidak ditemukan: ${hilang.join(', ')}.` };

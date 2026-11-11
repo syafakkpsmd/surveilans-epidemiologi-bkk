@@ -27,13 +27,19 @@ async function petaAda(ek: Eksekutor, modul: ModulInput, tahun: number, wilayah:
   const peta = new Map<string, string>();
   if (!wilayah.length) return peta;
   const kolW = q(modul.kolomWilayah), kolT = q(modul.kolomTanggal), kolK = q(modul.kolomKunci);
+  // kolom pembeda tambahan ikut dibaca: kunci baris di database harus dibentuk SAMA dengan kunci baris berkas,
+  // kalau tidak unggah ulang tidak pernah menemukan baris lama dan menggandakannya
+  const tambahan = modul.kolomKunciTambahan ?? [];
+  const kolTambahan = tambahan.map((c, i) => `, ${q(c)} AS ${q('tb' + i)}`).join('');
   const r = await ek.execute({
-    sql: `SELECT ${q('id')} AS id, ${kolW} AS w, ${kolK} AS k, ${kolT} AS t FROM ${q(modul.tabel)}
+    sql: `SELECT ${q('id')} AS id, ${kolW} AS w, ${kolK} AS k, ${kolT} AS t${kolTambahan} FROM ${q(modul.tabel)}
           WHERE ${kolT} >= ? AND ${kolT} < ? AND LOWER(REPLACE(${kolW},' ','')) IN (${wilayah.map(() => '?').join(',')})`,
     args: [`${tahun}-01-01`, `${tahun + 1}-01-01`, ...wilayah.map((w) => w.toLowerCase().replace(/\s+/g, ''))],
   });
   for (const x of r.rows) {
-    const kunci = kunciBaris(modul, { [modul.kolomWilayah]: x.w as string, [modul.kolomKunci]: x.k as string, [modul.kolomTanggal]: x.t as string });
+    const baris: NilaiBaris = { [modul.kolomWilayah]: x.w as string, [modul.kolomKunci]: x.k as string, [modul.kolomTanggal]: x.t as string };
+    tambahan.forEach((c, i) => { baris[c] = x['tb' + i] as string; });
+    const kunci = kunciBaris(modul, baris);
     if (kunci && !peta.has(kunci)) peta.set(kunci, String(x.id));
   }
   return peta;
@@ -194,7 +200,7 @@ export async function daftarData(modul: ModulInput, f: FilterDaftar) {
 
 export async function daftarTahun(modul: ModulInput): Promise<number[]> {
   const r = await getDbClient().execute(
-    `SELECT DISTINCT EXTRACT(YEAR FROM ${q(modul.kolomTanggal)})::int AS t FROM ${q(modul.tabel)} WHERE ${q(modul.kolomTanggal)} IS NOT NULL ORDER BY t DESC`,
+    `SELECT DISTINCT EXTRACT(YEAR FROM ${q(modul.kolomTanggal)}::date)::int AS t FROM ${q(modul.tabel)} WHERE ${q(modul.kolomTanggal)} IS NOT NULL ORDER BY t DESC`,
   );
   return r.rows.map((x) => Number(x.t)).filter((t) => t > 1990);
 }

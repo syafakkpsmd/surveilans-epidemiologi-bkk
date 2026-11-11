@@ -47,6 +47,12 @@ export const KATEGORI_INPUT: KategoriInput[] = [
         href: '/lalu-lintas-orang/input-penumpang-kapal',
         cara: ['form'],
       },
+      {
+        judul: 'SIAOS (Izin Angkut Orang Sakit)',
+        deskripsi: 'Izin lalu lintas orang sakit: unggah ekspor Sinkarkes apa adanya (tanpa diedit, tanggal model apa pun) atau input satu per satu.',
+        href: '/dashboard/input-data/siaos',
+        cara: ['form', 'excel'],
+      },
     ],
   },
   {

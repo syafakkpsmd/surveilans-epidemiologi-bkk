@@ -39,7 +39,8 @@ function ubah(k: KolomModul, v: unknown, modul: ModulInput, kamus: KamusWilker):
 }
 
 /** mentah: kunci = nama kolom tabel, nilai = isi sel/field apa adanya. Kolom yang tidak ada = dianggap kosong. */
-export function validasiBaris(modul: ModulInput, mentah: Record<string, unknown>, kamus: KamusWilker, tahun?: number): HasilBaris {
+export function validasiBaris(modul: ModulInput, mentahAsal: Record<string, unknown>, kamus: KamusWilker, tahun?: number): HasilBaris {
+  const mentah = modul.siapkanBaris ? modul.siapkanBaris(mentahAsal) : mentahAsal;
   const galat: string[] = [];
   const nilai: NilaiBaris = {};
   for (const k of modul.kolom) {
@@ -80,6 +81,10 @@ export function kunciBaris(modul: ModulInput, n: NilaiBaris): string | null {
   const t = n[modul.kolomTanggal];
   if (w == null || k == null || t == null) return null;
   // Kolom pembeda tambahan (mis. nomor barcode/QR) agar dua dokumen kapal yang sama di hari yang sama tidak saling menimpa.
-  const tambahan = (modul.kolomKunciTambahan ?? []).map((c) => String(n[c] ?? '').toLowerCase().replace(/\s+/g, ' ').trim());
+  const tambahan = (modul.kolomKunciTambahan ?? []).map((c) => {
+    const s = String(n[c] ?? '').toLowerCase();
+    // kolom tanpaSpasi (mis. no. surat Sinkarkes): "SR/5544/ 2026" dan "SR/5544/2026" adalah nomor yang sama, termasuk pada baris lama di database
+    return modul.kolom.find((x) => x.nama === c)?.tanpaSpasi ? s.replace(/\s+/g, '') : s.replace(/\s+/g, ' ').trim();
+  });
   return JSON.stringify([String(w).toLowerCase().replace(/\s+/g, ''), String(k).toLowerCase().replace(/\s+/g, ' ').trim(), String(t), ...tambahan]);
 }

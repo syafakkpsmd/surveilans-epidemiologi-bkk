@@ -6,7 +6,7 @@ import { createDbClient } from '@/lib/db/server';
 export async function pengawasanIdDariToken(token: string): Promise<string | null> {
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) return null;
   const r = await getDbClient().execute({
-    sql: 'SELECT pengawasan_id FROM pengawasan_klinik_link_perbaikan WHERE token = ? AND aktif = 1',
+    sql: 'SELECT pengawasan_id FROM pengawasan_klinik_link_perbaikan WHERE token = ? AND aktif = TRUE',
     args: [token],
   });
   return (r.rows[0]?.pengawasan_id as string) ?? null;

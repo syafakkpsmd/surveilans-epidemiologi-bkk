@@ -65,6 +65,8 @@ export const KATEGORI_INPUT: KategoriInput[] = [
       { judul: 'Buku Kesehatan', deskripsi: 'Penerbitan buku kesehatan kapal (e-Healthbook).', href: '/dashboard/input-data/sertifikat/buku_kesehatan', cara: ['form', 'excel'] },
       { judul: 'SKLT (Laik Terbang)', deskripsi: 'Surat Keterangan Laik Terbang (SKLT): unggah ekspor Sinkarkes atau input satu per satu; daftar per wilayah kerja dan bulan.', href: '/dashboard/input-data/sklt', cara: ['form', 'excel'] },
       { judul: 'KIER Kesehatan', deskripsi: 'Sertifikat pengujian kesehatan kapal.', href: '/dashboard/input-data/kier', cara: ['form', 'excel'] },
+      { judul: 'Izin Jenazah', deskripsi: 'Izin pengangkutan jenazah: unggah ekspor Sinkarkes atau input satu per satu.', href: '/dashboard/input-data/izin-jenazah', cara: ['form', 'excel'] },
+      { judul: 'Omkaba', deskripsi: 'Lalu lintas OMKABA (Orang, Barang, Kapal, dan Alat Angkut): unggah ekspor Sinkarkes atau input satu per satu.', href: '/dashboard/input-data/omkaba', cara: ['form', 'excel'] },
     ],
   },
   {

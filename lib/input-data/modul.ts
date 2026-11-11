@@ -11,6 +11,7 @@ import { MODUL_KLINIK } from './modul-klinik';
 import { MODUL_SKLT } from './modul-sklt';
 import { MODUL_KIER } from './modul-kier';
 import { MODUL_IZIN_JENAZAH } from './modul-izin-jenazah';
+import { MODUL_OMKABA } from './modul-omkaba';
 
 /** 'ya_tidak' = butir formulir pemeriksaan: Ya / Tidak / N/A (kosong = belum dinilai). */
 export type TipeKolom = 'teks' | 'bilangan' | 'desimal' | 'tanggal' | 'tanggalwaktu' | 'waktu' | 'rba' | 'wilker' | 'ya_tidak';
@@ -84,7 +85,7 @@ export interface ModulInput {
   kolomBantu?: Record<string, string[]>;
   /** Sebutan kolom kunci untuk teks di layar ("nama kapal" bila kosong). */
   namaKunci?: string;
-}
+  }
 
 /** Modul kapal (COP/PHQC): hanya pelabuhan. Modul lain: pelabuhan dan bandara. */
 const JENIS_KAPAL: JenisWilker[] = ['Pelabuhan'];
@@ -105,6 +106,7 @@ export const MODUL: Record<string, ModulInput> = {
   ...MODUL_SKLT, // SKLT (Surat Keterangan Laik Terbang): lib/input-data/modul-sklt.ts
   ...MODUL_KIER, // KIER Kesehatan: lib/input-data/modul-kier.ts
   ...MODUL_IZIN_JENAZAH, // Izin Jenazah: lib/input-data/modul-izin-jenazah.ts
+  ...MODUL_OMKABA, // Lalu Lintas OMKABA: lib/input-data/modul-omkaba.ts
   cop: {
     kunci: 'cop',
     label: 'COP (kedatangan kapal)',
@@ -498,6 +500,40 @@ export const MODUL: Record<string, ModulInput> = {
         nama: 'status_evaluasi', label: 'Status Evaluasi (otomatis)', tipe: 'teks', arsip: true,
         turunan: (n) => statusEvaluasi(n),
       },
+    ],
+  },
+// ------------------------------------------------------------------------------------------
+  // Rat Guard (pemasangan penghalang tikus pada tali kapal). Satu baris = jumlah kapal per wilayah per tanggal.
+  // Tabel LAMA `rat_guard` dipakai apa adanya; dasbor membaca view_rat_guard_bulanan/mingguan, jadi tidak ikut berubah.
+  // jumlah_kapal DIHITUNG (pasang + tidak pasang) agar tidak pernah selisih. Kolom tambahan: schema/postgres/11_modul_rat_guard.sql.
+  // ------------------------------------------------------------------------------------------
+  rat_guard: {
+    kunci: 'rat_guard',
+    label: 'Rat Guard',
+    tabel: 'rat_guard',
+    kolomTanggal: 'tanggal',
+    kolomWilayah: 'wilayah_kerja',
+    // Satu baris per wilayah per tanggal: kolom kunci berisi konstanta 'harian' (turunan) supaya pola kunci modul lain bisa dipakai.
+    kolomKunci: 'kunci_harian',
+    namaKunci: 'hari',
+    kunciWilker: 'rat_guard',
+    pakaiParseTanggal: true,
+    wilayahDenganSpasi: true,
+    jenisWilayahBoleh: JENIS_LENGKAP,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tanggal', 'wilayah_kerja', 'jumlah_kapal', 'pasang', 'tidak_pasang'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      { nama: 'tanggal', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tgl', 'Tanggal Pemeriksaan', 'Tanggal Kegiatan'] },
+      { nama: 'pasang', label: 'Rat Guard Terpasang', tipe: 'bilangan', wajib: true, batasNilai: [0, 1000],
+        alias: ['Pasang', 'Terpasang', 'Jumlah Kapal Pasang', 'Kapal Terpasang', 'Memasang Rat Guard'] },
+      { nama: 'tidak_pasang', label: 'Rat Guard Tidak Terpasang', tipe: 'bilangan', wajib: true, batasNilai: [0, 1000],
+        alias: ['Tidak Pasang', 'Tidak Terpasang', 'Jumlah Kapal Tidak Pasang', 'Kapal Tidak Terpasang', 'Tidak Memasang Rat Guard'] },
+      {
+        nama: 'jumlah_kapal', label: 'Jumlah Kapal (otomatis)', tipe: 'bilangan', arsip: true,
+        turunan: (n) => Number(n.pasang ?? 0) + Number(n.tidak_pasang ?? 0),
+      },
+      { nama: 'kunci_harian', label: 'Kunci (otomatis)', tipe: 'teks', arsip: true, turunan: () => 'harian' },
     ],
   },
 };

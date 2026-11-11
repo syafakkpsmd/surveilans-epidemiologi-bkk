@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 
 interface Baris { id: number; nama_pelabuhan: string; negara: string }
 interface Belum { pelabuhan: string; jumlah: number }
@@ -36,6 +37,20 @@ export default function MasterNegara({ admin, onPesan, onBerubah }: {
   const [berkas, setBerkas] = useState<File | null>(null);
   const [pratinjau, setPratinjau] = useState<PratinjauMaster | null>(null);
   const [sibuk, setSibuk] = useState(false);
+
+  const inputBerkas = useRef<HTMLInputElement>(null);
+
+  function unduhTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Nama Pelabuhan', 'Negara'],
+      ['Qingdao', 'China'],
+      ['Pasir Gudang', 'Malaysia'],
+    ]);
+    ws['!cols'] = [{ wch: 35 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Master Negara');
+    XLSX.writeFile(wb, 'template-master-negara-kedatangan.xlsx');
+  }
 
   const muat = useCallback(async () => {
     const r = await panggil<{ total: number; baris: Baris[]; ukuran: number }>(`${dasar}/daftar?cari=${encodeURIComponent(cari)}&halaman=${halaman}`);
@@ -74,10 +89,10 @@ export default function MasterNegara({ admin, onPesan, onBerubah }: {
     void muat(); onBerubah();
   }
 
-  async function kirim(mode: 'pratinjau' | 'simpan') {
-    if (!berkas) return;
+  async function kirim(mode: 'pratinjau' | 'simpan', f: File | null = berkas) {
+    if (!f) return;
     setSibuk(true);
-    const fd = new FormData(); fd.set('file', berkas); fd.set('mode', mode);
+    const fd = new FormData(); fd.set('file', f); fd.set('mode', mode);
     const r = await panggil<PratinjauMaster>(`${dasar}/unggah`, { method: 'POST', body: fd });
     setSibuk(false);
     if (!r.ok) { onPesan('galat', r.data.error ?? 'Gagal memproses berkas'); setPratinjau(null); return; }
@@ -123,12 +138,36 @@ export default function MasterNegara({ admin, onPesan, onBerubah }: {
         <button className={kls.tombolPutih} disabled={sibuk} onClick={terapkan}>Terapkan ke data COP yang kosong</button>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end gap-3 text-sm">
-        <label>Unggah daftar dari Excel (kolom “Nama Pelabuhan” dan “Negara”)<br />
-          <input type="file" accept=".xlsx,.xls,.html,.htm" onChange={(e) => { setBerkas(e.target.files?.[0] ?? null); setPratinjau(null); }} />
-        </label>
-        <button className={kls.tombolPutih} disabled={!berkas || sibuk} onClick={() => kirim('pratinjau')}>Periksa berkas</button>
-        {pratinjau && <button className={kls.tombol} disabled={sibuk || pratinjau.sah === 0} onClick={() => kirim('simpan')}>Simpan {pratinjau.sah} pelabuhan</button>}
+      <div className="mb-4 rounded border border-dashed border-gray-300 p-3 text-sm">
+        <div className="mb-1 font-medium">Unggah daftar dari Excel</div>
+        <p className="mb-2 text-gray-600">
+          Kolom wajib: “Nama Pelabuhan” dan “Negara”. Pelabuhan yang sudah ada akan diperbarui negaranya.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={inputBerkas}
+            type="file"
+            accept=".xlsx,.xls,.html,.htm"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              e.target.value = '';
+              setBerkas(f);
+              setPratinjau(null);
+              if (f) void kirim('pratinjau', f);
+            }}
+          />
+          <button type="button" className={kls.tombol} disabled={sibuk} onClick={() => inputBerkas.current?.click()}>
+            Unggah Excel
+          </button>
+          <button type="button" className={kls.tombolPutih} onClick={unduhTemplate}>Unduh template</button>
+          {berkas && <span className="text-gray-600">{berkas.name}</span>}
+          {pratinjau && (
+            <button className={kls.tombol} disabled={sibuk || pratinjau.sah === 0} onClick={() => kirim('simpan')}>
+              Simpan {pratinjau.sah} pelabuhan
+            </button>
+          )}
+        </div>
       </div>
       {pratinjau && (
         <p className="mb-3 text-sm">Baris: {pratinjau.jumlahBaris} · sah: <b className="text-green-700">{pratinjau.sah}</b> · ditolak: <b className="text-red-700">{pratinjau.ditolak}</b>

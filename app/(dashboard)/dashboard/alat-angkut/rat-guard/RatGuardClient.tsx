@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link"; // <--- 1. Impor Link dari Next.js
 import TrenChartLine from "@/components/vektor/TrenChartLine";
 import { BoxAnalisisAI } from "@/components/BoxAnalisisAI";
 import { BoxPrediksiAI } from "@/components/BoxPrediksiAI";
@@ -137,8 +138,18 @@ export default function RatGuardClient({
 
   return (
     <div className="space-y-6">
-      {/* FILTER & KONTROL */}
-      <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl bg-white p-4 shadow-xs border border-gray-100">
+      {/* FILTER & KONTROL + TOMBOL INPUT DATA */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white p-4 shadow-xs border border-gray-100">
+        
+        {/* Tombol Menuju Form Input / Unggah Excel */}
+        <Link
+          href="/dashboard/alat-angkut/rat-guard/input"
+          className="inline-flex items-center gap-2 rounded-lg bg-[#0F4C5C] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#0c3e4b] transition-colors"
+        >
+          <span>➕</span> Input Data / Unggah Excel
+        </Link>
+
+        {/* Kontrol Filter Wilayah & Periode */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-medium">
             <button
@@ -246,6 +257,7 @@ export default function RatGuardClient({
             </button>
           </div>
         </div>
+
       </div>
 
       {/* DASHBOARD GRAFIK */}

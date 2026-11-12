@@ -3,23 +3,12 @@ import { getKategoriBreakdown, getRingkasanBulanan } from "@/lib/db/queries/umum
 import { BULAN, fmtAngka, fmtPerubahan, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, jumlahPerWilker, temuanDeret, temuanWilker } from "./_bantu";
+import { getKamusWilker } from "@/lib/wilayah-kerja/server";
 
 const JUDUL = "Pengawasan Kedatangan Kapal dari Luar Negeri";
 
-/**
- * Urutan tampil wilayah kerja di grafik: Samarinda, APT Pranoto, Tanjung Santan,
- * Tanjung Laut, Lhoktuan, Sangatta, Sangkulirang.
- */
-const URUTAN_WILKER = ["samarinda", "pranoto", "santan", "tanjunglaut", "lhoktuan", "sangatta", "sangkulirang"];
-const WARNA_WILKER = ["0A7A78", "C9781F", "10293A", "6B8E9B", "B3362C", "2A7A4B", "7A5C99"];
-const WARNA_LAIN = "B8A24A";
+const PALET_WILKER = ["0A7A78", "C9781F", "10293A", "6B8E9B", "B3362C", "2A7A4B", "7A5C99", "B8A24A", "4A6FA5", "8C5A3C"];
 
-function urutWilker(nama: string): number {
-  const n = nama.toLowerCase().replace(/\s+/g, "");
-  const cek = [...URUTAN_WILKER.slice(1), URUTAN_WILKER[0]];
-  for (const k of cek) if (n.includes(k)) return URUTAN_WILKER.indexOf(k);
-  return URUTAN_WILKER.length;
-}
 
 type KategoriLaporan = "rba" | "negara_kedatangan" | "daerah_terjangkit";
 interface NilaiJumlah { nilai: string; jumlah: number }
@@ -89,17 +78,24 @@ export const modulCop: ModulLaporan = {
       abk: (b) => b.total_abk,
     });
 
-    const wilkerDari = (b: (typeof baris)[number]) => b.wilayah_kerja;
-    const seriWilker = [...new Set(baris.map(wilkerDari))]
-      .map((k) => {
-        const sub = baris.filter((b) => wilkerDari(b) === k);
-        const nama = jumlahPerWilker(sub, bulanAkhir, { kapal: (b) => b.jumlah_kapal })[0]?.nama ?? String(k);
-        return { nama, nilai: jumlahPerBulan(sub, bulanAkhir, (b) => b.jumlah_kapal) };
+        const kamus = await getKamusWilker();
+    const kodeRekap = (teks: string | null) => kamus.kodeRekapDariTeks(teks) ?? String(teks ?? "Lainnya");
+    const kelompok = [...new Set(baris.map((b) => kodeRekap(b.wilayah_kerja)))];
+    const warnaMaster = (kode: string) => (kamus.dapatkan(kode)?.warna ?? "").replace("#", "");
+    const seriWilker = kelompok
+      .map((kode) => {
+        const sub = baris.filter((b) => kodeRekap(b.wilayah_kerja) === kode);
+        const w = kamus.dapatkan(kode);
+        return {
+          nama: w?.namaPendek ?? kode,
+          nilai: jumlahPerBulan(sub, bulanAkhir, (b) => b.jumlah_kapal),
+          urut: w?.urutan ?? 9999,
+          warna: warnaMaster(kode),
+        };
       })
       .filter((s) => jumlah(s.nilai) > 0)
-      .map((s) => ({ nama: s.nama, nilai: s.nilai, urut: urutWilker(s.nama) }))
       .sort((a, b) => a.urut - b.urut)
-      .map(({ nama, nilai, urut }) => ({ nama, nilai, warna: WARNA_WILKER[urut] ?? WARNA_LAIN }));
+      .map(({ nama, nilai, warna }, i) => ({ nama, nilai, warna: warna || PALET_WILKER[i % PALET_WILKER.length] }));
 
     const [dataRba, dataNegara, dataDaerah] = await Promise.all([
       aman(ambilKategori("rba", konteks), "RBA"),

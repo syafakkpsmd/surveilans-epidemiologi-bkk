@@ -340,7 +340,7 @@ import type {
   WilkerRef,
 } from '@/types/database.types';
 
-// ── Referensi wilker (7 wilker, termasuk Bandara APT Pranoto) ──
+// ── Referensi wilker (dari tabel wilker_ref, dikelola di pengaturan wilayah kerja) ──
 export async function getWilkerRef(): Promise<WilkerRef[]> {
   const supabase = await createDbClient();
   const { data, error } = await supabase

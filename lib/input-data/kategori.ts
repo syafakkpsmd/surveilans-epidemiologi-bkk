@@ -42,17 +42,25 @@ export const KATEGORI_INPUT: KategoriInput[] = [
         cara: ['form', 'excel'],
       },
       {
-        judul: 'Penumpang Kapal',
-        deskripsi: 'Catat kedatangan kapal, lalu lengkapi keberangkatan beberapa hari kemudian.',
-        href: '/lalu-lintas-orang/input-penumpang-kapal',
-        cara: ['form'],
-      },
-      {
-        judul: 'SIAOS (Izin Angkut Orang Sakit)',
-        deskripsi: 'Izin lalu lintas orang sakit: unggah ekspor Sinkarkes apa adanya (tanpa diedit, tanggal model apa pun) atau input satu per satu.',
-        href: '/dashboard/input-data/siaos',
+        judul: 'Pengawasan Rat Guard',
+        deskripsi: 'Pengawasan Kapal di Pelabuhan yang memasang Rat Guard: input satu per satu atau unggah Excel.',
+        href: '/dashboard/alat-angkut/rat-guard/input',
         cara: ['form', 'excel'],
       },
+    ],
+  },
+  {
+    id: 'Lingkungan & Vektor',
+    judul: 'Faktor Risiko Lingkungan & Vektor',
+    menu: [
+      { judul: 'Pengawasan Vektor DBD', deskripsi: 'Hasil pengawasan vektor DBD: input satu per satu atau unggah Excel.', href: '/dashboard/vektor-dbd/input', cara: ['form', 'excel'] },
+      { judul: 'Pengawasan Vektor Malaria', deskripsi: 'Hasil pengawasan vektor malaria: input satu per satu atau unggah Excel.', href: '/dashboard/data/vektor/anopheles', cara: ['form', 'excel'] },
+      { judul: 'Pengawasan Tempat-tempat Umum', deskripsi: 'Hasil pengawasan tempat-tempat umum: input satu per satu atau unggah Excel.', href: '/dashboard/ttu/input', cara: ['form', 'excel'] },
+      { judul: 'Pengawasan Sarana Air Bersih', deskripsi: 'Hasil pengawasan sarana air bersih: input satu per satu atau unggah Excel.', href: '/dashboard/pab/input', cara: ['form', 'excel'] },
+      { judul: 'Pengawasan Tempat Pengolahan Pangan', deskripsi: 'Hasil pengawasan tempat pengolahan pangan: input satu per satu atau unggah Excel.', href: '/dashboard/tpp/input', cara: ['form', 'excel'] },
+      { judul: 'Pengawasan Limbah B3', deskripsi: 'Hasil pengawasan sarana limbah B3: input satu per satu atau unggah Excel.', href: '/dashboard/limbah-b3/input', cara: ['form', 'excel'] },
+      { judul: 'Pengawasan Udara Ruang', deskripsi: 'Hasil pengawasan Udara Ruang: input satu per satu atau unggah Excel.', href: '/dashboard/udara-ruang/input', cara: ['form', 'excel'] },
+      { judul: 'Pengawasan Media Tanah', deskripsi: 'Hasil pengawasan Media Tanah: input satu per satu atau unggah Excel.', href: '/dashboard/media-tanah/input', cara: ['form', 'excel'] },
     ],
   },
   {
@@ -70,8 +78,8 @@ export const KATEGORI_INPUT: KategoriInput[] = [
     ],
   },
   {
-    id: 'penyakit',
-    judul: 'Surveilans Penyakit',
+    id: 'Lalu Lintas Orang',
+    judul: 'Pengawasan Lalu Lintas Orang & Kesehatan Perjalanan',
     menu: [
       {
         judul: 'PIE Global',
@@ -82,6 +90,11 @@ export const KATEGORI_INPUT: KategoriInput[] = [
       { judul: 'HIV (VCT)', deskripsi: 'Kunjungan layanan konseling dan tes HIV: input satu per satu atau unggah Excel (berbagai model tanggal).', href: '/dashboard/input-data/penyakit/hiv', cara: ['form', 'excel'] },
       { judul: 'TB (Skrining)', deskripsi: 'Skrining dan diagnosis TB: input satu per satu atau unggah Excel (berbagai model tanggal).', href: '/dashboard/input-data/penyakit/tb', cara: ['form', 'excel'] },
       { judul: 'Migrasi Malaria', deskripsi: 'Survei migrasi malaria pada penumpang kapal dan pesawat: input satu per satu atau unggah Excel.', href: '/dashboard/input-data/penyakit/migrasi_malaria', cara: ['form', 'excel'] },
+      { judul: 'Ispa pada Karhutla', deskripsi: 'Survei ISPA pada penumpang kapal dan pesawat: input satu per satu atau unggah Excel.', href: '/dashboard/form/ispa-harian', cara: ['form', 'excel'] },
+      { judul: 'Penumpang Kapal', deskripsi: 'Catat kedatangan kapal, lalu lengkapi keberangkatan beberapa hari kemudian.', href: '/lalu-lintas-orang/input-penumpang-kapal', cara: ['form'] },
+      { judul: 'SIAOS (Izin Angkut Orang Sakit)', deskripsi: 'Izin lalu lintas orang sakit: unggah ekspor Sinkarkes apa adanya (tanpa diedit, tanggal model apa pun) atau input satu per satu.', href: '/dashboard/input-data/siaos', cara: ['form', 'excel'] },
+      { judul: 'Poliklinik  BKK', deskripsi: 'Layanan poliklinik BKK: input satu per satu atau unggah Excel (berbagai model tanggal).', href: '/dashboard/poliklinik/input', cara: ['form', 'excel'] },
+      { judul: 'Poliklinik Mitra', deskripsi: 'Layanan poliklinik di Wilayah Kerja BKK: input satu per satu atau unggah Excel (berbagai model tanggal).', href: '/dashboard/poliklinik-non-bkk', cara: ['form', 'excel'] },
     ],
   },
   {
@@ -97,6 +110,8 @@ export const KATEGORI_INPUT: KategoriInput[] = [
     judul: 'Klinik Binaan',
     menu: [
       { judul: 'Pengawasan Klinik', deskripsi: 'Tambah hasil pengawasan klinik binaan.', href: '/dashboard/pengawasan-klinik/tambah', cara: ['form'] },
+      { judul: 'Layanan Vaksinasi BKK', deskripsi: 'Tambah hasil layanan vaksinasi BKK Samarinda.', href: '/dashboard/klinik/input', cara: ['form', 'excel'] },
+      { judul: 'Layanan Vaksinasi Klinik Mitra', deskripsi: 'Tambah hasil layanan vaksinasi klinik mitra.', href: '/dashboard/pengawasan-klinik/tambah', cara: ['form', 'excel'] },
     ],
   },
   {

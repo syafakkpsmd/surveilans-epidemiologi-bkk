@@ -6,6 +6,7 @@ import type { DbValue as InValue } from '@/lib/db/client';
 import { muatDaftarWilayahSingkat } from '@/lib/wilayah-kerja/db';
 import { DAFTAR_DOKUMEN } from '@/lib/omkaba/dokumen';
 import type { BarisOmkaba } from '@/lib/omkaba/hitung';
+import { klausaWilayahSql, variasiTulisan } from '@/lib/wilayah-kerja';
 
 /** Pengaman: satu tahun OMKABA jauh di bawah angka ini; bila terlampaui, dasbor menampilkan yang terbaru. */
 const BATAS_BARIS = 5000;
@@ -13,9 +14,11 @@ const BATAS_BARIS = 5000;
 /** Sama dengan filter wilker modul malaria: FilterWilker mengirim KODE (WK01...), kolom wilayah_kerja berisi nama pendek. */
 async function filterWilker(kodeWilker?: string): Promise<{ klausa: string; args: InValue[] }> {
   if (!kodeWilker || kodeWilker === 'Semua') return { klausa: '', args: [] };
-  const kataKunci = (await muatDaftarWilayahSingkat()).find((w) => w.kode === kodeWilker)?.namaPendek;
-  if (!kataKunci) return { klausa: ' AND wilayah_kerja = ?', args: [kodeWilker] };
-  return { klausa: ' AND wilayah_kerja LIKE ?', args: [`%${kataKunci}%`] };
+    const w = (await muatDaftarWilayahSingkat()).find((x) => x.kode === kodeWilker);
+  if (!w) return { klausa: ' AND wilayah_kerja = ?', args: [kodeWilker] };
+  // Semua ejaan yang mungkin tersimpan (nama saat ini + alias nama lama), dibandingkan tanpa spasi dan huruf besar.
+    const varian = variasiTulisan(w);
+  return { klausa: ` AND ${klausaWilayahSql()} IN (${varian.map(() => '?').join(', ')})`, args: varian };
 }
 
 const teks = (v: unknown): string | null => (v == null || String(v).trim() === '' ? null : String(v).trim());

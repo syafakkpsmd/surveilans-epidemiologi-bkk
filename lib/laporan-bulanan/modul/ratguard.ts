@@ -3,57 +3,9 @@ import { getRingkasanRatGuardBulanan } from "@/lib/db/queries/umum";
 import { BULAN, fmtAngka, fmtPersen, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, jumlahPerWilker, persenDari, temuanPoin } from "./_bantu";
+import { susunSeriWilker } from "./_seriWilker";
 
 const JUDUL = "Pengawasan Kepatuhan Pemasangan Rat Guard";
-
-/**
- * Urutan legenda disesuaikan secara presisi:
- * 1. Samarinda
- * 2. Tanjung Santan
- * 3. Tanjung Laut
- * 4. Lhoktuan
- * 5. Sangatta
- * 6. Sangkulirang
- */
-const URUTAN_WILKER = [
-  "samarinda",
-  "santan",
-  "tanjunglaut",
-  "lhoktuan",
-  "sangatta",
-  "sangkulirang",
-];
-
-/**
- * Palette Warna (Palet dibuat sangat kontras):
- * - Samarinda   : 0A7A78 (Tosca)
- * - Santan      : 10293A (Biru Gelap/Navy)
- * - Tanjung Laut: 6B8E9B (Biru Abu-abu)
- * - Lhoktuan    : B3362C (Merah)
- * - Sangatta    : E67E22 (Orange Cerah - Pengganti Hijau agar tidak mirip Samarinda)
- * - Sangkulirang: 7A5C99 (Ungu)
- */
-const WARNA_WILKER = [
-  "0A7A78", // Samarinda
-  "10293A", // Tanjung Santan
-  "6B8E9B", // Tanjung Laut
-  "B3362C", // Lhoktuan
-  "E67E22", // Sangatta (Sudah diubah)
-  "7A5C99", // Sangkulirang
-];
-const WARNA_LAIN = "B8A24A";
-
-function urutWilker(nama: string): number {
-  const n = nama.toLowerCase().replace(/\s+/g, "");
-  
-  // Mencari index urutan wilker secara tepat
-  for (let i = 0; i < URUTAN_WILKER.length; i++) {
-    if (n.includes(URUTAN_WILKER[i])) {
-      return i;
-    }
-  }
-  return URUTAN_WILKER.length;
-}
 
 /** Kolom view_rat_guard_bulanan yang dipakai. */
 interface Baris {
@@ -95,23 +47,8 @@ export const modulRatGuard: ModulLaporan = {
       persen: persenDari(w.nilai.pasang, w.nilai.pasang + w.nilai.tidak),
     }));
 
-    // Menyusun seri grafik batang per wilayah kerja
-    const wilkerDari = (b: Baris) => b.wilayah_kerja ?? "Lainnya";
-    const seriWilker = [...new Set(baris.map(wilkerDari))]
-      .map((k) => {
-        const sub = baris.filter((b) => wilkerDari(b) === k);
-        const nama =
-          jumlahPerWilker(sub, bulanAkhir, { kapal: (b) => b.jumlah_kapal ?? 0 })[0]?.nama ?? String(k);
-        return { nama, nilai: jumlahPerBulan(sub, bulanAkhir, (b) => b.jumlah_kapal ?? 0) };
-      })
-      .filter((s) => jumlah(s.nilai) > 0)
-      .map((s) => ({ nama: s.nama, nilai: s.nilai, urut: urutWilker(s.nama) }))
-      .sort((a, b) => a.urut - b.urut)
-      .map(({ nama, nilai, urut }) => ({
-        nama,
-        nilai,
-        warna: WARNA_WILKER[urut] ?? WARNA_LAIN,
-      }));
+    // Seri grafik batang per wilayah kerja
+    const seriWilker = await susunSeriWilker(baris, bulanAkhir, (b) => b.jumlah_kapal ?? 0);
 
     // Menyusun temuan otomatis
     const temuan = temuanPoin(kepatuhan, "Kepatuhan pemasangan rat guard");
@@ -139,7 +76,7 @@ export const modulRatGuard: ModulLaporan = {
         { label: `Kepatuhan ${BULAN[bulanAkhir - 1]}`, nilai: fmtPersen(kepatuhan[bulanAkhir - 1]) },
       ],
 
-      // Grafik Tren dalam bentuk BATANG per Wilayah Kerja (Sesuai COP/PHQC)
+      // Grafik Tren dalam bentuk BATANG per Wilayah Kerja (sesuai COP/PHQC)
       tren: {
         jenis: "batang",
         label: labelBulanan(bulanAkhir),

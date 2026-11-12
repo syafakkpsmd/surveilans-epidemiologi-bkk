@@ -147,7 +147,14 @@ export async function perbaruiWilayahKerja(formData: FormData) {
   if (namaPendek.length < 2) kembali('Nama pendek minimal 2 karakter.');
 
   try {
-    const r = await getDbClient().execute({
+    const db = getDbClient();
+    const lama = (await db.execute({
+      sql: `SELECT nama, nama_pendek, nama_peta FROM wilker_ref WHERE kode = ?`,
+      args: [kode],
+    })).rows[0] as { nama?: string; nama_pendek?: string; nama_peta?: string } | undefined;
+    if (!lama) kembali('Wilayah kerja tidak ditemukan.');
+
+    const r = await db.execute({
       sql: `UPDATE wilker_ref
                SET nama = ?, nama_pendek = ?, nama_peta = ?, jenis = ?, lat = ?, lng = ?,
                    sub_lokasi = ?, catatan = ?, warna = ?, urutan = ?,
@@ -156,6 +163,22 @@ export async function perbaruiWilayahKerja(formData: FormData) {
       args: [nama, namaPendek, namaPeta, jenis, lat, lng, bacaSubLokasi(formData), teks(formData, 'catatan') || null, bacaWarna(formData), urutan, peta.petaLat, peta.petaLng, peta.zoom, bacaUnitSkdr(formData), kode],
     });
     if (r.rowsAffected === 0) kembali('Wilayah kerja tidak ditemukan.');
+
+    // Simpan nama lama sebagai alias supaya data lama (teks di kolom wilayah_kerja) tetap terbaca.
+    const namaLama = [...new Set([lama!.nama, lama!.nama_pendek, lama!.nama_peta].map((s) => String(s ?? '').trim()))]
+      .filter((s) => s.length >= 2 && ![nama, namaPendek, namaPeta].includes(s));
+    for (const s of namaLama) {
+      try {
+        await db.execute({
+          sql: `INSERT INTO wilker_nama_alias (wilayah_kerja_teks, kode_wilker)
+                SELECT ?::text, ?::text
+                 WHERE NOT EXISTS (SELECT 1 FROM wilker_nama_alias WHERE wilayah_kerja_teks = ?::text)`,
+          args: [s, kode, s],
+        });
+      } catch (err) {
+        console.error('[pengaturan-wilayah-kerja] alias nama lama gagal:', (err as { message?: string })?.message);
+      }
+    }
   } catch (e) {
     if ((e as { digest?: string })?.digest?.startsWith('NEXT_REDIRECT')) throw e;
     kembali(pesanGalat(e, 'Gagal menyimpan perubahan.'));

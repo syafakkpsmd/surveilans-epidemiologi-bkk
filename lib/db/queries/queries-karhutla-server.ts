@@ -1,3 +1,7 @@
+/**
+ * HANYA untuk dipanggil dari Server Component / Route Handler / Server Action.
+ * Jangan pernah import file ini dari komponen yang ada 'use client'.
+ */
 import 'server-only';
 import {
   ambilIspaDariPoliklinik,
@@ -18,6 +22,28 @@ import {
   mundurkanTanggal,
 } from '@/lib/karhutla/infografis-utils';
 
+// ------------------------------------------------------------
+// Konstanta & helper umum
+// ------------------------------------------------------------
+
+// id 24 = 'ISPA-AA' di skdr_jenis_penyakit, lihat DAFTAR_PENYAKIT_SKDR
+// di app/(dashboard)/dashboard/skdr/SkdrClient.tsx
+const JENIS_PENYAKIT_ISPA_SKDR_ID = 24;
+
+const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+const PARAM_UDARA = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'] as const;
+
+/** Jumlah desimal pembulatan rerata per parameter. */
+const DIGIT_UDARA: Record<(typeof PARAM_UDARA)[number], number> = {
+  pm25: 1,
+  pm10: 1,
+  suhu: 1,
+  hcho: 2,
+  tvoc: 2,
+  kelembapan: 1,
+};
+
 /**
  * Membangun filter Supabase .or() dari beberapa wilayahKey ("WK01" atau "WK01::Palaran").
  * Return null kalau array kosong (artinya tanpa filter = semua wilayah).
@@ -35,10 +61,10 @@ function bangunFilterOrWilayah(wilayahKeys: string[] | undefined): string | null
   return klausa.join(',');
 }
 
-/**
- * HANYA untuk dipanggil dari Server Component / Route Handler / Server Action.
- * Jangan pernah import file ini dari komponen yang ada 'use client'.
- */
+/** Rerata dari akumulator {total, jml}; null kalau belum ada data. */
+function rerata(akum: { total: number; jml: number } | undefined, digit: number): number | null {
+  return akum && akum.jml > 0 ? Number((akum.total / akum.jml).toFixed(digit)) : null;
+}
 
 // ------------------------------------------------------------
 // Tren "N hari terakhir": kasus ISPA vs PM2.5 vs jumlah titik api
@@ -103,7 +129,18 @@ export async function ambilTrenIspaPm25(
 
   if (errIspa) throw new Error(`Gagal mengambil tren ISPA: ${errIspa.message}`);
   // zona klinik tertentu (Klinik Pelabuhan Samarinda) memakai data Kunjungan Poliklinik
-  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosWilayahKeys(wilayahKeys));
+  const dataIspa = gabungkanIspaPoliklinik(
+    dataIspaManual ?? [],
+    poliIspa,
+    (b) => ({
+      tanggal: b.tanggal,
+      kode_wilker: b.kode_wilker,
+      zona: b.zona,
+      kasus_ispa_anak: b.kasus_ispa_anak,
+      kasus_ispa_dewasa: b.kasus_ispa_dewasa,
+    }),
+    lolosWilayahKeys(wilayahKeys)
+  );
   if (errUdara) throw new Error(`Gagal mengambil data PM2.5: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
 
@@ -115,10 +152,6 @@ export async function ambilTrenIspaPm25(
     entri.jml += 1;
     mapPm25.set(baris.tanggal, entri);
   }
-  const pm25PerTanggal = (tanggal: string): number | null => {
-    const e = mapPm25.get(tanggal);
-    return e && e.jml > 0 ? Number((e.total / e.jml).toFixed(1)) : null;
-  };
 
   const mapHotspot = new Map<string, number>();
   for (const baris of dataHotspot ?? []) {
@@ -146,7 +179,7 @@ export async function ambilTrenIspaPm25(
       tanggal: tanggalStr,
       kasus_ispa_anak: ispa?.kasus_ispa_anak ?? 0,
       kasus_ispa_dewasa: ispa?.kasus_ispa_dewasa ?? 0,
-      pm25_rerata: pm25PerTanggal(tanggalStr),
+      pm25_rerata: rerata(mapPm25.get(tanggalStr), 1),
       jumlah_titik_api: mapHotspot.get(tanggalStr) ?? 0,
     });
     kursor.setDate(kursor.getDate() + 1);
@@ -154,6 +187,7 @@ export async function ambilTrenIspaPm25(
 
   return hasil;
 }
+
 // ------------------------------------------------------------
 // Cache hotspot untuk peta (snapshot titik terbaru, bukan tren)
 // ------------------------------------------------------------
@@ -199,7 +233,10 @@ export async function ambilDaftarWilayahIspa(): Promise<WilayahIspaRow[]> {
 
   if (error) throw new Error(`Gagal mengambil daftar wilayah ISPA: ${error.message}`);
   const kamus = buatKamus(await getDaftarWilker());
-  return (data ?? []).map((r) => ({ ...r, induk: kamus.namaDariKode(r.kode_wilker, 'pendek') ?? r.kode_wilker }));
+  return (data ?? []).map((r) => ({
+    ...r,
+    induk: kamus.namaDariKode(r.kode_wilker, 'pendek') ?? r.kode_wilker,
+  }));
 }
 
 export interface LokasiUdaraRow {
@@ -224,8 +261,6 @@ export async function ambilDaftarLokasiUdara(): Promise<LokasiUdaraRow[]> {
 // ------------------------------------------------------------
 // Perbandingan ISPA vs Hotspot untuk rentang periode pilihan user
 // ------------------------------------------------------------
-
-const NAMA_BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 export interface TitikPerbandinganIspaHotspot {
   periode: number;
@@ -357,14 +392,13 @@ export async function ambilPerbandinganIspaHotspot(
   const hasil: TitikPerbandinganIspaHotspot[] = [];
   for (let p = periodeAwal; p <= periodeAkhir; p++) {
     const ispa = mapIspa.get(p);
-    const udara = mapUdara.get(p);
     hasil.push({
       periode: p,
       periodeLabel: isMingguan ? `Mg ${p}` : NAMA_BULAN[p - 1],
       totalKasusIspa: (ispa?.anak ?? 0) + (ispa?.dewasa ?? 0),
       totalKasusAnak: ispa?.anak ?? 0,
       totalKasusDewasa: ispa?.dewasa ?? 0,
-      pm25Rerata: udara && udara.jml > 0 ? Number((udara.total / udara.jml).toFixed(1)) : null,
+      pm25Rerata: rerata(mapUdara.get(p), 1),
       jumlahHotspot: mapHotspot.get(p) ?? 0,
     });
   }
@@ -381,10 +415,6 @@ export async function ambilPerbandinganIspaHotspot(
 // & PM2.5 regional tetap dari view yang sama (tidak terikat sistem
 // wilayah karhutla kode_wilker/zona).
 // ------------------------------------------------------------
-
-// id 24 = 'ISPA-AA' di skdr_jenis_penyakit, lihat DAFTAR_PENYAKIT_SKDR
-// di app/(dashboard)/dashboard/skdr/SkdrClient.tsx
-const JENIS_PENYAKIT_ISPA_SKDR_ID = 24;
 
 export interface OpsiPerbandinganSkdrHotspot {
   tahun: number;
@@ -451,15 +481,13 @@ export async function ambilPerbandinganSkdrHotspot(
 
   const hasil: TitikPerbandinganIspaHotspot[] = [];
   for (let p = periodeAwal; p <= periodeAkhir; p++) {
-    const udara = mapUdara.get(p);
-    const totalKasus = mapSkdr.get(p) ?? 0;
     hasil.push({
       periode: p,
       periodeLabel: `Mg ${p}`,
-      totalKasusIspa: totalKasus,
+      totalKasusIspa: mapSkdr.get(p) ?? 0,
       totalKasusAnak: 0, // skdr_mingguan tidak memecah anak/dewasa
       totalKasusDewasa: 0,
-      pm25Rerata: udara && udara.jml > 0 ? Number((udara.total / udara.jml).toFixed(1)) : null,
+      pm25Rerata: rerata(mapUdara.get(p), 1),
       jumlahHotspot: mapHotspot.get(p) ?? 0,
     });
   }
@@ -474,7 +502,10 @@ export async function ambilDaftarWilayahKerjaSkdr(): Promise<string[]> {
   if (error) throw new Error(`Gagal mengambil daftar wilayah kerja SKDR: ${error.message}`);
   return (data ?? []).map((d) => d.wilayah_kerja as string).filter(Boolean);
 }
-// oleh /dashboard/karhutla/data untuk menampilkan & unduh CSV.
+
+// ------------------------------------------------------------
+// Data tabel mentah untuk /dashboard/karhutla/data
+// (ditampilkan & diunduh sebagai CSV).
 // ------------------------------------------------------------
 
 export interface BarisTabelIspa {
@@ -624,12 +655,23 @@ export async function ambilTrenHarianRentang(
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
-  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosWilayahKeys(wilayahKeys));
+  const dataIspa = gabungkanIspaPoliklinik(
+    dataIspaManual ?? [],
+    poliIspa,
+    (b) => ({
+      tanggal: b.tanggal,
+      kode_wilker: b.kode_wilker,
+      zona: b.zona,
+      kasus_ispa_anak: b.kasus_ispa_anak,
+      kasus_ispa_dewasa: b.kasus_ispa_dewasa,
+    }),
+    lolosWilayahKeys(wilayahKeys)
+  );
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik api: ${errHotspot.message}`);
 
   const mapUdara = new Map<string, { total: number; jml: number }>();
-  for (const baris of (dataUdara ?? []) as Record<string, unknown>[]) {
+  for (const baris of (dataUdara ?? []) as unknown as Record<string, unknown>[]) {
     const nilai = baris[parameterUdara] as number | null;
     if (nilai == null) continue;
     const tanggal = baris.tanggal as string;
@@ -659,12 +701,11 @@ export async function ambilTrenHarianRentang(
   while (kursor <= akhir) {
     const tanggalStr = kursor.toISOString().slice(0, 10);
     const ispa = mapIspa.get(tanggalStr);
-    const udara = mapUdara.get(tanggalStr);
     hasil.push({
       tanggal: tanggalStr,
       kasus_ispa_anak: ispa?.anak ?? 0,
       kasus_ispa_dewasa: ispa?.dewasa ?? 0,
-      nilai_parameter_udara: udara && udara.jml > 0 ? Number((udara.total / udara.jml).toFixed(2)) : null,
+      nilai_parameter_udara: rerata(mapUdara.get(tanggalStr), 2),
       jumlah_titik_api: mapHotspot.get(tanggalStr) ?? 0,
     });
     kursor.setDate(kursor.getDate() + 1);
@@ -699,11 +740,9 @@ export async function ambilTabelHotspot(hariTerakhir = 90): Promise<BarisTabelHo
   if (error) throw new Error(`Gagal mengambil data tabel hotspot: ${error.message}`);
   return data ?? [];
 }
+
 // ------------------------------------------------------------
-// Info Grafis Karhutla harian — ringkasan 1 hari untuk halaman
-// /dashboard/karhutla/infografis (poster yang bisa diunduh JPEG/PDF).
-// Menggabungkan ISPA, kualitas udara (PM2.5/ISPU), titik panas, dan
-// perbandingan SKDR mingguan — dipecah per wilayah kerja.
+// Ringkasan per wilayah kerja (dipakai infografis harian & laporan)
 // ------------------------------------------------------------
 
 export interface RingkasanWilker {
@@ -754,6 +793,188 @@ export interface RingkasanSkdrPerWilayah {
   mingguIni: number;
 }
 
+type TitikHotspot = { latitude: number; longitude: number };
+type DaftarWilayahPeta = WilkerPeta[];
+
+/** Wilker kosong (semua angka 0 / null) -- titik awal sebelum diisi data. */
+function buatRingkasanWilkerKosong(kode: string, nama: string): RingkasanWilker {
+  return {
+    kode_wilker: kode,
+    nama,
+    kasusIspaAnak: 0,
+    kasusIspaDewasa: 0,
+    jumlahHotspot: 0,
+    pm25Rerata: null,
+    pm10Rerata: null,
+    suhuRerata: null,
+    hchoRerata: null,
+    tvocRerata: null,
+    kelembapanRerata: null,
+    statusIspu: null,
+    statusEvaluasi: 'BELUM_DIUJI',
+    lokasiDetail: undefined,
+  };
+}
+
+/** Tambahkan kasus ISPA ke wilker masing-masing. */
+function terapkanIspaKeWilker(
+  perWilkerMap: Map<string, RingkasanWilker>,
+  dataIspa: { kode_wilker: string; kasus_ispa_anak: number; kasus_ispa_dewasa: number }[]
+): void {
+  for (const b of dataIspa) {
+    const w = perWilkerMap.get(b.kode_wilker);
+    if (!w) continue; // kode_wilker di luar daftar wilker (jarang, tapi jaga-jaga)
+    w.kasusIspaAnak += b.kasus_ispa_anak;
+    w.kasusIspaDewasa += b.kasus_ispa_dewasa;
+  }
+}
+
+/** Hitung titik panas ke wilker terdekat. */
+function terapkanHotspotKeWilker(
+  perWilkerMap: Map<string, RingkasanWilker>,
+  titik: TitikHotspot[],
+  wilayahPeta: DaftarWilayahPeta
+): void {
+  for (const b of titik) {
+    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude, wilayahPeta);
+    if (!kode) continue; // titik di luar jangkauan wilker manapun
+    const w = perWilkerMap.get(kode);
+    if (w) w.jumlahHotspot += 1;
+  }
+}
+
+type AkumUdara = Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>;
+
+const buatAkumUdara = (): AkumUdara => ({
+  pm25: { total: 0, jml: 0 },
+  pm10: { total: 0, jml: 0 },
+  suhu: { total: 0, jml: 0 },
+  hcho: { total: 0, jml: 0 },
+  tvoc: { total: 0, jml: 0 },
+  kelembapan: { total: 0, jml: 0 },
+});
+
+function tambahBacaanKeAkum(akum: AkumUdara, baris: Record<string, unknown>): void {
+  for (const param of PARAM_UDARA) {
+    const nilai = baris[param] as number | null;
+    if (nilai == null) continue;
+    akum[param].total += Number(nilai);
+    akum[param].jml += 1;
+  }
+}
+
+function nilaiRerataAkum(akum: AkumUdara) {
+  return {
+    pm25: rerata(akum.pm25, DIGIT_UDARA.pm25),
+    pm10: rerata(akum.pm10, DIGIT_UDARA.pm10),
+    suhu: rerata(akum.suhu, DIGIT_UDARA.suhu),
+    hcho: rerata(akum.hcho, DIGIT_UDARA.hcho),
+    tvoc: rerata(akum.tvoc, DIGIT_UDARA.tvoc),
+    kelembapan: rerata(akum.kelembapan, DIGIT_UDARA.kelembapan),
+  };
+}
+
+/**
+ * Isi rerata kualitas udara, statusIspu, statusEvaluasi, dan (kalau >1 lokasi)
+ * lokasiDetail untuk tiap wilker. Dipakai bersama oleh infografis harian dan laporan.
+ *
+ * - Semua lokasi TERDAFTAR dipre-isi supaya lokasi yang belum sempat diinput tetap
+ *   tampil sebagai "Belum Diuji" (tidak hilang diam-diam).
+ * - Beberapa bacaan untuk lokasi yang sama (mis. laporan multi-hari) dirata-ratakan
+ *   per lokasi, jadi lokasiDetail selalu 1 baris per lokasi.
+ */
+function terapkanKualitasUdaraKeWilker(
+  perWilkerMap: Map<string, RingkasanWilker>,
+  bacaanUdara: Record<string, unknown>[],
+  daftarLokasiTerdaftar: LokasiUdaraRow[],
+  petakan: (namaLokasi: string) => string | null | undefined
+): void {
+  const akumWilker = new Map<string, AkumUdara>();
+  const akumLokasi = new Map<string, Map<string, AkumUdara>>(); // kode wilker -> lokasi -> akum
+  const statusIspuLokasi = new Map<string, string>(); // `${kode}|${lokasi}` -> status
+  const statusIspuWilker = new Map<string, string>();
+
+  for (const lok of daftarLokasiTerdaftar) {
+    const kode = petakan(lok.nama);
+    if (!kode || !perWilkerMap.has(kode)) continue;
+    const peta = akumLokasi.get(kode) ?? new Map<string, AkumUdara>();
+    if (!peta.has(lok.nama)) peta.set(lok.nama, buatAkumUdara());
+    akumLokasi.set(kode, peta);
+  }
+
+  for (const b of bacaanUdara) {
+    const namaLokasi = b.lokasi as string;
+    const kode = petakan(namaLokasi);
+    if (!kode || !perWilkerMap.has(kode)) continue;
+
+    const aW = akumWilker.get(kode) ?? buatAkumUdara();
+    tambahBacaanKeAkum(aW, b);
+    akumWilker.set(kode, aW);
+
+    const peta = akumLokasi.get(kode) ?? new Map<string, AkumUdara>();
+    const aL = peta.get(namaLokasi) ?? buatAkumUdara();
+    tambahBacaanKeAkum(aL, b);
+    peta.set(namaLokasi, aL);
+    akumLokasi.set(kode, peta);
+
+    const ispu = b.ispu_status as string | null | undefined;
+    if (ispu) {
+      if (!statusIspuWilker.has(kode)) statusIspuWilker.set(kode, ispu);
+      const kunci = `${kode}|${namaLokasi}`;
+      if (!statusIspuLokasi.has(kunci)) statusIspuLokasi.set(kunci, ispu);
+    }
+  }
+
+  for (const [kode, akum] of akumWilker) {
+    const w = perWilkerMap.get(kode);
+    if (!w) continue;
+
+    const r = nilaiRerataAkum(akum);
+    w.pm25Rerata = r.pm25;
+    w.pm10Rerata = r.pm10;
+    w.suhuRerata = r.suhu;
+    w.hchoRerata = r.hcho;
+    w.tvocRerata = r.tvoc;
+    w.kelembapanRerata = r.kelembapan;
+    w.statusEvaluasi = hitungStatusEvaluasi(r);
+    w.statusIspu = statusIspuWilker.get(kode) ?? null;
+
+    // Breakdown ditampilkan HANYA kalau wilker ini benar >1 lokasi.
+    const peta = akumLokasi.get(kode);
+    if (peta && peta.size > 1) {
+      w.lokasiDetail = Array.from(peta, ([lokasi, a]) => {
+        const nilai = nilaiRerataAkum(a);
+        const adaNilai = Object.values(nilai).some((v) => v != null);
+        return {
+          lokasi,
+          ...nilai,
+          statusIspu: statusIspuLokasi.get(`${kode}|${lokasi}`) ?? null,
+          statusEvaluasi: adaNilai ? hitungStatusEvaluasi(nilai) : ('BELUM_DIUJI' as StatusEvaluasi),
+        };
+      });
+    }
+  }
+}
+
+/** Pecah total SKDR per wilayah_kerja dari kumpulan baris skdr_mingguan. */
+function jumlahkanSkdrPerWilayah(
+  baris: { jumlah_kasus: number | null; wilayah_kerja: string | null }[]
+): Map<string, number> {
+  const hasil = new Map<string, number>();
+  for (const b of baris) {
+    if (!b.wilayah_kerja) continue;
+    hasil.set(b.wilayah_kerja, (hasil.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
+  }
+  return hasil;
+}
+
+// ------------------------------------------------------------
+// Info Grafis Karhutla harian — ringkasan 1 hari untuk halaman
+// /dashboard/karhutla/infografis (poster yang bisa diunduh JPEG/PDF).
+// Menggabungkan ISPA, kualitas udara (PM2.5/ISPU), titik panas, dan
+// perbandingan SKDR mingguan — dipecah per wilayah kerja.
+// ------------------------------------------------------------
+
 export type RingkasanInfografisHarian = {
   tanggalDiminta: string;
   tanggalDitampilkan: string;
@@ -762,24 +983,27 @@ export type RingkasanInfografisHarian = {
   totalIspaAnak: number;
   totalIspaDewasa: number;
   pm25Rerata: number | null;
-  pm25Tertinggi: number | null;        // <- baru
-  lokasiPm25Tertinggi: string | null;  // <- baru
+  pm25Tertinggi: number | null;
+  lokasiPm25Tertinggi: string | null;
   statusIspuDominan: string | null;
   perWilker: RingkasanWilker[];
-  hotspotPoints: { latitude: number; longitude: number }[];
+  hotspotPoints: TitikHotspot[];
   /** Wilayah kerja (pusat koordinat) untuk peta mini; dari wilker_ref. */
   wilayahPeta: WilkerPeta[];
   tren7Hari: TitikTren7Hari[];
   skdrMingguIni: RingkasanSkdrMingguan;
   skdrMingguLalu: RingkasanSkdrMingguan;
   skdrPerWilayah: RingkasanSkdrPerWilayah[];
-}
+};
 
 export async function ambilRingkasanInfografisHarian(
   tanggalDiminta: string
 ): Promise<RingkasanInfografisHarian> {
   const supabase = await createDbClient();
-  const kamusWilker = buatKamus(await getDaftarWilker());
+  const daftarWilayah = await getDaftarWilker();
+  const kamusWilker = buatKamus(daftarWilayah);
+  const petakan = (nama: string) => petakanLokasiUdaraKeWilker(nama, daftarWilayah);
+
   const wilayahPeta = opsiWilkerPeta(kamusWilker.semua).filter((w) => w.jenis !== 'Kantor');
   const daftarKodeWilker = wilayahPeta.map((w) => w.kode).sort();
 
@@ -813,7 +1037,7 @@ export async function ambilRingkasanInfografisHarian(
     }
   }
 
-   // --- 2. Ambil data mentah untuk tanggal efektif ---
+  // --- 2. Ambil data mentah untuk tanggal efektif ---
   const [
     { data: dataIspaManual, error: errIspa },
     { data: dataUdara, error: errUdara },
@@ -839,179 +1063,49 @@ export async function ambilRingkasanInfografisHarian(
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
-  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliHari, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }));
+  const dataIspa = gabungkanIspaPoliklinik(
+    dataIspaManual ?? [],
+    poliHari,
+    (b) => ({
+      tanggal: b.tanggal,
+      kode_wilker: b.kode_wilker,
+      zona: b.zona,
+      kasus_ispa_anak: b.kasus_ispa_anak,
+      kasus_ispa_dewasa: b.kasus_ispa_dewasa,
+    })
+  );
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik panas: ${errHotspot.message}`);
 
-  // --- 3. Susun breakdown per wilker (7 wilker, selalu lengkap walau 0) ---
+  // --- 3. Susun breakdown per wilker (selalu lengkap walau 0) ---
   const perWilkerMap = new Map<string, RingkasanWilker>();
-    for (const kode of daftarKodeWilker) {
-    perWilkerMap.set(kode, {
-      kode_wilker: kode,
-      nama: kamusWilker.namaDariKode(kode, 'pendek') ?? kode,
-      kasusIspaAnak: 0,
-      kasusIspaDewasa: 0,
-      jumlahHotspot: 0,
-      pm25Rerata: null,
-      pm10Rerata: null,
-      suhuRerata: null,
-      hchoRerata: null,
-      tvocRerata: null,
-      kelembapanRerata: null,
-      statusIspu: null,
-      statusEvaluasi: 'BELUM_DIUJI',
-      lokasiDetail: undefined, // <- baru
-    });
+  for (const kode of daftarKodeWilker) {
+    perWilkerMap.set(kode, buatRingkasanWilkerKosong(kode, kamusWilker.namaDariKode(kode, 'pendek') ?? kode));
   }
 
-  for (const b of dataIspa ?? []) {
-    const w = perWilkerMap.get(b.kode_wilker);
-    if (!w) continue; // kode_wilker di luar WK01-WK07 (jarang, tapi jaga-jaga)
-    w.kasusIspaAnak += b.kasus_ispa_anak;
-    w.kasusIspaDewasa += b.kasus_ispa_dewasa;
-  }
-
-  // Akumulasi rerata utk keenam parameter kualitas udara sekaligus (dulu cuma PM2.5) --
-  // dipakai utk tabel "Kualitas Udara per Wilayah Kerja" di poster infografis.
-  const PARAM_UDARA = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'] as const;
-  const akumulasiUdara = new Map<string, Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>>();
-  const statusIspuPerWilker = new Map<string, string>();
-  const lokasiPerWilker = new Map<string, RingkasanWilker['lokasiDetail']>();
-
-    // Pre-isi semua lokasi TERDAFTAR (bukan cuma yang kebetulan ada data hari
-  // ini) per wilker -- supaya lokasi yang belum sempat diinput tetap tampil
-  // eksplisit sebagai baris "Belum Diuji", bukan hilang diam-diam sehingga
-  // angka wilker terlihat seolah "menyalin" dari lokasi lain yang melapor.
-  for (const lok of daftarLokasiLengkap) {
-    const kode = petakanLokasiUdaraKeWilker(lok.nama);
-    if (!kode || !perWilkerMap.has(kode)) continue;
-    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
-    daftarLokasi.push({
-      lokasi: lok.nama,
-      pm25: null, pm10: null, suhu: null, hcho: null, tvoc: null, kelembapan: null,
-      statusIspu: null,
-      statusEvaluasi: 'BELUM_DIUJI',
-    });
-    lokasiPerWilker.set(kode, daftarLokasi);
-  }
-
-  for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
-    const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
-    if (!kode || !perWilkerMap.has(kode)) continue;
-
-    const akum =
-      akumulasiUdara.get(kode) ??
-      ({
-        pm25: { total: 0, jml: 0 },
-        pm10: { total: 0, jml: 0 },
-        suhu: { total: 0, jml: 0 },
-        hcho: { total: 0, jml: 0 },
-        tvoc: { total: 0, jml: 0 },
-        kelembapan: { total: 0, jml: 0 },
-      } as Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>);
-    for (const param of PARAM_UDARA) {
-      const nilai = b[param] as number | null;
-      if (nilai == null) continue;
-      akum[param].total += Number(nilai);
-      akum[param].jml += 1;
-    }
-    akumulasiUdara.set(kode, akum);
-
-    if (b.ispu_status && !statusIspuPerWilker.has(kode)) {
-      statusIspuPerWilker.set(kode, b.ispu_status as string);
-    }
-
-    // Timpa placeholder "Belum Diuji" untuk lokasi ini dengan data aktual
-    // (bukan selalu push baris baru, supaya tidak duplikat dgn pre-isi di atas).
-    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
-    const nilaiLokasiIni = {
-      pm25: (b.pm25 as number | null) ?? null,
-      pm10: (b.pm10 as number | null) ?? null,
-      suhu: (b.suhu as number | null) ?? null,
-      hcho: (b.hcho as number | null) ?? null,
-      tvoc: (b.tvoc as number | null) ?? null,
-      kelembapan: (b.kelembapan as number | null) ?? null,
-    };
-    const entriBaru = {
-      lokasi: b.lokasi as string,
-      ...nilaiLokasiIni,
-      statusIspu: (b.ispu_status as string | null) ?? null,
-      statusEvaluasi: hitungStatusEvaluasi(nilaiLokasiIni),
-    };
-    const idxAda = daftarLokasi.findIndex((l) => l.lokasi === b.lokasi);
-    if (idxAda !== -1) {
-      daftarLokasi[idxAda] = entriBaru;
-    } else {
-      daftarLokasi.push(entriBaru);
-    }
-    lokasiPerWilker.set(kode, daftarLokasi);
-  }
-
-  for (const [kode, akum] of akumulasiUdara) {
-    const w = perWilkerMap.get(kode);
-    if (!w) continue;
-    if (akum.pm25.jml > 0) w.pm25Rerata = Number((akum.pm25.total / akum.pm25.jml).toFixed(1));
-    if (akum.pm10.jml > 0) w.pm10Rerata = Number((akum.pm10.total / akum.pm10.jml).toFixed(1));
-    if (akum.suhu.jml > 0) w.suhuRerata = Number((akum.suhu.total / akum.suhu.jml).toFixed(1));
-    if (akum.hcho.jml > 0) w.hchoRerata = Number((akum.hcho.total / akum.hcho.jml).toFixed(2));
-    if (akum.tvoc.jml > 0) w.tvocRerata = Number((akum.tvoc.total / akum.tvoc.jml).toFixed(2));
-    if (akum.kelembapan.jml > 0) w.kelembapanRerata = Number((akum.kelembapan.total / akum.kelembapan.jml).toFixed(1));
-    w.statusEvaluasi = hitungStatusEvaluasi({
-      pm25: w.pm25Rerata,
-      pm10: w.pm10Rerata,
-      suhu: w.suhuRerata,
-      hcho: w.hchoRerata,
-      tvoc: w.tvocRerata,
-      kelembapan: w.kelembapanRerata,
-    });
-
-    // Breakdown ditampilkan HANYA kalau wilker ini benar >1 lokasi.
-    const daftarLokasi = lokasiPerWilker.get(kode);
-    if (daftarLokasi && daftarLokasi.length > 1) {
-      w.lokasiDetail = daftarLokasi;
-    }
-  }
-
-  for (const [kode, akum] of akumulasiUdara) {
-    const w = perWilkerMap.get(kode);
-    if (!w) continue;
-    if (akum.pm25.jml > 0) w.pm25Rerata = Number((akum.pm25.total / akum.pm25.jml).toFixed(1));
-    if (akum.pm10.jml > 0) w.pm10Rerata = Number((akum.pm10.total / akum.pm10.jml).toFixed(1));
-    if (akum.suhu.jml > 0) w.suhuRerata = Number((akum.suhu.total / akum.suhu.jml).toFixed(1));
-    if (akum.hcho.jml > 0) w.hchoRerata = Number((akum.hcho.total / akum.hcho.jml).toFixed(2));
-    if (akum.tvoc.jml > 0) w.tvocRerata = Number((akum.tvoc.total / akum.tvoc.jml).toFixed(2));
-    if (akum.kelembapan.jml > 0) w.kelembapanRerata = Number((akum.kelembapan.total / akum.kelembapan.jml).toFixed(1));
-    w.statusEvaluasi = hitungStatusEvaluasi({
-      pm25: w.pm25Rerata,
-      pm10: w.pm10Rerata,
-      suhu: w.suhuRerata,
-      hcho: w.hchoRerata,
-      tvoc: w.tvocRerata,
-      kelembapan: w.kelembapanRerata,
-    });
-  }
-  for (const [kode, status] of statusIspuPerWilker) {
-    const w = perWilkerMap.get(kode);
-    if (w) w.statusIspu = status;
-  }
-
-  for (const b of dataHotspot ?? []) {
-    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude, wilayahPeta);
-    if (!kode) continue; // titik di luar jangkauan wilker manapun
-    const w = perWilkerMap.get(kode);
-    if (w) w.jumlahHotspot += 1;
-  }
+  terapkanIspaKeWilker(perWilkerMap, dataIspa ?? []);
+  terapkanKualitasUdaraKeWilker(
+    perWilkerMap,
+    (dataUdara ?? []) as Record<string, unknown>[],
+    daftarLokasiLengkap,
+    petakan
+  );
+  terapkanHotspotKeWilker(perWilkerMap, dataHotspot ?? [], wilayahPeta);
 
   const perWilker = daftarKodeWilker.map((k) => perWilkerMap.get(k)!);
 
-    // --- 4. Total & rerata regional (semua lokasi, tanpa breakdown) ---
+  // --- 4. Total & rerata regional (semua lokasi, tanpa breakdown) ---
   const totalIspaAnak = perWilker.reduce((s, w) => s + w.kasusIspaAnak, 0);
   const totalIspaDewasa = perWilker.reduce((s, w) => s + w.kasusIspaDewasa, 0);
   const totalHotspot = perWilker.reduce((s, w) => s + w.jumlahHotspot, 0);
 
   const bacaanPm25 = (dataUdara ?? [])
     .filter((b): b is typeof b & { pm25: number } => b.pm25 != null)
-    .map((b) => ({ lokasi: b.lokasi as string, pm25: Number(b.pm25), statusIspu: (b.ispu_status as string | null) ?? null }));
+    .map((b) => ({
+      lokasi: b.lokasi as string,
+      pm25: Number(b.pm25),
+      statusIspu: (b.ispu_status as string | null) ?? null,
+    }));
 
   const pm25RerataRegional =
     bacaanPm25.length > 0
@@ -1019,14 +1113,14 @@ export async function ambilRingkasanInfografisHarian(
       : null;
 
   // Titik terparah hari itu -- dipakai sbg angka utama kartu KPI infografis,
-  // supaya wilker yang sedang berkabut tidak "diencerkan" rata-rata gabungan 7 wilker.
-  const bacaanPm25Tertinggi = bacaanPm25.length > 0
-    ? bacaanPm25.reduce((tertinggi, b) => (b.pm25 > tertinggi.pm25 ? b : tertinggi))
-    : null;
+  // supaya wilker yang sedang berkabut tidak "diencerkan" rata-rata gabungan semua wilker.
+  const bacaanPm25Tertinggi =
+    bacaanPm25.length > 0
+      ? bacaanPm25.reduce((tertinggi, b) => (b.pm25 > tertinggi.pm25 ? b : tertinggi))
+      : null;
   const pm25Tertinggi = bacaanPm25Tertinggi?.pm25 ?? null;
   const lokasiPm25Tertinggi = bacaanPm25Tertinggi?.lokasi ?? null;
-  // Status ISPU diambil dari bacaan yg SAMA dgn titik pm25 tertinggi --
-  // sebelumnya "baris pertama yang kebetulan punya ispu_status" (bug, sudah diperbaiki).
+  // Status ISPU diambil dari bacaan yang SAMA dengan titik PM2.5 tertinggi.
   const statusIspuDominan = bacaanPm25Tertinggi?.statusIspu ?? null;
 
   // --- 5. Tren 7 hari terakhir (berakhir di tanggalDitampilkan) ---
@@ -1045,7 +1139,17 @@ export async function ambilRingkasanInfografisHarian(
       .gt('confidence', 80),
     ambilIspaDariPoliklinik(tanggalAwalTren, tanggalDitampilkan),
   ]);
-  const trenIspa = gabungkanIspaPoliklinik(trenIspaManual ?? [], poliTren, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }));
+  const trenIspa = gabungkanIspaPoliklinik(
+    trenIspaManual ?? [],
+    poliTren,
+    (b) => ({
+      tanggal: b.tanggal,
+      kode_wilker: b.kode_wilker,
+      zona: b.zona,
+      kasus_ispa_anak: b.kasus_ispa_anak,
+      kasus_ispa_dewasa: b.kasus_ispa_dewasa,
+    })
+  );
 
   const mapTrenIspa = new Map<string, number>();
   for (const b of trenIspa ?? []) {
@@ -1068,16 +1172,16 @@ export async function ambilRingkasanInfografisHarian(
   // --- 6. Perbandingan SKDR mingguan: minggu berjalan vs minggu lalu,
   //        dihitung dari minggu epidemiologi tanggalDitampilkan. ---
   const { tahunEpid: tahunEpidAsli, mingguEpid: mingguEpidAsli } = hitungMingguEpidemiologi(
-  new Date(`${tanggalDitampilkan}T00:00:00Z`)
-);
+    new Date(`${tanggalDitampilkan}T00:00:00Z`)
+  );
 
-// Geser mundur 1 minggu: "Minggu Ini" merujuk ke minggu sebelum minggu kalender berjalan
-// (mis. tanggal jatuh di Mg 35 -> ditampilkan sebagai Mg 34), sesuai permintaan.
-const mingguEpid = mingguEpidAsli > 1 ? mingguEpidAsli - 1 : 52;
-const tahunEpid = mingguEpidAsli > 1 ? tahunEpidAsli : tahunEpidAsli - 1;
+  // Geser mundur 1 minggu: "Minggu Ini" merujuk ke minggu sebelum minggu kalender berjalan
+  // (mis. tanggal jatuh di Mg 35 -> ditampilkan sebagai Mg 34), sesuai permintaan.
+  const mingguEpid = mingguEpidAsli > 1 ? mingguEpidAsli - 1 : 52;
+  const tahunEpid = mingguEpidAsli > 1 ? tahunEpidAsli : tahunEpidAsli - 1;
 
-const mingguLaluEpid = mingguEpid > 1 ? mingguEpid - 1 : 52;
-const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
+  const mingguLaluEpid = mingguEpid > 1 ? mingguEpid - 1 : 52;
+  const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
 
   const [skdrIni, skdrLalu, daftarWilayahSkdr] = await Promise.all([
     supabase
@@ -1098,27 +1202,12 @@ const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
   const totalSkdrIni = (skdrIni.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
   const totalSkdrLalu = (skdrLalu.data ?? []).reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
 
-  // --- 6b. Pecah SKDR per wilayah_kerja (Palaran, Sidomulyo, dst -- taksonomi
-  //         wilayah_kerja SKDR, BEDA dari kode_wilker/zona karhutla di atas).
-  //
-  //         PENTING: kategori dasarnya diambil dari `view_wilayah_kerja_skdr`
-  //         (daftar RESMI seluruh wilayah kerja SKDR yang sama dipakai di
-  //         halaman /dashboard/skdr) -- BUKAN hanya wilayah yang kebetulan
-  //         punya kasus di 2 minggu ini. Kalau basisnya cuma union dari data
-  //         yang ada, wilayah dengan 0 kasus di kedua minggu (mis. Samarinda:
-  //         Palaran & Sidomulyo saat sedang tidak ada laporan ISPA) akan
-  //         hilang sama sekali dari grafik, padahal seharusnya tetap tampil
-  //         sebagai batang 0. ---
-  const mapSkdrIniPerWilayah = new Map<string, number>();
-  for (const b of skdrIni.data ?? []) {
-    if (!b.wilayah_kerja) continue;
-    mapSkdrIniPerWilayah.set(b.wilayah_kerja, (mapSkdrIniPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
-  }
-  const mapSkdrLaluPerWilayah = new Map<string, number>();
-  for (const b of skdrLalu.data ?? []) {
-    if (!b.wilayah_kerja) continue;
-    mapSkdrLaluPerWilayah.set(b.wilayah_kerja, (mapSkdrLaluPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
-  }
+  // --- 6b. Pecah SKDR per wilayah_kerja (taksonomi SKDR, BEDA dari kode_wilker/zona karhutla).
+  //         Kategori dasar diambil dari daftar RESMI wilayah kerja SKDR (view_wilayah_kerja_skdr),
+  //         bukan hanya wilayah yang kebetulan punya kasus di 2 minggu ini -- supaya wilayah
+  //         dengan 0 kasus tetap tampil sebagai batang 0. ---
+  const mapSkdrIniPerWilayah = jumlahkanSkdrPerWilayah(skdrIni.data ?? []);
+  const mapSkdrLaluPerWilayah = jumlahkanSkdrPerWilayah(skdrLalu.data ?? []);
   const semuaWilayahSkdr = new Set([
     ...daftarWilayahSkdr,
     ...mapSkdrIniPerWilayah.keys(),
@@ -1132,7 +1221,7 @@ const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
       mingguIni: mapSkdrIniPerWilayah.get(wilayah) ?? 0,
     }));
 
-    return {
+  return {
     tanggalDiminta,
     tanggalDitampilkan,
     pakaiFallback,
@@ -1152,6 +1241,10 @@ const tahunMingguLalu = mingguEpid > 1 ? tahunEpid : tahunEpid - 1;
     skdrPerWilayah,
   };
 }
+
+// ------------------------------------------------------------
+// Laporan Karhutla untuk rentang tanggal bebas
+// ------------------------------------------------------------
 
 export interface TitikTrenHarianLaporan {
   tanggal: string;
@@ -1190,7 +1283,10 @@ export async function ambilRingkasanLaporanKarhutla(
   wilayahKeys: string[]
 ): Promise<RingkasanLaporanKarhutla> {
   const supabase = await createDbClient();
-  const kamusWilker = buatKamus(await getDaftarWilker());
+  const daftarWilayah = await getDaftarWilker();
+  const kamusWilker = buatKamus(daftarWilayah);
+  const petakan = (nama: string) => petakanLokasiUdaraKeWilker(nama, daftarWilayah);
+
   const wilayahPeta = opsiWilkerPeta(kamusWilker.semua).filter((w) => w.jenis !== 'Kantor');
   const daftarKodeWilker = wilayahPeta.map((w) => w.kode).sort();
   const filterWilker = wilayahKeys.length > 0 ? wilayahKeys : daftarKodeWilker;
@@ -1225,125 +1321,35 @@ export async function ambilRingkasanLaporanKarhutla(
   ]);
 
   if (errIspa) throw new Error(`Gagal mengambil data ISPA: ${errIspa.message}`);
-  const dataIspa = gabungkanIspaPoliklinik(dataIspaManual ?? [], poliIspa, (b) => ({ tanggal: b.tanggal, kode_wilker: b.kode_wilker, zona: b.zona, kasus_ispa_anak: b.kasus_ispa_anak, kasus_ispa_dewasa: b.kasus_ispa_dewasa }), lolosKodeWilker(filterWilker));
+  const dataIspa = gabungkanIspaPoliklinik(
+    dataIspaManual ?? [],
+    poliIspa,
+    (b) => ({
+      tanggal: b.tanggal,
+      kode_wilker: b.kode_wilker,
+      zona: b.zona,
+      kasus_ispa_anak: b.kasus_ispa_anak,
+      kasus_ispa_dewasa: b.kasus_ispa_dewasa,
+    }),
+    lolosKodeWilker(filterWilker)
+  );
   if (errUdara) throw new Error(`Gagal mengambil data kualitas udara: ${errUdara.message}`);
   if (errHotspot) throw new Error(`Gagal mengambil data titik panas: ${errHotspot.message}`);
 
   // --- 2. Breakdown per wilker (akumulasi seluruh rentang, bukan 1 hari) ---
   const perWilkerMap = new Map<string, RingkasanWilker>();
   for (const kode of filterWilker) {
-    perWilkerMap.set(kode, {
-      kode_wilker: kode,
-      nama: kamusWilker.namaDariKode(kode, 'pendek') ?? kode,
-      kasusIspaAnak: 0,
-      kasusIspaDewasa: 0,
-      jumlahHotspot: 0,
-      pm25Rerata: null,
-      pm10Rerata: null,
-      suhuRerata: null,
-      hchoRerata: null,
-      tvocRerata: null,
-      kelembapanRerata: null,
-      statusIspu: null,
-      statusEvaluasi: 'BELUM_DIUJI',
-    });
+    perWilkerMap.set(kode, buatRingkasanWilkerKosong(kode, kamusWilker.namaDariKode(kode, 'pendek') ?? kode));
   }
 
-  for (const b of dataIspa ?? []) {
-    const w = perWilkerMap.get(b.kode_wilker);
-    if (!w) continue;
-    w.kasusIspaAnak += b.kasus_ispa_anak;
-    w.kasusIspaDewasa += b.kasus_ispa_dewasa;
-  }
-
-  const PARAM_UDARA = ['pm25', 'pm10', 'suhu', 'hcho', 'tvoc', 'kelembapan'] as const;
-  const akumulasiUdara = new Map<string, Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>>();
-  const statusIspuPerWilker = new Map<string, string>();
-  const lokasiPerWilker = new Map<string, RingkasanWilker['lokasiDetail']>(); // <- tambahkan baris ini
-
-    // Pre-isi semua lokasi TERDAFTAR (bukan cuma yang kebetulan ada data hari
-  // ini) per wilker -- supaya lokasi yang belum sempat diinput tetap tampil
-  // eksplisit sebagai baris "Belum Diuji", bukan hilang diam-diam sehingga
-  // angka wilker terlihat seolah "menyalin" dari lokasi lain yang melapor.
-  for (const lok of daftarLokasiLengkap) {
-    const kode = petakanLokasiUdaraKeWilker(lok.nama);
-    if (!kode || !perWilkerMap.has(kode)) continue;
-    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
-    daftarLokasi.push({
-      lokasi: lok.nama,
-      pm25: null, pm10: null, suhu: null, hcho: null, tvoc: null, kelembapan: null,
-      statusIspu: null,
-      statusEvaluasi: 'BELUM_DIUJI',
-    });
-    lokasiPerWilker.set(kode, daftarLokasi);
-  }
-  
-  for (const b of (dataUdara ?? []) as Record<string, unknown>[]) {
-    const kode = petakanLokasiUdaraKeWilker(b.lokasi as string);
-    if (!kode || !perWilkerMap.has(kode)) continue;
-
-    const akum =
-      akumulasiUdara.get(kode) ??
-      ({
-        pm25: { total: 0, jml: 0 }, pm10: { total: 0, jml: 0 }, suhu: { total: 0, jml: 0 },
-        hcho: { total: 0, jml: 0 }, tvoc: { total: 0, jml: 0 }, kelembapan: { total: 0, jml: 0 },
-      } as Record<(typeof PARAM_UDARA)[number], { total: number; jml: number }>);
-    for (const param of PARAM_UDARA) {
-      const nilai = b[param] as number | null;
-      if (nilai == null) continue;
-      akum[param].total += Number(nilai);
-      akum[param].jml += 1;
-    }
-    akumulasiUdara.set(kode, akum);
-    if (b.ispu_status && !statusIspuPerWilker.has(kode)) statusIspuPerWilker.set(kode, b.ispu_status as string);
-
-    const daftarLokasi = lokasiPerWilker.get(kode) ?? [];
-    const nilaiLokasiIni = {
-      pm25: (b.pm25 as number | null) ?? null,
-      pm10: (b.pm10 as number | null) ?? null,
-      suhu: (b.suhu as number | null) ?? null,
-      hcho: (b.hcho as number | null) ?? null,
-      tvoc: (b.tvoc as number | null) ?? null,
-      kelembapan: (b.kelembapan as number | null) ?? null,
-    };
-    daftarLokasi.push({
-      lokasi: b.lokasi as string,
-      ...nilaiLokasiIni,
-      statusIspu: (b.ispu_status as string | null) ?? null,
-      statusEvaluasi: hitungStatusEvaluasi(nilaiLokasiIni),
-    });
-    lokasiPerWilker.set(kode, daftarLokasi);
-  }
-  for (const [kode, akum] of akumulasiUdara) {
-    const w = perWilkerMap.get(kode);
-    if (!w) continue;
-    if (akum.pm25.jml > 0) w.pm25Rerata = Number((akum.pm25.total / akum.pm25.jml).toFixed(1));
-    if (akum.pm10.jml > 0) w.pm10Rerata = Number((akum.pm10.total / akum.pm10.jml).toFixed(1));
-    if (akum.suhu.jml > 0) w.suhuRerata = Number((akum.suhu.total / akum.suhu.jml).toFixed(1));
-    if (akum.hcho.jml > 0) w.hchoRerata = Number((akum.hcho.total / akum.hcho.jml).toFixed(2));
-    if (akum.tvoc.jml > 0) w.tvocRerata = Number((akum.tvoc.total / akum.tvoc.jml).toFixed(2));
-    if (akum.kelembapan.jml > 0) w.kelembapanRerata = Number((akum.kelembapan.total / akum.kelembapan.jml).toFixed(1));
-    w.statusEvaluasi = hitungStatusEvaluasi({
-      pm25: w.pm25Rerata, pm10: w.pm10Rerata, suhu: w.suhuRerata,
-      hcho: w.hchoRerata, tvoc: w.tvocRerata, kelembapan: w.kelembapanRerata,
-    });
-
-    const daftarLokasi = lokasiPerWilker.get(kode);
-    if (daftarLokasi && daftarLokasi.length > 1) {
-      w.lokasiDetail = daftarLokasi;
-    }
-  }
-  for (const [kode, status] of statusIspuPerWilker) {
-    const w = perWilkerMap.get(kode);
-    if (w) w.statusIspu = status;
-  }
-
-  for (const b of dataHotspot ?? []) {
-    const kode = cariWilkerTerdekatDariTitik(b.latitude, b.longitude, wilayahPeta);
-    if (!kode) continue; // titik di luar jangkauan wilker manapun
-    const w = perWilkerMap.get(kode);
-    if (w) w.jumlahHotspot += 1;
-  }
+  terapkanIspaKeWilker(perWilkerMap, dataIspa ?? []);
+  terapkanKualitasUdaraKeWilker(
+    perWilkerMap,
+    (dataUdara ?? []) as Record<string, unknown>[],
+    daftarLokasiLengkap,
+    petakan
+  );
+  terapkanHotspotKeWilker(perWilkerMap, dataHotspot ?? [], wilayahPeta);
 
   const perWilker = filterWilker.map((k) => perWilkerMap.get(k)!);
   const totalIspaAnak = perWilker.reduce((s, w) => s + w.kasusIspaAnak, 0);
@@ -1371,12 +1377,11 @@ export async function ambilRingkasanLaporanKarhutla(
   const trenHarian: TitikTrenHarianLaporan[] = [];
   let tgl = periodeAwal;
   while (tgl <= periodeAkhir) {
-    const akumPm25 = mapTrenPm25.get(tgl);
     trenHarian.push({
       tanggal: tgl,
       totalIspa: mapTrenIspa.get(tgl) ?? 0,
       jumlahHotspot: mapTrenHotspot.get(tgl) ?? 0,
-      pm25Rerata: akumPm25 ? Number((akumPm25.total / akumPm25.jml).toFixed(1)) : null,
+      pm25Rerata: rerata(mapTrenPm25.get(tgl), 1),
     });
     tgl = mundurkanTanggal(tgl, -1);
   }
@@ -1397,21 +1402,16 @@ export async function ambilRingkasanLaporanKarhutla(
     getDaftarWilayahKerjaSkdr(),
   ]);
 
-  const mapSkdrPerWilayah = new Map<string, number>();
-  let totalSkdrPeriode = 0;
-  for (const { data } of hasilSkdrPerMinggu) {
-    for (const b of data ?? []) {
-      totalSkdrPeriode += b.jumlah_kasus ?? 0;
-      if (!b.wilayah_kerja) continue;
-      mapSkdrPerWilayah.set(b.wilayah_kerja, (mapSkdrPerWilayah.get(b.wilayah_kerja) ?? 0) + (b.jumlah_kasus ?? 0));
-    }
-  }
+  const semuaBarisSkdr = hasilSkdrPerMinggu.flatMap(({ data }) => data ?? []);
+  const totalSkdrPeriode = semuaBarisSkdr.reduce((s, b) => s + (b.jumlah_kasus ?? 0), 0);
+  const mapSkdrPerWilayah = jumlahkanSkdrPerWilayah(semuaBarisSkdr);
+
   const semuaWilayahSkdr = new Set([...daftarWilayahSkdr, ...mapSkdrPerWilayah.keys()]);
+  // Catatan: `mingguLalu` dipertahankan 0 karena tipe RingkasanSkdrPerWilayah dipakai bersama
+  // infografis (minggu-vs-minggu); untuk laporan hanya `mingguIni` yang bermakna (total periode).
   const skdrPerWilayah: RingkasanSkdrPerWilayah[] = Array.from(semuaWilayahSkdr)
     .sort()
     .map((wilayah) => ({ wilayah, mingguLalu: 0, mingguIni: mapSkdrPerWilayah.get(wilayah) ?? 0 }));
-  // catatan: field `mingguLalu` dipertahankan 0 di sini karena tipe RingkasanSkdrPerWilayah
-  // dipakai bersama infografis (minggu-vs-minggu); untuk laporan cuma `mingguIni` yang berarti (total periode).
 
   return {
     periodeAwal,

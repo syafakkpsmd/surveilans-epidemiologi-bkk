@@ -75,6 +75,12 @@ export default function UnggahAnopheles({
             onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
         </label>
 
+        <p className="text-xs">
+          <a href={`/api/vektor/anopheles/template?tipe=${mode}`} className="font-medium text-teal-800 underline">
+            Unduh template Excel ({mode === 'larva' ? 'larva' : 'nyamuk dewasa'})
+          </a>
+        </p>
+
         <p className="text-xs text-slate-600">
           {petunjuk} Format tanggal dikenali otomatis, angka boleh memakai koma (26,5). Lokasi dari file tidak otomatis
           masuk ke daftar lokasi.

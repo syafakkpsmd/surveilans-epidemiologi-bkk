@@ -68,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Kier Kesehatan", href: "/dashboard/kier", icon: PersonStanding, prefetch: false },
       { label: "SKLT", href: "/dashboard/sklt", icon: ClipboardCheck, prefetch: false },
       { label: "Cek Kesehatan Gratis", href: "/dashboard/klinik/ckg", icon: HeartPulse, prefetch: false },
+      { label: "Pengawasan Jenazah", href: "/dashboard/izin-jenazah", icon: BriefcaseMedical, prefetch: false },
     ],
   },
   {

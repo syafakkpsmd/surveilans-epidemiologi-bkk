@@ -1,9 +1,10 @@
-// app/(dashboard)/dashboard/udara-ruang/input/page.tsx  (FILE BARU)
+// app/(dashboard)/dashboard/udara-ruang/input/page.tsx
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getWilkerModul } from '@/lib/wilayah-kerja/server';
 import { MODUL } from '@/lib/input-data/modul';
+import { untukKlien } from '@/lib/input-data/untuk-klien';
 import InputDataClient from '@/components/input-data/InputDataClient';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export default async function HalamanInputUdaraRuang() {
         <Link href="/dashboard/udara-ruang" className="text-sm text-[#0F4C5C] underline">&larr; Kembali ke dashboard Udara Dalam Ruang</Link>
         <p className="mt-2 text-xs text-gray-600">Data yang disimpan di sini langsung tersimpan di tabel kualitas udara Karhutla (satu kali entri).</p>
       </div>
-      <InputDataClient modul={[modul]} wilayah={wilayah} role={role} judul="Input Data Pemeriksaan Udara Dalam Ruang" />
+      <InputDataClient modul={[untukKlien(modul)]} wilayah={wilayah} role={role} judul="Input Data Pemeriksaan Udara Dalam Ruang" />
     </div>
   );
 }

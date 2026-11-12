@@ -1,4 +1,4 @@
-import { tabelTidakAda } from '@/lib/db/errors';
+﻿import { tabelTidakAda } from '@/lib/db/errors';
 import { hitungMingguEpidemiologi } from "@/lib/epi-week";
 import { getDbClient } from "@/lib/db/client";
 
@@ -42,7 +42,7 @@ async function ambilBarisTahun(tahun: number, wilker?: string): Promise<BarisPen
 
 /**
  * Ambil total penumpang kapal (datang & berangkat) per minggu epidemiologi,
- * digabung dari sheet Samarinda + Lhoktuan (tidak dipisah per wilker,
+ * digabung lintas wilker (tidak dipisah per wilker,
  * mengikuti pola dashboard ABK/Crew/Penumpang yang sudah ada).
  *
  * Ambil data 1 tahun kalender sebelum & sesudah karena minggu epid awal/akhir
@@ -80,7 +80,7 @@ export async function getPenumpangKapalMingguan(
 
 /**
  * Ambil total penumpang kapal (datang & berangkat) per bulan kalender,
- * digabung dari sheet Samarinda + Lhoktuan.
+ * digabung lintas wilker.
  */
 export async function getPenumpangKapalBulanan(
   tahunKalender: number,

@@ -1,7 +1,6 @@
 import {
   getRingkasanVektorTikus,
   getRingkasanVektorTikusBulanan,
-  getWilkerRef,
   getUjiLabVektorTikusMingguan,
   getUjiLabVektorTikusBulanan,
 } from "@/lib/db/queries/umum";
@@ -11,6 +10,7 @@ import VektorTikusClient from "./VektorTikusClient";
 import { getBanyakHasilAI } from "@/lib/ai/getBanyakHasilAI";
 import type { PermintaanHasilAI } from "@/lib/ai/hasilAiTypes";
 import { bacaTahun, jumlahMingguEpid } from "@/lib/tahun";
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
 
 export default async function VektorTikusPage({
   searchParams,
@@ -42,7 +42,7 @@ export default async function VektorTikusPage({
 
   const [wilkerRefRaw, ringkasanMingguan, ringkasanBulanan, ujiLabMingguan, ujiLabBulanan, hasilAI] =
     await Promise.all([
-      getWilkerRef(),
+      getDaftarWilker(),
       getRingkasanVektorTikus(tahun, wilker),
       getRingkasanVektorTikusBulanan(tahun, wilker),
       getUjiLabVektorTikusMingguan(tahun, wilker),
@@ -50,8 +50,10 @@ export default async function VektorTikusPage({
       getBanyakHasilAI(permintaanAI),
     ]);
 
-  // Wilayah yang ditampilkan: aktif dan bukan kantor induk (bandara privat dinonaktifkan di pengaturan wilayah kerja)
-  const daftarWilker = wilkerRefRaw.filter((w: any) => w.aktif !== false && w.jenis !== "Kantor");
+    // Wilayah yang ditampilkan: aktif, bukan kantor induk, dan bukan anak (bandara privat menginduk ke wilker lain)
+  const daftarWilker = wilkerRefRaw
+    .filter((w) => w.aktif && w.jenis !== "Kantor" && !w.indukKode)
+    .map((w) => ({ kode: w.kode, nama: w.nama, warna: w.warna, aktif: w.aktif }));
 
   const dataMingguan = ringkasanMingguan.map((r: any) => ({
     minggu_epid: r.minggu_epid || 0,

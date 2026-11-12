@@ -2,6 +2,7 @@ import { muatDaftarWilayahSingkat } from '@/lib/wilayah-kerja/db';
 import type { DbValue as InValue } from '@/lib/db/client';
 import { getRentangMingguEpid } from '@/lib/db/queries/queriesVektorBreakdown';
 import { getDbClient } from '@/lib/db/client';
+import { klausaWilayahSql, variasiTulisan } from '@/lib/wilayah-kerja';
 
 export type RingkasanUtamaMalaria = {
   totalResponden: number;
@@ -173,13 +174,13 @@ async function buildFilterWilker(kodeWilker?: string): Promise<{ klausa: string;
   if (!kodeWilker || kodeWilker === 'Semua') {
     return { klausa: '', args: [] };
   }
-  const kataKunci = (await muatDaftarWilayahSingkat()).find((w) => w.kode === kodeWilker)?.namaPendek;
-  if (!kataKunci) {
-    // Kode tidak dikenal (tidak ada di wilker_ref) — fallback cocokkan persis
-    // supaya tidak diam-diam menampilkan semua data kalau kodenya salah/berubah.
+    const w = (await muatDaftarWilayahSingkat()).find((x) => x.kode === kodeWilker);
+  if (!w) {
+    // Kode tidak dikenal: cocokkan persis supaya tidak menampilkan semua data.
     return { klausa: ' AND wilayah_kerja = ?', args: [kodeWilker] };
   }
-  return { klausa: ' AND wilayah_kerja LIKE ?', args: [`%${kataKunci}%`] };
+  const varian = variasiTulisan(w);
+  return { klausa: ` AND ${klausaWilayahSql()} IN (${varian.map(() => '?').join(', ')})`, args: varian };
 }
 
 function isoTanggal(d: Date): string {

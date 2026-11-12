@@ -6,9 +6,8 @@ import RekapTabelWilkerBulan, {
   type BarisRekap,
   type MetrikDef,
 } from "./RekapTabelWilkerBulan";
-import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 
-type WilkerRef = { kode: string; nama: string };
+type WilkerRef = { kode: string; nama: string; aktif?: boolean | null; jenis?: string | null; indukKode?: string | null };
 
 type Props = {
   tahun: number;
@@ -24,6 +23,8 @@ type Props = {
   mediaTanah: any[]; // BarisMediaTanah[]
   limbahB3: any[]; // BarisLimbahB3[]
   udaraRuang: any[]; // BarisUdaraRuang[]
+  anophelesLarva: any[]; // BarisAnopheles[] (tipe larva)
+  anophelesDewasa: any[]; // BarisAnopheles[] (tipe dewasa)
 };
 
 type Kategori = "sanitasi" | "vektor" | "media";
@@ -40,6 +41,8 @@ type DatasetId =
   | "pengasapan"
   | "diare_lalat"
   | "diare_kecoa"
+  | "anopheles_larva"
+  | "anopheles_dewasa"
   | "tanah"
   | "limbah_b3"
   | "udara_ruang";
@@ -59,6 +62,8 @@ const TAB_VEKTOR: { id: DatasetId; label: string; ikon: string }[] = [
   { id: "pengasapan", label: "Pengasapan (Fogging)", ikon: "🌫️" },
   { id: "diare_lalat", label: "Vektor Diare — Lalat", ikon: "🪰" },
   { id: "diare_kecoa", label: "Vektor Diare — Kecoa", ikon: "🪳" },
+  { id: "anopheles_larva", label: "Anopheles — Larva", ikon: "🐛" },
+  { id: "anopheles_dewasa", label: "Anopheles — Nyamuk Dewasa", ikon: "🦟" },
 ];
 
 const TAB_MEDIA: { id: DatasetId; label: string; ikon: string }[] = [
@@ -79,33 +84,14 @@ const LABEL_KATEGORI: Record<Kategori, string> = {
   media: "Media",
 };
 
-// ----------------------------------------------------------------
-// Normalisasi nama wilayah kerja.
-//
-// Modul Sanitasi (TTU/PAB/TPP/Rat Guard) pakai kolom `wilayah_kerja`
-// teks bebas TANPA prefix ("Samarinda", "APT Pranoto", dst).
-// Modul Vektor pakai `kode_wilker` yang di-resolve ke `wilker_ref.nama`,
-// dan nilai itu PAKAI prefix ("Pelabuhan Samarinda", "Bandara APT
-// Pranoto", dst). Supaya keduanya bisa digabung & difilter dengan
-// konsisten di Master Tabel, semua nama dari wilker_ref dilewatkan
-// fungsi ini dulu untuk membuang prefix "Pelabuhan"/"Bandara".
-// ----------------------------------------------------------------
 function normalisasiNamaWilayah(nama: string): string {
   return nama.replace(/^(Pelabuhan|Bandara)\s+/i, "").trim();
 }
 
-// Entri di wilker_ref yang BUKAN lokasi lapangan aktif untuk modul
-// Sanitasi/Vektor gabungan (2 bandara non-aktif + kantor induk) —
-// disingkirkan dari dropdown & label Master Tabel supaya tidak
-// membanjiri pilihan dengan lokasi yang datanya memang tidak pernah ada.
-const WILKER_DIKECUALIKAN = [
-  "PT. Badak LNG Bontang",
-  "Tanjung Bara Sangatta",
-  `Induk ${NAMA_BKK}`,
-];
-
-function apakahWilkerDikecualikan(namaSudahDinormalisasi: string): boolean {
-  return WILKER_DIKECUALIKAN.some((x) => namaSudahDinormalisasi.includes(x));
+// Wilker yang bukan lokasi lapangan aktif (nonaktif, kantor induk, atau anak yang digabung ke induknya)
+// disingkirkan dari dropdown. Ditentukan dari master, bukan dari nama.
+function apakahWilkerDikecualikan(w: WilkerRef): boolean {
+  return w.aktif === false || w.jenis === "Kantor" || !!w.indukKode;
 }
 
 function susunBaris(opts: {
@@ -155,6 +141,8 @@ export default function MasterTabelClient({
   mediaTanah,
   limbahB3,
   udaraRuang,
+  anophelesLarva,
+  anophelesDewasa,
 }: Props) {
   const router = useRouter();
   const [kategori, setKategori] = useState<Kategori>("sanitasi");
@@ -164,11 +152,15 @@ export default function MasterTabelClient({
   // Peta kode_wilker -> nama SUDAH DINORMALISASI (tanpa prefix
   // Pelabuhan/Bandara), supaya baris tabel Vektor pakai label yang
   // sama persis dengan yang dipakai modul Sanitasi & dropdown filter.
-  const petaKodeKeNama = useMemo(() => {
-    const m = new Map<string, string>();
-    daftarWilker.forEach((w) => m.set(w.kode, normalisasiNamaWilayah(w.nama)));
-    return m;
-  }, [daftarWilker]);
+    const petaKodeKeNama = useMemo(() => {
+      const m = new Map<string, string>();
+      const byKode = new Map(daftarWilker.map((w) => [w.kode, w]));
+      daftarWilker.forEach((w) => {
+        const rujukan = (w.indukKode && byKode.get(w.indukKode)) || w;
+        m.set(w.kode, normalisasiNamaWilayah(rujukan.nama));
+      });
+      return m;
+    }, [daftarWilker]);
 
   const namaDariKode = (kode: string) => petaKodeKeNama.get(kode) || kode;
 
@@ -193,10 +185,9 @@ export default function MasterTabelClient({
 
     // Nama dari wilker_ref (modul Vektor): normalisasi dulu + buang
     // entri yang dikecualikan (bandara non-aktif, kantor induk).
-    daftarWilker.forEach((w) => {
-      const nama = normalisasiNamaWilayah(w.nama);
-      if (apakahWilkerDikecualikan(nama)) return;
-      set.add(nama);
+        daftarWilker.forEach((w) => {
+      if (apakahWilkerDikecualikan(w)) return;
+      set.add(normalisasiNamaWilayah(w.nama));
     });
 
     return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
@@ -254,6 +245,26 @@ export default function MasterTabelClient({
     { key: "jml_memenuhi_syarat", label: "Memenuhi Syarat", singkat: "MS", nada: "baik" },
     { key: "jml_tidak_memenuhi_syarat", label: "Tidak Memenuhi Syarat", singkat: "TMS", nada: "buruk" },
     { key: "indeks_rerata", label: "Rata-rata Indeks", singkat: "Idx.", desimal: 2, agregasi: "avg" },
+  ];
+
+  // ---- Anopheles (malaria) ----
+  const METRIK_ANO_LARVA: MetrikDef[] = [
+    { key: "jumlah_survei", label: "Jumlah Survei Larva", singkat: "Survei" },
+    { key: "jumlah_cidukan", label: "Jumlah Cidukan", singkat: "Cidukan" },
+    { key: "jumlah_larva", label: "Jumlah Larva Ditemukan", singkat: "Larva", nada: "buruk" },
+    { key: "survei_positif", label: "Survei dengan Larva (+)", singkat: "S.(+)", nada: "buruk" },
+  ];
+  const METRIK_ANO_LARVA_DETAIL: MetrikDef[] = [
+    { key: "kepadatan", label: "Kepadatan (larva per cidukan, rata-rata)", singkat: "Lrv/Cdk", desimal: 2, agregasi: "avg" },
+  ];
+  const METRIK_ANO_DEWASA: MetrikDef[] = [
+    { key: "jumlah_survei", label: "Jumlah Survei Nyamuk Dewasa", singkat: "Survei" },
+    { key: "jumlah_nyamuk", label: "Jumlah Nyamuk Tertangkap", singkat: "Nyamuk", nada: "buruk" },
+    { key: "mbr", label: "Man Biting Rate (rata-rata)", singkat: "MBR", desimal: 2, agregasi: "avg" },
+    { key: "mhd", label: "Man Hour Density (rata-rata)", singkat: "MHD", desimal: 2, agregasi: "avg" },
+  ];
+  const METRIK_ANO_DEWASA_DETAIL: MetrikDef[] = [
+    { key: "jam_tangkap", label: "Total Jam Tangkap", singkat: "Jam", desimal: 1 },
   ];
 
   // ---- Media Lingkungan ----
@@ -423,6 +434,32 @@ export default function MasterTabelClient({
         bulanKey: "bulan",
         labelResolver: (r) => namaDariKode(r.kode_wilker),
         metricKeys: ["jml_pengamatan", "jml_memenuhi_syarat", "jml_tidak_memenuhi_syarat", "indeks_rerata"],
+        filterLabel: wilayah,
+      }),
+    },
+    anopheles_larva: {
+      judul: "Vektor Anopheles — Larva (Jentik)",
+      subjudul: `Survei larva zona Buffer & Perimeter per wilayah kerja — Tahun ${tahun}`,
+      metrik: METRIK_ANO_LARVA,
+      metrikDetail: METRIK_ANO_LARVA_DETAIL,
+      baris: susunBaris({
+        raw: anophelesLarva,
+        bulanKey: "bulan",
+        labelResolver: (r) => namaDariKode(r.kode_wilker),
+        metricKeys: ["jumlah_survei", "jumlah_cidukan", "jumlah_larva", "survei_positif", "kepadatan"],
+        filterLabel: wilayah,
+      }),
+    },
+    anopheles_dewasa: {
+      judul: "Vektor Anopheles — Nyamuk Dewasa",
+      subjudul: `Hasil tangkap, MBR & MHD per wilayah kerja — Tahun ${tahun}`,
+      metrik: METRIK_ANO_DEWASA,
+      metrikDetail: METRIK_ANO_DEWASA_DETAIL,
+      baris: susunBaris({
+        raw: anophelesDewasa,
+        bulanKey: "bulan",
+        labelResolver: (r) => namaDariKode(r.kode_wilker),
+        metricKeys: ["jumlah_survei", "jumlah_nyamuk", "mbr", "mhd", "jam_tangkap"],
         filterLabel: wilayah,
       }),
     },

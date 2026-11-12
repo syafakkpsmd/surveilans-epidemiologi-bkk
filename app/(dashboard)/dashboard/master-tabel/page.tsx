@@ -17,7 +17,6 @@ import {
   getRingkasanTppBulanan,
   getRingkasanRatGuardBulanan,
   getRingkasanVektorTikusBulanan,
-  getWilkerRef,
 } from "@/lib/db/queries/umum";
 import {
   getMasterVektorDbdAktivitasBulanan,
@@ -25,8 +24,10 @@ import {
   getMasterMediaTanahBulanan,
   getMasterLimbahB3Bulanan,
   getMasterUdaraRuangBulanan,
+  getMasterAnophelesBulanan,
 } from "@/lib/db/queries/queriesMasterTabel";
 import MasterTabelClient from "@/components/master-tabel/MasterTabelClient";
+import { getDaftarWilker } from "@/lib/wilayah-kerja/server";
 
 type PageProps = {
   searchParams: Promise<{ tahun?: string | string[] }>;
@@ -56,8 +57,10 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
     mediaTanah,
     limbahB3,
     udaraRuang,
+    anophelesLarva,
+    anophelesDewasa,
   ] = await Promise.all([
-    getWilkerRef().catch(() => []),
+    getDaftarWilker().catch(() => []),
     aman(getRingkasanTtuBulanan(tahun)),
     aman(getRingkasanPabBulanan(tahun)),
     aman(getRingkasanTppBulanan(tahun)),
@@ -69,6 +72,8 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
     aman(getMasterMediaTanahBulanan(tahun)),
     aman(getMasterLimbahB3Bulanan(tahun)),
     aman(getMasterUdaraRuangBulanan(tahun)),
+    aman(getMasterAnophelesBulanan(tahun, "larva")),
+    aman(getMasterAnophelesBulanan(tahun, "dewasa")),
   ]);
 
   return (
@@ -82,9 +87,12 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
 
       <MasterTabelClient
         tahun={tahun}
-        daftarWilker={(daftarWilker ?? []).map((w: any) => ({
-          kode: w.kode ?? w.kode_wilker ?? "",
-          nama: w.nama ?? w.nama_wilker ?? w.kode ?? "",
+        daftarWilker={(daftarWilker ?? []).map((w) => ({
+          kode: w.kode,
+          nama: w.nama,
+          aktif: w.aktif,
+          jenis: w.jenis,
+          indukKode: w.indukKode ?? null,
         }))}
         ttu={ttu}
         pab={pab}
@@ -97,6 +105,8 @@ export default async function MasterTabelPage({ searchParams }: PageProps) {
         mediaTanah={mediaTanah}
         limbahB3={limbahB3}
         udaraRuang={udaraRuang}
+        anophelesLarva={anophelesLarva}
+        anophelesDewasa={anophelesDewasa}
       />
     </div>
   );

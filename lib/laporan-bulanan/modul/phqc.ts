@@ -3,24 +3,9 @@ import { getKategoriBreakdown, getRingkasanBulanan } from "@/lib/db/queries/umum
 import { BULAN, fmtAngka, fmtPerubahan, labelBulanan, labelRentang } from "../periode";
 import type { DataModul, KonteksLaporan, ModulLaporan } from "../types";
 import { jumlah, jumlahPerBulan, jumlahPerWilker, temuanDeret, temuanWilker } from "./_bantu";
+import { susunSeriWilker } from "./_seriWilker";
 
 const JUDUL = "Pengawasan Keberangkatan Kapal";
-
-/**
- * Urutan tampil wilayah kerja di grafik: Samarinda, Tanjung Santan,
- * Tanjung Laut, Lhoktuan, Sangatta, Sangkulirang.
- */
-const URUTAN_WILKER = ["samarinda", "santan", "tanjunglaut", "lhoktuan", "sangatta", "sangkulirang"];
-const WARNA_WILKER = ["0A7A78", "C9781F", "10293A", "6B8E9B", "B3362C", "2A7A4B"];
-const WARNA_LAIN = "B8A24A";
-
-function urutWilker(nama: string): number {
-  const n = nama.toLowerCase().replace(/\s+/g, "");
-  for (const k of URUTAN_WILKER) {
-    if (n.includes(k)) return URUTAN_WILKER.indexOf(k);
-  }
-  return URUTAN_WILKER.length;
-}
 
 // 1. Ubah "tujuan" menjadi "tujuan_berlayar"
 type KategoriLaporan = "rba" | "tujuan_berlayar" | "pelabuhan_tujuan";
@@ -96,7 +81,7 @@ export const modulPhqc: ModulLaporan = {
 
   async ambil(konteks: KonteksLaporan): Promise<DataModul | null> {
     const { tahun, bulanAkhir } = konteks;
-    
+
     // 1. Ambil data ringkasan bulanan PHQC
     const baris = (await getRingkasanBulanan("phqc", tahun)).filter((b) => b.bulan >= 1 && b.bulan <= bulanAkhir);
     if (baris.length === 0) return null;
@@ -106,23 +91,13 @@ export const modulPhqc: ModulLaporan = {
     const totalKapal = jumlah(kapal);
     if (totalKapal === 0) return null;
 
-    // 2. Rekap Wilayah Kerja (Sesuai gambar_5, Penumpang sudah dihapus)
+    // 2. Rekap Wilayah Kerja (Penumpang sudah dihapus)
     const perWilker = jumlahPerWilker(baris, bulanAkhir, {
       kapal: (b) => b.jumlah_kapal,
       abk: (b) => b.total_abk,
     });
 
-    const wilkerDari = (b: (typeof baris)[number]) => b.wilayah_kerja;
-    const seriWilker = [...new Set(baris.map(wilkerDari))]
-      .map((k) => {
-        const sub = baris.filter((b) => wilkerDari(b) === k);
-        const nama = jumlahPerWilker(sub, bulanAkhir, { kapal: (b) => b.jumlah_kapal })[0]?.nama ?? String(k);
-        return { nama, nilai: jumlahPerBulan(sub, bulanAkhir, (b) => b.jumlah_kapal) };
-      })
-      .filter((s) => jumlah(s.nilai) > 0)
-      .map((s) => ({ nama: s.nama, nilai: s.nilai, urut: urutWilker(s.nama) }))
-      .sort((a, b) => a.urut - b.urut)
-      .map(({ nama, nilai, urut }) => ({ nama, nilai, warna: WARNA_WILKER[urut] ?? WARNA_LAIN }));
+    const seriWilker = await susunSeriWilker(baris, bulanAkhir, (b) => b.jumlah_kapal);
 
     // 3. Ambil data kategori paralel (RBA, Tujuan Berlayar, Pelabuhan Tujuan)
     const [dataRba, dataTujuan, dataPelabuhan] = await Promise.all([

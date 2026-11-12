@@ -20,6 +20,7 @@ export const MODUL_WILKER = [
   { kunci: 'udara_ruang', label: 'Pemeriksaan Udara Dalam Ruang' },
   { kunci: 'vektor_sub_lokasi', label: 'Vektor Aedes/Anopheles: filter Zona & Sub-lokasi' },
   { kunci: 'rat_guard', label: 'Rat Guard' },
+  { kunci: 'ispa', label: 'Kasus ISPA (Karhutla)' },
 ] as const;
 
 export type KunciModulWilker = (typeof MODUL_WILKER)[number]['kunci'];

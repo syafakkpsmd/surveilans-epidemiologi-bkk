@@ -536,6 +536,35 @@ export const MODUL: Record<string, ModulInput> = {
       { nama: 'kunci_harian', label: 'Kunci (otomatis)', tipe: 'teks', arsip: true, turunan: () => 'harian' },
     ],
   },
+    // ------------------------------------------------------------------------------------------
+  // Kasus ISPA harian (Karhutla). Tabel LAMA `ispa_harian` dipakai apa adanya; view_karhutla_ispa_* dan dasbor tidak berubah.
+  // Satu baris = satu tanggal + wilayah kerja + zona (zona boleh kosong). kode_wilker diisi trigger dari wilayah_kerja.
+  // Kolom tambahan dan trigger: schema/postgres/12_modul_ispa.sql.
+  // ------------------------------------------------------------------------------------------
+  ispa: {
+    kunci: 'ispa',
+    label: 'Kasus ISPA (Karhutla)',
+    tabel: 'ispa_harian',
+    kolomTanggal: 'tanggal',
+    kolomWilayah: 'wilayah_kerja',
+    kolomKunci: 'kunci_zona',
+    namaKunci: 'zona',
+    kunciWilker: 'ispa',
+    pakaiParseTanggal: true,
+    wilayahDenganSpasi: true,
+    jenisWilayahBoleh: JENIS_LENGKAP,
+    peranBoleh: ['admin', 'petugas'],
+    kolomDaftar: ['tanggal', 'wilayah_kerja', 'zona', 'kasus_ispa_anak', 'kasus_ispa_dewasa', 'keterangan'],
+    kolom: [
+      { nama: 'wilayah_kerja', label: 'Wilayah Kerja', tipe: 'wilker', wajib: true, alias: ALIAS_WILKER },
+      { nama: 'tanggal', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tgl', 'Tanggal Kasus', 'Tanggal Kegiatan'] },
+      T('zona', 'Zona', ['Lokasi', 'Sub Wilayah', 'Zona Karhutla'], { maks: 100 }),
+      { nama: 'kasus_ispa_anak', label: 'Kasus ISPA Anak', tipe: 'bilangan', wajib: true, batasNilai: [0, 100000], alias: ['ISPA Anak', 'Anak'] },
+      { nama: 'kasus_ispa_dewasa', label: 'Kasus ISPA Dewasa', tipe: 'bilangan', wajib: true, batasNilai: [0, 100000], alias: ['ISPA Dewasa', 'Dewasa'] },
+      T('keterangan', 'Keterangan', ['Catatan'], { maks: 5000 }),
+      { nama: 'kunci_zona', label: 'Kunci zona (otomatis)', tipe: 'teks', arsip: true, turunan: (n) => (n.zona ? String(n.zona).trim() : '-') },
+    ],
+  },
 };
 
 export const DAFTAR_MODUL = Object.values(MODUL);

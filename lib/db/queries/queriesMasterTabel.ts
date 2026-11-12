@@ -12,6 +12,7 @@
 //  - getMasterMediaTanahBulanan           (BARU)
 //  - getMasterLimbahB3Bulanan             (BARU)
 //  - getMasterUdaraRuangBulanan           (BARU)
+//  - getMasterAnophelesBulanan            (BARU: larva & dewasa)
 //
 // ⚠ Tiga fungsi BARU memakai SQL langsung lewat getDbClient()
 // (sama seperti umum.ts). Nama tabel/kolom dikumpulkan di blok
@@ -324,5 +325,87 @@ export async function getMasterUdaraRuangBulanan(tahun: number): Promise<BarisUd
     jumlah_ms: Number(r.jumlah_ms) || 0,
     jumlah_tms: Number(r.jumlah_tms) || 0,
     jumlah_tidak_lengkap: Number(r.jumlah_tidak_lengkap) || 0,
+  }));
+}
+
+// ================================================================
+// BARU — ANOPHELES (tabel vektor_anopheles, kolom tipe_pengamatan = 'larva' | 'dewasa')
+// Satu baris hasil = satu wilayah kerja x satu bulan (zona Buffer + Perimeter digabung).
+// Larva : jumlah survei, cidukan, larva, survei positif (larva > 0), kepadatan = larva / cidukan.
+// Dewasa: jumlah survei, nyamuk, MBR & MHD (rata-rata survei), total jam tangkap.
+// ================================================================
+export type BarisAnopheles = {
+  kode_wilker: string;
+  bulan: number;
+  jumlah_survei: number;
+  // larva
+  jumlah_cidukan?: number;
+  jumlah_larva?: number;
+  survei_positif?: number;
+  kepadatan?: number;
+  // dewasa
+  jumlah_nyamuk?: number;
+  mbr?: number;
+  mhd?: number;
+  jam_tangkap?: number;
+};
+
+export async function getMasterAnophelesBulanan(
+  tahun: number,
+  tipe: 'larva' | 'dewasa'
+): Promise<BarisAnopheles[]> {
+  const [awal, akhir] = rentangTahun(tahun);
+
+  if (tipe === 'larva') {
+    const rows = await ambilBaris(
+      `SELECT kode_wilker,
+              EXTRACT(MONTH FROM tgl_survei)::int AS bulan,
+              COUNT(*)::int AS jumlah_survei,
+              COALESCE(SUM(jumlah_cidukan), 0)::int AS jumlah_cidukan,
+              COALESCE(SUM(jumlah_larva), 0)::int AS jumlah_larva,
+              COUNT(*) FILTER (WHERE COALESCE(jumlah_larva, 0) > 0)::int AS survei_positif
+         FROM vektor_anopheles
+        WHERE tipe_pengamatan = 'larva' AND tgl_survei >= ? AND tgl_survei <= ?
+        GROUP BY 1, 2
+        ORDER BY 2`,
+      [awal, akhir]
+    );
+    return rows.map((r) => {
+      const cid = Number(r.jumlah_cidukan) || 0;
+      const lar = Number(r.jumlah_larva) || 0;
+      return {
+        kode_wilker: String(r.kode_wilker ?? '—'),
+        bulan: Number(r.bulan) || 0,
+        jumlah_survei: Number(r.jumlah_survei) || 0,
+        jumlah_cidukan: cid,
+        jumlah_larva: lar,
+        survei_positif: Number(r.survei_positif) || 0,
+        kepadatan: cid > 0 ? Number((lar / cid).toFixed(2)) : 0,
+      };
+    });
+  }
+
+  const rows = await ambilBaris(
+    `SELECT kode_wilker,
+            EXTRACT(MONTH FROM tgl_survei)::int AS bulan,
+            COUNT(*)::int AS jumlah_survei,
+            COALESCE(SUM(jml_nyamuk), 0)::int AS jumlah_nyamuk,
+            COALESCE(AVG(mbr), 0) AS mbr,
+            COALESCE(AVG(mhd), 0) AS mhd,
+            COALESCE(SUM(jml_jam_tangkap), 0) AS jam_tangkap
+       FROM vektor_anopheles
+      WHERE tipe_pengamatan = 'dewasa' AND tgl_survei >= ? AND tgl_survei <= ?
+      GROUP BY 1, 2
+      ORDER BY 2`,
+    [awal, akhir]
+  );
+  return rows.map((r) => ({
+    kode_wilker: String(r.kode_wilker ?? '—'),
+    bulan: Number(r.bulan) || 0,
+    jumlah_survei: Number(r.jumlah_survei) || 0,
+    jumlah_nyamuk: Number(r.jumlah_nyamuk) || 0,
+    mbr: Number(Number(r.mbr).toFixed(2)) || 0,
+    mhd: Number(Number(r.mhd).toFixed(2)) || 0,
+    jam_tangkap: Number(Number(r.jam_tangkap).toFixed(1)) || 0,
   }));
 }

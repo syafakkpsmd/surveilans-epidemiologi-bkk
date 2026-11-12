@@ -39,12 +39,25 @@ export interface Wilayah {
   warna: string | null;
   catatan: string | null;
   /** Penulisan lain yang pernah dipakai di data lama (tabel wilker_nama_alias). */
+  indukKode?: string | null;
   alias: string[];
 }
 
 /** Kunci pembanding: huruf kecil, tanpa spasi/garis bawah/titik/strip. "Tanjung_Santan" == "TanjungSantan" == "tanjung santan". */
 export function kunciNama(teks: string): string {
   return teks.toLowerCase().replace(/[\s_.\-]+/g, '');
+}
+
+/** Semua penulisan wilayah yang mungkin tersimpan di data (nama kini + alias nama lama), sudah berupa kunci pembanding. */
+export function variasiTulisan(w: Wilayah): string[] {
+  const bentuk = [w.kode, w.nama, w.namaPendek, w.namaPeta, ...w.alias];
+  if (w.jenis === 'Pelabuhan') bentuk.push(`Pelabuhan ${w.namaPendek}`, `Pelabuhan Laut ${w.namaPendek}`);
+  return [...new Set(bentuk.map(kunciNama).filter(Boolean))];
+}
+
+/** Potongan SQL untuk membandingkan kolom teks wilayah dengan variasiTulisan(); sama dengan aturan kunciNama. */
+export function klausaWilayahSql(kolom = 'wilayah_kerja'): string {
+  return `regexp_replace(lower(${kolom}), '[[:space:]_.-]+', '', 'g')`;
 }
 
 /** Bangun kamus pencarian dari daftar wilayah (baris wilker_ref). Murni dan murah; aman dipanggil per render. */
@@ -90,6 +103,21 @@ export function buatKamus(daftarMentah: readonly Wilayah[]) {
     dapatkan(kode: string | null | undefined): Wilayah | undefined {
       return kode ? byKode.get(kode) : undefined;
     },
+        /** Kode untuk rekap: induknya bila punya induk, jika tidak kodenya sendiri. */
+    kodeRekap(kode: string | null | undefined): KodeWilker | null {
+      if (!kode) return null;
+      const w = byKode.get(kode);
+      return w?.indukKode && byKode.has(w.indukKode) ? w.indukKode : kode;
+    },
+    /** Teks apa pun -> kode rekap (induk). Null bila tidak dikenal. */
+    kodeRekapDariTeks(teks: string | null | undefined): KodeWilker | null {
+      if (teks == null) return null;
+      const k = kunciNama(String(teks).trim());
+      const kode = k ? (peta.get(k) ?? null) : null;
+      if (!kode) return null;
+      const w = byKode.get(kode);
+      return w?.indukKode && byKode.has(w.indukKode) ? w.indukKode : kode;
+    },
     namaDariKode(kode: string | null | undefined, bentuk: 'panjang' | 'pendek' | 'peta' = 'panjang'): string | undefined {
       const w = kode ? byKode.get(kode) : undefined;
       if (!w) return undefined;
@@ -124,6 +152,7 @@ export function normalisasiWilayah(b: Record<string, unknown>, alias: string[] =
     subLokasi: Array.isArray(b.sub_lokasi ?? b.subLokasi) ? ((b.sub_lokasi ?? b.subLokasi) as unknown[]).map(String) : [],
     warna: (b.warna as string | null) ?? null,
     catatan: (b.catatan as string | null) ?? null,
+    indukKode: ((b.induk_kode ?? b.indukKode ?? null) as string | null) || null,
     alias,
   };
 }

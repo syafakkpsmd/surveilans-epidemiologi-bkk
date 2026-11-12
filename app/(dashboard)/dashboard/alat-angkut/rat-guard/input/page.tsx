@@ -3,10 +3,15 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getWilkerModul } from '@/lib/wilayah-kerja/server';
-import { MODUL } from '@/lib/input-data/modul';
+import { MODUL, type ModulInput } from '@/lib/input-data/modul';
 import InputDataClient from '@/components/input-data/InputDataClient';
 
 export const dynamic = 'force-dynamic';
+// `turunan` adalah fungsi: tidak boleh dikirim ke komponen klien.
+const untukKlien = (m: ModulInput): ModulInput => ({
+  ...m,
+  kolom: m.kolom.map((k) => ({ ...k, turunan: undefined })),
+});
 
 export default async function HalamanInputRatGuard() {
   const role = await getUserRole();
@@ -21,7 +26,7 @@ export default async function HalamanInputRatGuard() {
         <Link href="/dashboard/alat-angkut/rat-guard" className="text-sm text-[#0F4C5C] underline">&larr; Kembali ke dashboard Rat Guard</Link>
         <p className="mt-2 text-xs text-gray-600">Satu baris = satu wilayah kerja pada satu tanggal. Jumlah kapal dihitung otomatis dari terpasang + tidak terpasang.</p>
       </div>
-      <InputDataClient modul={[modul]} wilayah={wilayah} role={role} judul="Input Data Rat Guard" />
+      <InputDataClient modul={[untukKlien(modul)]} wilayah={wilayah} role={role} judul="Input Data Rat Guard" />
     </div>
   );
 }

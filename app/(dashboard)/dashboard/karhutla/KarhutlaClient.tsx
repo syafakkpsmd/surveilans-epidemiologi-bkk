@@ -432,15 +432,15 @@ export default function KarhutlaClient({
       <GrafikMultiParameterHarianKarhutla daftarLokasiUdara={daftarLokasiUdara} />
 
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={() => setFormTerbuka('ispa')}
+        <Link href="/dashboard/karhutla/input-ispa"
             className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700">
             [+] Input Kasus ISPA
-        </button>
+        </Link>
 
-        <button onClick={() => setFormTerbuka('udara')}
+        <Link href="/dashboard/udara-ruang/input"
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
             [+] Input Kualitas Udara
-        </button>
+        </Link>
 
         {isAdmin && (
             <Link

@@ -1,54 +1,44 @@
+import { kunciNama, type Wilayah } from '@/lib/wilayah-kerja';
 
-/**
- * PEMETAAN LOKASI KUALITAS UDARA -> KODE WILKER
- * -----------------------------------------------
- * Modul ISPA (kode_wilker/zona) dan modul Kualitas Udara (lokasi bebas teks,
- * dikelola admin lewat /dashboard/pengaturan-lokasi-karhutla) memang punya
- * taksonomi berbeda secara struktur tabel -- TIDAK ada foreign key di
- * database yang menghubungkan keduanya (lihat catatan di
- * queries-karhutla-server.ts: ambilTrenIspaPm25).
- *
- * Tapi secara substansi keduanya mengacu ke wilayah kerja BKK yang sama --
- * hanya beda penamaan karena satu sisi penamaannya berbasis klinik, sisi
- * lain berbasis pelabuhan/bandara (mis. "APT Pranoto (Kedatangan)" untuk
- * kualitas udara vs "Klinik APT Pranoto" untuk ISPA, keduanya WK07).
- *
- * Karena tidak ada join key di DB, pemetaan di bawah ini dilakukan lewat
- * pencocokan kata kunci nama wilayah (case-insensitive, substring match).
- * Ini CUKUP untuk kebutuhan breakdown per-wilayah di Info Grafis, tapi
- * kalau admin menambah lokasi baru dengan nama yang jauh berbeda dari
- * daftar di bawah, lokasi itu akan jatuh ke bucket "Tidak Terpetakan" --
- * sengaja begitu (dianggap "tidak ada data" utk wilayah itu) daripada
- * salah petakan ke wilker yang keliru.
- */
-const KATA_KUNCI_WILKER: { kode_wilker: string; kataKunci: string[] }[] = [
-  { kode_wilker: 'WK01', kataKunci: ['samarinda', 'palaran', 'sidomulyo'] },
-  { kode_wilker: 'WK02', kataKunci: ['tanjung santan'] },
-  { kode_wilker: 'WK03', kataKunci: ['tanjung laut'] },
-  { kode_wilker: 'WK04', kataKunci: ['lhoktuan', 'lhok tuan'] },
-  { kode_wilker: 'WK05', kataKunci: ['sangatta'] },
-  { kode_wilker: 'WK06', kataKunci: ['sangkulirang'] },
-  { kode_wilker: 'WK07', kataKunci: ['pranoto'] },
-];
 
-const LABEL_TAMPILAN_LOKASI: Record<string, string> = {
-  'APT Pranoto (Keberangkatan)': 'Terminal Keberangkatan',
-  'APT Pranoto (Kedatangan)': 'Terminal Kedatangan',
-  'Samarinda (Pelabuhan Umum)': 'Pelabuhan Umum',
-  'Samarinda (Pelabuhan Palaran)': 'Pelabuhan Palaran',
-};
-
+/** Label ringkas lokasi: bila berformat "Wilayah (Titik)", tampilkan "Titik". Selain itu tampil apa adanya. */
 export function labelTampilanLokasi(lokasi: string): string {
-  return LABEL_TAMPILAN_LOKASI[lokasi] ?? lokasi;
+  const m = lokasi.match(/\(([^)]+)\)\s*$/);
+  return m ? m[1].trim() : lokasi;
 }
 
-/** Cocokkan nama lokasi kualitas udara (mis. "APT Pranoto (Kedatangan)") ke kode_wilker. */
-export function petakanLokasiUdaraKeWilker(lokasi: string): string | null {
-  const teks = lokasi.toLowerCase();
-  for (const entri of KATA_KUNCI_WILKER) {
-    if (entri.kataKunci.some((k) => teks.includes(k))) return entri.kode_wilker;
+
+/**
+ * Cocokkan nama lokasi kualitas udara ke kode wilker berdasarkan master (nama, nama pendek, nama peta, alias,
+ * sub-lokasi yang khas). Kandidat terpanjang menang. Bandara yang punya induk dipetakan ke induknya.
+ * Sub-lokasi yang sama di lebih dari satu wilayah (mis. "Pelabuhan Umum") diabaikan agar tidak salah petak.
+ */
+export function petakanLokasiUdaraKeWilker(lokasi: string, wilayah: readonly Wilayah[]): string | null {
+  const teks = kunciNama(lokasi);
+
+  const pemakaianSub = new Map<string, number>();
+  for (const w of wilayah) {
+    for (const s of new Set(w.subLokasi.map(kunciNama))) pemakaianSub.set(s, (pemakaianSub.get(s) ?? 0) + 1);
   }
-  return null;
+
+  let terbaik: { kode: string; panjang: number } | null = null;
+  for (const w of wilayah) {
+    if (w.jenis === 'Kantor') continue;
+    const kandidat = [
+      w.namaPendek,
+      w.nama,
+      w.namaPeta,
+      ...w.alias,
+      ...w.subLokasi.filter((s) => pemakaianSub.get(kunciNama(s)) === 1),
+    ];
+    for (const k of kandidat) {
+      const kk = kunciNama(k);
+      if (kk.length >= 4 && teks.includes(kk) && (!terbaik || kk.length > terbaik.panjang)) {
+        terbaik = { kode: w.indukKode ?? w.kode, panjang: kk.length };
+      }
+    }
+  }
+  return terbaik?.kode ?? null;
 }
 
 /**

@@ -22,6 +22,8 @@ const RUTE_TERLINDUNGI: RegExp[] = [
   /^\/lalu-lintas-orang\/input-penumpang-kapal(\/|$)/,
   /^\/dashboard\/input-data(\/|$)/,
   /^\/dashboard\/klinik\/input(\/|$)/,
+  /^\/dashboard\/media-tanah\/input(\/|$)/, // Ditambahkan untuk Media Tanah
+  /^\/dashboard\/data\/vektor\/anopheles(\/|$)/,
 ];
 
 export function proxy(request: NextRequest) {
@@ -48,5 +50,7 @@ export const config = {
     '/lalu-lintas-orang/input-penumpang-kapal/:path*',
     '/dashboard/input-data/:path*',
     '/dashboard/klinik/input/:path*',
+    '/dashboard/media-tanah/input/:path*', // Ditambahkan untuk matcher Next.js
+    '/dashboard/data/vektor/anopheles/:path*',
   ],
 };

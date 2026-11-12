@@ -12,18 +12,8 @@ import { kunciAI, type HasilAIStruktur } from "@/lib/ai/hasilAiTypes";
 import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
 import FilterTahun from "@/components/FilterTahun";
 
-type WilkerRef = { kode: string; nama: string };
+type WilkerRef = { kode: string; nama: string; warna?: string | null };
 
-// Warna tetap per wilayah kerja (mengikuti dasbor lama); wilayah baru memakai palet cadangan berurutan.
-const WARNA_WILKER: Record<string, string> = {
-  "samarinda": "#2563EB",
-  "apt pranoto": "#FB923C",
-  "tanjung santan": "#A78BFA",
-  "tanjung laut": "#A3B34C",
-  "lhoktuan": "#06B6D4",
-  "sangatta": "#EAB308",
-  "sangkulirang": "#EC4899",
-};
 const PALET_CADANGAN = ["#0F766E", "#B45309", "#7C3AED", "#BE123C", "#4D7C0F", "#0369A1", "#9D174D", "#475569"];
 type VektorTikusClientProps = {
   daftarWilker: WilkerRef[];
@@ -238,7 +228,7 @@ export default function VektorTikusClient({
       wilkerTampil.map((w, i) => ({
         key: `w${i}`,
         label: w.nama,
-        warna: WARNA_WILKER[w.nama.trim().toLowerCase()] ?? PALET_CADANGAN[i % PALET_CADANGAN.length],
+                warna: w.warna || PALET_CADANGAN[i % PALET_CADANGAN.length],
       })),
     [wilkerTampil]
   );

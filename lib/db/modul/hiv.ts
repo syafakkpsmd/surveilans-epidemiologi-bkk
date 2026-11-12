@@ -208,3 +208,47 @@ export const hitungTrenBulananHasilPerWilayah = (rows: HivRow[], tahun: number, 
 
 export const hitungTrenBulananHubunganBerisikoPerWilayah = (rows: HivRow[], tahun: number, daftarWilayah: string[]) =>
   pivotTrenPerWilayahKategori(rows, buatDaftarPeriodeBulanan(tahun), ambilPeriodeBulanan, r => r.hubungan_berisiko, daftarWilayah, KATEGORI_HUBUNGAN_BERISIKO);
+
+// ===== FILTER RENTANG (minggu epid / bulan) =====
+// Param URL boleh berbentuk "2026-W05", "W5", "5" (minggu) atau "2026-03", "3" (bulan).
+export function bacaNomorMinggu(s: string | undefined | null): number | null {
+  const m = String(s ?? '').match(/(\d{1,2})$/);
+  const n = m ? Number(m[1]) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 53 ? n : null;
+}
+
+export function bacaNomorBulan(s: string | undefined | null): number | null {
+  const m = String(s ?? '').match(/(\d{1,2})$/);
+  const n = m ? Number(m[1]) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= 12 ? n : null;
+}
+
+/** Urutkan agar mulai <= akhir; bila hanya satu ujung terisi, ujung lain = batas penuh. */
+export function rapikanRentang(mulai: number | null, akhir: number | null, maks: number): [number, number] | null {
+  if (mulai === null && akhir === null) return null;
+  let a = mulai ?? 1;
+  let b = akhir ?? maks;
+  if (a > b) [a, b] = [b, a];
+  return [a, b];
+}
+
+export function filterHivByRentangMinggu(rows: HivRow[], tahun: number, mulai: number, akhir: number): HivRow[] {
+  return rows.filter(r => {
+    if (!r.tanggal_kegiatan) return false;
+    const { tahunEpid, mingguEpid } = hitungMingguEpidemiologi(new Date(r.tanggal_kegiatan));
+    return tahunEpid === tahun && mingguEpid >= mulai && mingguEpid <= akhir;
+  });
+}
+
+export function filterHivByRentangBulan(rows: HivRow[], mulai: number, akhir: number): HivRow[] {
+  return rows.filter(r => {
+    if (!r.tanggal_kegiatan) return false;
+    const bulan = Number(r.tanggal_kegiatan.slice(5, 7));
+    return bulan >= mulai && bulan <= akhir;
+  });
+}
+
+/** Potong deret periode penuh (minggu 1..53 atau bulan 1..12, urut) ke rentang [mulai, akhir]. */
+export function potongDeret<T>(deret: T[], mulai: number, akhir: number): T[] {
+  return deret.slice(mulai - 1, akhir);
+}

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell
@@ -9,20 +10,30 @@ import type { RingkasanHiv } from '@/lib/db/modul/hiv';
 import { KATEGORI_HASIL, KATEGORI_HUBUNGAN_BERISIKO, formatPeriodeBulanan } from '@/lib/db/modul/hivKonstanta';
 import FilterTahun from '@/components/FilterTahun';
 
+const NAMA_BULAN_PENDEK = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+const labelMinggu = (p: string) => p.replace(/.*-W/, 'Mg ');
+const labelBulanPendek = (p: string) => NAMA_BULAN_PENDEK[Number(p.split('-')[1]) - 1] ?? p;
+
 const WARNA_DONUT = ['#0d9488', '#f59e0b', '#3b82f6', '#dc2626', '#6366f1', '#64748b', '#be185d'];
 const PALET_WILAYAH = ['#0d9488', '#dc2626', '#f59e0b', '#6366f1', '#0f766e', '#64748b', '#be185d'];
 
 interface Distribusi { label: string; jumlah: number }
 type BarisWilayah = Record<string, number | string>;
 
+type Granularitas = 'mingguan' | 'bulanan';
+
 interface Props {
   role: string;
   daftarWilayah: string[];
+  wilayahGrafik: string[];
   tahunBerjalan: number;
-  wilayahParam?: string;
+  wilayahTerpilih: string;
+  granularitas: Granularitas;
+  mingguMulaiTerpasang: string;
+  mingguAkhirTerpasang: string;
+  bulanMulaiTerpasang: string;
+  bulanAkhirTerpasang: string;
   ringkasan: RingkasanHiv;
-  trenMingguan: { periode: string; jumlah: number }[];
-  trenBulanan: { periode: string; jumlah: number }[];
   donutJenisKelamin: Distribusi[];
   donutUsia: Distribusi[];
   donutStatusPerkawinan: Distribusi[];
@@ -30,12 +41,41 @@ interface Props {
   donutHasil: Distribusi[];
   donutHubunganBerisiko: Distribusi[];
   barJenisReagen: Distribusi[];
-  trenMingguanHasilPerWilayah: BarisWilayah[];
-  trenMingguanHubunganBerisikoPerWilayah: BarisWilayah[];
-  trenBulananHasilPerWilayah: BarisWilayah[];
-  trenBulananHubunganBerisikoPerWilayah: BarisWilayah[];
-  diperiksaReaktifMingguan: { periode: string; Diperiksa: number; Reaktif: number }[];
-  diperiksaReaktifBulanan: { periode: string; Diperiksa: number; Reaktif: number }[];
+  trenTotal: { periode: string; jumlah: number }[];
+  trenHasilPerWilayah: BarisWilayah[];
+  trenHubunganPerWilayah: BarisWilayah[];
+  diperiksaReaktif: { periode: string; Diperiksa: number; Reaktif: number }[];
+}
+
+function ToggleButton({ aktif, onClick, children }: { aktif: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-md px-3 py-1 text-xs font-semibold transition-all ${
+        aktif ? 'bg-white text-teal-900 shadow-2xs' : 'text-gray-600 hover:text-gray-900'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FieldSelect({ label, value, onChange, opsi }: {
+  label: string; value: string; onChange: (v: string) => void; opsi: { value: string; label: string }[];
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+      {label}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-800 shadow-2xs focus:border-teal-600 focus:outline-hidden"
+      >
+        {opsi.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </label>
+  );
 }
 
 function KartuRingkasan({ ringkasan }: { ringkasan: RingkasanHiv }) {
@@ -137,7 +177,7 @@ function TrenPerWilayahChart({
         {tipeChart === 'line' ? (
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => formatPeriode(String(v))} />
+            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => (formatPeriode === formatPeriodeBulanan ? labelBulanPendek(String(v)) : formatPeriode(String(v)))} />
             <YAxis allowDecimals={false} />
             <Tooltip
               labelFormatter={(label) => formatPeriode(String(label))}
@@ -162,7 +202,7 @@ function TrenPerWilayahChart({
         ) : (
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => formatPeriode(String(v))} />
+            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => (formatPeriode === formatPeriodeBulanan ? labelBulanPendek(String(v)) : formatPeriode(String(v)))} />
             <YAxis allowDecimals={false} />
             <Tooltip
               labelFormatter={(label) => formatPeriode(String(label))}
@@ -207,7 +247,7 @@ function TrenDuaSeriChart({
         {tipeChart === 'line' ? (
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => formatPeriode(String(v))} />
+            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => (formatPeriode === formatPeriodeBulanan ? labelBulanPendek(String(v)) : formatPeriode(String(v)))} />
             <YAxis allowDecimals={false} />
             <Tooltip labelFormatter={(label) => formatPeriode(String(label))} />
             <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
@@ -217,7 +257,7 @@ function TrenDuaSeriChart({
         ) : (
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => formatPeriode(String(v))} />
+            <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => (formatPeriode === formatPeriodeBulanan ? labelBulanPendek(String(v)) : formatPeriode(String(v)))} />
             <YAxis allowDecimals={false} />
             <Tooltip labelFormatter={(label) => formatPeriode(String(label))} />
             <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
@@ -231,41 +271,120 @@ function TrenDuaSeriChart({
 }
 
 export default function HivClient(props: Props) {
-  const { daftarWilayah, wilayahParam, trenMingguan, trenBulanan } = props;
+  const {
+    daftarWilayah, wilayahGrafik, tahunBerjalan, wilayahTerpilih, granularitas,
+    mingguMulaiTerpasang, mingguAkhirTerpasang, bulanMulaiTerpasang, bulanAkhirTerpasang,
+  } = props;
+  const router = useRouter();
 
-  // Rentang Bersama untuk Grafik Mingguan
-  const [rentangMingguan, setRentangMingguan] = useState<[number, number]>([0, Math.max(trenMingguan.length - 1, 0)]);
-  const dataMingguanTerpotong = useMemo(() => trenMingguan.slice(rentangMingguan[0], rentangMingguan[1] + 1), [trenMingguan, rentangMingguan]);
-  const trenMingguanHasilPerWilayahTerpotong = useMemo(() => props.trenMingguanHasilPerWilayah.slice(rentangMingguan[0], rentangMingguan[1] + 1), [props.trenMingguanHasilPerWilayah, rentangMingguan]);
-  const trenMingguanHubunganBerisikoPerWilayahTerpotong = useMemo(() => props.trenMingguanHubunganBerisikoPerWilayah.slice(rentangMingguan[0], rentangMingguan[1] + 1), [props.trenMingguanHubunganBerisikoPerWilayah, rentangMingguan]);
-  const diperiksaReaktifMingguanTerpotong = useMemo(() => props.diperiksaReaktifMingguan.slice(rentangMingguan[0], rentangMingguan[1] + 1), [props.diperiksaReaktifMingguan, rentangMingguan]);
+  const [tempWilayah, setTempWilayah] = useState(wilayahTerpilih);
+  const [tempMingguMulai, setTempMingguMulai] = useState(mingguMulaiTerpasang);
+  const [tempMingguAkhir, setTempMingguAkhir] = useState(mingguAkhirTerpasang);
+  const [tempBulanMulai, setTempBulanMulai] = useState(bulanMulaiTerpasang);
+  const [tempBulanAkhir, setTempBulanAkhir] = useState(bulanAkhirTerpasang);
 
-  // Rentang Bersama untuk Grafik Bulanan
-  const [rentangBulanan, setRentangBulanan] = useState<[number, number]>([0, Math.max(trenBulanan.length - 1, 0)]);
-  const dataBulananTerpotong = useMemo(() => trenBulanan.slice(rentangBulanan[0], rentangBulanan[1] + 1), [trenBulanan, rentangBulanan]);
-  const trenBulananHasilPerWilayahTerpotong = useMemo(() => props.trenBulananHasilPerWilayah.slice(rentangBulanan[0], rentangBulanan[1] + 1), [props.trenBulananHasilPerWilayah, rentangBulanan]);
-  const trenBulananHubunganBerisikoPerWilayahTerpotong = useMemo(() => props.trenBulananHubunganBerisikoPerWilayah.slice(rentangBulanan[0], rentangBulanan[1] + 1), [props.trenBulananHubunganBerisikoPerWilayah, rentangBulanan]);
-  const diperiksaReaktifBulananTerpotong = useMemo(() => props.diperiksaReaktifBulanan.slice(rentangBulanan[0], rentangBulanan[1] + 1), [props.diperiksaReaktifBulanan, rentangBulanan]);
+  useEffect(() => {
+    setTempWilayah(wilayahTerpilih);
+    setTempMingguMulai(mingguMulaiTerpasang);
+    setTempMingguAkhir(mingguAkhirTerpasang);
+    setTempBulanMulai(bulanMulaiTerpasang);
+    setTempBulanAkhir(bulanAkhirTerpasang);
+  }, [wilayahTerpilih, mingguMulaiTerpasang, mingguAkhirTerpasang, bulanMulaiTerpasang, bulanAkhirTerpasang]);
+
+  function bangunUrl(o: { wilayah: string; gran: Granularitas; mm: string; ma: string; bm: string; ba: string }) {
+    const p = new URLSearchParams();
+    p.set('tahun', String(tahunBerjalan));
+    p.set('wilayah', o.wilayah);
+    p.set('granularitas', o.gran);
+    if (o.mm) p.set('minggu_mulai', o.mm);
+    if (o.ma) p.set('minggu_akhir', o.ma);
+    if (o.bm) p.set('bulan_mulai', o.bm);
+    if (o.ba) p.set('bulan_akhir', o.ba);
+    return `/dashboard/hiv?${p.toString()}`;
+  }
+
+  function gantiGranularitas(g: Granularitas) {
+    router.push(bangunUrl({
+      wilayah: wilayahTerpilih, gran: g,
+      mm: mingguMulaiTerpasang, ma: mingguAkhirTerpasang, bm: bulanMulaiTerpasang, ba: bulanAkhirTerpasang,
+    }));
+  }
+
+  function terapkanFilter() {
+    const [mm, ma] = tempMingguMulai && tempMingguAkhir && tempMingguMulai > tempMingguAkhir
+      ? [tempMingguAkhir, tempMingguMulai] : [tempMingguMulai, tempMingguAkhir];
+    const [bm, ba] = tempBulanMulai && tempBulanAkhir && tempBulanMulai > tempBulanAkhir
+      ? [tempBulanAkhir, tempBulanMulai] : [tempBulanMulai, tempBulanAkhir];
+    router.push(bangunUrl({ wilayah: tempWilayah, gran: granularitas, mm, ma, bm, ba }));
+  }
+
+  const opsiWilayah = [{ value: 'semua', label: 'Semua Wilayah Kerja' }, ...daftarWilayah.map(w => ({ value: w, label: w }))];
+  const opsiMinggu = [
+    { value: '', label: '(Semua minggu)' },
+    ...Array.from({ length: 53 }, (_, i) => ({
+      value: `${tahunBerjalan}-W${String(i + 1).padStart(2, '0')}`,
+      label: `Minggu ${i + 1} (${tahunBerjalan})`,
+    })),
+  ];
+  const opsiBulan = [
+    { value: '', label: '(Semua bulan)' },
+    ...Array.from({ length: 12 }, (_, i) => {
+      const periode = `${tahunBerjalan}-${String(i + 1).padStart(2, '0')}`;
+      return { value: periode, label: formatPeriodeBulanan(periode) };
+    }),
+  ];
+
+  const mingguan = granularitas === 'mingguan';
+  const adaRentangAktif = mingguan
+    ? Boolean(mingguMulaiTerpasang || mingguAkhirTerpasang)
+    : Boolean(bulanMulaiTerpasang || bulanAkhirTerpasang);
+  const formatPeriode = mingguan ? labelMinggu : formatPeriodeBulanan;
+  const tipeChart: 'line' | 'bar' = mingguan ? 'line' : 'bar';
+  const sumbuX = mingguan ? labelMinggu : labelBulanPendek;
 
   return (
     <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-8">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-bold text-teal-900">Surveilans HIV</h1>
+      {/* HEADER & FILTER */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-teal-900">Surveilans HIV ({tahunBerjalan})</h1>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {wilayahTerpilih === 'semua' ? 'Semua wilayah kerja' : `Wilayah kerja: ${wilayahTerpilih}`}
+            {adaRentangAktif && ' — rentang tampilan aktif (berlaku untuk seluruh isi halaman)'}
+          </p>
+        </div>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-          <FilterTahun maju={0} />
-          <select
-            value={wilayahParam || ''}
-            onChange={e => {
-              const url = new URL(window.location.href);
-              e.target.value ? url.searchParams.set('wilayah', e.target.value) : url.searchParams.delete('wilayah');
-              window.location.href = url.toString();
-            }}
-            className="border rounded-lg px-3 py-1.5 text-sm"
+        <div className="flex flex-wrap items-end justify-end gap-2.5">
+          <div className="pb-1.5"><FilterTahun maju={0} /></div>
+
+          <FieldSelect label="Wilayah Kerja" value={tempWilayah} onChange={setTempWilayah} opsi={opsiWilayah} />
+
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-gray-600">Tampilan</span>
+            <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+              <ToggleButton aktif={mingguan} onClick={() => gantiGranularitas('mingguan')}>Mingguan</ToggleButton>
+              <ToggleButton aktif={!mingguan} onClick={() => gantiGranularitas('bulanan')}>Bulanan</ToggleButton>
+            </div>
+          </div>
+
+          {mingguan ? (
+            <>
+              <FieldSelect label="Dari minggu" value={tempMingguMulai} onChange={setTempMingguMulai} opsi={opsiMinggu} />
+              <FieldSelect label="Sampai minggu" value={tempMingguAkhir} onChange={setTempMingguAkhir} opsi={opsiMinggu} />
+            </>
+          ) : (
+            <>
+              <FieldSelect label="Dari bulan" value={tempBulanMulai} onChange={setTempBulanMulai} opsi={opsiBulan} />
+              <FieldSelect label="Sampai bulan" value={tempBulanAkhir} onChange={setTempBulanAkhir} opsi={opsiBulan} />
+            </>
+          )}
+
+          <button
+            onClick={terapkanFilter}
+            className="rounded-md bg-[#0F4C5C] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#0c3e4b] transition-colors"
           >
-            <option value="">Semua Wilayah Kerja</option>
-            {daftarWilayah.map(w => <option key={w} value={w}>{w}</option>)}
-          </select>
+            Terapkan
+          </button>
         </div>
       </div>
 
@@ -282,137 +401,76 @@ export default function HivClient(props: Props) {
 
       <BarHorizontalReagen data={props.barJenisReagen} />
 
-      {/* --- BAGIAN GRAFIK MINGGUAN --- */}
+      {/* GRAFIK: hanya mode yang dipilih (mingguan = garis, bulanan = batang) */}
       <div className="space-y-4 border-t pt-6">
-        {/* Judul di kiri (text-left), rentang periode di kanan (justify-between) */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-teal-50 p-4 rounded-xl shadow-sm">
-          <h2 className="text-lg font-bold text-teal-900 text-left">Distribusi Tren Mingguan</h2>
-          {trenMingguan.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-slate-600 font-medium">Rentang Periode:</span>
-              <select
-                value={rentangMingguan[0]}
-                onChange={e => setRentangMingguan([Number(e.target.value), rentangMingguan[1]])}
-                className="border rounded px-2 py-1 bg-white"
-              >
-                {trenMingguan.map((d, i) => <option key={i} value={i}>{d.periode}</option>)}
-              </select>
-              <span className="text-slate-500">s.d.</span>
-              <select
-                value={rentangMingguan[1]}
-                onChange={e => setRentangMingguan([rentangMingguan[0], Number(e.target.value)])}
-                className="border rounded px-2 py-1 bg-white"
-              >
-                {trenMingguan.map((d, i) => <option key={i} value={i}>{d.periode}</option>)}
-              </select>
-            </div>
-          )}
+          <h2 className="text-lg font-bold text-teal-900 text-left">
+            {mingguan ? 'Distribusi Tren Mingguan' : 'Distribusi Bulanan'}
+          </h2>
+          <span className="text-sm text-slate-600">
+            {mingguan
+              ? (mingguMulaiTerpasang || mingguAkhirTerpasang
+                  ? `Minggu ${Number(mingguMulaiTerpasang.slice(-2) || 1)} s.d. ${Number(mingguAkhirTerpasang.slice(-2) || 53)}`
+                  : 'Seluruh minggu')
+              : (bulanMulaiTerpasang || bulanAkhirTerpasang
+                  ? `${formatPeriodeBulanan(bulanMulaiTerpasang || `${tahunBerjalan}-01`)} s.d. ${formatPeriodeBulanan(bulanAkhirTerpasang || `${tahunBerjalan}-12`)}`
+                  : 'Seluruh bulan')}
+          </span>
         </div>
 
         <div className="grid grid-cols-1 gap-6">
           <div className="bg-white rounded-xl shadow p-4">
-            <h3 className="font-semibold text-teal-800 mb-2 text-center">Tren Mingguan Seluruh Hasil Pemeriksaan</h3>
+            <h3 className="font-semibold text-teal-800 mb-2 text-center">
+              {mingguan ? 'Tren Mingguan Seluruh Hasil Pemeriksaan' : 'Distribusi Seluruh Hasil Pemeriksaan'}
+            </h3>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={dataMingguanTerpotong}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="periode" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
-                <Line type="monotone" dataKey="jumlah" name="Jumlah Pemeriksaan" stroke="#0d9488" strokeWidth={2} />
-              </LineChart>
+              {mingguan ? (
+                <LineChart data={props.trenTotal}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => sumbuX(String(v))} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip labelFormatter={(l) => formatPeriode(String(l))} />
+                  <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                  <Line type="monotone" dataKey="jumlah" name="Jumlah Pemeriksaan" stroke="#0d9488" strokeWidth={2} />
+                </LineChart>
+              ) : (
+                <BarChart data={props.trenTotal}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => sumbuX(String(v))} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip labelFormatter={(l) => formatPeriode(String(l))} />
+                  <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
+                  <Bar dataKey="jumlah" name="Jumlah Pemeriksaan" fill="#0f766e" />
+                </BarChart>
+              )}
             </ResponsiveContainer>
           </div>
 
           <TrenPerWilayahChart
-            judul="Tren Mingguan Hasil Pemeriksaan per Wilayah Kerja"
-            data={trenMingguanHasilPerWilayahTerpotong}
-            daftarWilayah={daftarWilayah}
+            key={`hasil-${granularitas}-${wilayahGrafik.join('|')}`}
+            judul={mingguan ? 'Tren Mingguan Hasil Pemeriksaan per Wilayah Kerja' : 'Hasil Pemeriksaan per Wilayah Kerja'}
+            data={props.trenHasilPerWilayah}
+            daftarWilayah={wilayahGrafik}
             kategoriList={KATEGORI_HASIL}
-            tipeChart="line"
+            tipeChart={tipeChart}
+            formatPeriode={formatPeriode}
           />
 
           <TrenPerWilayahChart
-            judul="Tren Mingguan Hubungan Berisiko per Wilayah Kerja"
-            data={trenMingguanHubunganBerisikoPerWilayahTerpotong}
-            daftarWilayah={daftarWilayah}
+            key={`hub-${granularitas}-${wilayahGrafik.join('|')}`}
+            judul={mingguan ? 'Tren Mingguan Hubungan Berisiko per Wilayah Kerja' : 'Hubungan Berisiko per Wilayah Kerja'}
+            data={props.trenHubunganPerWilayah}
+            daftarWilayah={wilayahGrafik}
             kategoriList={KATEGORI_HUBUNGAN_BERISIKO}
-            tipeChart="line"
+            tipeChart={tipeChart}
+            formatPeriode={formatPeriode}
           />
 
           <TrenDuaSeriChart
-            judul="Diperiksa vs Reaktif — Mingguan"
-            data={diperiksaReaktifMingguanTerpotong}
-            tipeChart="line"
-          />
-        </div>
-      </div>
-
-      {/* --- BAGIAN GRAFIK BULANAN --- */}
-      <div className="space-y-4 border-t pt-6">
-        {/* Judul di kiri (text-left), rentang periode di kanan (justify-between) */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-teal-50 p-4 rounded-xl shadow-sm">
-          <h2 className="text-lg font-bold text-teal-900 text-left">Distribusi Bulanan</h2>
-          {trenBulanan.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-slate-600 font-medium">Rentang Periode:</span>
-              <select
-                value={rentangBulanan[0]}
-                onChange={e => setRentangBulanan([Number(e.target.value), rentangBulanan[1]])}
-                className="border rounded px-2 py-1 bg-white"
-              >
-                {trenBulanan.map((d, i) => <option key={i} value={i}>{formatPeriodeBulanan(d.periode)}</option>)}
-              </select>
-              <span className="text-slate-500">s.d.</span>
-              <select
-                value={rentangBulanan[1]}
-                onChange={e => setRentangBulanan([rentangBulanan[0], Number(e.target.value)])}
-                className="border rounded px-2 py-1 bg-white"
-              >
-                {trenBulanan.map((d, i) => <option key={i} value={i}>{formatPeriodeBulanan(d.periode)}</option>)}
-              </select>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-6">
-          <div className="bg-white rounded-xl shadow p-4">
-            <h3 className="font-semibold text-teal-800 mb-2 text-center">Distribusi Seluruh Hasil Pemeriksaan</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={dataBulananTerpotong}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="periode" tick={{ fontSize: 11 }} tickFormatter={(v) => formatPeriodeBulanan(String(v))} />
-                <YAxis allowDecimals={false} />
-                <Tooltip labelFormatter={(label) => formatPeriodeBulanan(String(label))} />
-                <Legend verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: 12, paddingTop: 10 }} />
-                <Bar dataKey="jumlah" name="Jumlah Pemeriksaan" fill="#0f766e" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <TrenPerWilayahChart
-            judul="Hasil Pemeriksaan per Wilayah Kerja"
-            data={trenBulananHasilPerWilayahTerpotong}
-            daftarWilayah={daftarWilayah}
-            kategoriList={KATEGORI_HASIL}
-            tipeChart="bar"
-            formatPeriode={formatPeriodeBulanan}
-          />
-
-          <TrenPerWilayahChart
-            judul="Hubungan Berisiko per Wilayah Kerja"
-            data={trenBulananHubunganBerisikoPerWilayahTerpotong}
-            daftarWilayah={daftarWilayah}
-            kategoriList={KATEGORI_HUBUNGAN_BERISIKO}
-            tipeChart="bar"
-            formatPeriode={formatPeriodeBulanan}
-          />
-
-          <TrenDuaSeriChart
-            judul="Diperiksa vs Reaktif — Bulanan"
-            data={diperiksaReaktifBulananTerpotong}
-            tipeChart="bar"
-            formatPeriode={formatPeriodeBulanan}
+            judul={mingguan ? 'Diperiksa vs Reaktif — Mingguan' : 'Diperiksa vs Reaktif — Bulanan'}
+            data={props.diperiksaReaktif}
+            tipeChart={tipeChart}
+            formatPeriode={formatPeriode}
           />
         </div>
       </div>

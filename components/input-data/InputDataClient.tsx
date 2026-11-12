@@ -290,7 +290,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
 
           {/* ---------- Form ---------- */}
           <section className={kls.kartu}>
-            <button className="font-medium" onClick={() => setBukaForm((v) => !v)}>{bukaForm ? '▾' : '▸'} Tambah satu data lewat form</button>
+            <button className="font-medium" onClick={() => setBukaForm((v) => !v)}>{bukaForm ? '▾' : '▸'} INPUT DATA</button>
             {bukaForm && (
               <div className="mt-3">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

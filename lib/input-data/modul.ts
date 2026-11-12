@@ -262,7 +262,7 @@ export const MODUL: Record<string, ModulInput> = {
     kolomWilayah: 'wilayah_kerja',
     // Di laporan Sinkarkes tidak ada kolom nama kapal; nama kapal ada di Sample ID.
     kolomKunci: 'sample_id',
-    kolomKunciTambahan: ['nama_perusahaan', 'sebagai'],
+    kolomKunciTambahan: ['nama_perusahaan', 'sebagai', 'qr_code'],
     jenisWilayahBoleh: JENIS_SEMUA,
     peranBoleh: ['admin', 'petugas'],
     kolomDaftar: ['tgl_terbit', 'wilayah_kerja', 'nama_perusahaan', 'sample_id', 'lokasi_pengambilan', 'jenis_penampungan', 'tgl_pengambilan', 'tgl_analisis', 'kesimpulan', 'sebagai', 'berlaku_sampai', 'jumlah_bayar'],
@@ -279,6 +279,7 @@ export const MODUL: Record<string, ModulInput> = {
       T('sample_id', 'Sample ID', ['ID Sampel', 'Sampel ID']),
       T('kesimpulan', 'Kesimpulan', ['Hasil'], { maks: 1000 }),
       T('sebagai', 'Sebagai'),
+      T('qr_code', 'QR Code', ['QRCode', 'Kode QR'], { maks: 100 }),
       T('tempat_terbit', 'Tempat terbit'),
       { nama: 'tgl_terbit', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tanggal Terbit', 'Tgl Terbit', 'Diterbitkan Tanggal', 'Tanggal Inspeksi', 'Tgl Inspeksi'] },
       { nama: 'berlaku_sampai', label: 'Berlaku sampai', tipe: 'tanggal', alias: ['Berlaku Sampai Dengan', 'Masa Berlaku'] },

@@ -278,7 +278,7 @@ export const MODUL: Record<string, ModulInput> = {
       T('kesimpulan', 'Kesimpulan', ['Hasil'], { maks: 1000 }),
       T('sebagai', 'Sebagai'),
       T('tempat_terbit', 'Tempat terbit'),
-      { nama: 'tgl_terbit', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tanggal Terbit', 'Tgl Terbit', 'Diterbitkan Tanggal'] },
+      { nama: 'tgl_terbit', label: 'Tanggal', tipe: 'tanggal', wajib: true, alias: ['Tanggal Terbit', 'Tgl Terbit', 'Diterbitkan Tanggal', 'Tanggal Inspeksi', 'Tgl Inspeksi'] },
       { nama: 'berlaku_sampai', label: 'Berlaku sampai', tipe: 'tanggal', alias: ['Berlaku Sampai Dengan', 'Masa Berlaku'] },
       { nama: 'jumlah_bayar', label: 'Jumlah Bayar', tipe: 'desimal', alias: ['Jumlah', 'PNBP'] },
     ],

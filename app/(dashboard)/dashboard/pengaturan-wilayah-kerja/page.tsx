@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getUserRole } from '@/lib/auth/get-user-role';
 import { getDaftarWilker, getPetaModulWilker } from '@/lib/wilayah-kerja/server';
 import { MODUL_WILKER } from '@/lib/wilayah-kerja/modul';
+import { hitungDataPerWilker } from '@/lib/wilayah-kerja/jumlahData';
 import { DAFTAR_JENIS_WILKER, type Wilayah } from '@/lib/wilayah-kerja';
 import {
   tambahWilayahKerja,
@@ -92,6 +93,7 @@ export default async function PengaturanWilayahKerjaPage({
   if ((await getUserRole()) !== 'admin') redirect('/dashboard');
   const { error, ok } = await searchParams;
   const [daftar, petaModul] = await Promise.all([getDaftarWilker(), getPetaModulWilker()]);
+  const jumlahData = await hitungDataPerWilker(daftar);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-8">
@@ -119,6 +121,9 @@ export default async function PengaturanWilayahKerjaPage({
                 <span className="mr-2 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs">{w.kode}</span>
                 <span className="font-semibold text-ink">{w.nama}</span>
                 <span className="ml-2 text-xs text-muted">{w.jenis}</span>
+                {(jumlahData[w.kode] ?? 0) > 0 && (
+                <span className="ml-2 text-xs text-muted">· {jumlahData[w.kode].toLocaleString('id-ID')} baris data</span>
+                )}
               </span>
               <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${w.aktif ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}>
                 {w.aktif ? 'Aktif' : 'Nonaktif'}
@@ -128,6 +133,17 @@ export default async function PengaturanWilayahKerjaPage({
             <div className="space-y-4 border-t border-border p-3">
               <form action={perbaruiWilayahKerja} className="space-y-3">
                 <input type="hidden" name="kode" value={w.kode} />
+                  {(jumlahData[w.kode] ?? 0) > 0 && (
+                  <div className="rounded-control border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                    <p className="font-semibold">Wilayah ini sudah memiliki {jumlahData[w.kode].toLocaleString('id-ID')} baris data.</p>
+                    <p className="mt-1">
+                      Nama lama otomatis disimpan sebagai alias, sehingga laporan, rekap, dan grafik tetap mengenali data lama.
+                      Namun beberapa halaman (mis. TTU, TPP, PAB, Poliklinik, SIAOS) memfilter berdasarkan nama persis, sehingga data lama
+                      bisa tidak tampil di halaman itu setelah nama diganti. Ganti nama hanya bila perlu. Untuk BKK baru,
+                       Ganti nama paling aman dilakukan sebelum ada data.
+                    </p>
+                  </div>
+                )}
                 <Isian w={w} />
                 <div className="grid grid-cols-2 gap-3 sm:w-1/2">
                   <div>

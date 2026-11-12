@@ -11,6 +11,8 @@ import {
   hitungRisikoRelatifKota,
   buatRekomendasiKebijakan,
 } from "@/lib/sir/model";
+import { variasiDariNilai } from "@/lib/wilayah-kerja/varian";
+import { klausaWilayahSql } from "@/lib/wilayah-kerja";
 
 export async function jalankanSimulasiWabahKapal(input: {
   kegiatanCopId?: string;
@@ -78,10 +80,12 @@ export async function jalankanSimulasiWabahKapal(input: {
     beta: hasilKapal.betaDipakai,
   });
 
+  const varianWilayah = await variasiDariNilai(input.wilayahKerja);
   const { rows: [populasiWilker] } = await db.execute({
     sql: `SELECT populasi_kota_sekitar FROM referensi_populasi_wilker
-           WHERE jenis_wilker = 'Pelabuhan' AND wilayah_kerja = ? LIMIT 1`,
-    args: [input.wilayahKerja],
+           WHERE jenis_wilker = 'Pelabuhan'
+             AND ${klausaWilayahSql()} IN (${varianWilayah.map(() => "?").join(", ")}) LIMIT 1`,
+    args: varianWilayah,
   });
 
   const risikoRelatifKota = hitungRisikoRelatifKota(

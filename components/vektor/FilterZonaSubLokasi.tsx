@@ -8,7 +8,7 @@
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 
-export type WilayahSubLokasi = { kode: string; subLokasi: string[] };
+export type WilayahSubLokasi = { kode: string; subLokasi: string[]; perZona?: { Perimeter: string[]; Buffer: string[] } };
 
 export default function FilterZonaSubLokasi({ wilayahSubLokasi }: { wilayahSubLokasi: WilayahSubLokasi[] }) {
   const router = useRouter();
@@ -18,7 +18,11 @@ export default function FilterZonaSubLokasi({ wilayahSubLokasi }: { wilayahSubLo
   const wilkerAktif = searchParams.get('wilker') ?? '';
   const zonaAktif = searchParams.get('zona') ?? '';
   const subLokasiAktif = searchParams.get('subLokasi') ?? '';
-  const daftarSubLokasi = wilayahSubLokasi.find((w) => w.kode === wilkerAktif)?.subLokasi ?? [];
+  const entri = wilayahSubLokasi.find((w) => w.kode === wilkerAktif);
+  // Zona dipilih: tampilkan hanya sub-lokasi zona itu (Perimeter: pelabuhan/terminal, Buffer: RT); tanpa zona: semuanya.
+  const daftarSubLokasi =
+    (zonaAktif === 'Perimeter' || zonaAktif === 'Buffer' ? entri?.perZona?.[zonaAktif] : undefined) ?? entri?.subLokasi ?? [];
+  const ikon = (s: string) => (zonaAktif === 'Buffer' ? '🏘️' : zonaAktif === 'Perimeter' ? '⚓' : /pelabuhan|dermaga|terminal|apron/i.test(s) ? '⚓' : '🏘️');
 
   function ubahParam(key: string, value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -56,7 +60,7 @@ export default function FilterZonaSubLokasi({ wilayahSubLokasi }: { wilayahSubLo
           <option value="">Semua Sub-Lokasi</option>
           {daftarSubLokasi.map((s) => (
             <option key={s} value={s}>
-              {/pelabuhan|dermaga/i.test(s) ? '⚓' : '🏭'} {s}
+              {ikon(s)} {s}
             </option>
           ))}
         </select>

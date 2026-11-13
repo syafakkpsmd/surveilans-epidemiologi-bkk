@@ -1,4 +1,5 @@
-'use client';
+﻿'use client';
+import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 // components/media-tanah/TanahInputClient.tsx  (FILE BARU)
 // Tab input pemeriksaan, unggah Excel, dan riwayat. Hanya dipakai halaman /dashboard/media-tanah/input (sudah dijaga di server).
 import { useMemo, useState } from 'react';
@@ -24,7 +25,7 @@ export default function TanahInputClient({ wilayah }: { wilayah: Wilayah[] }) {
       <div>
         <Link href="/dashboard/media-tanah" className="text-sm text-teal-800 underline">&larr; Kembali ke dashboard Media Tanah</Link>
         <h1 className="mt-2 text-xl font-semibold">Input Data Media Tanah</h1>
-        <p className="text-sm text-slate-600">Balai Kekarantinaan Kesehatan Kelas I Samarinda</p>
+        <p className="text-sm text-slate-600">{NAMA_RESMI_BKK}</p>
       </div>
 
       <div className="border-b border-slate-200 pb-2">
@@ -55,3 +56,4 @@ export default function TanahInputClient({ wilayah }: { wilayah: Wilayah[] }) {
     </main>
   );
 }
+

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -108,7 +109,13 @@ function Donat({ data }: { data: Hitung[] }) {
   );
 }
 
-export default function IzinJenazahClient({ data }: { data: DataIzinJenazah }) {
+export default function IzinJenazahClient({
+  data,
+  bolehLihatDaftar,
+}: {
+  data: DataIzinJenazah;
+  bolehLihatDaftar: boolean;
+}) {
   const selisih =
     data.bulanIni !== null && data.bulanLalu !== null && data.bulanLalu > 0
       ? Math.round(((data.bulanIni - data.bulanLalu) / data.bulanLalu) * 100)
@@ -161,40 +168,51 @@ export default function IzinJenazahClient({ data }: { data: DataIzinJenazah }) {
         <Kartu judul="Maskapai / Pelayaran"><BarHorizontal data={data.maskapai} warna="#F4A261" /></Kartu>
       </div>
 
-      <Kartu judul="Izin Terbaru" sub="10 surat terakhir pada filter yang dipilih">
-        {data.terbaru.length === 0 ? (
-          <Kosong />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 text-gray-500">
-                  <th className="py-2 pr-3">Tanggal</th>
-                  <th className="py-2 pr-3">No. Surat</th>
-                  <th className="py-2 pr-3">Wilayah</th>
-                  <th className="py-2 pr-3">Jenis</th>
-                  <th className="py-2 pr-3">JK</th>
-                  <th className="py-2 pr-3">Kebangsaan</th>
-                  <th className="py-2">Arah</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.terbaru.map((b) => (
-                  <tr key={b.noSurat + b.tanggal} className="border-b border-gray-100">
-                    <td className="py-2 pr-3 whitespace-nowrap">{b.tanggal}</td>
-                    <td className="py-2 pr-3">{b.noSurat}</td>
-                    <td className="py-2 pr-3">{b.wilayah}</td>
-                    <td className="py-2 pr-3">{b.jenis}</td>
-                    <td className="py-2 pr-3">{b.jk}</td>
-                    <td className="py-2 pr-3">{b.kebangsaan}</td>
-                    <td className="py-2">{b.arah}</td>
+      {bolehLihatDaftar ? (
+        <Kartu judul="Izin Terbaru" sub="10 surat terakhir pada filter yang dipilih">
+          {data.terbaru.length === 0 ? (
+            <Kosong />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-gray-200 text-gray-500">
+                    <th className="py-2 pr-3">Tanggal</th>
+                    <th className="py-2 pr-3">No. Surat</th>
+                    <th className="py-2 pr-3">Wilayah</th>
+                    <th className="py-2 pr-3">Jenis</th>
+                    <th className="py-2 pr-3">JK</th>
+                    <th className="py-2 pr-3">Kebangsaan</th>
+                    <th className="py-2">Arah</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Kartu>
+                </thead>
+                <tbody>
+                  {data.terbaru.map((b) => (
+                    <tr key={b.noSurat + b.tanggal} className="border-b border-gray-100">
+                      <td className="py-2 pr-3 whitespace-nowrap">{b.tanggal}</td>
+                      <td className="py-2 pr-3">{b.noSurat}</td>
+                      <td className="py-2 pr-3">{b.wilayah}</td>
+                      <td className="py-2 pr-3">{b.jenis}</td>
+                      <td className="py-2 pr-3">{b.jk}</td>
+                      <td className="py-2 pr-3">{b.kebangsaan}</td>
+                      <td className="py-2">{b.arah}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Kartu>
+      ) : (
+        <Kartu judul="Izin Terbaru">
+          <p className="py-8 text-center text-sm text-gray-600">
+            Daftar surat izin hanya dapat dilihat petugas.{" "}
+            <Link href="/login" className="font-semibold text-[#0F4C5C] underline">
+              Login petugas
+            </Link>
+          </p>
+        </Kartu>
+      )}
     </div>
   );
 }

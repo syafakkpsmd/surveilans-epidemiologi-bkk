@@ -1,3 +1,4 @@
+﻿import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 // app/api/lalulintas/export/route.ts
 //
 // GET /api/lalulintas/export?tab=...&tahun=...&granularitas=mingguan|bulanan
@@ -49,7 +50,7 @@ function tulisJudulDanTtd(
 ) {
   const barisJudul = [
     judulLaporan,
-    "BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA",
+    NAMA_RESMI_BKK.toUpperCase(),
     `${labelWilker} — ${labelPeriode}`,
   ];
   barisJudul.forEach((teks, i) => {

@@ -1,4 +1,5 @@
-'use client';
+﻿'use client';
+import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 // components/media-tanah/TanahClient.tsx
 // Halaman dashboard Media Tanah (publik). Input/unggah/riwayat dipindah ke TanahInputClient (/dashboard/media-tanah/input).
 import { useMemo } from 'react';
@@ -14,7 +15,7 @@ export default function TanahClient({ wilayah, tahun, isStaf }: { wilayah: Wilay
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Pemeriksaan Kesehatan Lingkungan Media Tanah</h1>
-          <p className="text-sm text-slate-600">Balai Kekarantinaan Kesehatan Kelas I Samarinda</p>
+          <p className="text-sm text-slate-600">{NAMA_RESMI_BKK}</p>
         </div>
         <Link
           href="/dashboard/media-tanah/input"
@@ -28,3 +29,4 @@ export default function TanahClient({ wilayah, tahun, isStaf }: { wilayah: Wilay
     </main>
   );
 }
+

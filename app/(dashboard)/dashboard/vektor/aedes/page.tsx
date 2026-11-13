@@ -14,7 +14,10 @@ import { getUserRole } from '@/lib/auth/get-user-role';
 import { getMingguEpidSaatIni } from '@/lib/epi-week';
 import FilterWilker from '@/components/vektor/FilterWilker';
 import FilterZonaSubLokasi from '@/components/vektor/FilterZonaSubLokasi';
-import { getWilayahSubLokasiVektor } from '@/lib/wilayah-kerja/server';
+import { getWilkerModul } from '@/lib/wilayah-kerja/server';
+import { getWilayahSubLokasiDbd } from '@/lib/vektor/dbd/server';
+import { getRincianZonaSubLokasi } from '@/lib/db/queries/queriesDbdZona';
+import PanelZonaSubLokasi from '@/components/vektor/dbd/PanelZonaSubLokasi';
 import FilterRentangMinggu from '@/components/vektor/FilterRentangMinggu';
 import FilterRentangBulan from '@/components/vektor/FilterRentangBulan';
 import ToggleGranularitas from '@/components/vektor/ToggleGranularitas';
@@ -105,11 +108,18 @@ export default async function VektorAedesPage({
   // ============================================================
   // DATA CHART
   // ============================================================
-  const [role, daftarWilker, penggunaInput, wilayahKamus] = await Promise.all([
+    const [role, daftarWilker, penggunaInput, wilayahKamus, wilayahSubLokasi, rincianZona] = await Promise.all([
     getUserRole(),
     getWilkerRef(),
     requireVektor(),
     getDaftarWilker(),
+    getWilkerModul('vektor_sub_lokasi').then((w) => getWilayahSubLokasiDbd(w.map((x) => x.kode))),
+    getRincianZonaSubLokasi({
+      tahun, kodeWilker: wilker, zona, subLokasi,
+      ...(butuhMingguan
+        ? { mgDari: mgDari ? parseInt(mgDari, 10) : undefined, mgSampai: mgSampai ? parseInt(mgSampai, 10) : undefined }
+        : { bulanDari, bulanSampai }),
+    }),
   ]);
   const bolehInput = !!penggunaInput; // admin/petugas (sama dengan syarat API input)
 
@@ -228,8 +238,7 @@ export default async function VektorAedesPage({
   const hasilAnalisisBulananLuasInsektisida = hasilAI[kunciAI({ konteks: konteksBulanan, periodeKey: periodeKeyBulanan, wilayahKerja: wilayahKerjaAi, metrik: 'luas-insektisida', tipe: 'analisis' })];
 
   const dataKosong = butuhMingguan ? ringkasanMingguan.length === 0 : dataBulanan.length === 0;
-
-  const wilayahSubLokasi = await getWilayahSubLokasiVektor();
+  
   return (
     <div className="space-y-6">
   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -268,6 +277,10 @@ export default async function VektorAedesPage({
             labelPeriode={labelPeriodeKartu}
             labelWilayah={labelWilayahKartu}
           />
+          {/* ================= PER ZONA DAN SUB LOKASI ================= */}
+          <div className="lg:col-span-2">
+            <PanelZonaSubLokasi baris={rincianZona.baris} tren={rincianZona.tren} labelPeriode={labelPeriodeKartu} labelWilayah={labelWilayahKartu} />
+          </div>
 
           {/* ================= MINGGUAN ================= */}
           {butuhMingguan && (

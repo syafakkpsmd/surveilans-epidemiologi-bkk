@@ -738,7 +738,7 @@ ATURAN WAJIB:
 - Data ini mencakup 12 penyakit infeksi emerging yang dipantau dari 13 negara asal kapal ke wilayah kerja ${NAMA_BKK} (data surveilans global sebagai early warning, BUKAN data kasus terkonfirmasi di Indonesia/${NAMA_KOTA_BKK}).
 - HANYA gunakan angka yang benar-benar ada di atas. JANGAN mengarang angka atau nama penyakit/negara yang tidak tercantum.
 - Bandingkan total kasus & kematian periode berjalan vs sebelumnya secara kuantitatif (naik/turun berapa persen atau unit).
-- Soroti penyakit atau negara dengan lonjakan kasus paling signifikan, kaitkan dengan implikasi kewaspadaan kekarantinaan kesehatan terhadap kapal dari negara tersebut (skrining ABK/penumpang, kesiapan APD, koordinasi RBA kapal) -- TANPA mengklaim ada kasus terkonfirmasi di wilayah kerja Samarinda kalau datanya tidak ada.
+- Soroti penyakit atau negara dengan lonjakan kasus paling signifikan, kaitkan dengan implikasi kewaspadaan kekarantinaan kesehatan terhadap kapal dari negara tersebut (skrining ABK/penumpang, kesiapan APD, koordinasi RBA kapal) -- TANPA mengklaim ada kasus terkonfirmasi di wilayah kerja ${NAMA_KOTA_BKK} kalau datanya tidak ada.
 - Tulis dalam Bahasa Indonesia, istilah epidemiologi baku bila relevan.
 
 Balas HANYA dengan JSON valid (tanpa markdown, tanpa backtick) dengan PERSIS 3 field:

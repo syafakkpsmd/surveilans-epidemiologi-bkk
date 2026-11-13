@@ -1,3 +1,4 @@
+﻿import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 // app/api/klinik/hiv/export/xlsx/route.ts
 //
 // Perlu: npm install exceljs
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
   sheet.mergeCells(1, 1, 1, jumlahKolom);
   sheet.getCell(1, 1).value = "DATA INDIVIDU MOBILE VCT P2 HIV";
   sheet.mergeCells(2, 1, 2, jumlahKolom);
-  sheet.getCell(2, 1).value = "BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA";
+  sheet.getCell(2, 1).value = NAMA_RESMI_BKK.toUpperCase();
   sheet.mergeCells(3, 1, 3, jumlahKolom);
   const labelPeriode = bulan ? `${NAMA_BULAN[bulan - 1]} ${tahun}` : `Tahun ${tahun}`;
   const labelWilker = wilker ? `DI: ${wilker.toUpperCase()}` : "SELURUH WILAYAH KERJA";

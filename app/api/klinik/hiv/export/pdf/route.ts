@@ -1,3 +1,4 @@
+﻿import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 // app/api/klinik/hiv/export/pdf/route.ts
 //
 // Perlu: npm install pdfkit
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
 
   function gambarJudulDanHeader() {
     doc.fontSize(13).font("Helvetica-Bold").text("DATA INDIVIDU MOBILE VCT P2 HIV", { align: "center" });
-    doc.fontSize(11).text("BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA", { align: "center" });
+    doc.fontSize(11).text(NAMA_RESMI_BKK.toUpperCase(), { align: "center" });
     doc.fontSize(10).font("Helvetica").text(`${labelWilker} — ${labelPeriode}`, { align: "center" });
     doc.moveDown(0.8);
   }

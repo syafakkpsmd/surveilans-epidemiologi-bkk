@@ -20,7 +20,6 @@ export interface KunciSurvei {
 }
 
 export interface DataSurvei extends KunciSurvei {
-  sub_lokasi: string;
   jml_rumah_diperiksa: number;
   jml_positif_jentik: number;
   container_diperiksa: number;
@@ -139,13 +138,11 @@ export function validasiSurvei(b0: Baris, o: OpsiBaca): Hasil<DataSurvei> {
     return { ok: false, error: `Container positif (${nContPos}) tidak boleh kurang dari rumah positif jentik (${nRumahPos})` };
   }
 
-  const sub = String(b.sub_lokasi ?? '').replace(/\s+/g, ' ').trim();
   return {
     ok: true,
     ambigu: k.ambigu,
     data: {
-      ...k.data,
-      sub_lokasi: (sub || k.data.zona).slice(0, 120),
+      ...k.data, // sub_lokasi sudah dirapikan bacaKunci: null bila kosong atau hanya berisi nama zona
       jml_rumah_diperiksa: nRumah,
       jml_positif_jentik: nRumahPos,
       container_diperiksa: nCont,

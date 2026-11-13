@@ -6,6 +6,7 @@ import type { KamusWilker } from '@/lib/wilayah-kerja';
 
 import { TINDAKAN_TIDAK, TINDAKAN_YA, bacaZona, type Zona } from './config';
 import type { DataPengendalian, DataSurvei, KunciSurvei } from './validasi';
+import { gabungkanSub, kanonikSub, rapikanSub } from './sublokasi';
 
 const TGL = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -15,7 +16,7 @@ const ADA_PENGENDALIAN = `(tindakan_pengendalian = '${TINDAKAN_YA}' OR coalesce(
   OR coalesce(luas_wilayah_fogging_ha, 0) > 0 OR coalesce(jml_insektisida_fogging_ml, 0) > 0)`;
 
 export type FilterDbd = {
-  dari?: string; sampai?: string; wilayah?: string; zona?: Zona; belumPengendalian?: boolean;
+  dari?: string; sampai?: string; wilayah?: string; zona?: Zona; subLokasi?: string; belumPengendalian?: boolean;
 };
 
 export function filterDariQuery(sp: URLSearchParams, wk: KamusWilker): FilterDbd {
@@ -28,6 +29,8 @@ export function filterDariQuery(sp: URLSearchParams, wk: KamusWilker): FilterDbd
   if (sampai && TGL.test(sampai)) f.sampai = sampai;
   if (wilayah && wk.isKode(wilayah)) f.wilayah = wilayah;
   if (zona) f.zona = zona;
+  const sub = rapikanSub(sp.get('sub_lokasi'));
+  if (sub) f.subLokasi = sub;
   if (sp.get('belum_pengendalian') === '1') f.belumPengendalian = true;
   return f;
 }
@@ -40,6 +43,7 @@ function bangunWhere(f: FilterDbd) {
   if (f.sampai) tambah('tgl_survei <= ?', f.sampai);
   if (f.wilayah) tambah('kode_wilker = ?', f.wilayah);
   if (f.zona) tambah('zona = ?', f.zona);
+    if (f.subLokasi) tambah("lower(coalesce(btrim(sub_lokasi), '')) = lower(?)", f.subLokasi);
   if (f.belumPengendalian) w.push(`NOT ${ADA_PENGENDALIAN}`);
   return { where: w.join(' AND '), p };
 }
@@ -71,16 +75,72 @@ export async function daftarSurvei(f: FilterDbd, limit = 100, offset = 0) {
   return res.rows;
 }
 
-/** Nama sub lokasi yang sudah pernah dipakai di satu wilayah kerja (untuk saran isian). */
-export async function daftarSubLokasi(wilayah: string): Promise<string[]> {
-  const res = await getDbClient().execute({
-    sql: `SELECT sub_lokasi AS nama FROM vektor_dbd
-          WHERE kode_wilker = ? AND sub_lokasi IS NOT NULL AND btrim(sub_lokasi) <> ''
-            AND lower(btrim(sub_lokasi)) NOT IN ('buffer', 'perimeter')
-          GROUP BY sub_lokasi ORDER BY lower(sub_lokasi)`,
-    args: [wilayah],
+/**
+ * Daftar sub lokasi satu wilayah. Dengan `zona`: Perimeter = daftar tetap wilayah (wilker_ref.sub_lokasi: fasilitas
+ * pelabuhan/bandara) + nama yang pernah dipakai di zona itu; Buffer = nama yang pernah dipakai di zona itu (RT dst.).
+ */
+export async function daftarSubLokasi(wilayah: string, zona?: Zona): Promise<string[]> {
+  const db = getDbClient();
+  const [data, tetap] = await Promise.all([
+    db.execute({
+      sql: `SELECT sub_lokasi AS nama FROM vektor_dbd
+            WHERE kode_wilker = ?${zona ? ' AND zona = ?' : ''} AND sub_lokasi IS NOT NULL AND btrim(sub_lokasi) <> ''
+              AND lower(btrim(sub_lokasi)) NOT IN ('buffer', 'perimeter')
+            GROUP BY sub_lokasi`,
+      args: zona ? [wilayah, zona] : [wilayah],
+    }),
+    !zona || zona === 'Perimeter'
+      ? db.execute({ sql: `SELECT unnest(sub_lokasi) AS nama FROM wilker_ref WHERE kode = ?`, args: [wilayah] })
+      : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+  ]);
+  return gabungkanSub(tetap.rows.map((r) => String(r.nama)), data.rows.map((r) => String(r.nama)));
+}
+
+/** { WK01: { Perimeter: [...], Buffer: [...] }, ... }: untuk filter dasbor dan penyamaan penulisan saat menyimpan. */
+export async function daftarSubLokasiPerZona(): Promise<Record<string, Record<Zona, string[]>>> {
+  const db = getDbClient();
+  const [data, tetap] = await Promise.all([
+    db.execute(`SELECT DISTINCT kode_wilker AS kode, zona, sub_lokasi AS nama FROM vektor_dbd
+                WHERE sub_lokasi IS NOT NULL AND btrim(sub_lokasi) <> '' AND zona IS NOT NULL
+                  AND lower(btrim(sub_lokasi)) NOT IN ('buffer', 'perimeter')`),
+    db.execute(`SELECT kode, unnest(sub_lokasi) AS nama FROM wilker_ref`),
+  ]);
+  const mentah: Record<string, Record<Zona, string[]>> = {};
+  const ambil = (kode: string) => (mentah[kode] ??= { Perimeter: [], Buffer: [] });
+  for (const r of tetap.rows) ambil(String(r.kode)).Perimeter.push(String(r.nama));
+  for (const r of data.rows) {
+    const z = bacaZona(r.zona);
+    if (z) ambil(String(r.kode))[z].push(String(r.nama));
+  }
+  const hasil: Record<string, Record<Zona, string[]>> = {};
+  for (const [kode, d] of Object.entries(mentah)) hasil[kode] = { Perimeter: gabungkanSub(d.Perimeter), Buffer: gabungkanSub(d.Buffer) };
+  return hasil;
+}
+
+export interface WilayahSubLokasiDbd { kode: string; subLokasi: string[]; perZona: Record<Zona, string[]> }
+
+/** Untuk FilterZonaSubLokasi: wilayah yang dicentang pada modul "vektor_sub_lokasi" beserta sub lokasinya per zona. */
+export async function getWilayahSubLokasiDbd(kodeAktif: string[]): Promise<WilayahSubLokasiDbd[]> {
+  const peta = await daftarSubLokasiPerZona();
+  return kodeAktif
+    .map((kode) => {
+      const pz = peta[kode] ?? { Perimeter: [], Buffer: [] };
+      return { kode, subLokasi: gabungkanSub(pz.Perimeter, pz.Buffer), perZona: pz };
+    })
+    .filter((w) => w.subLokasi.length > 0);
+}
+
+/** Samakan penulisan sub lokasi dengan yang sudah ada di wilayah + zona yang sama ("RT 1", "rt1", "RT 01" menjadi satu nama). */
+async function kanonikanBaris<T extends { kode_wilker: string; zona: Zona; sub_lokasi: string | null }>(rows: T[]): Promise<T[]> {
+  if (!rows.some((r) => r.sub_lokasi)) return rows;
+  const peta = await daftarSubLokasiPerZona();
+  const kerja: Record<string, string[]> = {}; // bertambah selama satu unggahan, supaya nama baru di berkas yang sama juga disamakan
+  return rows.map((r) => {
+    const daftar = (kerja[`${r.kode_wilker}|${r.zona}`] ??= [...(peta[r.kode_wilker]?.[r.zona] ?? [])]);
+    const nama = kanonikSub(r.sub_lokasi, daftar);
+    if (nama && !daftar.includes(nama)) daftar.push(nama);
+    return { ...r, sub_lokasi: nama };
   });
-  return res.rows.map((r) => String(r.nama));
 }
 
 // =====================================================================
@@ -89,7 +149,7 @@ export async function daftarSubLokasi(wilayah: string): Promise<string[]> {
 
 export async function simpanSurvei(rows: DataSurvei[]) {
   if (!rows.length) return { masuk: 0, duplikat: 0 };
-  const unik = tanpaDuplikat(rows, kunciBaris);
+  const unik = tanpaDuplikat(await kanonikanBaris(rows), kunciBaris);
   const db = getDbClient();
   let masuk = 0;
   for (let i = 0; i < unik.length; i += 500) {
@@ -127,7 +187,8 @@ export async function simpanSurvei(rows: DataSurvei[]) {
   return { masuk, duplikat: rows.length - masuk };
 }
 
-export async function ubahSurvei(id: number, d: DataSurvei): Promise<'ok' | 'duplikat' | 'tidak_ada'> {
+export async function ubahSurvei(id: number, d0: DataSurvei): Promise<'ok' | 'duplikat' | 'tidak_ada'> {
+  const [d] = await kanonikanBaris([d0]);
   const db = getDbClient();
   const kembar = await db.execute({
     sql: `SELECT 1 FROM vektor_dbd
@@ -184,7 +245,9 @@ export async function kosongkanPengendalian(id: number): Promise<boolean> {
 export type ItemPengendalian = { baris: number; kunci: KunciSurvei; pengendalian: DataPengendalian };
 
 /** Untuk unggahan: cocokkan ke survei lewat tanggal + wilayah + zona + sub lokasi. */
-export async function terapkanPengendalianBanyak(items: ItemPengendalian[]) {
+export async function terapkanPengendalianBanyak(items0: ItemPengendalian[]) {
+  const kunciKanonik = await kanonikanBaris(items0.map((it) => it.kunci));
+  const items = items0.map((it, i) => ({ ...it, kunci: kunciKanonik[i] }));
   const unik = tanpaDuplikat(items, (it) => kunciBaris(it.kunci));
   const db = getDbClient();
   const ketemu = new Set<string>();

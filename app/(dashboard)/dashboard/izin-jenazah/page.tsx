@@ -24,6 +24,11 @@ export default async function IzinJenazahPage({ searchParams }: Props) {
   const tahun = bacaTahun(satu(sp.tahun));
   const wilayah = satu(sp.wilayah);
 
+  // Role dicek lebih dulu: daftar per-surat hanya boleh dibaca petugas/admin.
+  const role = await getUserRole();
+  const bolehLihatDaftar = role === "admin" || role === "petugas";
+  const bolehInput = bolehLihatDaftar;
+
   // Syarat umum: tahun terbit + (opsional) wilayah kerja. Nama kolom ditulis tetap di kode, nilai lewat parameter.
   const syarat = ["tanggal_diterbitkan::text >= ?", "tanggal_diterbitkan::text < ?"];
   const args: DbValue[] = [`${tahun}-01-01`, `${tahun + 1}-01-01`];
@@ -42,17 +47,19 @@ export default async function IzinJenazahPage({ searchParams }: Props) {
     return rows.map((r) => ({ label: String(r.label), jumlah: Number(r.jumlah) }));
   };
 
-  const [role, daftarWilker, bulananRows, umurRows, terbaruRows, perWilayah, jenisIzin, jenisKelamin, arah, sebab, kebangsaan, provinsi, maskapai] =
+  const [daftarWilker, bulananRows, umurRows, terbaruRows, perWilayah, jenisIzin, jenisKelamin, arah, sebab, kebangsaan, provinsi, maskapai] =
     await Promise.all([
-      getUserRole(),
       getDaftarWilker(),
       ambil(`SELECT extract(month FROM tanggal_diterbitkan)::int AS bulan, count(*)::int AS jumlah FROM izin_jenazah WHERE ${where} GROUP BY 1`, args),
       ambil(`SELECT date_part('year', age(tanggal_diterbitkan, tanggal_lahir))::int AS umur FROM izin_jenazah WHERE ${where} AND tanggal_lahir IS NOT NULL`, args),
-      ambil(
-        `SELECT no_surat, tanggal_diterbitkan::text AS tanggal, wilayah_kerja, izin_angkut, jenis_kelamin, kebangsaan, diangkut_tiba
-           FROM izin_jenazah WHERE ${where} ORDER BY tanggal_diterbitkan DESC, no_surat LIMIT 10`,
-        args,
-      ),
+      // Daftar per-surat: query TIDAK dijalankan sama sekali kalau bukan petugas/admin.
+      bolehLihatDaftar
+        ? ambil(
+            `SELECT no_surat, tanggal_diterbitkan::text AS tanggal, wilayah_kerja, izin_angkut, jenis_kelamin, kebangsaan, diangkut_tiba
+               FROM izin_jenazah WHERE ${where} ORDER BY tanggal_diterbitkan DESC, no_surat LIMIT 10`,
+            args,
+          )
+        : Promise.resolve([] as Record<string, unknown>[]),
       top("wilayah_kerja", 10),
       top("izin_angkut"),
       top("jenis_kelamin"),
@@ -99,7 +106,6 @@ export default async function IzinJenazahPage({ searchParams }: Props) {
     })),
   };
 
-  const bolehInput = role === "admin" || role === "petugas";
   const opsiWilayah = daftarWilker.filter((w) => w.aktif).map((w) => w.namaPendek);
 
   return (
@@ -125,7 +131,7 @@ export default async function IzinJenazahPage({ searchParams }: Props) {
         </div>
       </div>
 
-      <IzinJenazahClient data={data} />
+      <IzinJenazahClient data={data} bolehLihatDaftar={bolehLihatDaftar} />
     </div>
   );
 }

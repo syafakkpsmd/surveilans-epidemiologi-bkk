@@ -1,4 +1,5 @@
-// lib/input-data/kategori.ts
+﻿// lib/input-data/kategori.ts
+import { NAMA_BKK_SINGKAT } from '@/lib/konfigurasi/instansi';
 // Daftar menu input per kategori untuk hub /dashboard/input-data.
 // `cara` jujur menyatakan apa yang tersedia: hanya yang benar-benar punya unggah Excel/CSV yang diberi label itu.
 // Menambah menu input baru cukup menambah satu entri di sini.
@@ -110,8 +111,8 @@ export const KATEGORI_INPUT: KategoriInput[] = [
     judul: 'Klinik Binaan',
     menu: [
       { judul: 'Pengawasan Klinik', deskripsi: 'Tambah hasil pengawasan klinik binaan.', href: '/dashboard/pengawasan-klinik/tambah', cara: ['form'] },
-      { judul: 'Layanan Vaksinasi BKK', deskripsi: 'Tambah hasil layanan vaksinasi BKK Samarinda.', href: '/dashboard/klinik/input', cara: ['form', 'excel'] },
-      { judul: 'Layanan Vaksinasi Klinik Mitra', deskripsi: 'Tambah hasil layanan vaksinasi klinik mitra.', href: '/dashboard/pengawasan-klinik/tambah', cara: ['form', 'excel'] },
+      { judul: 'Layanan Vaksinasi BKK', deskripsi: `Tambah hasil layanan vaksinasi ${NAMA_BKK_SINGKAT}.`, href: '/dashboard/klinik/input', cara: ['form', 'excel'] },
+      { judul: 'Layanan Vaksinasi Klinik Mitra', deskripsi: 'Tambah hasil layanan vaksinasi klinik mitra.', href: 'https://surveilans.bkksamarinda.or.id/login', cara: ['form', 'excel'] },
     ],
   },
   {

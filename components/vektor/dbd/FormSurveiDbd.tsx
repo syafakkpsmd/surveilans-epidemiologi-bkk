@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { KamusWilker } from '@/lib/wilayah-kerja';
 import { parseAngka } from '@/lib/vektor/umum';
 import { AMBANG_ABJ, ZONA, hitungIndeks, type Zona } from '@/lib/vektor/dbd/config';
+import { kunciSub } from '@/lib/vektor/dbd/sublokasi';
 import { fmtAngka, gayaInput, gayaTombol, gayaTombolPutih, hariIniLokal, keInput } from '@/components/vektor/diare/umum';
 import type { BarisDbd } from './tipe';
 
@@ -45,20 +46,25 @@ export default function FormSurveiDbd({
   const [galat, setGalat] = useState<string | null>(null);
   const token = useRef(0);
 
-  // Saran sub lokasi: nama yang pernah dipakai di wilayah ini
+    // Saran sub lokasi: nama yang sudah ada di wilayah + zona ini (Perimeter: pelabuhan/terminal, Buffer: RT)
   useEffect(() => {
     const t = ++token.current;
     if (!wilayah) {
       setSaran([]);
       return;
     }
-    fetch(`/api/vektor/dbd/sublokasi?wilayah=${wilayah}`)
+    fetch(`/api/vektor/dbd/sublokasi?wilayah=${wilayah}${zona ? `&zona=${zona}` : ''}`)
       .then(async (res) => ({ ok: res.ok, j: await res.json() }))
       .then(({ ok, j }) => {
         if (t === token.current && ok) setSaran(j.data);
       })
       .catch(() => {});
-  }, [wilayah]);
+  }, [wilayah, zona]);
+
+  const petunjukSub =
+    zona === 'Buffer' ? { label: 'Sub lokasi (RT / kelurahan)', contoh: 'Mis. RT 01, RT 02, RT 03' }
+    : zona === 'Perimeter' ? { label: 'Sub lokasi (pelabuhan / terminal)', contoh: 'Mis. Pelabuhan Umum, TPK Palaran' }
+    : { label: 'Sub lokasi (opsional)', contoh: 'Pilih zona terlebih dahulu' };
 
   const nR = bulat(rumah);
   const nRP = bulat(rPos);
@@ -119,13 +125,30 @@ export default function FormSurveiDbd({
         </label>
       </div>
 
-      <label className="block text-sm">
-        <span className="mb-1 block text-slate-700">Sub lokasi (opsional)</span>
-        <input maxLength={120} list="saran-sub-lokasi" className={gayaInput} value={sub}
-          onChange={(e) => setSub(e.target.value)} placeholder="Mis. Pelabuhan Umum, TPK Palaran" />
-        <datalist id="saran-sub-lokasi">{saran.map((s) => <option key={s} value={s} />)}</datalist>
-        <span className="mt-1 block text-xs text-slate-600">Kosongkan bila survei tidak dibagi per sub lokasi.</span>
-      </label>
+            <div className="space-y-2">
+        <label className="block text-sm">
+          <span className="mb-1 block text-slate-700">{petunjukSub.label} (opsional)</span>
+          <input maxLength={120} list="saran-sub-lokasi" className={gayaInput} value={sub}
+            onChange={(e) => setSub(e.target.value)} placeholder={petunjukSub.contoh} />
+          <datalist id="saran-sub-lokasi">{saran.map((s) => <option key={s} value={s} />)}</datalist>
+        </label>
+        {saran.length > 0 && (
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Pilihan sub lokasi">
+            {saran.slice(0, 20).map((s) => {
+              const aktif = kunciSub(s) === kunciSub(sub);
+              return (
+                <button key={s} type="button" aria-pressed={aktif} onClick={() => setSub(aktif ? '' : s)}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition ${aktif ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-teal-600'}`}>
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <span className="block text-xs text-slate-600">
+          Kosongkan bila survei tidak dibagi per sub lokasi. Nama baru otomatis tersimpan dan muncul sebagai pilihan berikutnya.
+        </span>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Bilangan label="Rumah diperiksa" nilai={rumah} set={setRumah} />

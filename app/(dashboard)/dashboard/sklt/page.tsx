@@ -1,5 +1,6 @@
 import { getSkltData, getTahunSklt } from '@/lib/db/modul/sklt';
 import SkltClient from './SkltClient';
+import { getUserRole } from '@/lib/auth/get-user-role';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'SKLT — Laik Terbang APT Pranoto' };
@@ -23,7 +24,24 @@ export default async function SkltPage({
     ? diminta
     : daftarTahun.includes(tahunIni) ? tahunIni : (daftarTahun[0] ?? tahunIni);
 
-  const rows = await getSkltData(tahun);
+    const role = await getUserRole();
+  const bolehLihatDaftar =
+    role === 'admin' || role === 'petugas' || role === 'petugas_klinik';
+
+  const rowsMentah = await getSkltData(tahun);
+  // Tamu: data per-orang dikosongkan di server (tidak ikut terkirim ke browser)
+  const rows = bolehLihatDaftar
+    ? rowsMentah
+    : rowsMentah.map((r) => ({
+        ...r,
+        inisial: '',
+        umur: null,
+        diagnosis: '',
+        gcs: '',
+        nadi: null,
+        suhu: null,
+        fasilitas: '',
+      }));
   const tahunOpsi = Array.from(new Set([...daftarTahun, tahun, tahunIni])).sort((a, b) => b - a);
 
   return (
@@ -34,6 +52,7 @@ export default async function SkltPage({
       tahunIni={tahunIni}
       bulanIni={bulanIni}
       hariIni={hariIni}
+      bolehLihatDaftar={bolehLihatDaftar}
     />
   );
 }

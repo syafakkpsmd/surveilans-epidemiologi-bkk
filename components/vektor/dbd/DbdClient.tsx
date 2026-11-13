@@ -18,7 +18,7 @@ type Dialogan =
   | { tipe: 'pengendalian'; baris: BarisDbd | null };
 
 const UKURAN = 100;
-const FILTER_AWAL = { dari: '', sampai: '', wilayah: '', zona: '', belum: false };
+const FILTER_AWAL = { dari: '', sampai: '', wilayah: '', zona: '', subLokasi: '', belum: false };
 const aksiKecil =
   'rounded px-2 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600';
 const tampil = (v: number | null | undefined) => (v == null ? '-' : fmtAngka(v));
@@ -39,6 +39,18 @@ export default function DbdClient({ wilayah }: DbdClientProps) {
   const [dialog, setDialog] = useState<Dialogan>(null);
   const [info, setInfo] = useState<string | null>(null);
   const permintaan = useRef(0);
+  const [opsiSub, setOpsiSub] = useState<string[]>([]);
+  // Pilihan sub lokasi mengikuti wilayah + zona yang difilter.
+  useEffect(() => {
+    if (!filter.wilayah) return;
+    let batal = false;
+    fetch(`/api/vektor/dbd/sublokasi?wilayah=${filter.wilayah}${filter.zona ? `&zona=${filter.zona}` : ''}`)
+      .then((r) => r.json())
+      .then((j) => { if (!batal) setOpsiSub(j.data ?? []); })
+      .catch(() => {});
+    return () => { batal = true; };
+  }, [filter.wilayah, filter.zona]);
+  const opsiSubTampil = filter.wilayah ? opsiSub : [];
 
   const muat = useCallback(
     async (mulai: number) => {
@@ -51,6 +63,7 @@ export default function DbdClient({ wilayah }: DbdClientProps) {
         if (filter.sampai) sp.set('sampai', filter.sampai);
         if (filter.wilayah) sp.set('wilayah', filter.wilayah);
         if (filter.zona) sp.set('zona', filter.zona);
+        if (filter.subLokasi) sp.set('sub_lokasi', filter.subLokasi);
         if (filter.belum) sp.set('belum_pengendalian', '1');
         const res = await fetch(`/api/vektor/dbd?${sp}`);
         const j = await res.json();
@@ -107,7 +120,7 @@ export default function DbdClient({ wilayah }: DbdClientProps) {
         </div>
       </header>
 
-      <section aria-label="Filter" className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-5">
+      <section aria-label="Filter" className="grid gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-6">
         <label className="text-xs text-slate-700">
           <span className="mb-1 block">Dari tanggal</span>
           <input type="date" className={gayaInput} value={filter.dari} onChange={(e) => setFilter({ ...filter, dari: e.target.value })} />
@@ -118,16 +131,25 @@ export default function DbdClient({ wilayah }: DbdClientProps) {
         </label>
         <label className="text-xs text-slate-700">
           <span className="mb-1 block">Wilayah kerja</span>
-          <select className={gayaInput} value={filter.wilayah} onChange={(e) => setFilter({ ...filter, wilayah: e.target.value })}>
+          <select className={gayaInput} value={filter.wilayah} onChange={(e) => setFilter({ ...filter, wilayah: e.target.value, subLokasi: '' })}>
             <option value="">Semua</option>
             {wk.aktif.map((w) => <option key={w.kode} value={w.kode}>{w.nama}</option>)}
           </select>
         </label>
         <label className="text-xs text-slate-700">
           <span className="mb-1 block">Zona</span>
-          <select className={gayaInput} value={filter.zona} onChange={(e) => setFilter({ ...filter, zona: e.target.value })}>
+          <select className={gayaInput} value={filter.zona} onChange={(e) => setFilter({ ...filter, zona: e.target.value, subLokasi: '' })}>
             <option value="">Semua</option>
             {ZONA.map((z) => <option key={z} value={z}>{z}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-slate-700">
+          <span className="mb-1 block">Sub lokasi</span>
+          <select className={gayaInput} value={filter.subLokasi} disabled={!filter.wilayah}
+            title={filter.wilayah ? undefined : 'Pilih wilayah kerja terlebih dahulu'}
+            onChange={(e) => setFilter({ ...filter, subLokasi: e.target.value })}>
+            <option value="">Semua</option>
+            {opsiSubTampil.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
         <div className="flex items-end justify-between gap-2">
@@ -168,8 +190,8 @@ export default function DbdClient({ wilayah }: DbdClientProps) {
                   <td className="whitespace-nowrap px-3 py-2">{fmtTgl(b.tgl_survei)}</td>
                   <td className="px-3 py-2">{wk.namaPanjangByKode[b.kode_wilker] ?? b.kode_wilker}</td>
                   <td className="px-3 py-2">
-                    {b.zona}
-                    {b.sub_lokasi && <span className="block text-xs text-slate-600">{b.sub_lokasi}</span>}
+                    <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${b.zona === 'Perimeter' ? 'bg-sky-100 text-sky-800' : 'bg-emerald-100 text-emerald-800'}`}>{b.zona}</span>
+                    {b.sub_lokasi && <span className="mt-0.5 block text-xs text-slate-700">{b.sub_lokasi}</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.jml_positif_jentik)} / {tampil(b.jml_rumah_diperiksa)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.container_positif)} / {tampil(b.container_diperiksa)}</td>
@@ -177,7 +199,7 @@ export default function DbdClient({ wilayah }: DbdClientProps) {
                     {tampil(b.abj)}
                     {rendah && <span className="block text-xs">di bawah target</span>}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{tampil(b.hi)}</td>
+                  <td className={`px-3 py-2 text-right tabular-nums ${(b.hi ?? 0) > 1 ? 'font-medium text-rose-700' : ''}`}>{tampil(b.hi)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.ci)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.bi)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{tampil(b.curah_hujan_mm)}</td>

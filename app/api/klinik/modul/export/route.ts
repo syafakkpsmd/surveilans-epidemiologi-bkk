@@ -1,3 +1,4 @@
+﻿import { NAMA_RESMI_BKK } from '@/lib/konfigurasi/instansi';
 // app/api/klinik/modul/export/route.ts
 //
 // GET /api/klinik/modul/export?modul=...&tahun=...&bulan=...&wilker=...
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
   const labelWilker = wilker ? `DI: ${wilker.toUpperCase()}` : "SELURUH WILAYAH KERJA";
   const barisJudul = [
     cfg.judulLaporan,
-    "BALAI KEKARANTINAAN KESEHATAN KELAS I SAMARINDA",
+    NAMA_RESMI_BKK.toUpperCase(),
     cfg.punyaWilayahKerja ? `${labelWilker} — ${labelPeriode}` : labelPeriode,
   ];
   barisJudul.forEach((teks, i) => {

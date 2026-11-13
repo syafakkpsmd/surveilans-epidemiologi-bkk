@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -214,7 +215,7 @@ function BagianTren({
 
 /* ───────────── halaman ───────────── */
 export default function SkltClient({
-  rows, tahun, tahunOpsi, tahunIni, bulanIni, hariIni,
+  rows, tahun, tahunOpsi, tahunIni, bulanIni, hariIni, bolehLihatDaftar,
 }: {
   rows: SkltRow[];
   tahun: number;
@@ -222,6 +223,8 @@ export default function SkltClient({
   tahunIni: number;
   bulanIni: number;
   hariIni: string;
+  /** true hanya untuk admin, petugas, petugas_klinik. Data per-orang sudah dikosongkan di server untuk selain itu. */
+  bolehLihatDaftar: boolean;
 }) {
   const router = useRouter();
   const [fRute, setFRute] = useState('');
@@ -309,6 +312,14 @@ export default function SkltClient({
   const opsiBulan = BULAN.map((b, i) => ({ v: i + 1, label: b }));
   const persenLaik = pct(s.laik, s.total);
 
+  // Ringkasan di hero. "Rata-rata umur" hanya untuk yang berhak (umur dikosongkan di server untuk tamu).
+  const ringkasan: [string, string][] = [
+    ['Membutuhkan pendamping', fmt(s.pendamping)],
+    ['Hamil', fmt(s.hamil)],
+    ['Penyakit menular', fmt(s.menular)],
+  ];
+  if (bolehLihatDaftar) ringkasan.push(['Rata-rata umur', s.rataUmur !== null ? `${s.rataUmur} th` : '—']);
+
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-4 md:p-6">
       {/* ── Hero ── */}
@@ -335,13 +346,8 @@ export default function SkltClient({
             </div>
           </div>
         </div>
-        <dl className="mt-7 grid grid-cols-2 gap-3 border-t border-white/15 pt-5 sm:grid-cols-4">
-          {[
-            ['Membutuhkan pendamping', fmt(s.pendamping)],
-            ['Hamil', fmt(s.hamil)],
-            ['Penyakit menular', fmt(s.menular)],
-            ['Rata-rata umur', s.rataUmur !== null ? `${s.rataUmur} th` : '—'],
-          ].map(([k, v]) => (
+        <dl className={`mt-7 grid grid-cols-2 gap-3 border-t border-white/15 pt-5 ${bolehLihatDaftar ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+          {ringkasan.map(([k, v]) => (
             <div key={k}>
               <dt className="text-xs text-slate-300">{k}</dt>
               <dd className="text-xl font-semibold tabular-nums">{v}</dd>
@@ -350,7 +356,6 @@ export default function SkltClient({
         </dl>
       </section>
 
-      {/* ── Filter ── */}
       {/* ── Filter & Tombol Input ── */}
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex items-center gap-2">
@@ -430,45 +435,58 @@ export default function SkltClient({
           <div className="grid gap-5 lg:grid-cols-2">
             <DaftarBatang judul="Rute Tujuan Terbanyak" data={s.rute} warna={C.biru} />
             <DaftarBatang judul="Maskapai" data={s.maskapai} warna={C.navy} />
-            <DaftarBatang judul="10 Diagnosis Terbanyak" data={s.diagnosis} warna={C.amber} />
-            <DaftarBatang judul="Kelompok Umur" data={s.kel} warna={C.laik} />
+            {bolehLihatDaftar && (
+              <>
+                <DaftarBatang judul="10 Diagnosis Terbanyak" data={s.diagnosis} warna={C.amber} />
+                <DaftarBatang judul="Kelompok Umur" data={s.kel} warna={C.laik} />
+              </>
+            )}
           </div>
-          {s.fasilitas.length > 0 && (
+          {bolehLihatDaftar && s.fasilitas.length > 0 && (
             <DaftarBatang judul="Fasilitas yang Dibutuhkan di Pesawat" data={s.fasilitas} warna="#7C5CBF" />
           )}
 
           {/* ── Tidak laik terbaru ── */}
-          <Kartu judul="Calon Penumpang Tidak Laik Terbaru">
-            {s.tidakLaikTerbaru.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">Tidak ada penumpang tidak laik pada filter ini</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-140 text-left text-sm">
-                  <thead className="border-b border-slate-200 text-xs text-slate-500">
-                    <tr>
-                      <th className="py-2 pr-4 font-medium">Tanggal</th>
-                      <th className="py-2 pr-4 font-medium">Inisial</th>
-                      <th className="py-2 pr-4 font-medium">Umur</th>
-                      <th className="py-2 pr-4 font-medium">Rute</th>
-                      <th className="py-2 font-medium">Diagnosis</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {s.tidakLaikTerbaru.map((r) => (
-                      <tr key={r.id}>
-                        <td className="py-2 pr-4 tabular-nums text-slate-600">{r.tanggal.split('-').reverse().join('/')}</td>
-                        <td className="py-2 pr-4 font-medium text-slate-800">{r.inisial}</td>
-                        <td className="py-2 pr-4 tabular-nums">{r.umur ?? '—'}</td>
-                        <td className="py-2 pr-4">{r.rute}</td>
-                        <td className="py-2 text-slate-700">{r.diagnosis || '—'}</td>
+          {bolehLihatDaftar ? (
+            <Kartu judul="Calon Penumpang Tidak Laik Terbaru">
+              {s.tidakLaikTerbaru.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">Tidak ada penumpang tidak laik pada filter ini</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-140 text-left text-sm">
+                    <thead className="border-b border-slate-200 text-xs text-slate-500">
+                      <tr>
+                        <th className="py-2 pr-4 font-medium">Tanggal</th>
+                        <th className="py-2 pr-4 font-medium">Inisial</th>
+                        <th className="py-2 pr-4 font-medium">Umur</th>
+                        <th className="py-2 pr-4 font-medium">Rute</th>
+                        <th className="py-2 font-medium">Diagnosis</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <p className="mt-3 text-center text-xs text-slate-400">Nama penumpang disamarkan menjadi inisial untuk menjaga kerahasiaan data medis.</p>
-          </Kartu>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {s.tidakLaikTerbaru.map((r) => (
+                        <tr key={r.id}>
+                          <td className="py-2 pr-4 tabular-nums text-slate-600">{r.tanggal.split('-').reverse().join('/')}</td>
+                          <td className="py-2 pr-4 font-medium text-slate-800">{r.inisial}</td>
+                          <td className="py-2 pr-4 tabular-nums">{r.umur ?? '—'}</td>
+                          <td className="py-2 pr-4">{r.rute}</td>
+                          <td className="py-2 text-slate-700">{r.diagnosis || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="mt-3 text-center text-xs text-slate-400">Nama penumpang disamarkan menjadi inisial untuk menjaga kerahasiaan data medis.</p>
+            </Kartu>
+          ) : (
+            <Kartu judul="Calon Penumpang Tidak Laik Terbaru">
+              <p className="py-8 text-center text-sm text-slate-500">
+                Daftar ini hanya tersedia untuk petugas. Silakan{' '}
+                <Link href="/login" className="font-medium text-teal-700 underline">login</Link>.
+              </p>
+            </Kartu>
+          )}
         </>
       )}
     </div>

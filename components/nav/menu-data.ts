@@ -156,8 +156,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Data",
     singkat: "Data",
-    items: [
+items: [
       { label: "Sertifikat", href: "/dashboard/sertifikat", icon: Database, prefetch: false },
+      { label: "Data Kegiatan COP", href: "/dashboard/input-data/dokumen/cop", icon: Table2, prefetch: false },
+      { label: "Data Kegiatan PHQC", href: "/dashboard/input-data/dokumen/phqc", icon: Table2, prefetch: false },
+      { label: "Data Sertifikat SSCEC", href: "/dashboard/input-data/dokumen/sscec", icon: Table2, prefetch: false },
       { label: "Tabel Vektor dan Lingkungan", href: "/dashboard/master-tabel", icon: Table2, prefetch: false },
       { label: "Tabel Klinik", href: "/dashboard/klinik/tabel", icon: Table2, prefetch: false },
       { label: "Tabel Lalu Lintas Orang", href: "/lalu-lintas-orang", icon: Table2, prefetch: false },

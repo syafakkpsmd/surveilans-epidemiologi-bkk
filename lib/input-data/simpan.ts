@@ -191,9 +191,29 @@ export async function daftarData(modul: ModulInput, f: FilterDaftar) {
   const offset = (Math.max(f.halaman ?? 1, 1) - 1) * ukuran;
   const tampil = [...new Set(['id', ...modul.kolomDaftar, ...manual, 'sumber', 'batch_id'])].map(q).join(',');
   const db = getDbClient();
+
+  // Kolom "Dokumen" (khusus COP/PHQC/SSCEC): dihitung lewat kunci, tanpa kolom baru di tabel data besar.
+  const KOLOM_KUNCI_DOKUMEN: Record<string, string> = { cop: 'qr_code', phqc: 'qr_code', sscec: 'nomor_barcode' };
+  const kolKunciDok = KOLOM_KUNCI_DOKUMEN[modul.kunci];
+  let selDokumen = '';
+  if (kolKunciDok) {
+    const rujuk = `upper(btrim(${q(modul.tabel)}.${q(kolKunciDok)}))`;
+    const dasar = `FROM dokumen_pemeriksaan d WHERE d.jenis = '${modul.kunci}' AND d.kunci = ${rujuk}`;
+    selDokumen = `,
+      (SELECT count(*)::int ${dasar}) AS dok_jumlah,
+      (SELECT d.url ${dasar} ORDER BY d.diunggah_pada DESC, d.id DESC LIMIT 1) AS dok_url,
+      (SELECT d.tipe_berkas ${dasar} ORDER BY d.diunggah_pada DESC, d.id DESC LIMIT 1) AS dok_tipe`;
+  }
+  const ambilIsi = (tambahan: string) =>
+    db.execute({
+      sql: `SELECT ${tampil}${tambahan} FROM ${q(modul.tabel)} ${w} ORDER BY ${kolT} DESC, ${q('id')} DESC LIMIT ${ukuran} OFFSET ${offset}`,
+      args,
+    });
+
   const [jml, isi] = await Promise.all([
     db.execute({ sql: `SELECT COUNT(*) AS n FROM ${q(modul.tabel)} ${w}`, args }),
-    db.execute({ sql: `SELECT ${tampil} FROM ${q(modul.tabel)} ${w} ORDER BY ${kolT} DESC, ${q('id')} DESC LIMIT ${ukuran} OFFSET ${offset}`, args }),
+    // Kalau tabel dokumen_pemeriksaan belum ada di database ini, daftar tetap tampil tanpa kolom dokumen.
+    selDokumen ? ambilIsi(selDokumen).catch(() => ambilIsi('')) : ambilIsi(''),
   ]);
   return { total: Number(jml.rows[0]?.n ?? 0), baris: isi.rows, ukuran };
 }

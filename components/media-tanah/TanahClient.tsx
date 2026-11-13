@@ -30,3 +30,4 @@ export default function TanahClient({ wilayah, tahun, isStaf }: { wilayah: Wilay
   );
 }
 
+

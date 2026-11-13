@@ -195,6 +195,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
 
   const labelKolom = (nama: string) => m.kolom.find((k) => k.nama === nama)?.label ?? nama;
   const kolomTabel = [...m.kolomDaftar];
+  const adaDokumen = ['cop', 'phqc', 'sscec'].includes(m.kunci);
   const totalHalaman = daftar ? Math.max(1, Math.ceil(daftar.total / daftar.ukuran)) : 1;
   const kolomForm = m.kolom.filter((k) => !k.arsip);
 
@@ -367,6 +368,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                 <thead><tr className="border-b bg-gray-50">
                   {kolomTabel.map((c) => <th key={c} className="whitespace-nowrap px-2 py-1 font-medium">{labelKolom(c)}</th>)}
                   {kolomManual.map((k) => <th key={k.nama} className="whitespace-nowrap bg-amber-50 px-2 py-1 font-medium">{k.label}</th>)}
+                  {adaDokumen && <th className="whitespace-nowrap px-2 py-1 font-medium">Dokumen</th>}
                   <th className="px-2 py-1 font-medium">Sumber</th><th />{admin && <th />}
                 </tr></thead>
                 <tbody>
@@ -379,6 +381,23 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                             onUbah={(v) => ubahManual(String(b.id), k.nama, v)} />
                         </td>
                       ))}
+                                            {adaDokumen && (
+                        <td className="whitespace-nowrap px-2 py-1">
+                          {Number(b.dok_jumlah ?? 0) > 0 && b.dok_url ? (
+                            <a
+                              href={String(b.dok_url)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-[#0F4C5C] underline"
+                            >
+                              {b.dok_tipe === 'pdf' ? 'PDF' : 'Gambar'}
+                              {Number(b.dok_jumlah) > 1 ? ` (${b.dok_jumlah})` : ''}
+                            </a>
+                          ) : (
+                            <span className="text-gray-400">–</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-2 py-1">{b.sumber}</td>
                       <td className="whitespace-nowrap px-2 py-1">
                         <button type="button" className="text-blue-600 hover:underline" onClick={() => setEditId(String(b.id))}>Edit</button>
@@ -386,7 +405,7 @@ export default function InputDataClient({ modul, wilayah, role, awal, judul = 'I
                       {admin && <td className="px-2 py-1"><button className="text-red-600 hover:underline" onClick={() => hapus('baris', String(b.id), 'Hapus baris ini?')}>Hapus</button></td>}
                     </tr>
                   ))}
-                  {daftar && daftar.baris.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={kolomTabel.length + kolomManual.length + 3}>Belum ada data.</td></tr>}
+                  {daftar && daftar.baris.length === 0 && <tr><td className="px-2 py-4 text-gray-500" colSpan={kolomTabel.length + kolomManual.length + (adaDokumen ? 4 : 3)}>Belum ada data.</td></tr>}
                 </tbody>
               </table>
             </div>

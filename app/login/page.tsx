@@ -5,6 +5,7 @@ import { login } from '@/lib/auth/actions';
 import Link from 'next/link';
 import Image from 'next/image';
 import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
+import { NAMA_PENGEMBANG, ASAL_PENGEMBANG } from '@/lib/konfigurasi/pengembang';
 
 export default function LoginPage({
   searchParams,
@@ -147,6 +148,10 @@ export default function LoginPage({
             Kembali ke dashboard sebagai Tamu
           </Link>
         </div>
+
+        <p className="mt-6 text-center text-xs text-[#0F2A38]/50">
+          Dikembangkan oleh {NAMA_PENGEMBANG} · {ASAL_PENGEMBANG}
+        </p>
       </div>
     </main>
   );

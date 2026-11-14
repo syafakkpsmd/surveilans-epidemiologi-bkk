@@ -17,6 +17,7 @@ import { getUserRole } from "@/lib/auth/get-user-role";
 import { TombolAnalisisAI } from "@/components/TombolAnalisisAI";
 import Link from "next/link";
 import { NAMA_BKK } from '@/lib/konfigurasi/instansi';
+import { bolehTampil } from "@/lib/konfigurasi/modul";
 
 export const dynamic = "force-dynamic";
 
@@ -310,7 +311,7 @@ export default async function DashboardHubPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {kartuDashboard.map((kartu) => (
+        {kartuDashboard.filter((kartu) => bolehTampil(kartu.href)).map((kartu) => (
           <Link
             key={kartu.href}
             href={kartu.href}

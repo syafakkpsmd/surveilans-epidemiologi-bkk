@@ -9,6 +9,7 @@
 
 import type { ElementType } from "react";
 import type { PeranAkses } from "@/lib/auth/get-user-role";
+import { bolehTampil } from "@/lib/konfigurasi/modul";
 import {
   Ship, PlaneTakeoff, Bug, Rat, Zap, Droplets, Plane, Wind, CircleDot, Building2,
   ShieldAlert, Siren, Newspaper, Globe, TrendingUp, Database, Microscope, Users,
@@ -209,13 +210,25 @@ export const ITEM_MODUL_SERTIFIKAT: NavItem[] = [
   // { label: "Buku Kesehatan", href: "/dashboard/input-data/sertifikat/buku_kesehatan", icon: BookHeart, prefetch: false },
 ];
 
+/** Buang menu khusus Samarinda (bila disembunyikan lewat env) dan grup yang jadi kosong. Default: semua tampil. */
+function saring(groups: NavGroup[]): NavGroup[] {
+  return groups
+    .map((g) => ({
+      ...g,
+      items: g.items
+        .map((i) => (i.children ? { ...i, children: i.children.filter((c) => bolehTampil(c.href)) } : i))
+        .filter((i) => (i.children && i.children.length > 0) || (i.href ? bolehTampil(i.href) : false)),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
 export function grupUntukPeran(peran: string): NavGroup[] {
   const login = peran === "admin" || peran === "petugas" || peran === "petugas_klinik";
   const petugas = peran === "admin" || peran === "petugas";
   const dasar = login
     ? NAV_GROUPS.map((g) => (g.title === "Data" ? { ...g, items: [ITEM_INPUT_DATA, ...(petugas ? ITEM_MODUL_SERTIFIKAT : []), ...g.items] } : g))
     : NAV_GROUPS;
-  return peran === "admin" ? [...dasar, ADMIN_GROUP] : dasar;
+  return saring(peran === "admin" ? [...dasar, ADMIN_GROUP] : dasar);
 }
 
 export const ADMIN_GROUP: NavGroup = {
@@ -223,7 +236,7 @@ export const ADMIN_GROUP: NavGroup = {
   singkat: "Admin",
   items: [
     { label: "Verifikasi User", href: "/admin/users", icon: Users, prefetch: false },
-    { label: "Pengaturan Wilker", href: "dashboard/pengaturan-wilayah-kerja", icon: MapPin, prefetch: false },
+    { label: "Pengaturan Wilker", href: "/dashboard/pengaturan-wilayah-kerja", icon: MapPin, prefetch: false },
     { label: "Pengaturan Pemantauan Laporan", href: "/dashboard/pengaturan-pemantauan-laporan", icon: ClipboardCheck, prefetch: false },
     { label: "Laporan Bulanan", href: "/dashboard/laporan-bulanan", icon: Ship },
     { label: "Statistik Kunjungan", href: "/admin/statistik", icon: BarChart3, prefetch: false },

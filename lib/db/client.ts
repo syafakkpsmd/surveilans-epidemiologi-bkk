@@ -112,12 +112,6 @@ function buatPool(): Pool {
     opsi.database = database;
   }
   if (/^(1|true|yes)$/i.test(process.env.DB_SSL ?? '')) opsi.ssl = { rejectUnauthorized: false };
-  console.log('[db-debug]', {
-    pakaiUrl: !!url,
-    host: opsi.host, port: opsi.port, user: opsi.user, database: opsi.database,
-    panjangPassword: opsi.password?.length,
-    urlDiEnv: url ? url.replace(/:[^:@/]+@/, ':***@') : null,
-  });
   const pool = new pg.Pool(opsi);
   // Waktu disimpan/dibaca UTC (sama dengan perilaku MariaDB sebelumnya yang memakai time_zone +00:00).
   // Koneksi idle putus: pool membuat yang baru saat dibutuhkan. Cukup dicatat, tidak melempar error.

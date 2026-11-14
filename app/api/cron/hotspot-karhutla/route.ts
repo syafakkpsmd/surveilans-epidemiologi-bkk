@@ -25,6 +25,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  if (!process.env.NASA_FIRMS_MAP_KEY) {
+    return NextResponse.json({ dilewati: true, alasan: 'NASA_FIRMS_MAP_KEY tidak diisi (modul khusus Samarinda).' });
+  }
+
   try {
     const hasil = await sinkronisasiHotspotKaltim();
     return NextResponse.json(hasil);

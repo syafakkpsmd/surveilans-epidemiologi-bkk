@@ -24,7 +24,10 @@ export async function POST(req: Request) {
     );
   }
 
-  const { folder } = await req.json();
+    const { folder } = await req.json();
+  if (typeof folder !== 'string' || !/^[A-Za-z0-9_\-\/]{1,80}$/.test(folder)) {
+    return NextResponse.json({ error: 'Folder tidak valid.' }, { status: 400 });
+  }
   const timestamp = Math.round(Date.now() / 1000);
 
   const toSign = `folder=${folder}&timestamp=${timestamp}`;
